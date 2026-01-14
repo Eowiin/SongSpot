@@ -1,0 +1,381 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
+import 'storage_service.dart';
+
+class ApiException implements Exception {
+  final String message;
+  final int? statusCode;
+  final Map<String, dynamic>? errors;
+
+  ApiException(this.message, {this.statusCode, this.errors});
+
+  @override
+  String toString() => message;
+}
+
+class ApiService {
+  final StorageService _storageService = StorageService();
+  bool _isRefreshing = false;
+
+  Future<Map<String, String>> _getHeaders({bool includeAuth = false}) async {
+    final headers = {
+      'Content-Type': 'application/json',
+    };
+
+    if (includeAuth) {
+      final token = await _storageService.getAccessToken();
+      if (token != null) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+    }
+
+    return headers;
+  }
+
+  dynamic _handleResponse(http.Response response) {
+    final statusCode = response.statusCode;
+
+    if (statusCode >= 200 && statusCode < 300) {
+      if (response.body.isEmpty) return null;
+      return jsonDecode(response.body);
+    } else {
+      String message = 'Request failed with status: $statusCode';
+      Map<String, dynamic>? errors;
+
+      try {
+        final body = jsonDecode(response.body);
+        if (body is Map<String, dynamic>) {
+          if (body.containsKey('error')) {
+            message = body['error'] as String;
+          } else if (body.containsKey('message')) {
+            message = body['message'] as String;
+          } else if (body.containsKey('detail')) {
+            message = body['detail'] as String;
+          }
+          errors = body;
+        }
+      } catch (e) {
+        // Could not parse error response
+      }
+
+      throw ApiException(message, statusCode: statusCode, errors: errors);
+    }
+  }
+
+  Future<bool> _refreshAccessToken() async {
+    if (_isRefreshing) return false;
+    _isRefreshing = true;
+
+    try {
+      final refreshToken = await _storageService.getRefreshToken();
+      if (refreshToken == null) return false;
+
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.authRefresh}'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'refresh': refreshToken}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        await _storageService.saveTokens(
+          data['access'] as String,
+          data['refresh'] as String,
+        );
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    } finally {
+      _isRefreshing = false;
+    }
+  }
+
+  Future<dynamic> get(
+    String endpoint, {
+    bool includeAuth = false,
+    Map<String, String>? queryParameters,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}$endpoint')
+        .replace(queryParameters: queryParameters);
+    final headers = await _getHeaders(includeAuth: includeAuth);
+
+    try {
+      var response = await http
+          .get(uri, headers: headers)
+          .timeout(ApiConfig.timeout);
+
+      if (response.statusCode == 401 && includeAuth) {
+        final refreshed = await _refreshAccessToken();
+        if (refreshed) {
+          final newHeaders = await _getHeaders(includeAuth: includeAuth);
+          response = await http
+              .get(uri, headers: newHeaders)
+              .timeout(ApiConfig.timeout);
+        } else {
+          throw ApiException('Session expired. Please login again.', statusCode: 401);
+        }
+      }
+
+      return _handleResponse(response);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Network error: $e');
+    }
+  }
+
+  Future<dynamic> post(
+    String endpoint, {
+    Map<String, dynamic>? body,
+    bool includeAuth = false,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}$endpoint');
+    final headers = await _getHeaders(includeAuth: includeAuth);
+
+    try {
+      var response = await http
+          .post(
+            uri,
+            headers: headers,
+            body: body != null ? jsonEncode(body) : null,
+          )
+          .timeout(ApiConfig.timeout);
+
+      if (response.statusCode == 401 && includeAuth) {
+        final refreshed = await _refreshAccessToken();
+        if (refreshed) {
+          final newHeaders = await _getHeaders(includeAuth: includeAuth);
+          response = await http
+              .post(
+                uri,
+                headers: newHeaders,
+                body: body != null ? jsonEncode(body) : null,
+              )
+              .timeout(ApiConfig.timeout);
+        } else {
+          throw ApiException('Session expired. Please login again.', statusCode: 401);
+        }
+      }
+
+      return _handleResponse(response);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Network error: $e');
+    }
+  }
+
+  Future<dynamic> put(
+    String endpoint, {
+    Map<String, dynamic>? body,
+    bool includeAuth = false,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}$endpoint');
+    final headers = await _getHeaders(includeAuth: includeAuth);
+
+    try {
+      var response = await http
+          .put(
+            uri,
+            headers: headers,
+            body: body != null ? jsonEncode(body) : null,
+          )
+          .timeout(ApiConfig.timeout);
+
+      if (response.statusCode == 401 && includeAuth) {
+        final refreshed = await _refreshAccessToken();
+        if (refreshed) {
+          final newHeaders = await _getHeaders(includeAuth: includeAuth);
+          response = await http
+              .put(
+                uri,
+                headers: newHeaders,
+                body: body != null ? jsonEncode(body) : null,
+              )
+              .timeout(ApiConfig.timeout);
+        } else {
+          throw ApiException('Session expired. Please login again.', statusCode: 401);
+        }
+      }
+
+      return _handleResponse(response);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Network error: $e');
+    }
+  }
+
+  Future<dynamic> delete(
+    String endpoint, {
+    bool includeAuth = false,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}$endpoint');
+    final headers = await _getHeaders(includeAuth: includeAuth);
+
+    try {
+      var response = await http
+          .delete(uri, headers: headers)
+          .timeout(ApiConfig.timeout);
+
+      if (response.statusCode == 401 && includeAuth) {
+        final refreshed = await _refreshAccessToken();
+        if (refreshed) {
+          final newHeaders = await _getHeaders(includeAuth: includeAuth);
+          response = await http
+              .delete(uri, headers: newHeaders)
+              .timeout(ApiConfig.timeout);
+        } else {
+          throw ApiException('Session expired. Please login again.', statusCode: 401);
+        }
+      }
+
+      return _handleResponse(response);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Network error: $e');
+    }
+  }
+
+  // Auth methods
+  Future<Map<String, dynamic>> register({
+    required String email,
+    required String username,
+    required String password,
+    required String passwordConfirm,
+  }) async {
+    return await post(
+      ApiConfig.authRegister,
+      body: {
+        'email': email,
+        'username': username,
+        'password': password,
+        'password_confirm': passwordConfirm,
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> login({
+    required String email,
+    required String password,
+  }) async {
+    return await post(
+      ApiConfig.authLogin,
+      body: {
+        'email': email,
+        'password': password,
+      },
+    );
+  }
+
+  Future<void> logout() async {
+    final refreshToken = await _storageService.getRefreshToken();
+    if (refreshToken != null) {
+      await post(
+        ApiConfig.authLogout,
+        body: {'refresh': refreshToken},
+        includeAuth: true,
+      );
+    }
+    await _storageService.clearAll();
+  }
+
+  Future<Map<String, dynamic>> getProfile() async {
+    return await get(ApiConfig.authProfile, includeAuth: true);
+  }
+
+  // Room methods
+  Future<Map<String, dynamic>> createRoom() async {
+    return await post(
+      ApiConfig.roomsCreate,
+      body: {},
+      includeAuth: true,
+    );
+  }
+
+  Future<Map<String, dynamic>> joinRoom(String roomCode) async {
+    return await post(
+      ApiConfig.roomsJoin,
+      body: {'room_code': roomCode},
+      includeAuth: true,
+    );
+  }
+
+  Future<List<dynamic>> getMyRooms() async {
+    return await get(ApiConfig.roomsMyRooms, includeAuth: true);
+  }
+
+  Future<Map<String, dynamic>> getRoomDetails(String roomId) async {
+    return await get(ApiConfig.roomsDetail(roomId), includeAuth: true);
+  }
+
+  Future<void> leaveRoom(String roomId) async {
+    await post(ApiConfig.roomsLeave(roomId), includeAuth: true);
+  }
+
+  Future<Map<String, dynamic>> getDailySong(String roomId) async {
+    return await get(ApiConfig.roomsDailySong(roomId), includeAuth: true);
+  }
+
+  // Game methods
+  Future<Map<String, dynamic>> startGameSession(String roomId) async {
+    return await get(ApiConfig.dailyGame(roomId), includeAuth: true);
+  }
+
+  Future<Map<String, dynamic>> skipSnippet(String roomId) async {
+    return await post(ApiConfig.dailyGameSkip(roomId), includeAuth: true);
+  }
+
+  Future<Map<String, dynamic>> submitGuess({
+    required String roomId,
+    required String trackId,
+  }) async {
+    return await post(
+      ApiConfig.dailyGameGuess(roomId),
+      body: {
+        'track_id': trackId,
+      },
+      includeAuth: true,
+    );
+  }
+
+  Future<Map<String, dynamic>> getLeaderboard(String roomId) async {
+    return await get(ApiConfig.dailyGameLeaderboard(roomId), includeAuth: true);
+  }
+
+  // Chat methods
+  Future<Map<String, dynamic>> getMessages({
+    required String roomId,
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    return await get(
+      ApiConfig.roomMessages(roomId),
+      queryParameters: {
+        'limit': limit.toString(),
+        'offset': offset.toString(),
+      },
+      includeAuth: true,
+    );
+  }
+
+  Future<Map<String, dynamic>> sendMessage({
+    required String roomId,
+    required String message,
+  }) async {
+    return await post(
+      ApiConfig.roomMessages(roomId),
+      body: {'message': message},
+      includeAuth: true,
+    );
+  }
+
+  // Track search
+  Future<List<dynamic>> searchTracks(String query) async {
+    return await get(
+      ApiConfig.searchTracks,
+      queryParameters: {'q': query},
+      includeAuth: true,
+    );
+  }
+}

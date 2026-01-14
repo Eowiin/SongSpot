@@ -1,0 +1,142 @@
+import 'package:flutter/foundation.dart';
+import '../models/room.dart';
+import '../services/api_service.dart';
+
+class RoomProvider with ChangeNotifier {
+  final ApiService _apiService = ApiService();
+
+  List<Room> _myRooms = [];
+  Room? _currentRoom;
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  List<Room> get myRooms => _myRooms;
+  Room? get currentRoom => _currentRoom;
+  bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
+
+  /// Create a new room
+  Future<Room?> createRoom() async {
+    try {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+
+      final response = await _apiService.createRoom();
+      final room = Room.fromJson(response['room'] as Map<String, dynamic>);
+
+      _currentRoom = room;
+      await loadMyRooms();
+
+      _isLoading = false;
+      notifyListeners();
+      return room;
+    } catch (e) {
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return null;
+    }
+  }
+
+  /// Join a room by code
+  Future<Room?> joinRoom(String roomCode) async {
+    try {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+
+      final response = await _apiService.joinRoom(roomCode);
+      final room = Room.fromJson(response['room'] as Map<String, dynamic>);
+
+      _currentRoom = room;
+      await loadMyRooms();
+
+      _isLoading = false;
+      notifyListeners();
+      return room;
+    } catch (e) {
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return null;
+    }
+  }
+
+  /// Load all rooms the user is in
+  Future<void> loadMyRooms() async {
+    try {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+
+      final response = await _apiService.getMyRooms();
+      _myRooms = response
+          .map((room) => Room.fromJson(room as Map<String, dynamic>))
+          .toList();
+
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Get room details
+  Future<void> loadRoomDetails(String roomId) async {
+    try {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+
+      final response = await _apiService.getRoomDetails(roomId);
+      _currentRoom = Room.fromJson(response);
+
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Leave a room
+  Future<bool> leaveRoom(String roomId) async {
+    try {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+
+      await _apiService.leaveRoom(roomId);
+
+      if (_currentRoom?.id == roomId) {
+        _currentRoom = null;
+      }
+      await loadMyRooms();
+
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Set current room
+  void setCurrentRoom(Room room) {
+    _currentRoom = room;
+    notifyListeners();
+  }
+
+  /// Clear error message
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
+}

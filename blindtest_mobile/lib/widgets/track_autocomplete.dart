@@ -1,0 +1,158 @@
+import 'package:flutter/material.dart';
+import '../config/app_theme.dart';
+import '../models/track.dart';
+import '../services/api_service.dart';
+
+class TrackAutocomplete extends StatefulWidget {
+  final TextEditingController controller;
+  final Function(Track) onTrackSelected;
+  final String? labelText;
+  final String hintText;
+
+  const TrackAutocomplete({
+    super.key,
+    required this.controller,
+    required this.onTrackSelected,
+    this.labelText,
+    this.hintText = 'Enter song title',
+  });
+
+  @override
+  State<TrackAutocomplete> createState() => _TrackAutocompleteState();
+}
+
+class _TrackAutocompleteState extends State<TrackAutocomplete> {
+  final ApiService _apiService = ApiService();
+  List<Track> _suggestions = [];
+  bool _isLoading = false;
+  Track? _selectedTrack;
+
+  Future<void> _searchTracks(String query) async {
+    if (query.trim().isEmpty) {
+      setState(() {
+        _suggestions = [];
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final results = await _apiService.searchTracks(query);
+      setState(() {
+        _suggestions = results
+            .map((json) => Track.fromJson(json as Map<String, dynamic>))
+            .toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _suggestions = [];
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _selectTrack(Track track) {
+    setState(() {
+      _selectedTrack = track;
+      widget.controller.text = '${track.title} - ${track.artist}';
+      _suggestions = [];
+    });
+    widget.onTrackSelected(track);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (widget.labelText != null) ...[
+          Text(
+            widget.labelText!,
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+          const SizedBox(height: 8),
+        ],
+        TextField(
+          controller: widget.controller,
+          style: const TextStyle(color: AppTheme.textPrimary),
+          decoration: InputDecoration(
+            hintText: widget.hintText,
+            prefixIcon: const Icon(Icons.music_note, color: AppTheme.textSecondary),
+            suffixIcon: _isLoading
+                ? const Padding(
+                    padding: EdgeInsets.all(12.0),
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                      ),
+                    ),
+                  )
+                : null,
+            filled: true,
+            fillColor: AppTheme.surfaceColor,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+              borderSide: const BorderSide(color: AppTheme.primaryColor, width: 2),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          ),
+          onChanged: (value) {
+            _selectedTrack = null;
+            _searchTracks(value);
+          },
+        ),
+        if (_suggestions.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Container(
+            constraints: const BoxConstraints(maxHeight: 200),
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceColor,
+              borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: _suggestions.length,
+              itemBuilder: (context, index) {
+                final track = _suggestions[index];
+                return ListTile(
+                  leading: const Icon(Icons.music_note, color: AppTheme.primaryColor),
+                  title: Text(
+                    track.title,
+                    style: const TextStyle(color: AppTheme.textPrimary),
+                  ),
+                  subtitle: Text(
+                    track.artist,
+                    style: const TextStyle(color: AppTheme.textSecondary),
+                  ),
+                  onTap: () => _selectTrack(track),
+                );
+              },
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
