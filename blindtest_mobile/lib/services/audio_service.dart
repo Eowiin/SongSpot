@@ -38,6 +38,11 @@ class AudioService {
 
       debugPrint('🎵 Loading audio from: $url');
 
+      // Ensure we are not playing from a previous session
+      _stopTimer?.cancel();
+      _isPlaying = false;
+      await _player.stop();
+
       // Set the URL and wait for it to load
       _currentUrl = url;
       final duration = await _player.setUrl(url);
