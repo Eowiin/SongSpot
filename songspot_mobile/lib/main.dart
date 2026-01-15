@@ -26,7 +26,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => GameProvider()),
       ],
       child: MaterialApp(
-        title: 'BlindTest Friends',
+        title: 'SongSpot',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.darkTheme,
         home: const SplashScreen(),
@@ -82,7 +82,7 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
               SizedBox(height: 24),
               Text(
-                'BlindTest Friends',
+                'SongSpot',
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,

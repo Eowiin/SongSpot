@@ -1,6 +1,6 @@
-# BlindTest Friends - Flutter Mobile App
+# SongSpot - Flutter Mobile App
 
-A Flutter mobile application for the BlindTest Friends music guessing game.
+A Flutter mobile application for the SongSpot music guessing game.
 
 ## Features
 
