@@ -1,8 +1,8 @@
-# BlindTest Friends - Authentication API Documentation
+# SongSpot - Authentication API Documentation
 
 ## Overview
 
-This API provides JWT-based authentication for the BlindTest Friends mobile application. All endpoints return JSON responses.
+This API provides JWT-based authentication for the SongSpot mobile application. All endpoints return JSON responses.
 
 **Base URL:** `http://localhost:8000/api/auth/`
 

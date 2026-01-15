@@ -5,7 +5,7 @@
 ### Prerequisites
 ```bash
 # Start the development server
-cd blindtest_friends
+cd songspot_backend
 source ../.venv/bin/activate
 python manage.py runserver
 ```

@@ -14,13 +14,13 @@ To manually refresh all preview URLs:
 
 ```bash
 source .venv/bin/activate
-python blindtest_friends/manage.py refresh_preview_urls
+python songspot_backend/manage.py refresh_preview_urls
 ```
 
 To see what would be updated without making changes:
 
 ```bash
-python blindtest_friends/manage.py refresh_preview_urls --dry-run
+python songspot_backend/manage.py refresh_preview_urls --dry-run
 ```
 
 ### Automatic Refresh with Cron
@@ -36,7 +36,7 @@ crontab -e
 
 2. Add this line (adjust path to your project):
 ```cron
-0 * * * * cd /Users/ethan/Personal/BlindTest-friends && source .venv/bin/activate && python blindtest_friends/manage.py refresh_preview_urls >> /tmp/deezer_refresh.log 2>&1
+0 * * * * cd /Users/ethan/Personal/BlindTest-friends && source .venv/bin/activate && python songspot_backend/manage.py refresh_preview_urls >> /tmp/deezer_refresh.log 2>&1
 ```
 
 This runs every hour at :00 minutes.
@@ -49,7 +49,7 @@ For production, use your deployment platform's scheduler:
 ```bash
 heroku addons:create scheduler:standard
 heroku addons:open scheduler
-# Then add: python blindtest_friends/manage.py refresh_preview_urls
+# Then add: python songspot_backend/manage.py refresh_preview_urls
 # Run every hour
 ```
 

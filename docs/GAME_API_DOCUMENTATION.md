@@ -1,8 +1,8 @@
-# BlindTest Friends - Game API Documentation
+# SongSpot - Game API Documentation
 
 ## Overview
 
-This API provides endpoints for managing game rooms, song packs, and tracks for the BlindTest Friends application.
+This API provides endpoints for managing game rooms, song packs, and tracks for the SongSpot application.
 
 **Base URL:** `http://localhost:8000/api/game/`
 
