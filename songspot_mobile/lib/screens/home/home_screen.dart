@@ -37,11 +37,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final room = await roomProvider.createRoom();
 
     if (room != null && mounted) {
-      Navigator.of(context).push(
+      await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => GameScreen(roomId: room.id),
         ),
       );
+      // Refresh rooms when returning from GameScreen
+      if (mounted) {
+        roomProvider.loadMyRooms();
+      }
     } else if (mounted && roomProvider.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -69,11 +73,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (room != null && mounted) {
       _roomCodeController.clear();
-      Navigator.of(context).push(
+      await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => GameScreen(roomId: room.id),
         ),
       );
+      // Refresh rooms when returning from GameScreen
+      if (mounted) {
+        roomProvider.loadMyRooms();
+      }
     } else if (mounted && roomProvider.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -297,12 +305,16 @@ class _HomeScreenState extends State<HomeScreen> {
                                 child: Material(
                                   color: Colors.transparent,
                                   child: InkWell(
-                                    onTap: () {
-                                      Navigator.of(context).push(
+                                    onTap: () async {
+                                      await Navigator.of(context).push(
                                         MaterialPageRoute(
                                           builder: (_) => GameScreen(roomId: room.id),
                                         ),
                                       );
+                                      // Refresh rooms when returning from GameScreen
+                                      if (context.mounted) {
+                                        context.read<RoomProvider>().loadMyRooms();
+                                      }
                                     },
                                     borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
                                     child: Padding(
@@ -326,11 +338,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
                                                 Text(
-                                                  'Room ${room.roomCode}',
+                                                  room.displayName,
                                                   style: Theme.of(context).textTheme.titleLarge,
                                                 ),
                                                 Text(
-                                                  '${room.userCount} member${room.userCount != 1 ? 's' : ''}',
+                                                  '${room.userCount} member${room.userCount != 1 ? 's' : ''} • ${room.roomCode}',
                                                   style: Theme.of(context).textTheme.bodyMedium,
                                                 ),
                                               ],

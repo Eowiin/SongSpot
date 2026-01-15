@@ -14,6 +14,7 @@ from .serializers import (
     SongPackListSerializer,
     RoomSerializer,
     RoomCreateSerializer,
+    RoomRenameSerializer,
     JoinRoomSerializer,
     GameSessionSerializer,
     SubmitGuessSerializer,
@@ -44,16 +45,6 @@ class RoomCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        # Check if user already has a room as host
-        existing_room = Room.objects.filter(host_user=request.user).first()
-        if existing_room:
-            # User already has a room, return it
-            response_serializer = RoomSerializer(existing_room)
-            return Response({
-                'room': response_serializer.data,
-                'message': 'You already have a room'
-            }, status=status.HTTP_200_OK)
-
         # Create new room with auto-generated code
         serializer = RoomCreateSerializer(data={})
         if serializer.is_valid():
@@ -162,6 +153,39 @@ class RoomDetailView(APIView):
         room = get_object_or_404(Room, id=room_id)
         serializer = RoomSerializer(room)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class RoomRenameView(APIView):
+    """
+    Rename a room. Only the host can rename the room.
+
+    PUT /api/game/rooms/<room_id>/rename/
+    Headers: Authorization: Bearer <access_token>
+    Body: {"name": "My Room Name"} or {"name": ""} to clear the name
+    """
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, room_id):
+        room = get_object_or_404(Room, id=room_id)
+
+        # Check if user is the host
+        if room.host_user != request.user:
+            return Response(
+                {'error': 'Only the host can rename the room.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        serializer = RoomRenameSerializer(data=request.data)
+        if serializer.is_valid():
+            room.name = serializer.validated_data.get('name')
+            room.save()
+
+            return Response({
+                'room': RoomSerializer(room).data,
+                'message': 'Room renamed successfully.'
+            }, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class MyRoomsView(APIView):

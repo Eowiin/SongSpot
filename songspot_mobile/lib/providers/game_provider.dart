@@ -26,6 +26,10 @@ class GameProvider with ChangeNotifier {
   /// Start or get current game session
   Future<void> startGameSession(String roomId) async {
     try {
+      // Clear previous session immediately to avoid showing stale data
+      _currentSession = null;
+      _leaderboard = [];
+      _messages = [];
       _isLoading = true;
       _errorMessage = null;
       _guessResult = null;

@@ -24,6 +24,7 @@ class RoomUser extends Equatable {
 class Room extends Equatable {
   final String id;
   final String roomCode;
+  final String? name;
   final User hostUser;
   final List<RoomUser> users;
   final int userCount;
@@ -32,6 +33,7 @@ class Room extends Equatable {
   const Room({
     required this.id,
     required this.roomCode,
+    this.name,
     required this.hostUser,
     required this.users,
     required this.userCount,
@@ -42,6 +44,7 @@ class Room extends Equatable {
     return Room(
       id: json['id'].toString(),
       roomCode: json['room_code'] as String,
+      name: json['name'] as String?,
       hostUser: User.fromJson(json['host_user'] as Map<String, dynamic>),
       users: (json['users'] as List)
           .map((u) => RoomUser.fromJson(u as Map<String, dynamic>))
@@ -51,8 +54,11 @@ class Room extends Equatable {
     );
   }
 
+  /// Returns the display name for the room (name if set, otherwise "Room CODE")
+  String get displayName => name ?? 'Room $roomCode';
+
   bool isHost(String userId) => hostUser.id == userId;
 
   @override
-  List<Object?> get props => [id, roomCode, hostUser, users, userCount, createdAt];
+  List<Object?> get props => [id, roomCode, name, hostUser, users, userCount, createdAt];
 }

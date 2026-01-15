@@ -4,6 +4,7 @@ from .views import (
     RoomJoinView,
     RoomLeaveView,
     RoomDetailView,
+    RoomRenameView,
     MyRoomsView,
     SongPackListView,
     TrackListView,
@@ -24,6 +25,7 @@ urlpatterns = [
     path('rooms/join/', RoomJoinView.as_view(), name='room_join'),
     path('rooms/<uuid:room_id>/leave/', RoomLeaveView.as_view(), name='room_leave'),
     path('rooms/<uuid:room_id>/', RoomDetailView.as_view(), name='room_detail'),
+    path('rooms/<uuid:room_id>/rename/', RoomRenameView.as_view(), name='room_rename'),
     path('rooms/<uuid:room_id>/daily-song/', RoomDailySongView.as_view(), name='room_daily_song'),
     path('rooms/my-rooms/', MyRoomsView.as_view(), name='my_rooms'),
 

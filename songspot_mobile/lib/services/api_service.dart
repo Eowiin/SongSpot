@@ -313,6 +313,14 @@ class ApiService {
     await post(ApiConfig.roomsLeave(roomId), includeAuth: true);
   }
 
+  Future<Map<String, dynamic>> renameRoom(String roomId, String? name) async {
+    return await put(
+      ApiConfig.roomsRename(roomId),
+      body: {'name': name ?? ''},
+      includeAuth: true,
+    );
+  }
+
   Future<Map<String, dynamic>> getDailySong(String roomId) async {
     return await get(ApiConfig.roomsDailySong(roomId), includeAuth: true);
   }

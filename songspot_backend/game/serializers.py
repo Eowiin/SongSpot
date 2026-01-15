@@ -71,7 +71,7 @@ class RoomSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Room
-        fields = ('id', 'room_code', 'host_user', 'users', 'user_count', 'created_at')
+        fields = ('id', 'room_code', 'name', 'host_user', 'users', 'user_count', 'created_at')
         read_only_fields = ('id', 'room_code', 'host_user', 'created_at')
 
     def get_user_count(self, obj):
@@ -81,7 +81,18 @@ class RoomSerializer(serializers.ModelSerializer):
 class RoomCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Room
-        fields = []  # Room code is auto-generated, no input needed
+        fields = ['name']  # Optional name, room code is auto-generated
+
+
+class RoomRenameSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=50, required=False, allow_blank=True)
+
+    def validate_name(self, value):
+        if value:
+            value = value.strip()
+            if len(value) > 50:
+                raise serializers.ValidationError("Room name cannot exceed 50 characters.")
+        return value if value else None
 
 
 class JoinRoomSerializer(serializers.Serializer):

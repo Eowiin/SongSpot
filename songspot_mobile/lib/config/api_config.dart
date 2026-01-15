@@ -19,6 +19,7 @@ class ApiConfig {
   static const String roomsJoin = '/game/rooms/join/';
   static String roomsDetail(String roomId) => '/game/rooms/$roomId/';
   static String roomsLeave(String roomId) => '/game/rooms/$roomId/leave/';
+  static String roomsRename(String roomId) => '/game/rooms/$roomId/rename/';
   static const String roomsMyRooms = '/game/rooms/my-rooms/';
   static String roomsDailySong(String roomId) => '/game/rooms/$roomId/daily-song/';
 

@@ -110,6 +110,7 @@ class Room(models.Model):
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     room_code = models.CharField(max_length=10, unique=True, db_index=True, default=generate_room_code)
+    name = models.CharField(max_length=50, blank=True, null=True, help_text="Custom room name")
     host_user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -122,6 +123,8 @@ class Room(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
+        if self.name:
+            return f"{self.name} ({self.room_code})"
         return f"Room {self.room_code} (Host: {self.host_user.username})"
 
 

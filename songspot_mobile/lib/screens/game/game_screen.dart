@@ -3,11 +3,12 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../config/app_theme.dart';
 import '../../providers/game_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/room_provider.dart';
 import '../../models/track.dart';
 import '../../models/game_session.dart';
 import '../../widgets/track_autocomplete.dart';
 import '../../widgets/gradient_button.dart';
-import 'chat_screen.dart';
 
 class GameScreen extends StatefulWidget {
   final String roomId;
@@ -20,6 +21,8 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> {
   final _titleController = TextEditingController();
+  final _messageController = TextEditingController();
+  final _chatScrollController = ScrollController();
   Track? _selectedTrack;
 
   @override
@@ -29,12 +32,16 @@ class _GameScreenState extends State<GameScreen> {
       final gameProvider = context.read<GameProvider>();
       gameProvider.startGameSession(widget.roomId);
       gameProvider.loadLeaderboard(widget.roomId);
+      // Load room details for name and host info
+      context.read<RoomProvider>().loadRoomDetails(widget.roomId);
     });
   }
 
   @override
   void dispose() {
     _titleController.dispose();
+    _messageController.dispose();
+    _chatScrollController.dispose();
     super.dispose();
   }
 
@@ -88,8 +95,243 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _onGameCompleted() {
-    // Refresh leaderboard when game is completed
-    context.read<GameProvider>().loadLeaderboard(widget.roomId);
+    // Refresh leaderboard and load messages when game is completed
+    final gameProvider = context.read<GameProvider>();
+    gameProvider.loadLeaderboard(widget.roomId);
+    gameProvider.loadMessages(widget.roomId);
+  }
+
+  Future<void> _handleSendMessage() async {
+    final message = _messageController.text.trim();
+    if (message.isEmpty) return;
+
+    final gameProvider = context.read<GameProvider>();
+    final success = await gameProvider.sendMessage(widget.roomId, message);
+
+    if (success && mounted) {
+      _messageController.clear();
+      // Scroll to bottom after sending message
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_chatScrollController.hasClients) {
+          _chatScrollController.animateTo(
+            _chatScrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+    }
+  }
+
+  Future<void> _showRenameDialog() async {
+    final roomProvider = context.read<RoomProvider>();
+    final room = roomProvider.currentRoom;
+    if (room == null) return;
+
+    final nameController = TextEditingController(text: room.name ?? '');
+
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppTheme.surfaceColor,
+        title: const Text('Rename Room'),
+        content: TextField(
+          controller: nameController,
+          decoration: InputDecoration(
+            hintText: 'Enter room name',
+            filled: true,
+            fillColor: AppTheme.backgroundColor,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+          ),
+          autofocus: true,
+          maxLength: 50,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, nameController.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    // Don't manually dispose nameController - it will be garbage collected
+    // Disposing it here causes errors as the dialog may still be referencing it during teardown
+
+    if (newName != null && mounted) {
+      final result = await roomProvider.renameRoom(
+        widget.roomId,
+        newName.isEmpty ? null : newName,
+      );
+
+      if (result != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Room renamed successfully'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+      } else if (roomProvider.errorMessage != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(roomProvider.errorMessage!),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildLoadingSkeleton() {
+    return SingleChildScrollView(
+      padding: AppTheme.pagePadding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Progress Indicators Skeleton
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(6, (index) {
+              return Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppTheme.surfaceColor,
+                  border: Border.all(
+                    color: AppTheme.textSecondary.withValues(alpha: 0.3),
+                    width: 2,
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 32),
+
+          // Audio Player Card Skeleton
+          Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              gradient: AppTheme.cardGradient,
+              borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+            ),
+            child: Column(
+              children: [
+                // Icon placeholder
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppTheme.primaryColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Title skeleton
+                Container(
+                  width: 120,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceColor,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Subtitle skeleton
+                Container(
+                  width: 60,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceColor,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Points skeleton
+                Container(
+                  width: 80,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceColor,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Button skeleton
+                Container(
+                  width: double.infinity,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceColor,
+                    borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 32),
+
+          // Guess Form Skeleton
+          Container(
+            width: 150,
+            height: 24,
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceColor,
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            height: 56,
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceColor,
+              borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Action Buttons Skeleton
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceColor,
+                    borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                flex: 2,
+                child: Container(
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceColor,
+                    borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildResultView(GameSession session, List<LeaderboardEntry> leaderboard) {
@@ -301,50 +543,191 @@ class _GameScreenState extends State<GameScreen> {
                 ),
               );
             }),
-          const SizedBox(height: 24),
+          const SizedBox(height: 32),
 
-          // Back Button
-          OutlinedButton(
-            onPressed: () => Navigator.pop(context),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppTheme.textPrimary,
-              side: const BorderSide(color: AppTheme.textSecondary),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppTheme.borderRadius),
-              ),
-            ),
-            child: const Text('Back to Room'),
+          // Chat Section
+          Text(
+            'Chat',
+            style: Theme.of(context).textTheme.headlineMedium,
           ),
+          const SizedBox(height: 16),
+          _buildInlineChat(),
+          const SizedBox(height: 24),
         ],
       ),
     );
   }
 
+  Widget _buildInlineChat() {
+    final currentUserId = context.watch<AuthProvider>().user?.id;
+    final gameProvider = context.watch<GameProvider>();
+    final messages = gameProvider.messages;
+
+    // Reverse to show oldest first (messages come newest first from API)
+    final displayMessages = messages.take(10).toList().reversed.toList();
+
+    return Column(
+      children: [
+        // Messages list with constrained height
+        Container(
+          constraints: const BoxConstraints(maxHeight: 300),
+          child: messages.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.chat_bubble_outline,
+                        size: 40,
+                        color: AppTheme.textSecondary,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No messages yet',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Start the conversation!',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  controller: _chatScrollController,
+                  shrinkWrap: true,
+                  itemCount: displayMessages.length,
+                  itemBuilder: (context, index) {
+                    final message = displayMessages[index];
+                    final isCurrentUser = message.user.id == currentUserId;
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Align(
+                        alignment: isCurrentUser
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
+                        child: Container(
+                          constraints: BoxConstraints(
+                            maxWidth: MediaQuery.of(context).size.width * 0.7,
+                          ),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            gradient: isCurrentUser ? AppTheme.primaryGradient : null,
+                            color: isCurrentUser ? null : AppTheme.surfaceColor,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: isCurrentUser
+                                ? CrossAxisAlignment.end
+                                : CrossAxisAlignment.start,
+                            children: [
+                              // Always show username
+                              Text(
+                                isCurrentUser ? 'You' : message.user.username,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: isCurrentUser ? Colors.white70 : AppTheme.primaryColor,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                message.message,
+                                style: TextStyle(
+                                  color: isCurrentUser ? Colors.white : AppTheme.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                DateFormat.Hm().format(message.createdAt.toLocal()),
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: isCurrentUser ? Colors.white70 : AppTheme.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Message input
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _messageController,
+                decoration: InputDecoration(
+                  hintText: 'Type a message...',
+                  filled: true,
+                  fillColor: AppTheme.surfaceColor,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                ),
+                maxLines: 1,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => _handleSendMessage(),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Container(
+              width: 48,
+              height: 48,
+              decoration: const BoxDecoration(
+                gradient: AppTheme.primaryGradient,
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.send, color: Colors.white),
+                onPressed: _handleSendMessage,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final roomProvider = context.watch<RoomProvider>();
+    final room = roomProvider.currentRoom;
+    final currentUserId = context.watch<AuthProvider>().user?.id;
+    final isHost = room != null && currentUserId != null && room.isHost(currentUserId);
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Daily Challenge'),
+        title: Text(room?.displayName ?? 'Daily Challenge'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.chat),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => ChatScreen(roomId: widget.roomId),
-                ),
-              );
-            },
-          ),
+          if (isHost)
+            IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: _showRenameDialog,
+              tooltip: 'Rename room',
+            ),
         ],
       ),
       body: Container(
         decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
         child: Consumer<GameProvider>(
           builder: (context, gameProvider, _) {
-            if (gameProvider.isLoading) {
-              return const Center(child: CircularProgressIndicator());
+            // Show skeleton while loading
+            if (gameProvider.isLoading || gameProvider.currentSession == null && gameProvider.errorMessage == null) {
+              return _buildLoadingSkeleton();
             }
 
             final session = gameProvider.currentSession;
@@ -359,6 +742,15 @@ class _GameScreenState extends State<GameScreen> {
                       gameProvider.errorMessage ?? 'Failed to load game',
                       style: Theme.of(context).textTheme.titleLarge,
                       textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.textPrimary,
+                        side: const BorderSide(color: AppTheme.textSecondary),
+                      ),
+                      child: const Text('Go Back'),
                     ),
                   ],
                 ),

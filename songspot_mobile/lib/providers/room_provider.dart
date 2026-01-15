@@ -128,6 +128,31 @@ class RoomProvider with ChangeNotifier {
     }
   }
 
+  /// Rename a room (host only)
+  Future<Room?> renameRoom(String roomId, String? name) async {
+    try {
+      _errorMessage = null;
+
+      final response = await _apiService.renameRoom(roomId, name);
+      final room = Room.fromJson(response['room'] as Map<String, dynamic>);
+
+      _currentRoom = room;
+
+      // Update the room in myRooms list
+      final index = _myRooms.indexWhere((r) => r.id == roomId);
+      if (index != -1) {
+        _myRooms[index] = room;
+      }
+
+      notifyListeners();
+      return room;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return null;
+    }
+  }
+
   /// Set current room
   void setCurrentRoom(Room room) {
     _currentRoom = room;
