@@ -166,13 +166,24 @@ class DeezerService:
             track_data: Raw track data from Deezer API
 
         Returns:
-            Dict with title, artist, and preview_url
+            Dict with title, artist, preview_url, and cover_url
         """
+        # Get cover URL from album - prefer larger sizes
+        album_data = track_data.get('album', {})
+        cover_url = (
+            album_data.get('cover_xl') or
+            album_data.get('cover_big') or
+            album_data.get('cover_medium') or
+            album_data.get('cover_small') or
+            album_data.get('cover', '')
+        )
+
         return {
             'title': track_data.get('title', ''),
             'artist': track_data.get('artist', {}).get('name', ''),
             'preview_url': track_data.get('preview', ''),
+            'cover_url': cover_url,
             'deezer_id': track_data.get('id'),
             'duration': track_data.get('duration', 0),
-            'album': track_data.get('album', {}).get('title', ''),
+            'album': album_data.get('title', ''),
         }

@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_session/audio_session.dart';
-import 'package:flutter/foundation.dart';
 
 class AudioService {
   final AudioPlayer _player = AudioPlayer();
@@ -23,9 +22,7 @@ class AudioService {
       final session = await AudioSession.instance;
       await session.configure(const AudioSessionConfiguration.music());
       _isInitialized = true;
-      debugPrint('✅ Audio session initialized successfully');
     } catch (e) {
-      debugPrint('⚠️ Failed to initialize audio session: $e');
       // Continue anyway, it might still work
     }
   }
@@ -36,8 +33,6 @@ class AudioService {
       // Initialize audio session if not already done
       await initializeAudioSession();
 
-      debugPrint('🎵 Loading audio from: $url');
-
       // Ensure we are not playing from a previous session
       _stopTimer?.cancel();
       _isPlaying = false;
@@ -45,16 +40,8 @@ class AudioService {
 
       // Set the URL and wait for it to load
       _currentUrl = url;
-      final duration = await _player.setUrl(url);
-
-      if (duration != null) {
-        debugPrint('✅ Audio loaded successfully! Duration: ${duration.inSeconds}s');
-      } else {
-        debugPrint('⚠️ Audio loaded but duration is null');
-      }
+      await _player.setUrl(url);
     } catch (e) {
-      debugPrint('❌ Failed to load audio: $e');
-      debugPrint('URL was: $url');
       throw Exception('Failed to load audio: $e');
     }
   }
@@ -62,14 +49,15 @@ class AudioService {
   /// Play snippet for a specific duration (in seconds)
   Future<void> playSnippet(double durationInSeconds) async {
     try {
-      debugPrint('▶️ Playing snippet for ${durationInSeconds}s');
-
       // Cancel any existing timer
       _stopTimer?.cancel();
 
       if (_currentUrl == null) {
         throw StateError('Audio must be loaded before playing a snippet.');
       }
+
+      // Set isPlaying to true BEFORE async operations so UI updates immediately
+      _isPlaying = true;
 
       final clipEnd = Duration(milliseconds: (durationInSeconds * 1000).round());
 
@@ -83,20 +71,15 @@ class AudioService {
         preload: true,
       );
 
-      _isPlaying = true;
       await _player.play();
-
-      debugPrint('✅ Playback started');
 
       await _player.playerStateStream.firstWhere(
         (state) => state.processingState == ProcessingState.completed,
       );
       _isPlaying = false;
-      debugPrint('⏹️ Playback stopped after ${durationInSeconds}s');
     } catch (e) {
       _isPlaying = false;
       _stopTimer?.cancel();
-      debugPrint('❌ Failed to play snippet: $e');
       throw Exception('Failed to play snippet: $e');
     }
   }

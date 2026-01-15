@@ -6,7 +6,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/room_provider.dart';
 import '../../widgets/gradient_button.dart';
 import '../auth/login_screen.dart';
-import '../room/room_detail_screen.dart';
+import '../game/game_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -39,7 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (room != null && mounted) {
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => RoomDetailScreen(room: room),
+          builder: (_) => GameScreen(roomId: room.id),
         ),
       );
     } else if (mounted && roomProvider.errorMessage != null) {
@@ -71,7 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _roomCodeController.clear();
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => RoomDetailScreen(room: room),
+          builder: (_) => GameScreen(roomId: room.id),
         ),
       );
     } else if (mounted && roomProvider.errorMessage != null) {
@@ -300,7 +300,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     onTap: () {
                                       Navigator.of(context).push(
                                         MaterialPageRoute(
-                                          builder: (_) => RoomDetailScreen(room: room),
+                                          builder: (_) => GameScreen(roomId: room.id),
                                         ),
                                       );
                                     },

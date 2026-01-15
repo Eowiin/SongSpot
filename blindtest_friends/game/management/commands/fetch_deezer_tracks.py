@@ -54,6 +54,7 @@ class Command(BaseCommand):
                 title=track_info['title'],
                 artist=track_info['artist'],
                 preview_url=track_info['preview_url'],
+                cover_url=track_info.get('cover_url'),
                 deezer_id=track_info.get('deezer_id')
             )
 

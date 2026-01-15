@@ -11,7 +11,7 @@ User = get_user_model()
 class TrackSerializer(serializers.ModelSerializer):
     class Meta:
         model = Track
-        fields = ('id', 'title', 'artist', 'preview_url', 'created_at')
+        fields = ('id', 'title', 'artist', 'preview_url', 'cover_url', 'created_at')
         read_only_fields = ('id', 'created_at')
 
 

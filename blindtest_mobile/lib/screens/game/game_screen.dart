@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../../config/app_theme.dart';
 import '../../providers/game_provider.dart';
 import '../../models/track.dart';
+import '../../models/game_session.dart';
 import '../../widgets/track_autocomplete.dart';
 import '../../widgets/gradient_button.dart';
-import 'leaderboard_screen.dart';
 import 'chat_screen.dart';
 
 class GameScreen extends StatefulWidget {
@@ -25,7 +26,9 @@ class _GameScreenState extends State<GameScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<GameProvider>().startGameSession(widget.roomId);
+      final gameProvider = context.read<GameProvider>();
+      gameProvider.startGameSession(widget.roomId);
+      gameProvider.loadLeaderboard(widget.roomId);
     });
   }
 
@@ -76,86 +79,242 @@ class _GameScreenState extends State<GameScreen> {
     );
 
     if (mounted) {
-      if (isCorrect) {
-        _titleController.clear();
-        _selectedTrack = null;
-        _showResultDialog(true);
-      } else {
-        _titleController.clear();
-        _selectedTrack = null;
-        if (gameProvider.currentSession!.isCompleted) {
-          _showResultDialog(false);
-        }
+      _titleController.clear();
+      _selectedTrack = null;
+      if (isCorrect || gameProvider.currentSession!.isCompleted) {
+        _onGameCompleted();
       }
     }
   }
 
-  void _showResultDialog(bool isCorrect) {
-    final gameProvider = context.read<GameProvider>();
-    final session = gameProvider.currentSession!;
+  void _onGameCompleted() {
+    // Refresh leaderboard when game is completed
+    context.read<GameProvider>().loadLeaderboard(widget.roomId);
+  }
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.surfaceColor,
-        title: Text(
-          isCorrect ? '🎉 Correct!' : '😔 Game Over',
-          textAlign: TextAlign.center,
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isCorrect) ...[
-              Text(
-                'You earned ${session.pointsEarned} points!',
-                style: Theme.of(context).textTheme.titleLarge,
-                textAlign: TextAlign.center,
+  Widget _buildResultView(GameSession session, List<LeaderboardEntry> leaderboard) {
+    final track = session.dailySong.track;
+    final isCorrect = session.correctGuess;
+
+    return SingleChildScrollView(
+      padding: AppTheme.pagePadding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Result Header
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: AppTheme.cardGradient,
+              borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+            ),
+            child: Column(
+              children: [
+                // Cover Image
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: track.coverUrl != null
+                      ? Image.network(
+                          track.coverUrl!,
+                          width: 200,
+                          height: 200,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            width: 200,
+                            height: 200,
+                            color: AppTheme.surfaceColor,
+                            child: const Icon(
+                              Icons.album,
+                              size: 80,
+                              color: AppTheme.primaryColor,
+                            ),
+                          ),
+                        )
+                      : Container(
+                          width: 200,
+                          height: 200,
+                          color: AppTheme.surfaceColor,
+                          child: const Icon(
+                            Icons.album,
+                            size: 80,
+                            color: AppTheme.primaryColor,
+                          ),
+                        ),
+                ),
+                const SizedBox(height: 20),
+
+                // Song Info
+                Text(
+                  track.title,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  track.artist,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppTheme.textSecondary,
+                      ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+
+                // Result Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isCorrect
+                        ? AppTheme.successColor.withValues(alpha: 0.2)
+                        : AppTheme.errorColor.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isCorrect ? Icons.check_circle : Icons.cancel,
+                        color: isCorrect ? AppTheme.successColor : AppTheme.errorColor,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        isCorrect
+                            ? '+${session.pointsEarned} points (Snippet ${session.currentSnippet})'
+                            : 'Not guessed',
+                        style: TextStyle(
+                          color: isCorrect ? AppTheme.successColor : AppTheme.errorColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Today's Results Section
+          Text(
+            'Today\'s Results',
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          const SizedBox(height: 16),
+
+          if (leaderboard.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: AppTheme.surfaceColor,
+                borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Guessed on snippet ${session.currentSnippet}',
+              child: Text(
+                'No other players have guessed yet',
                 style: Theme.of(context).textTheme.bodyMedium,
                 textAlign: TextAlign.center,
               ),
-            ] else ...[
-              Text(
-                'The song was:',
-                style: Theme.of(context).textTheme.bodyMedium,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                session.dailySong.track.title,
-                style: Theme.of(context).textTheme.titleLarge,
-                textAlign: TextAlign.center,
-              ),
-              Text(
-                'by ${session.dailySong.track.artist}',
-                style: Theme.of(context).textTheme.bodyMedium,
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => LeaderboardScreen(roomId: widget.roomId),
+            )
+          else
+            ...leaderboard.asMap().entries.map((entry) {
+              final index = entry.key;
+              final leaderboardEntry = entry.value;
+              final rank = index + 1;
+
+              Color rankColor;
+              if (rank == 1) {
+                rankColor = const Color(0xFFFFD700); // Gold
+              } else if (rank == 2) {
+                rankColor = const Color(0xFFC0C0C0); // Silver
+              } else if (rank == 3) {
+                rankColor = const Color(0xFFCD7F32); // Bronze
+              } else {
+                rankColor = AppTheme.textSecondary;
+              }
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.surfaceColor,
+                  borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+                ),
+                child: Row(
+                  children: [
+                    // Rank
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: rankColor.withValues(alpha: 0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          '$rank',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: rankColor,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+
+                    // User Info
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            leaderboardEntry.user.username,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          Text(
+                            'Snippet ${leaderboardEntry.snippetNumber} - ${DateFormat.Hm().format(leaderboardEntry.completedAt.toLocal())}',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: AppTheme.textSecondary,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Points
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        gradient: AppTheme.primaryGradient,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(
+                        '${leaderboardEntry.pointsEarned}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               );
-            },
-            child: const Text('View Leaderboard'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
-            child: const Text('Close'),
+            }),
+          const SizedBox(height: 24),
+
+          // Back Button
+          OutlinedButton(
+            onPressed: () => Navigator.pop(context),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppTheme.textPrimary,
+              side: const BorderSide(color: AppTheme.textSecondary),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+              ),
+            ),
+            child: const Text('Back to Room'),
           ),
         ],
       ),
@@ -168,16 +327,6 @@ class _GameScreenState extends State<GameScreen> {
       appBar: AppBar(
         title: const Text('Daily Challenge'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.leaderboard),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => LeaderboardScreen(roomId: widget.roomId),
-                ),
-              );
-            },
-          ),
           IconButton(
             icon: const Icon(Icons.chat),
             onPressed: () {
@@ -216,41 +365,8 @@ class _GameScreenState extends State<GameScreen> {
               );
             }
 
-            if (session.isCompleted && session.correctGuess) {
-              return Center(
-                child: SingleChildScrollView(
-                  padding: AppTheme.pagePadding,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.check_circle, size: 100, color: AppTheme.successColor),
-                      const SizedBox(height: 24),
-                      Text(
-                        'You already completed today\'s challenge!',
-                        style: Theme.of(context).textTheme.displaySmall,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'You earned ${session.pointsEarned} points',
-                        style: Theme.of(context).textTheme.titleLarge,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 32),
-                      GradientButton(
-                        text: 'View Leaderboard',
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => LeaderboardScreen(roomId: widget.roomId),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              );
+            if (session.isCompleted) {
+              return _buildResultView(session, gameProvider.leaderboard);
             }
 
             return SingleChildScrollView(
