@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../models/pack.dart';
 import '../../providers/pack_provider.dart';
-import 'pack_bundle_screen.dart';
 import 'pack_detail_screen.dart';
 
 class PackListScreen extends StatefulWidget {
@@ -154,42 +153,23 @@ class _PackListScreenState extends State<PackListScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton(
-                  onPressed: () async {
-                    if (pack.isOwned) {
-                      await Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => PackBundleScreen(
-                            roomId: widget.roomId,
-                            packId: pack.id,
-                            packName: pack.name,
-                          ),
-                        ),
-                      );
-                      return;
-                    }
-                    final success = await context.read<PackProvider>().purchasePack(
-                          roomId: widget.roomId,
-                          packId: pack.id,
-                        );
-                    if (success && mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Purchased ${pack.name}'),
-                          backgroundColor: AppTheme.successColor,
-                        ),
-                      );
-                      await Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => PackBundleScreen(
-                            roomId: widget.roomId,
-                            packId: pack.id,
-                            packName: pack.name,
-                          ),
-                        ),
-                      );
-                    }
-                  },
-                  child: Text(pack.isOwned ? 'Play' : 'Buy'),
+                  onPressed: pack.isOwned
+                      ? null
+                      : () async {
+                          final success = await context.read<PackProvider>().purchasePack(
+                                roomId: widget.roomId,
+                                packId: pack.id,
+                              );
+                          if (success && mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Purchased ${pack.name}'),
+                                backgroundColor: AppTheme.successColor,
+                              ),
+                            );
+                          }
+                        },
+                  child: Text(pack.isOwned ? 'Owned' : 'Buy'),
                 ),
               ),
             ],

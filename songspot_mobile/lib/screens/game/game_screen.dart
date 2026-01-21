@@ -5,11 +5,14 @@ import '../../config/app_theme.dart';
 import '../../providers/game_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/room_provider.dart';
+import '../../providers/pack_provider.dart';
 import '../../models/track.dart';
 import '../../models/game_session.dart';
+import '../../models/pack.dart';
 import '../../widgets/track_autocomplete.dart';
 import '../../widgets/gradient_button.dart';
 import '../packs/pack_list_screen.dart';
+import '../packs/pack_bundle_screen.dart';
 
 class GameScreen extends StatefulWidget {
   final String roomId;
@@ -25,6 +28,8 @@ class _GameScreenState extends State<GameScreen> {
   final _messageController = TextEditingController();
   final _chatScrollController = ScrollController();
   Track? _selectedTrack;
+  String? _activePackId;
+  String? _activePackName;
 
   @override
   void initState() {
@@ -35,6 +40,7 @@ class _GameScreenState extends State<GameScreen> {
       gameProvider.loadLeaderboard(widget.roomId);
       // Load room details for name and host info
       context.read<RoomProvider>().loadRoomDetails(widget.roomId);
+      context.read<PackProvider>().loadMyPacks(widget.roomId);
     });
   }
 
@@ -100,6 +106,60 @@ class _GameScreenState extends State<GameScreen> {
     final gameProvider = context.read<GameProvider>();
     gameProvider.loadLeaderboard(widget.roomId);
     gameProvider.loadMessages(widget.roomId);
+  }
+
+  Widget _buildPackSwitcher(BuildContext context, List<SongPack> packs) {
+    final activePacks = packs.where((pack) => pack.trackCount > 0).toList();
+    if (activePacks.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final isDailySelected = _activePackId == null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Switch challenge',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              ChoiceChip(
+                label: const Text('Daily'),
+                selected: isDailySelected,
+                onSelected: (_) {
+                  setState(() {
+                    _activePackId = null;
+                    _activePackName = null;
+                  });
+                },
+                selectedColor: AppTheme.primaryColor.withValues(alpha: 0.2),
+              ),
+              const SizedBox(width: 8),
+              ...activePacks.map((pack) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(pack.name),
+                    selected: pack.id == _activePackId,
+                    onSelected: (_) {
+                      setState(() {
+                        _activePackId = pack.id;
+                        _activePackName = pack.name;
+                      });
+                    },
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
   }
 
   Future<void> _handleSendMessage() async {
@@ -709,6 +769,7 @@ class _GameScreenState extends State<GameScreen> {
     final room = roomProvider.currentRoom;
     final currentUserId = context.watch<AuthProvider>().user?.id;
     final isHost = room != null && currentUserId != null && room.isHost(currentUserId);
+    final packProvider = context.watch<PackProvider>();
 
     return Scaffold(
       appBar: AppBar(
@@ -780,139 +841,151 @@ class _GameScreenState extends State<GameScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Progress Indicators
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(6, (index) {
-                      final snippetNumber = index + 1;
-                      final isActive = snippetNumber == session.currentSnippet;
-                      final isPassed = snippetNumber < session.currentSnippet;
+                  _buildPackSwitcher(context, packProvider.ownedPacks),
+                  if (_activePackId == null)
+                    ...[
+                      // Progress Indicators
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(6, (index) {
+                          final snippetNumber = index + 1;
+                          final isActive = snippetNumber == session.currentSnippet;
+                          final isPassed = snippetNumber < session.currentSnippet;
 
-                      return Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isPassed
-                              ? AppTheme.textSecondary
-                              : isActive
-                                  ? AppTheme.primaryColor
-                                  : AppTheme.surfaceColor,
-                          border: Border.all(
-                            color: isActive ? AppTheme.primaryColor : AppTheme.textSecondary,
-                            width: 2,
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(
-                            '$snippetNumber',
-                            style: TextStyle(
-                              color: isPassed || isActive ? Colors.white : AppTheme.textSecondary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Audio Player Card
-                  Container(
-                    padding: const EdgeInsets.all(32),
-                    decoration: BoxDecoration(
-                      gradient: AppTheme.cardGradient,
-                      borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-                    ),
-                    child: Column(
-                      children: [
-                        const Icon(
-                          Icons.music_note,
-                          size: 80,
-                          color: AppTheme.primaryColor,
-                        ),
-                        const SizedBox(height: 24),
-                        Text(
-                          'Snippet ${session.currentSnippet}',
-                          style: Theme.of(context).textTheme.displaySmall,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '${session.snippetDuration}s',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                color: AppTheme.primaryColor,
+                          return Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isPassed
+                                  ? AppTheme.textSecondary
+                                  : isActive
+                                      ? AppTheme.primaryColor
+                                      : AppTheme.surfaceColor,
+                              border: Border.all(
+                                color: isActive ? AppTheme.primaryColor : AppTheme.textSecondary,
+                                width: 2,
                               ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '${session.possiblePoints} points',
-                          style: Theme.of(context).textTheme.bodyLarge,
-                        ),
-                        const SizedBox(height: 24),
-                        GradientButton(
-                          text: gameProvider.audioService.isPlaying ? '🔊 Playing...' : 'Play Snippet',
-                          onPressed: gameProvider.audioService.isPlaying ? null : _handlePlaySnippet,
-                          isLoading: false,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 32),
+                            ),
+                            child: Center(
+                              child: Text(
+                                '$snippetNumber',
+                                style: TextStyle(
+                                  color: isPassed || isActive ? Colors.white : AppTheme.textSecondary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+                      const SizedBox(height: 32),
 
-                  // Guess Form
-                  Text(
-                    'Make Your Guess',
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  const SizedBox(height: 16),
-                  TrackAutocomplete(
-                    controller: _titleController,
-                    hintText: 'Start typing song title...',
-                    labelText: 'Song Title',
-                    onTrackSelected: (track) {
-                      setState(() {
-                        _selectedTrack = track;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 24),
+                      // Audio Player Card
+                      Container(
+                        padding: const EdgeInsets.all(32),
+                        decoration: BoxDecoration(
+                          gradient: AppTheme.cardGradient,
+                          borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+                        ),
+                        child: Column(
+                          children: [
+                            const Icon(
+                              Icons.music_note,
+                              size: 80,
+                              color: AppTheme.primaryColor,
+                            ),
+                            const SizedBox(height: 24),
+                            Text(
+                              'Snippet ${session.currentSnippet}',
+                              style: Theme.of(context).textTheme.displaySmall,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '${session.snippetDuration}s',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    color: AppTheme.primaryColor,
+                                  ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '${session.possiblePoints} points',
+                              style: Theme.of(context).textTheme.bodyLarge,
+                            ),
+                            const SizedBox(height: 24),
+                            GradientButton(
+                              text: gameProvider.audioService.isPlaying ? '🔊 Playing...' : 'Play Snippet',
+                              onPressed: gameProvider.audioService.isPlaying ? null : _handlePlaySnippet,
+                              isLoading: false,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 32),
 
-                  // Action Buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: session.currentSnippet >= 6 ? null : _handleSkip,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppTheme.textPrimary,
-                            side: const BorderSide(color: AppTheme.textSecondary),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+                      // Guess Form
+                      Text(
+                        'Make Your Guess',
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                      const SizedBox(height: 16),
+                      TrackAutocomplete(
+                        controller: _titleController,
+                        hintText: 'Start typing song title...',
+                        labelText: 'Song Title',
+                        onTrackSelected: (track) {
+                          setState(() {
+                            _selectedTrack = track;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Action Buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: session.currentSnippet >= 6 ? null : _handleSkip,
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppTheme.textPrimary,
+                                side: const BorderSide(color: AppTheme.textSecondary),
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+                                ),
+                              ),
+                              child: const Text('Skip'),
                             ),
                           ),
-                          child: const Text('Skip'),
-                        ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            flex: 2,
+                            child: GradientButton(
+                              text: 'Submit Guess',
+                              onPressed: _handleGuess,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        flex: 2,
-                        child: GradientButton(
-                          text: 'Submit Guess',
-                          onPressed: _handleGuess,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
-                  // Guesses Made
-                  Text(
-                    'Guesses made: ${session.guessesMade}',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                    textAlign: TextAlign.center,
-                  ),
+                      // Guesses Made
+                      Text(
+                        'Guesses made: ${session.guessesMade}',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                        textAlign: TextAlign.center,
+                      ),
+                    ]
+                  else
+                    PackBundleContent(
+                      key: ValueKey(_activePackId),
+                      roomId: widget.roomId,
+                      packId: _activePackId!,
+                      packName: _activePackName ?? 'Pack',
+                      embedInScroll: true,
+                    ),
                 ],
               ),
             );
