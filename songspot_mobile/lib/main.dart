@@ -5,6 +5,8 @@ import 'config/app_theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/room_provider.dart';
 import 'providers/game_provider.dart';
+import 'providers/pack_provider.dart';
+import 'providers/pack_bundle_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
 
@@ -24,6 +26,8 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => RoomProvider()),
         ChangeNotifierProvider(create: (_) => GameProvider()),
+        ChangeNotifierProvider(create: (_) => PackProvider()),
+        ChangeNotifierProvider(create: (_) => PackBundleProvider()),
       ],
       child: MaterialApp(
         title: 'SongSpot',

@@ -1,6 +1,7 @@
 import uuid
 import random
 import string
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.conf import settings
 
@@ -28,11 +29,13 @@ class Track(models.Model):
     def __str__(self):
         return f"{self.title} - {self.artist}"
 
-    def get_fresh_preview_url(self):
+    def get_fresh_preview_url(self, prefer_cached: bool = True, force_refresh: bool = False):
         """
         Fetch a fresh preview URL from Deezer API.
-        Returns the current preview_url if deezer_id is not available.
+        Returns the cached preview URL when available to avoid extra requests.
         """
+        if prefer_cached and self.preview_url and not force_refresh:
+            return self.preview_url
         if not self.deezer_id:
             return self.preview_url
 
@@ -41,7 +44,25 @@ class Track(models.Model):
         track_data = deezer.get_track(self.deezer_id)
 
         if track_data and track_data.get('preview'):
-            return track_data['preview']
+            preview_url = track_data['preview']
+            album = track_data.get('album', {})
+            cover_url = (
+                album.get('cover_xl') or
+                album.get('cover_big') or
+                album.get('cover_medium') or
+                album.get('cover_small') or
+                album.get('cover')
+            )
+            update_fields = []
+            if preview_url and preview_url != self.preview_url:
+                self.preview_url = preview_url
+                update_fields.append('preview_url')
+            if cover_url and not self.cover_url:
+                self.cover_url = cover_url
+                update_fields.append('cover_url')
+            if update_fields:
+                self.save(update_fields=update_fields)
+            return preview_url
 
         # Fallback to stored URL if fetch fails
         return self.preview_url
@@ -56,13 +77,47 @@ class SongPack(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     icon_url = models.URLField(max_length=500, blank=True)
+    price_coins = models.PositiveIntegerField(default=500, help_text="Price in coins")
+    is_free = models.BooleanField(default=False, help_text="Free packs available to all users")
+    is_featured = models.BooleanField(default=False, help_text="Featured packs shown prominently")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = 'song_packs'
+        ordering = ['-is_featured', 'name']
 
     def __str__(self):
         return self.name
+
+    @property
+    def track_count(self):
+        return self.pack_tracks.count()
+
+
+class UserPack(models.Model):
+    """
+    Tracks which packs each user has purchased/unlocked.
+    """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='owned_packs'
+    )
+    pack = models.ForeignKey(
+        SongPack,
+        on_delete=models.CASCADE,
+        related_name='owners'
+    )
+    purchased_at = models.DateTimeField(auto_now_add=True)
+    coins_spent = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = 'user_packs'
+        unique_together = [['user', 'pack']]
+        ordering = ['-purchased_at']
+
+    def __str__(self):
+        return f"{self.user.username} owns {self.pack.name}"
 
 
 class PackTrack(models.Model):
@@ -81,6 +136,10 @@ class PackTrack(models.Model):
         related_name='in_packs'
     )
     order_in_pack = models.PositiveIntegerField(default=0)
+    vocals_url = models.URLField(max_length=500, blank=True, null=True, help_text="Stem URL for vocals")
+    drums_url = models.URLField(max_length=500, blank=True, null=True, help_text="Stem URL for drums")
+    bass_url = models.URLField(max_length=500, blank=True, null=True, help_text="Stem URL for bass")
+    other_url = models.URLField(max_length=500, blank=True, null=True, help_text="Stem URL for other instruments")
 
     class Meta:
         db_table = 'pack_tracks'
@@ -89,6 +148,13 @@ class PackTrack(models.Model):
         indexes = [
             models.Index(fields=['pack', 'order_in_pack']),
         ]
+
+    def clean(self):
+        if not self.pack_id:
+            return
+        existing_count = self.pack.pack_tracks.exclude(id=self.id).count()
+        if existing_count >= 30:
+            raise ValidationError("A pack cannot have more than 30 tracks.")
 
     def __str__(self):
         return f"{self.pack.name} - {self.track.title} (#{self.order_in_pack})"
@@ -154,6 +220,42 @@ class RoomUser(models.Model):
         return f"{self.user.username} in {self.room.room_code}"
 
 
+class RoomPack(models.Model):
+    """
+    Tracks which packs have been purchased for a room.
+    """
+    room = models.ForeignKey(
+        Room,
+        on_delete=models.CASCADE,
+        related_name='room_packs'
+    )
+    pack = models.ForeignKey(
+        SongPack,
+        on_delete=models.CASCADE,
+        related_name='room_purchases'
+    )
+    purchased_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='room_pack_purchases'
+    )
+    purchased_at = models.DateTimeField(auto_now_add=True)
+    coins_spent = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = 'room_packs'
+        unique_together = [['room', 'pack']]
+        ordering = ['-purchased_at']
+        indexes = [
+            models.Index(fields=['room', 'pack']),
+        ]
+
+    def __str__(self):
+        return f"{self.room.room_code} owns {self.pack.name}"
+
+
 class DailySong(models.Model):
     """
     Tracks which song is selected for each room each day.
@@ -183,6 +285,127 @@ class DailySong(models.Model):
 
     def __str__(self):
         return f"{self.room.room_code} - {self.track.title} on {self.date}"
+
+
+class PackDailyTrack(models.Model):
+    """
+    Tracks the daily selected pack track for each room/pack.
+    One track per room pack per day.
+    """
+    room = models.ForeignKey(
+        Room,
+        on_delete=models.CASCADE,
+        related_name='pack_daily_tracks'
+    )
+    pack = models.ForeignKey(
+        SongPack,
+        on_delete=models.CASCADE,
+        related_name='daily_tracks'
+    )
+    track = models.ForeignKey(
+        Track,
+        on_delete=models.CASCADE,
+        related_name='pack_daily_tracks'
+    )
+    date = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'pack_daily_tracks'
+        unique_together = [['room', 'pack', 'date']]
+        ordering = ['-date']
+        indexes = [
+            models.Index(fields=['room', 'date']),
+            models.Index(fields=['pack', 'date']),
+        ]
+
+    def __str__(self):
+        return f"{self.room.room_code} - {self.pack.name} on {self.date}"
+
+
+class PackBundleSession(models.Model):
+    """
+    Tracks a user's progress through today's pack bundle (stem-based guessing).
+    One session per user per room per pack per day.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    room = models.ForeignKey(
+        Room,
+        on_delete=models.CASCADE,
+        related_name='pack_bundle_sessions'
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='pack_bundle_sessions'
+    )
+    pack = models.ForeignKey(
+        SongPack,
+        on_delete=models.CASCADE,
+        related_name='bundle_sessions'
+    )
+    pack_daily_track = models.ForeignKey(
+        PackDailyTrack,
+        on_delete=models.CASCADE,
+        related_name='bundle_sessions',
+        null=True,
+        blank=True
+    )
+    current_stage = models.PositiveSmallIntegerField(default=1)
+    points_earned = models.PositiveIntegerField(default=0)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'pack_bundle_sessions'
+        unique_together = [['room', 'user', 'pack', 'pack_daily_track']]
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['room', 'pack']),
+            models.Index(fields=['user', 'pack']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.pack.name} on {self.pack_daily_track.date}"
+
+
+class PackBundleAttempt(models.Model):
+    """
+    Tracks each guess attempt for a pack bundle session.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    session = models.ForeignKey(
+        PackBundleSession,
+        on_delete=models.CASCADE,
+        related_name='attempts'
+    )
+    pack_track = models.ForeignKey(
+        PackTrack,
+        on_delete=models.CASCADE,
+        related_name='bundle_attempts'
+    )
+    stage = models.PositiveSmallIntegerField()
+    guessed_track = models.ForeignKey(
+        Track,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='bundle_guesses'
+    )
+    is_correct = models.BooleanField(default=False)
+    points_awarded = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'pack_bundle_attempts'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['session', 'stage']),
+            models.Index(fields=['pack_track']),
+        ]
+
+    def __str__(self):
+        return f"{self.session.user.username} - {self.pack_track} (stage {self.stage})"
 
 
 class DailyGameSession(models.Model):

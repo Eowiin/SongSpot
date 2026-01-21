@@ -5,7 +5,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth import authenticate, get_user_model
-from .serializers import UserRegistrationSerializer, UserSerializer, LoginSerializer
+from .serializers import UserRegistrationSerializer, UserSerializer, UserProfileSerializer, LoginSerializer
+from songspot.throttling import AuthRateThrottle
 
 User = get_user_model()
 
@@ -24,8 +25,11 @@ class RegisterView(APIView):
     Returns:
     - user: user details
     - tokens: access and refresh tokens
+
+    Rate limited: 5 requests per minute
     """
     permission_classes = [AllowAny]
+    throttle_classes = [AuthRateThrottle]
 
     def post(self, request):
         serializer = UserRegistrationSerializer(data=request.data)
@@ -61,8 +65,11 @@ class LoginView(APIView):
 
     Note: Store both tokens securely on the mobile device.
     Use access token for API calls. When it expires, use refresh token to get new tokens.
+
+    Rate limited: 5 requests per minute (prevents brute force)
     """
     permission_classes = [AllowAny]
+    throttle_classes = [AuthRateThrottle]
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
@@ -182,5 +189,5 @@ class UserProfileView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        serializer = UserSerializer(request.user)
+        serializer = UserProfileSerializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)

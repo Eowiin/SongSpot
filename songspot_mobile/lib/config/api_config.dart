@@ -34,8 +34,18 @@ class ApiConfig {
 
   // Packs and tracks
   static const String packs = '/game/packs/';
+  static const String packsMy = '/game/packs/my/';
+  static String packDetail(String packId) => '/game/packs/$packId/';
+  static String packPurchase(String packId) => '/game/packs/$packId/purchase/';
+  static String packBundle(String roomId, String packId) =>
+      '/game/rooms/$roomId/packs/$packId/bundle/';
+  static String packBundleSkip(String roomId, String packId) =>
+      '/game/rooms/$roomId/packs/$packId/bundle/skip/';
+  static String packBundleGuess(String roomId, String packId) =>
+      '/game/rooms/$roomId/packs/$packId/bundle/guess/';
   static const String tracks = '/game/tracks/';
   static const String searchTracks = '/game/tracks/search/';
+  static String trackRefreshPreview(String trackId) => '/game/tracks/$trackId/refresh-preview/';
 
   // Request timeout
   static const Duration timeout = Duration(seconds: 30);

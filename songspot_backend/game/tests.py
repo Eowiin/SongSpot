@@ -6,7 +6,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from authentication.models import User
 from .models import (
     Track, Room, RoomUser, DailySong, DailyGameSession,
-    GuessAttempt, RoomMessage, SongPack
+    GuessAttempt, RoomMessage, SongPack, PackTrack, RoomPack
 )
 
 
@@ -127,6 +127,56 @@ class RoomJoinViewTests(APITestCase):
         response = self.client.post(self.join_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(RoomUser.objects.filter(room=self.room, user=self.user).exists())
+
+
+class PackBundleSessionTests(APITestCase):
+    """Tests for pack bundle gameplay."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='bundleuser',
+            email='bundle@example.com',
+            password='testpass123'
+        )
+        self.room = Room.objects.create(host_user=self.user)
+        RoomUser.objects.create(room=self.room, user=self.user)
+        self.refresh = RefreshToken.for_user(self.user)
+        self.access_token = str(self.refresh.access_token)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
+
+        self.pack = SongPack.objects.create(name='Stem Pack', price_coins=0)
+        self.track = Track.objects.create(
+            title='Pack Song',
+            artist='Pack Artist',
+            preview_url='https://example.com/preview.mp3'
+        )
+        PackTrack.objects.create(
+            pack=self.pack,
+            track=self.track,
+            order_in_pack=1,
+            drums_url='https://example.com/drums.mp3',
+            bass_url='https://example.com/bass.mp3',
+            other_url='https://example.com/other.mp3',
+            vocals_url='https://example.com/vocals.mp3',
+        )
+        RoomPack.objects.create(room=self.room, pack=self.pack, purchased_by=self.user)
+
+    def test_start_bundle_session(self):
+        url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/'
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('session', response.data)
+        self.assertIn('stems', response.data)
+
+    def test_guess_bundle_session(self):
+        start_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/'
+        self.client.get(start_url)
+        guess_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/guess/'
+        response = self.client.post(guess_url, {'track_id': str(self.track.id)}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['is_correct'])
+
+
 
     def test_join_room_already_member(self):
         """Test joining room fails if already a member."""

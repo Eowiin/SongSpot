@@ -1,6 +1,7 @@
 from django.contrib import admin
 from .models import (
-    Track, SongPack, PackTrack, Room, RoomUser, DailySong,
+    Track, SongPack, PackTrack, Room, RoomUser, RoomPack, DailySong,
+    PackDailyTrack, PackBundleSession, PackBundleAttempt,
     DailyGameSession, GuessAttempt, RoomMessage
 )
 
@@ -59,11 +60,46 @@ class RoomUserAdmin(admin.ModelAdmin):
     readonly_fields = ('joined_at',)
 
 
+@admin.register(RoomPack)
+class RoomPackAdmin(admin.ModelAdmin):
+    list_display = ('room', 'pack', 'purchased_by', 'coins_spent', 'purchased_at')
+    list_filter = ('purchased_at', 'pack')
+    search_fields = ('room__room_code', 'pack__name', 'purchased_by__username', 'purchased_by__email')
+    readonly_fields = ('purchased_at',)
+
+
+@admin.register(PackBundleSession)
+class PackBundleSessionAdmin(admin.ModelAdmin):
+    list_display = ('user', 'room', 'pack', 'current_stage', 'points_earned', 'completed_at')
+    list_filter = ('pack', 'room', 'completed_at')
+    search_fields = ('user__username', 'room__room_code', 'pack__name')
+    readonly_fields = ('id', 'created_at', 'completed_at')
+    ordering = ('-created_at',)
+
+
+@admin.register(PackBundleAttempt)
+class PackBundleAttemptAdmin(admin.ModelAdmin):
+    list_display = ('session', 'pack_track', 'stage', 'is_correct', 'points_awarded', 'created_at')
+    list_filter = ('is_correct', 'stage', 'created_at')
+    search_fields = ('session__user__username', 'pack_track__pack__name', 'pack_track__track__title')
+    readonly_fields = ('id', 'created_at')
+    ordering = ('-created_at',)
+
+
 @admin.register(DailySong)
 class DailySongAdmin(admin.ModelAdmin):
     list_display = ('room', 'track', 'date', 'created_at')
     list_filter = ('date', 'created_at')
     search_fields = ('room__room_code', 'track__title', 'track__artist')
+    readonly_fields = ('created_at',)
+    ordering = ('-date', 'room')
+
+
+@admin.register(PackDailyTrack)
+class PackDailyTrackAdmin(admin.ModelAdmin):
+    list_display = ('room', 'pack', 'track', 'date', 'created_at')
+    list_filter = ('date', 'pack')
+    search_fields = ('room__room_code', 'pack__name', 'track__title', 'track__artist')
     readonly_fields = ('created_at',)
     ordering = ('-date', 'room')
 

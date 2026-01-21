@@ -36,12 +36,14 @@ ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',')
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',  # Must be before django.contrib.staticfiles for ASGI
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'channels',
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
@@ -77,6 +79,25 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'songspot.wsgi.application'
+ASGI_APPLICATION = 'songspot.asgi.application'
+
+# Django Channels - Channel Layer Configuration
+# For development, use in-memory channel layer
+# For production, use Redis: channels_redis.core.RedisChannelLayer
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    }
+}
+# Production Redis config (uncomment when deploying):
+# CHANNEL_LAYERS = {
+#     'default': {
+#         'BACKEND': 'channels_redis.core.RedisChannelLayer',
+#         'CONFIG': {
+#             'hosts': [(os.environ.get('REDIS_HOST', 'localhost'), 6379)],
+#         },
+#     },
+# }
 
 
 # Database
@@ -126,6 +147,13 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# Media (stems, uploads)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# Stem cleanup TTL (hours)
+STEM_TTL_HOURS = int(os.environ.get('STEM_TTL_HOURS', '72'))
+
 # Custom User Model
 AUTH_USER_MODEL = 'authentication.User'
 
@@ -137,6 +165,18 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    # Rate limiting / Throttling
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '20/minute',      # Anonymous users: 20 requests/minute
+        'user': '100/minute',     # Authenticated users: 100 requests/minute
+        'auth': '5/minute',       # Auth endpoints (login, register): 5/minute
+        'guess': '10/minute',     # Game guess submissions: 10/minute
+        'message': '30/minute',   # Chat messages: 30/minute
+    },
 }
 
 # Simple JWT

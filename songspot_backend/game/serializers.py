@@ -1,8 +1,9 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import (
-    Track, SongPack, PackTrack, Room, RoomUser,
-    DailySong, DailyGameSession, GuessAttempt, RoomMessage
+    Track, SongPack, PackTrack, Room, RoomUser, RoomPack,
+    DailySong, PackDailyTrack, PackBundleSession, PackBundleAttempt,
+    DailyGameSession, GuessAttempt, RoomMessage
 )
 
 User = get_user_model()
@@ -20,32 +21,96 @@ class PackTrackSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PackTrack
-        fields = ('track', 'order_in_pack')
+        fields = (
+            'track',
+            'order_in_pack',
+            'vocals_url',
+            'drums_url',
+            'bass_url',
+            'other_url',
+        )
+
+
+class PackTrackPreviewSerializer(serializers.ModelSerializer):
+    track = TrackSerializer(read_only=True)
+
+    class Meta:
+        model = PackTrack
+        fields = (
+            'track',
+            'order_in_pack',
+        )
 
 
 class SongPackListSerializer(serializers.ModelSerializer):
     track_count = serializers.SerializerMethodField()
+    is_owned = serializers.SerializerMethodField()
 
     class Meta:
         model = SongPack
-        fields = ('id', 'name', 'description', 'icon_url', 'track_count', 'created_at')
+        fields = (
+            'id', 'name', 'description', 'icon_url', 'track_count',
+            'price_coins', 'is_free', 'is_featured', 'is_owned', 'created_at'
+        )
         read_only_fields = ('id', 'created_at')
 
     def get_track_count(self, obj):
         return obj.pack_tracks.count()
+
+    def get_is_owned(self, obj):
+        request = self.context.get('request')
+        room = self.context.get('room')
+        if not request or not request.user.is_authenticated or not room:
+            return False
+        return RoomPack.objects.filter(room=room, pack=obj).exists()
 
 
 class SongPackDetailSerializer(serializers.ModelSerializer):
     tracks = PackTrackSerializer(source='pack_tracks', many=True, read_only=True)
     track_count = serializers.SerializerMethodField()
+    is_owned = serializers.SerializerMethodField()
 
     class Meta:
         model = SongPack
-        fields = ('id', 'name', 'description', 'icon_url', 'track_count', 'tracks', 'created_at')
+        fields = (
+            'id', 'name', 'description', 'icon_url', 'track_count', 'tracks',
+            'price_coins', 'is_free', 'is_featured', 'is_owned', 'created_at'
+        )
         read_only_fields = ('id', 'created_at')
 
     def get_track_count(self, obj):
         return obj.pack_tracks.count()
+
+    def get_is_owned(self, obj):
+        request = self.context.get('request')
+        room = self.context.get('room')
+        if not request or not request.user.is_authenticated or not room:
+            return False
+        return RoomPack.objects.filter(room=room, pack=obj).exists()
+
+
+class SongPackPreviewSerializer(serializers.ModelSerializer):
+    tracks = PackTrackPreviewSerializer(source='pack_tracks', many=True, read_only=True)
+    track_count = serializers.SerializerMethodField()
+    is_owned = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SongPack
+        fields = (
+            'id', 'name', 'description', 'icon_url', 'track_count', 'tracks',
+            'price_coins', 'is_free', 'is_featured', 'is_owned', 'created_at'
+        )
+        read_only_fields = ('id', 'created_at')
+
+    def get_track_count(self, obj):
+        return obj.pack_tracks.count()
+
+    def get_is_owned(self, obj):
+        request = self.context.get('request')
+        room = self.context.get('room')
+        if not request or not request.user.is_authenticated or not room:
+            return False
+        return RoomPack.objects.filter(room=room, pack=obj).exists()
 
 
 class UserBasicSerializer(serializers.ModelSerializer):
@@ -151,6 +216,51 @@ class SubmitGuessSerializer(serializers.Serializer):
         return value
 
 
+class PackBundleSessionSerializer(serializers.ModelSerializer):
+    pack_track = serializers.SerializerMethodField()
+    date = serializers.DateField(source='pack_daily_track.date', read_only=True)
+
+    class Meta:
+        model = PackBundleSession
+        fields = (
+            'id',
+            'current_stage',
+            'points_earned',
+            'completed_at',
+            'created_at',
+            'date',
+            'pack_track',
+        )
+        read_only_fields = (
+            'id',
+            'points_earned',
+            'completed_at',
+            'created_at',
+            'date',
+            'pack_track',
+        )
+
+    def get_pack_track(self, obj):
+        if not obj.pack_daily_track:
+            return None
+        pack_track = PackTrack.objects.filter(
+            pack=obj.pack,
+            track=obj.pack_daily_track.track
+        ).first()
+        if not pack_track:
+            return None
+        return PackTrackSerializer(pack_track).data
+
+
+class PackBundleGuessSerializer(serializers.Serializer):
+    track_id = serializers.UUIDField(required=True)
+
+    def validate_track_id(self, value):
+        if not Track.objects.filter(id=value).exists():
+            raise serializers.ValidationError("Track not found.")
+        return value
+
+
 class LeaderboardEntrySerializer(serializers.Serializer):
     user = UserBasicSerializer()
     points_earned = serializers.IntegerField()
@@ -176,3 +286,43 @@ class PostMessageSerializer(serializers.Serializer):
         if len(value) > 500:
             raise serializers.ValidationError("Message cannot exceed 500 characters.")
         return value.strip()
+
+
+class RoomBasicSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Room
+        fields = ('id', 'room_code', 'name')
+        read_only_fields = ('id', 'room_code', 'name')
+
+
+
+
+class TrackHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Track
+        fields = ('id', 'title', 'artist', 'cover_url')
+        read_only_fields = ('id', 'title', 'artist', 'cover_url')
+
+
+class GameHistoryEntrySerializer(serializers.ModelSerializer):
+    room = RoomBasicSerializer(read_only=True)
+    date = serializers.DateField(source='daily_song.date', read_only=True)
+    track = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DailyGameSession
+        fields = (
+            'id', 'date', 'room', 'track', 'correct_guess',
+            'points_earned', 'current_snippet', 'guesses_made',
+            'completed_at'
+        )
+        read_only_fields = (
+            'id', 'date', 'room', 'track', 'correct_guess',
+            'points_earned', 'current_snippet', 'guesses_made',
+            'completed_at'
+        )
+
+    def get_track(self, obj):
+        if not obj.daily_song or not obj.daily_song.track:
+            return None
+        return TrackHistorySerializer(obj.daily_song.track).data

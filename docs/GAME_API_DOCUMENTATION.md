@@ -261,7 +261,10 @@ Already in room (400 Bad Request):
 
 **Endpoint:** `GET /api/game/packs/`
 
-**Description:** Get all available song packs for purchase. Track details are hidden until purchased.
+**Description:** Get all available song packs for purchase in a room. Track details are hidden until the room purchases the pack.
+
+**Query Parameters:**
+- `room_id` (UUID): The room to scope pack ownership
 
 **Success Response (200 OK):**
 ```json
@@ -272,6 +275,10 @@ Already in room (400 Bad Request):
     "description": "The best hits from the 1980s",
     "icon_url": "https://example.com/icons/80s.png",
     "track_count": 50,
+    "price_coins": 500,
+    "is_free": false,
+    "is_featured": true,
+    "is_owned": false,
     "created_at": "2026-01-01T00:00:00Z"
   },
   {
@@ -280,6 +287,10 @@ Already in room (400 Bad Request):
     "description": "Iconic rock songs from all eras",
     "icon_url": "https://example.com/icons/rock.png",
     "track_count": 75,
+    "price_coins": 0,
+    "is_free": true,
+    "is_featured": false,
+    "is_owned": false,
     "created_at": "2026-01-01T00:00:00Z"
   }
 ]
@@ -287,7 +298,245 @@ Already in room (400 Bad Request):
 
 ---
 
-### 6. Get Daily Song for Room
+### 2. Get Song Pack Details (Owned Only)
+
+**Endpoint:** `GET /api/game/packs/{pack_id}/`
+
+**Description:** Get full pack details including tracks. Only available if the room owns the pack.
+
+**URL Parameters:**
+- `pack_id` (UUID): The ID of the pack
+
+**Query Parameters:**
+- `room_id` (UUID): The room to scope pack ownership
+
+**Success Response (200 OK):**
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440100",
+  "name": "80s Classics",
+  "description": "The best hits from the 1980s",
+  "icon_url": "https://example.com/icons/80s.png",
+  "track_count": 2,
+  "tracks": [
+    {
+      "track": {
+        "id": "550e8400-e29b-41d4-a716-446655440200",
+        "title": "Take On Me",
+        "artist": "a-ha",
+        "preview_url": "https://cdns-preview-e.dzcdn.net/stream/...",
+        "cover_url": "https://example.com/covers/aha.jpg",
+        "created_at": "2026-01-13T14:00:00Z"
+      },
+      "order_in_pack": 1,
+      "vocals_url": "https://example.com/stems/aha_vocals.mp3",
+      "drums_url": "https://example.com/stems/aha_drums.mp3",
+      "bass_url": "https://example.com/stems/aha_bass.mp3",
+      "other_url": "https://example.com/stems/aha_other.mp3"
+    }
+  ],
+  "price_coins": 500,
+  "is_free": false,
+  "is_featured": true,
+  "is_owned": true,
+  "created_at": "2026-01-01T00:00:00Z"
+}
+```
+
+**Error Response (403 Forbidden):**
+```json
+{
+  "error": "You must purchase this pack to view its tracks"
+}
+```
+
+---
+
+### 3. Purchase a Song Pack
+
+**Endpoint:** `POST /api/game/packs/{pack_id}/purchase/`
+
+**Description:** Purchase a pack with coins (or unlock if free) for a room.
+
+**URL Parameters:**
+- `pack_id` (UUID): The ID of the pack
+
+**Body Parameters:**
+- `room_id` (UUID): The room receiving the pack
+
+**Success Response (200 OK):**
+```json
+{
+  "pack": {
+    "id": "550e8400-e29b-41d4-a716-446655440100",
+    "name": "80s Classics",
+    "description": "The best hits from the 1980s",
+    "icon_url": "https://example.com/icons/80s.png",
+    "track_count": 50,
+    "tracks": [
+      {
+        "track": {
+          "id": "550e8400-e29b-41d4-a716-446655440200",
+          "title": "Take On Me",
+          "artist": "a-ha",
+          "preview_url": "https://cdns-preview-e.dzcdn.net/stream/...",
+          "cover_url": "https://example.com/covers/aha.jpg",
+          "created_at": "2026-01-13T14:00:00Z"
+        },
+        "order_in_pack": 1,
+        "vocals_url": "https://example.com/stems/aha_vocals.mp3",
+        "drums_url": "https://example.com/stems/aha_drums.mp3",
+        "bass_url": "https://example.com/stems/aha_bass.mp3",
+        "other_url": "https://example.com/stems/aha_other.mp3"
+      }
+    ],
+    "price_coins": 500,
+    "is_free": false,
+    "is_featured": true,
+    "is_owned": true,
+    "created_at": "2026-01-01T00:00:00Z"
+  },
+  "coins": 450,
+  "message": "Pack purchased successfully"
+}
+```
+
+**Error Response (400 Bad Request):**
+```json
+{
+  "error": "Insufficient coins",
+  "coins": 120,
+  "price_coins": 500
+}
+```
+
+---
+
+### 4. List My Packs
+
+**Endpoint:** `GET /api/game/packs/my/`
+
+**Description:** List all packs owned by a room.
+
+**Query Parameters:**
+- `room_id` (UUID): The room to scope pack ownership
+
+**Success Response (200 OK):**
+```json
+[
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440100",
+    "name": "80s Classics",
+    "description": "The best hits from the 1980s",
+    "icon_url": "https://example.com/icons/80s.png",
+    "track_count": 50,
+    "price_coins": 500,
+    "is_free": false,
+    "is_featured": true,
+    "is_owned": true,
+    "created_at": "2026-01-01T00:00:00Z"
+  }
+]
+```
+
+---
+
+### 5. Start/Get Pack Bundle Session
+
+**Endpoint:** `GET /api/game/rooms/{room_id}/packs/{pack_id}/bundle/`
+
+**Description:** Start or get a bundle-style pack session (stem guessing). One session per user per room per pack.
+
+**Success Response (200 OK):**
+```json
+{
+  "session": {
+    "id": "550e8400-e29b-41d4-a716-446655440500",
+    "current_stage": 1,
+    "points_earned": 0,
+    "completed_at": null,
+    "created_at": "2026-01-13T10:30:00Z",
+    "date": "2026-01-13",
+    "pack_track": {
+      "track": {
+        "id": "550e8400-e29b-41d4-a716-446655440200",
+        "title": "Take On Me",
+        "artist": "a-ha",
+        "preview_url": "https://cdns-preview-e.dzcdn.net/stream/...",
+        "cover_url": "https://example.com/covers/aha.jpg",
+        "created_at": "2026-01-13T14:00:00Z"
+      },
+      "order_in_pack": 1,
+      "vocals_url": "https://example.com/stems/aha_vocals.mp3",
+      "drums_url": "https://example.com/stems/aha_drums.mp3",
+      "bass_url": "https://example.com/stems/aha_bass.mp3",
+      "other_url": "https://example.com/stems/aha_other.mp3"
+    },
+  },
+  "stems": [
+    { "type": "drums", "url": "https://example.com/stems/aha_drums.mp3" }
+  ]
+}
+```
+
+---
+
+### 6. Skip Pack Bundle Stage
+
+**Endpoint:** `POST /api/game/rooms/{room_id}/packs/{pack_id}/bundle/skip/`
+
+**Description:** Skip to the next instrument stage (or next track).
+
+---
+
+### 7. Guess Pack Bundle Stage
+
+**Endpoint:** `POST /api/game/rooms/{room_id}/packs/{pack_id}/bundle/guess/`
+
+**Body:**
+```json
+{
+  "track_id": "550e8400-e29b-41d4-a716-446655440200"
+}
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "session": {
+    "id": "550e8400-e29b-41d4-a716-446655440500",
+    "current_stage": 1,
+    "points_earned": 3,
+    "completed_at": null,
+    "created_at": "2026-01-13T10:30:00Z",
+    "date": "2026-01-13",
+    "pack_track": {
+      "track": {
+        "id": "550e8400-e29b-41d4-a716-446655440201",
+        "title": "Billie Jean",
+        "artist": "Michael Jackson",
+        "preview_url": "https://cdns-preview-e.dzcdn.net/stream/...",
+        "cover_url": "https://example.com/covers/billie.jpg",
+        "created_at": "2026-01-13T14:00:00Z"
+      },
+      "order_in_pack": 2,
+      "vocals_url": "https://example.com/stems/billie_vocals.mp3",
+      "drums_url": "https://example.com/stems/billie_drums.mp3",
+      "bass_url": "https://example.com/stems/billie_bass.mp3",
+      "other_url": "https://example.com/stems/billie_other.mp3"
+    },
+  },
+  "stems": [
+    { "type": "drums", "url": "https://example.com/stems/billie_drums.mp3" }
+  ],
+  "is_correct": true,
+  "points_awarded": 3
+}
+```
+
+---
+
+### 5. Get Daily Song for Room
 
 **Endpoint:** `GET /api/game/rooms/{room_id}/daily-song/`
 
@@ -344,6 +593,7 @@ Already in room (400 Bad Request):
 - Automatically prevents track repetition within a room until all tracks are used
 - Once all tracks have been used, allows reusing tracks
 - Each room gets a different random track each day
+- Daily song selection is independent from pack content
 - The song selection happens automatically on the first request of the day
 
 ---
@@ -362,7 +612,7 @@ The game uses a Heardle/Songless mechanic where users progressively reveal longe
 
 Users can either **skip** to the next snippet or **guess** the song. Incorrect guesses automatically advance to the next snippet.
 
-### 7. Start/Get Game Session
+### 6. Start/Get Game Session
 
 **Endpoint:** `GET /api/game/rooms/{room_id}/daily-game/`
 
@@ -410,7 +660,7 @@ Users can either **skip** to the next snippet or **guess** the song. Incorrect g
 
 ---
 
-### 8. Skip to Next Snippet
+### 7. Skip to Next Snippet
 
 **Endpoint:** `POST /api/game/rooms/{room_id}/daily-game/skip/`
 
@@ -447,11 +697,11 @@ Users can either **skip** to the next snippet or **guess** the song. Incorrect g
 
 ---
 
-### 9. Submit a Guess
+### 8. Submit a Guess
 
 **Endpoint:** `POST /api/game/rooms/{room_id}/daily-game/guess/`
 
-**Description:** Submit a guess for the song. Both title and artist must match (case-insensitive).
+**Description:** Submit a guess for the song by track ID.
 
 **URL Parameters:**
 - `room_id` (UUID): The ID of the room
@@ -459,8 +709,7 @@ Users can either **skip** to the next snippet or **guess** the song. Incorrect g
 **Request Body:**
 ```json
 {
-  "title": "Do I Wanna Know?",
-  "artist": "Arctic Monkeys"
+  "track_id": "550e8400-e29b-41d4-a716-446655440200"
 }
 ```
 
@@ -469,6 +718,7 @@ Users can either **skip** to the next snippet or **guess** the song. Incorrect g
 {
   "is_correct": true,
   "points_earned": 6,
+  "coins_awarded": 60,
   "snippet_number": 1,
   "message": "Correct! You earned 6 points!",
   "correct_answer": {
@@ -514,14 +764,13 @@ Users can either **skip** to the next snippet or **guess** the song. Incorrect g
 **Validation Errors (400 Bad Request):**
 ```json
 {
-  "title": ["Title cannot be empty."],
-  "artist": ["Artist cannot be empty."]
+  "track_id": ["Track not found."]
 }
 ```
 
 ---
 
-### 10. Get Leaderboard
+### 9. Get Leaderboard
 
 **Endpoint:** `GET /api/game/rooms/{room_id}/daily-game/leaderboard/`
 
@@ -568,7 +817,7 @@ Users can either **skip** to the next snippet or **guess** the song. Incorrect g
 
 ## Room Chat
 
-### 11. Get Room Messages
+### 10. Get Room Messages
 
 **Endpoint:** `GET /api/game/rooms/{room_id}/messages/?limit=50&offset=0`
 
@@ -613,7 +862,7 @@ Users can either **skip** to the next snippet or **guess** the song. Incorrect g
 
 ---
 
-### 12. Post a Message
+### 11. Post a Message
 
 **Endpoint:** `POST /api/game/rooms/{room_id}/messages/`
 
@@ -657,6 +906,50 @@ Users can either **skip** to the next snippet or **guess** the song. Incorrect g
 
 ---
 
+## User History
+
+### 12. Get User Game History
+
+**Endpoint:** `GET /api/game/history/?limit=30&offset=0`
+
+**Description:** Get completed game history for the authenticated user.
+
+**Query Parameters:**
+- `limit` (int, optional): Number of sessions to retrieve (default: 30, max: 100)
+- `offset` (int, optional): Number of sessions to skip (default: 0)
+
+**Success Response (200 OK):**
+```json
+{
+  "results": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440500",
+      "date": "2026-01-13",
+      "room": {
+        "id": "550e8400-e29b-41d4-a716-446655440010",
+        "room_code": "ABCD12",
+        "name": "Friday Night"
+      },
+      "track": {
+        "id": "550e8400-e29b-41d4-a716-446655440200",
+        "title": "Billie Jean",
+        "artist": "Michael Jackson",
+        "cover_url": "https://example.com/covers/billie.jpg"
+      },
+      "correct_guess": true,
+      "points_earned": 6,
+      "current_snippet": 1,
+      "guesses_made": 1,
+      "completed_at": "2026-01-13T10:50:00Z"
+    }
+  ],
+  "limit": 30,
+  "offset": 0
+}
+```
+
+---
+
 ## Tracks
 
 ### 1. List All Tracks
@@ -683,6 +976,30 @@ Users can either **skip** to the next snippet or **guess** the song. Incorrect g
     "created_at": "2026-01-01T00:00:00Z"
   }
 ]
+```
+
+### 2. Refresh Track Preview URL
+
+**Endpoint:** `POST /api/game/tracks/{track_id}/refresh-preview/`
+
+**Description:** Refreshes a track preview URL from Deezer when a cached preview has expired.
+
+**URL Parameters:**
+- `track_id` (UUID): The ID of the track
+
+**Success Response (200 OK):**
+```json
+{
+  "track": {
+    "id": "550e8400-e29b-41d4-a716-446655440200",
+    "title": "Billie Jean",
+    "artist": "Michael Jackson",
+    "preview_url": "https://cdns-preview-a.dzcdn.net/stream/...",
+    "cover_url": "https://example.com/covers/billie.jpg",
+    "created_at": "2026-01-01T00:00:00Z"
+  },
+  "preview_url": "https://cdns-preview-a.dzcdn.net/stream/..."
+}
 ```
 
 ---
@@ -810,7 +1127,7 @@ curl -X POST http://localhost:8000/api/game/rooms/ROOM_ID/daily-game/skip/ \
 curl -X POST http://localhost:8000/api/game/rooms/ROOM_ID/daily-game/guess/ \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"title": "Do I Wanna Know?", "artist": "Arctic Monkeys"}'
+  -d '{"track_id": "TRACK_ID"}'
 ```
 
 ### Get Leaderboard
@@ -835,7 +1152,33 @@ curl -X POST http://localhost:8000/api/game/rooms/ROOM_ID/messages/ \
 
 ### List Song Packs
 ```bash
-curl -X GET http://localhost:8000/api/game/packs/ \
+curl -X GET "http://localhost:8000/api/game/packs/?room_id=ROOM_ID" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+### Get Song Pack Details
+```bash
+curl -X GET "http://localhost:8000/api/game/packs/PACK_ID/?room_id=ROOM_ID" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+### Purchase a Song Pack
+```bash
+curl -X POST http://localhost:8000/api/game/packs/PACK_ID/purchase/ \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"room_id":"ROOM_ID"}'
+```
+
+### List My Packs
+```bash
+curl -X GET "http://localhost:8000/api/game/packs/my/?room_id=ROOM_ID" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+### Get User Game History
+```bash
+curl -X GET "http://localhost:8000/api/game/history/?limit=30&offset=0" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -843,7 +1186,5 @@ curl -X GET http://localhost:8000/api/game/packs/ \
 
 ## Next Features to Implement
 
-- [ ] Pack purchase endpoint
 - [ ] Pack-based daily song selection
 - [ ] Real-time gameplay with WebSockets (optional)
-- [ ] User statistics and history

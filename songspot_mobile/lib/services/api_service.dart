@@ -237,6 +237,92 @@ class ApiService {
     }
   }
 
+  // Pack methods
+  Future<List<dynamic>> getPacks({required String roomId}) async {
+    final response = await get(
+      ApiConfig.packs,
+      includeAuth: true,
+      queryParameters: {'room_id': roomId},
+    );
+    return response as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getPackDetail({
+    required String roomId,
+    required String packId,
+  }) async {
+    final response = await get(
+      ApiConfig.packDetail(packId),
+      includeAuth: true,
+      queryParameters: {'room_id': roomId},
+    );
+    return response as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> purchasePack({
+    required String roomId,
+    required String packId,
+  }) async {
+    final response = await post(
+      ApiConfig.packPurchase(packId),
+      includeAuth: true,
+      body: {'room_id': roomId},
+    );
+    return response as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> getMyPacks({required String roomId}) async {
+    final response = await get(
+      ApiConfig.packsMy,
+      includeAuth: true,
+      queryParameters: {'room_id': roomId},
+    );
+    return response as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> refreshTrackPreview({required String trackId}) async {
+    final response = await post(
+      ApiConfig.trackRefreshPreview(trackId),
+      includeAuth: true,
+    );
+    return response as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getPackBundle({
+    required String roomId,
+    required String packId,
+  }) async {
+    final response = await get(
+      ApiConfig.packBundle(roomId, packId),
+      includeAuth: true,
+    );
+    return response as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> skipPackBundle({
+    required String roomId,
+    required String packId,
+  }) async {
+    final response = await post(
+      ApiConfig.packBundleSkip(roomId, packId),
+      includeAuth: true,
+    );
+    return response as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> guessPackBundle({
+    required String roomId,
+    required String packId,
+    required String trackId,
+  }) async {
+    final response = await post(
+      ApiConfig.packBundleGuess(roomId, packId),
+      includeAuth: true,
+      body: {'track_id': trackId},
+    );
+    return response as Map<String, dynamic>;
+  }
+
   // Auth methods
   Future<Map<String, dynamic>> register({
     required String email,

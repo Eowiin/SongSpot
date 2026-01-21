@@ -40,7 +40,8 @@ Content-Type: application/json
   "user": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
     "email": "user@example.com",
-    "username": "johndoe"
+    "username": "johndoe",
+    "coins": 100
   },
   "tokens": {
     "access": "eyJ0eXAiOiJKV1QiLCJhbGc...",
@@ -83,7 +84,8 @@ Content-Type: application/json
   "user": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
     "email": "user@example.com",
-    "username": "johndoe"
+    "username": "johndoe",
+    "coins": 120
   },
   "tokens": {
     "access": "eyJ0eXAiOiJKV1QiLCJhbGc...",
@@ -151,7 +153,17 @@ Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "email": "user@example.com",
-  "username": "johndoe"
+  "username": "johndoe",
+  "coins": 120,
+  "games_played": 14,
+  "games_won": 9,
+  "win_rate": 64.3,
+  "total_points": 38,
+  "average_points": 2.7,
+  "current_streak": 3,
+  "best_streak": 7,
+  "last_played_date": "2026-01-13",
+  "perfect_games": 2
 }
 ```
 

@@ -1,12 +1,19 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/game_session.dart';
 import '../models/message.dart';
+import '../models/track.dart';
+import '../models/user.dart';
 import '../services/api_service.dart';
 import '../services/audio_service.dart';
+import '../services/websocket_service.dart';
 
 class GameProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
   final AudioService _audioService = AudioService();
+  final WebSocketService _webSocketService = WebSocketService();
+
+  StreamSubscription<WebSocketEvent>? _wsSubscription;
 
   GameSession? _currentSession;
   List<LeaderboardEntry> _leaderboard = [];
@@ -14,6 +21,8 @@ class GameProvider with ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
   String? _guessResult;
+  bool _isWebSocketConnected = false;
+  Map<String, bool> _typingUsers = {}; // userId -> isTyping
 
   GameSession? get currentSession => _currentSession;
   List<LeaderboardEntry> get leaderboard => _leaderboard;
@@ -22,6 +31,11 @@ class GameProvider with ChangeNotifier {
   String? get errorMessage => _errorMessage;
   String? get guessResult => _guessResult;
   AudioService get audioService => _audioService;
+  bool get isWebSocketConnected => _isWebSocketConnected;
+  List<String> get typingUsernames => _typingUsers.entries
+      .where((e) => e.value)
+      .map((e) => e.key)
+      .toList();
 
   /// Start or get current game session
   Future<void> startGameSession(String roomId) async {
@@ -39,12 +53,7 @@ class GameProvider with ChangeNotifier {
       _currentSession = GameSession.fromJson(response);
 
       // Load the audio
-      final previewUrl = _currentSession!.dailySong.track.previewUrl;
-      if (previewUrl.isEmpty) {
-        throw Exception('No preview URL available for this track');
-      }
-
-      await _audioService.loadAudio(previewUrl);
+      await _loadAudioWithRefresh(_currentSession!);
 
       _isLoading = false;
       notifyListeners();
@@ -54,6 +63,47 @@ class GameProvider with ChangeNotifier {
       notifyListeners();
       rethrow;
     }
+  }
+
+  Future<void> _loadAudioWithRefresh(GameSession session) async {
+    final previewUrl = session.dailySong.track.previewUrl;
+    if (previewUrl.isNotEmpty) {
+      try {
+        await _audioService.loadAudio(previewUrl);
+        return;
+      } catch (e) {
+        // Fall through to refresh.
+      }
+    }
+
+    final refreshed = await _apiService.refreshTrackPreview(
+      trackId: session.dailySong.track.id,
+    );
+    final trackJson = refreshed['track'] as Map<String, dynamic>;
+    final updatedTrack = Track.fromJson(trackJson);
+    _currentSession = _copySessionWithTrack(session, updatedTrack);
+    await _audioService.loadAudio(updatedTrack.previewUrl);
+  }
+
+  GameSession _copySessionWithTrack(GameSession session, Track updatedTrack) {
+    final updatedDailySong = DailySong(
+      id: session.dailySong.id,
+      track: updatedTrack,
+      date: session.dailySong.date,
+      createdAt: session.dailySong.createdAt,
+    );
+
+    return GameSession(
+      id: session.id,
+      user: session.user,
+      dailySong: updatedDailySong,
+      currentSnippet: session.currentSnippet,
+      guessesMade: session.guessesMade,
+      correctGuess: session.correctGuess,
+      pointsEarned: session.pointsEarned,
+      completedAt: session.completedAt,
+      createdAt: session.createdAt,
+    );
   }
 
   /// Skip to next snippet
@@ -188,7 +238,84 @@ class GameProvider with ChangeNotifier {
     }
   }
 
-  /// Load messages
+  /// Connect to room chat WebSocket
+  Future<void> connectToChat(String roomId) async {
+    // Cancel any existing subscription
+    await _wsSubscription?.cancel();
+
+    // Subscribe to WebSocket events
+    _wsSubscription = _webSocketService.events.listen(_handleWebSocketEvent);
+
+    // Connect to the room
+    final connected = await _webSocketService.connect(roomId);
+    _isWebSocketConnected = connected;
+    notifyListeners();
+  }
+
+  /// Disconnect from chat WebSocket
+  Future<void> disconnectFromChat() async {
+    await _wsSubscription?.cancel();
+    _wsSubscription = null;
+    await _webSocketService.disconnect();
+    _isWebSocketConnected = false;
+    _typingUsers.clear();
+    notifyListeners();
+  }
+
+  void _handleWebSocketEvent(WebSocketEvent event) {
+    switch (event.type) {
+      case WebSocketEventType.connected:
+        _isWebSocketConnected = true;
+        notifyListeners();
+        break;
+
+      case WebSocketEventType.disconnected:
+        _isWebSocketConnected = false;
+        notifyListeners();
+        break;
+
+      case WebSocketEventType.message:
+        final message = event.data as Message;
+        // Add to beginning (newest first), avoid duplicates
+        if (!_messages.any((m) => m.id == message.id)) {
+          _messages.insert(0, message);
+          notifyListeners();
+        }
+        break;
+
+      case WebSocketEventType.userJoined:
+        // Could show a notification or update UI
+        debugPrint('User joined: ${(event.data as User).username}');
+        notifyListeners();
+        break;
+
+      case WebSocketEventType.userLeft:
+        final user = event.data as User;
+        _typingUsers.remove(user.id);
+        debugPrint('User left: ${user.username}');
+        notifyListeners();
+        break;
+
+      case WebSocketEventType.typing:
+        final data = event.data as Map<String, dynamic>;
+        final user = data['user'] as User;
+        final isTyping = data['is_typing'] as bool;
+        if (isTyping) {
+          _typingUsers[user.username] = true;
+        } else {
+          _typingUsers.remove(user.username);
+        }
+        notifyListeners();
+        break;
+
+      case WebSocketEventType.error:
+        _errorMessage = event.data?.toString();
+        notifyListeners();
+        break;
+    }
+  }
+
+  /// Load messages (initial load via REST API)
   Future<void> loadMessages(String roomId, {int limit = 50, int offset = 0}) async {
     try {
       final response = await _apiService.getMessages(
@@ -208,8 +335,15 @@ class GameProvider with ChangeNotifier {
     }
   }
 
-  /// Send a message
+  /// Send a message via WebSocket (real-time) or REST API (fallback)
   Future<bool> sendMessage(String roomId, String message) async {
+    // Try WebSocket first for real-time delivery
+    if (_isWebSocketConnected) {
+      _webSocketService.sendMessage(message);
+      return true;
+    }
+
+    // Fallback to REST API
     try {
       final response = await _apiService.sendMessage(
         roomId: roomId,
@@ -225,6 +359,13 @@ class GameProvider with ChangeNotifier {
       _errorMessage = e.toString();
       notifyListeners();
       return false;
+    }
+  }
+
+  /// Send typing indicator
+  void sendTypingIndicator(bool isTyping) {
+    if (_isWebSocketConnected) {
+      _webSocketService.sendTyping(isTyping);
     }
   }
 
@@ -271,6 +412,8 @@ class GameProvider with ChangeNotifier {
 
   @override
   void dispose() {
+    _wsSubscription?.cancel();
+    _webSocketService.dispose();
     _audioService.dispose();
     super.dispose();
   }

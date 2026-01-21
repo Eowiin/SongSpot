@@ -7,7 +7,14 @@ from .views import (
     RoomRenameView,
     MyRoomsView,
     SongPackListView,
+    SongPackDetailView,
+    SongPackPurchaseView,
+    MyPacksView,
+    PackBundleSessionView,
+    PackBundleSkipView,
+    PackBundleGuessView,
     TrackListView,
+    TrackRefreshPreviewView,
     RoomDailySongView,
     DailyGameView,
     SkipSnippetView,
@@ -15,6 +22,7 @@ from .views import (
     LeaderboardView,
     RoomMessagesView,
     SearchTracksView,
+    UserGameHistoryView,
 )
 
 app_name = 'game'
@@ -40,8 +48,18 @@ urlpatterns = [
 
     # Song pack endpoints
     path('packs/', SongPackListView.as_view(), name='pack_list'),
+    path('packs/my/', MyPacksView.as_view(), name='my_packs'),
+    path('packs/<uuid:pack_id>/', SongPackDetailView.as_view(), name='pack_detail'),
+    path('packs/<uuid:pack_id>/purchase/', SongPackPurchaseView.as_view(), name='pack_purchase'),
+    path('rooms/<uuid:room_id>/packs/<uuid:pack_id>/bundle/', PackBundleSessionView.as_view(), name='pack_bundle'),
+    path('rooms/<uuid:room_id>/packs/<uuid:pack_id>/bundle/skip/', PackBundleSkipView.as_view(), name='pack_bundle_skip'),
+    path('rooms/<uuid:room_id>/packs/<uuid:pack_id>/bundle/guess/', PackBundleGuessView.as_view(), name='pack_bundle_guess'),
 
     # Track endpoints
     path('tracks/', TrackListView.as_view(), name='track_list'),
+    path('tracks/<uuid:track_id>/refresh-preview/', TrackRefreshPreviewView.as_view(), name='track_refresh_preview'),
     path('tracks/search/', SearchTracksView.as_view(), name='search_tracks'),
+
+    # User stats/history
+    path('history/', UserGameHistoryView.as_view(), name='game_history'),
 ]

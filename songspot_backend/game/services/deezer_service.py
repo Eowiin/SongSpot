@@ -88,6 +88,51 @@ class DeezerService:
             print(f"Error fetching chart tracks: {e}")
             return []
 
+    def get_top_artists(self, limit: int = 200) -> List[Dict]:
+        """
+        Get top artists from Deezer charts.
+
+        Args:
+            limit: Maximum number of artists
+
+        Returns:
+            List of artist dictionaries
+        """
+        url = f"{self.BASE_URL}/chart/0/artists"
+        params = {'limit': limit}
+
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            return data.get('data', [])
+        except requests.RequestException as e:
+            print(f"Error fetching top artists: {e}")
+            return []
+
+    def get_artist_top_tracks(self, artist_id: int, limit: int = 3) -> List[Dict]:
+        """
+        Get top tracks for a specific artist.
+
+        Args:
+            artist_id: Deezer artist ID
+            limit: Maximum number of tracks
+
+        Returns:
+            List of track dictionaries
+        """
+        url = f"{self.BASE_URL}/artist/{artist_id}/top"
+        params = {'limit': limit}
+
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            return data.get('data', [])
+        except requests.RequestException as e:
+            print(f"Error fetching top tracks for artist {artist_id}: {e}")
+            return []
+
     def get_random_tracks_from_genre(self, genre_id: int, limit: int = 25) -> List[Dict]:
         """
         Get random tracks from a specific genre.
@@ -125,6 +170,29 @@ class DeezerService:
 
         except requests.RequestException as e:
             print(f"Error fetching tracks from genre {genre_id}: {e}")
+            return []
+
+    def get_genre_artists(self, genre_id: int, limit: int = 100) -> List[Dict]:
+        """
+        Get artists for a specific genre.
+
+        Args:
+            genre_id: Deezer genre ID
+            limit: Maximum number of artists
+
+        Returns:
+            List of artist dictionaries
+        """
+        url = f"{self.BASE_URL}/genre/{genre_id}/artists"
+        params = {'limit': limit}
+
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            return data.get('data', [])
+        except requests.RequestException as e:
+            print(f"Error fetching genre artists {genre_id}: {e}")
             return []
 
     def get_random_tracks(self, count: int = 10) -> List[Dict]:

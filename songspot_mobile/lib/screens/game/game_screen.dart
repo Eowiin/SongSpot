@@ -9,6 +9,7 @@ import '../../models/track.dart';
 import '../../models/game_session.dart';
 import '../../widgets/track_autocomplete.dart';
 import '../../widgets/gradient_button.dart';
+import '../packs/pack_list_screen.dart';
 
 class GameScreen extends StatefulWidget {
   final String roomId;
@@ -713,6 +714,19 @@ class _GameScreenState extends State<GameScreen> {
       appBar: AppBar(
         title: Text(room?.displayName ?? 'Daily Challenge'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.album),
+            onPressed: room == null
+                ? null
+                : () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => PackListScreen(roomId: room.id),
+                      ),
+                    );
+                  },
+            tooltip: 'Packs',
+          ),
           if (isHost)
             IconButton(
               icon: const Icon(Icons.edit),

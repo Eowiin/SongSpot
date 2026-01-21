@@ -2,16 +2,21 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django.db import transaction
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 import random
 from .models import (
-    Track, SongPack, Room, RoomUser, DailySong,
+    Track, SongPack, Room, RoomUser, RoomPack,
+    DailySong, PackTrack, PackDailyTrack, PackBundleSession, PackBundleAttempt,
     DailyGameSession, GuessAttempt, RoomMessage
 )
 from .serializers import (
     TrackSerializer,
     SongPackListSerializer,
+    SongPackDetailSerializer,
+    SongPackPreviewSerializer,
     RoomSerializer,
     RoomCreateSerializer,
     RoomRenameSerializer,
@@ -21,7 +26,11 @@ from .serializers import (
     LeaderboardEntrySerializer,
     RoomMessageSerializer,
     PostMessageSerializer,
+    GameHistoryEntrySerializer,
+    PackBundleSessionSerializer,
+    PackBundleGuessSerializer,
 )
+from songspot.throttling import GuessRateThrottle, MessageRateThrottle
 
 # Scoring constants
 SNIPPET_POINTS = {
@@ -32,6 +41,71 @@ SNIPPET_POINTS = {
     5: 2,  # Guessed on 8s snippet
     6: 1,  # Guessed on 15s snippet
 }
+COIN_REWARD_PER_POINT = 10
+
+# Pack bundle constants
+PACK_BUNDLE_STAGE_POINTS = {
+    1: 4,
+    2: 3,
+    3: 2,
+    4: 1,
+}
+PACK_BUNDLE_STAGE_ORDER = ['drums_url', 'bass_url', 'other_url', 'vocals_url']
+
+
+def _get_room_from_request(request):
+    room_id = request.query_params.get('room_id') or request.data.get('room_id')
+    if not room_id:
+        return None
+    return get_object_or_404(Room, id=room_id)
+
+
+
+def update_user_stats(user, points, won, played_date, perfect_game=False):
+    user.games_played += 1
+    if won:
+        user.games_won += 1
+    user.total_points += points
+    if perfect_game:
+        user.perfect_games += 1
+    user.save(update_fields=['games_played', 'games_won', 'total_points', 'perfect_games'])
+    user.update_streak(won, played_date)
+
+
+def _get_pack_bundle_stems(pack_track, stage):
+    stage = max(1, min(stage, len(PACK_BUNDLE_STAGE_ORDER)))
+    stems = []
+    for field in PACK_BUNDLE_STAGE_ORDER[:stage]:
+        url = getattr(pack_track, field, None)
+        if url:
+            stems.append({'type': field.replace('_url', ''), 'url': url})
+    return stems
+
+
+def _get_ordered_pack_tracks(pack):
+    return list(pack.pack_tracks.select_related('track').order_by('order_in_pack', 'id'))
+
+
+def _get_daily_pack_track(room, pack, today):
+    daily_track = PackDailyTrack.objects.filter(room=room, pack=pack, date=today).first()
+    if daily_track:
+        return daily_track
+
+    pack_tracks = _get_ordered_pack_tracks(pack)
+    if not pack_tracks:
+        return None
+
+    used_track_ids = PackDailyTrack.objects.filter(
+        room=room,
+        pack=pack
+    ).values_list('track_id', flat=True)
+    used_ids = set(used_track_ids)
+    available_tracks = [pt.track for pt in pack_tracks if pt.track_id not in used_ids]
+    if not available_tracks:
+        available_tracks = [pt.track for pt in pack_tracks]
+
+    track = random.choice(available_tracks)
+    return PackDailyTrack.objects.create(room=room, pack=pack, track=track, date=today)
 
 
 class RoomCreateView(APIView):
@@ -217,9 +291,299 @@ class SongPackListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        room = _get_room_from_request(request)
+        if not room:
+            return Response({'error': 'room_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not RoomUser.objects.filter(room=room, user=request.user).exists():
+            return Response({'error': 'You must be in the room to view packs'}, status=status.HTTP_403_FORBIDDEN)
         packs = SongPack.objects.all()
-        serializer = SongPackListSerializer(packs, many=True)
+        serializer = SongPackListSerializer(packs, many=True, context={'request': request, 'room': room})
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class SongPackDetailView(APIView):
+    """
+    Get full details (including tracks) for a pack the user owns.
+
+    GET /api/game/packs/<pack_id>/
+    Headers: Authorization: Bearer <access_token>
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pack_id):
+        room = _get_room_from_request(request)
+        if not room:
+            return Response({'error': 'room_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not RoomUser.objects.filter(room=room, user=request.user).exists():
+            return Response({'error': 'You must be in the room to view this pack'}, status=status.HTTP_403_FORBIDDEN)
+        pack = get_object_or_404(SongPack, id=pack_id)
+        is_owned = RoomPack.objects.filter(room=room, pack=pack).exists()
+        serializer_class = SongPackDetailSerializer if is_owned else SongPackPreviewSerializer
+        serializer = serializer_class(pack, context={'request': request, 'room': room})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class SongPackPurchaseView(APIView):
+    """
+    Purchase a song pack using coins.
+
+    POST /api/game/packs/<pack_id>/purchase/
+    Headers: Authorization: Bearer <access_token>
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pack_id):
+        room = _get_room_from_request(request)
+        if not room:
+            return Response({'error': 'room_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not RoomUser.objects.filter(room=room, user=request.user).exists():
+            return Response({'error': 'You must be in the room to purchase packs'}, status=status.HTTP_403_FORBIDDEN)
+        pack = get_object_or_404(SongPack, id=pack_id)
+
+        if RoomPack.objects.filter(room=room, pack=pack).exists():
+            serializer = SongPackDetailSerializer(pack, context={'request': request, 'room': room})
+            return Response({
+                'pack': serializer.data,
+                'coins': request.user.coins,
+                'message': 'Pack already owned'
+            }, status=status.HTTP_200_OK)
+
+        if pack.is_free or pack.price_coins == 0:
+            RoomPack.objects.get_or_create(
+                room=room,
+                pack=pack,
+                defaults={'coins_spent': 0, 'purchased_by': request.user}
+            )
+            serializer = SongPackDetailSerializer(pack, context={'request': request, 'room': room})
+            return Response({
+                'pack': serializer.data,
+                'coins': request.user.coins,
+                'message': 'Pack unlocked'
+            }, status=status.HTTP_200_OK)
+
+        if request.user.coins < pack.price_coins:
+            return Response({
+                'error': 'Insufficient coins',
+                'coins': request.user.coins,
+                'price_coins': pack.price_coins
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            if not request.user.spend_coins(pack.price_coins, reason=f"Purchased pack {pack.name}"):
+                return Response({
+                    'error': 'Insufficient coins',
+                    'coins': request.user.coins,
+                    'price_coins': pack.price_coins
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            RoomPack.objects.create(
+                room=room,
+                pack=pack,
+                coins_spent=pack.price_coins,
+                purchased_by=request.user
+            )
+
+        serializer = SongPackDetailSerializer(pack, context={'request': request, 'room': room})
+        return Response({
+            'pack': serializer.data,
+            'coins': request.user.coins,
+            'message': 'Pack purchased successfully'
+        }, status=status.HTTP_200_OK)
+
+
+class MyPacksView(APIView):
+    """
+    Get all packs the user can access (owned or free).
+
+    GET /api/game/packs/my/
+    Headers: Authorization: Bearer <access_token>
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        room = _get_room_from_request(request)
+        if not room:
+            return Response({'error': 'room_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not RoomUser.objects.filter(room=room, user=request.user).exists():
+            return Response({'error': 'You must be in the room to view packs'}, status=status.HTTP_403_FORBIDDEN)
+        packs = SongPack.objects.filter(room_purchases__room=room).distinct()
+        serializer = SongPackListSerializer(packs, many=True, context={'request': request, 'room': room})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class PackBundleSessionView(APIView):
+    """
+    Start or get a bundle-like pack session (stem guessing).
+
+    GET /api/game/rooms/<room_id>/packs/<pack_id>/bundle/
+    Headers: Authorization: Bearer <access_token>
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, room_id, pack_id):
+        room = get_object_or_404(Room, id=room_id)
+        pack = get_object_or_404(SongPack, id=pack_id)
+        today = timezone.now().date()
+
+        if not RoomUser.objects.filter(room=room, user=request.user).exists():
+            return Response({'error': 'You must be in the room to play this pack'}, status=status.HTTP_403_FORBIDDEN)
+
+        if not RoomPack.objects.filter(room=room, pack=pack).exists():
+            return Response({'error': 'This pack is not owned by the room'}, status=status.HTTP_403_FORBIDDEN)
+
+        daily_track = _get_daily_pack_track(room, pack, today)
+        if not daily_track:
+            return Response({'error': 'Pack has no tracks'}, status=status.HTTP_404_NOT_FOUND)
+
+        session, _ = PackBundleSession.objects.get_or_create(
+            room=room,
+            user=request.user,
+            pack=pack,
+            pack_daily_track=daily_track,
+            defaults={'current_stage': 1}
+        )
+
+        serializer = PackBundleSessionSerializer(session)
+        stems = []
+        if not session.completed_at:
+            current_pack_track = PackTrack.objects.filter(pack=pack, track=daily_track.track).first()
+            if current_pack_track:
+                stems = _get_pack_bundle_stems(current_pack_track, session.current_stage)
+
+        return Response({
+            'session': serializer.data,
+            'stems': stems,
+        }, status=status.HTTP_200_OK)
+
+
+class PackBundleSkipView(APIView):
+    """
+    Skip to the next instrument stage (or next track) in a pack bundle.
+
+    POST /api/game/rooms/<room_id>/packs/<pack_id>/bundle/skip/
+    Headers: Authorization: Bearer <access_token>
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, room_id, pack_id):
+        room = get_object_or_404(Room, id=room_id)
+        pack = get_object_or_404(SongPack, id=pack_id)
+        today = timezone.now().date()
+
+        if not RoomUser.objects.filter(room=room, user=request.user).exists():
+            return Response({'error': 'You must be in the room to play this pack'}, status=status.HTTP_403_FORBIDDEN)
+
+        daily_track = _get_daily_pack_track(room, pack, today)
+        session = PackBundleSession.objects.filter(
+            room=room,
+            user=request.user,
+            pack=pack,
+            pack_daily_track=daily_track
+        ).first()
+        if not session:
+            return Response({'error': 'No active pack session. Start with GET bundle.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if session.completed_at:
+            return Response({'error': 'Pack already completed'}, status=status.HTTP_400_BAD_REQUEST)
+
+        session.current_stage += 1
+        if session.current_stage > len(PACK_BUNDLE_STAGE_ORDER):
+            session.completed_at = timezone.now()
+        session.save(update_fields=['current_stage', 'completed_at'])
+
+        serializer = PackBundleSessionSerializer(session)
+        stems = []
+        if not session.completed_at:
+            current_pack_track = PackTrack.objects.filter(pack=pack, track=daily_track.track).first()
+            if current_pack_track:
+                stems = _get_pack_bundle_stems(current_pack_track, session.current_stage)
+
+        return Response({
+            'session': serializer.data,
+            'stems': stems,
+            'message': 'Skipped to next stage',
+        }, status=status.HTTP_200_OK)
+
+
+class PackBundleGuessView(APIView):
+    """
+    Submit a guess for the current pack bundle stage.
+
+    POST /api/game/rooms/<room_id>/packs/<pack_id>/bundle/guess/
+    Headers: Authorization: Bearer <access_token>
+    Body: {"track_id": "uuid-of-guessed-track"}
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, room_id, pack_id):
+        room = get_object_or_404(Room, id=room_id)
+        pack = get_object_or_404(SongPack, id=pack_id)
+        today = timezone.now().date()
+
+        if not RoomUser.objects.filter(room=room, user=request.user).exists():
+            return Response({'error': 'You must be in the room to play this pack'}, status=status.HTTP_403_FORBIDDEN)
+
+        daily_track = _get_daily_pack_track(room, pack, today)
+        session = PackBundleSession.objects.filter(
+            room=room,
+            user=request.user,
+            pack=pack,
+            pack_daily_track=daily_track
+        ).first()
+        if not session:
+            return Response({'error': 'No active pack session. Start with GET bundle.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if session.completed_at:
+            return Response({'error': 'Pack already completed'}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = PackBundleGuessSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        current_pack_track = PackTrack.objects.filter(pack=pack, track=daily_track.track).first()
+        if not current_pack_track:
+            return Response({'error': 'Pack track not found'}, status=status.HTTP_404_NOT_FOUND)
+        already_attempted = PackBundleAttempt.objects.filter(
+            session=session,
+            pack_track=current_pack_track,
+            stage=session.current_stage
+        ).exists()
+        if already_attempted:
+            return Response({'error': 'Already guessed for this stage'}, status=status.HTTP_400_BAD_REQUEST)
+
+        guessed_track = Track.objects.get(id=serializer.validated_data['track_id'])
+        is_correct = guessed_track.id == current_pack_track.track_id
+        points_awarded = PACK_BUNDLE_STAGE_POINTS.get(session.current_stage, 0) if is_correct else 0
+
+        PackBundleAttempt.objects.create(
+            session=session,
+            pack_track=current_pack_track,
+            stage=session.current_stage,
+            guessed_track=guessed_track,
+            is_correct=is_correct,
+            points_awarded=points_awarded
+        )
+
+        session.points_earned += points_awarded
+
+        # Advance stage or track after each guess
+        session.current_stage += 1
+        if session.current_stage > len(PACK_BUNDLE_STAGE_ORDER):
+            session.completed_at = timezone.now()
+
+        session.save(update_fields=['points_earned', 'current_stage', 'completed_at'])
+
+        response_serializer = PackBundleSessionSerializer(session)
+        stems = []
+        if not session.completed_at:
+            stems = _get_pack_bundle_stems(current_pack_track, session.current_stage)
+
+        return Response({
+            'session': response_serializer.data,
+            'stems': stems,
+            'is_correct': is_correct,
+            'points_awarded': points_awarded,
+        }, status=status.HTTP_200_OK)
 
 
 class TrackListView(APIView):
@@ -235,6 +599,25 @@ class TrackListView(APIView):
         tracks = Track.objects.all()
         serializer = TrackSerializer(tracks, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class TrackRefreshPreviewView(APIView):
+    """
+    Refresh a track preview URL from Deezer if the cached one is expired.
+
+    POST /api/game/tracks/<track_id>/refresh-preview/
+    Headers: Authorization: Bearer <access_token>
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, track_id):
+        track = get_object_or_404(Track, id=track_id)
+        preview_url = track.get_fresh_preview_url(prefer_cached=False, force_refresh=True)
+        serializer = TrackSerializer(track)
+        return Response({
+            'track': serializer.data,
+            'preview_url': preview_url,
+        }, status=status.HTTP_200_OK)
 
 
 class RoomDailySongView(APIView):
@@ -360,7 +743,7 @@ class DailyGameView(APIView):
 
         # Get fresh preview URL from Deezer if track has deezer_id
         if daily_song.track.deezer_id:
-            fresh_preview_url = daily_song.track.get_fresh_preview_url()
+            fresh_preview_url = daily_song.track.get_fresh_preview_url(prefer_cached=True)
             if fresh_preview_url:
                 data['daily_song']['track']['preview_url'] = fresh_preview_url
 
@@ -435,8 +818,11 @@ class SubmitGuessView(APIView):
     POST /api/game/rooms/<room_id>/daily-game/guess/
     Headers: Authorization: Bearer <access_token>
     Body: {"track_id": "uuid-of-guessed-track"}
+
+    Rate limited: 10 guesses per minute
     """
     permission_classes = [IsAuthenticated]
+    throttle_classes = [GuessRateThrottle]
 
     def post(self, request, room_id):
         room = get_object_or_404(Room, id=room_id)
@@ -508,9 +894,26 @@ class SubmitGuessView(APIView):
             game_session.completed_at = timezone.now()
             game_session.save()
 
+            coins_awarded = points * COIN_REWARD_PER_POINT
+            with transaction.atomic():
+                if coins_awarded:
+                    request.user.add_coins(
+                        coins_awarded,
+                        reason=f"Correct guess in room {room.room_code}"
+                    )
+
+                update_user_stats(
+                    request.user,
+                    points=points,
+                    won=True,
+                    played_date=today,
+                    perfect_game=(game_session.current_snippet == 1)
+                )
+
             return Response({
                 'is_correct': True,
                 'points_earned': points,
+                'coins_awarded': coins_awarded,
                 'snippet_number': game_session.current_snippet,
                 'message': f'Correct! You earned {points} points!',
                 'correct_answer': {
@@ -535,6 +938,14 @@ class SubmitGuessView(APIView):
                 game_session.points_earned = 0
                 game_session.completed_at = timezone.now()
                 game_session.save()
+
+                update_user_stats(
+                    request.user,
+                    points=0,
+                    won=False,
+                    played_date=today,
+                    perfect_game=False
+                )
 
                 return Response({
                     'is_correct': False,
@@ -607,8 +1018,16 @@ class RoomMessagesView(APIView):
     GET /api/game/rooms/<room_id>/messages/?limit=50&offset=0
     POST /api/game/rooms/<room_id>/messages/
     Headers: Authorization: Bearer <access_token>
+
+    Rate limited: POST 30 messages per minute
     """
     permission_classes = [IsAuthenticated]
+
+    def get_throttles(self):
+        """Apply message throttle only to POST requests."""
+        if self.request.method == 'POST':
+            return [MessageRateThrottle()]
+        return []
 
     def get(self, request, room_id):
         room = get_object_or_404(Room, id=room_id)
@@ -671,8 +1090,6 @@ class SearchTracksView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from django.db.models import Q
-
         query = request.query_params.get('q', '').strip()
 
         if not query:
@@ -685,3 +1102,35 @@ class SearchTracksView(APIView):
 
         serializer = TrackSerializer(tracks, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class UserGameHistoryView(APIView):
+    """
+    Get the authenticated user's completed game history.
+
+    GET /api/game/history/?limit=30&offset=0
+    Headers: Authorization: Bearer <access_token>
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        limit = int(request.query_params.get('limit', 30))
+        offset = int(request.query_params.get('offset', 0))
+        limit = min(limit, 100)
+
+        sessions = DailyGameSession.objects.filter(
+            user=request.user,
+            completed_at__isnull=False
+        ).select_related(
+            'room', 'daily_song__track'
+        ).order_by('-completed_at')
+
+        serializer = GameHistoryEntrySerializer(
+            sessions[offset:offset + limit],
+            many=True
+        )
+        return Response({
+            'results': serializer.data,
+            'limit': limit,
+            'offset': offset
+        }, status=status.HTTP_200_OK)

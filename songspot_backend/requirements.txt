@@ -1,0 +1,22 @@
+# Django and REST Framework
+Django>=6.0.1
+djangorestframework>=3.16.1
+djangorestframework-simplejwt>=5.5.1
+
+# Environment
+python-dotenv>=1.0.0
+
+# WebSocket support (Django Channels)
+channels>=4.0.0
+daphne>=4.0.0
+channels-redis>=4.2.0  # For production with Redis
+
+# Database (PostgreSQL for production)
+psycopg2-binary>=2.9.9
+dj-database-url>=2.1.0
+
+# Rate limiting
+django-ratelimit>=4.1.0
+
+# HTTP client (for Deezer API)
+requests>=2.31.0
