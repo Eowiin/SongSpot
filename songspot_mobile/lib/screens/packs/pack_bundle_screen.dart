@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../../config/app_theme.dart';
 import '../../models/track.dart';
 import '../../models/pack_bundle.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/pack_bundle_provider.dart';
 import '../../services/stem_audio_service.dart';
 import '../../widgets/gradient_button.dart';
@@ -58,23 +60,40 @@ class PackBundleContent extends StatefulWidget {
 
 class _PackBundleContentState extends State<PackBundleContent> {
   final _titleController = TextEditingController();
+  final _messageController = TextEditingController();
+  final _chatScrollController = ScrollController();
   final StemAudioService _stemAudioService = StemAudioService();
   Track? _selectedTrack;
+  bool _requestedCompletionData = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<PackBundleProvider>().loadSession(
-            roomId: widget.roomId,
-            packId: widget.packId,
-          );
+      () async {
+        final provider = context.read<PackBundleProvider>();
+        await provider.loadSession(
+          roomId: widget.roomId,
+          packId: widget.packId,
+        );
+        if (provider.session?.isCompleted == true) {
+          await provider.loadLeaderboard(roomId: widget.roomId, packId: widget.packId);
+          await provider.loadMessages(roomId: widget.roomId, packId: widget.packId);
+          if (mounted) {
+            setState(() {
+              _requestedCompletionData = true;
+            });
+          }
+        }
+      }();
     });
   }
 
   @override
   void dispose() {
     _titleController.dispose();
+    _messageController.dispose();
+    _chatScrollController.dispose();
     _stemAudioService.dispose();
     super.dispose();
   }
@@ -140,6 +159,31 @@ class _PackBundleContentState extends State<PackBundleContent> {
     }
   }
 
+  Future<void> _handleSendMessage() async {
+    final message = _messageController.text.trim();
+    if (message.isEmpty) return;
+
+    final provider = context.read<PackBundleProvider>();
+    final success = await provider.sendMessage(
+      roomId: widget.roomId,
+      packId: widget.packId,
+      message: message,
+    );
+
+    if (success && mounted) {
+      _messageController.clear();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_chatScrollController.hasClients) {
+          _chatScrollController.animateTo(
+            _chatScrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<PackBundleProvider>();
@@ -147,15 +191,15 @@ class _PackBundleContentState extends State<PackBundleContent> {
 
     final content = provider.isLoading && session == null
         ? const Center(child: CircularProgressIndicator())
-        : session == null
-            ? Center(
-                child: Text(
-                  provider.errorMessage ?? 'Pack session unavailable',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              )
+            : session == null
+                ? Center(
+                    child: Text(
+                      provider.errorMessage ?? 'Pack session unavailable',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  )
             : session.isCompleted
-                ? _buildCompletedView(session)
+                ? _buildCompletedView(session, provider)
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -204,6 +248,17 @@ class _PackBundleContentState extends State<PackBundleContent> {
                       ),
                     ],
                   );
+
+    if (session?.isCompleted == true && !_requestedCompletionData) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _requestedCompletionData) return;
+        provider.loadLeaderboard(roomId: widget.roomId, packId: widget.packId);
+        provider.loadMessages(roomId: widget.roomId, packId: widget.packId);
+        setState(() {
+          _requestedCompletionData = true;
+        });
+      });
+    }
 
     if (widget.embedInScroll) {
       return content;
@@ -305,7 +360,7 @@ class _PackBundleContentState extends State<PackBundleContent> {
     );
   }
 
-  Widget _buildCompletedView(PackBundleSession session) {
+  Widget _buildCompletedView(PackBundleSession session, PackBundleProvider provider) {
     final track = session.packTrack?.track;
     if (track == null) {
       return Center(
@@ -413,6 +468,260 @@ class _PackBundleContentState extends State<PackBundleContent> {
               ),
             ],
           ),
+        ),
+        const SizedBox(height: 24),
+        _buildResultsSection(provider),
+        const SizedBox(height: 32),
+        _buildChatSection(provider),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  Widget _buildResultsSection(PackBundleProvider provider) {
+    final leaderboard = provider.leaderboard;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Today\'s Results',
+          style: Theme.of(context).textTheme.headlineMedium,
+        ),
+        const SizedBox(height: 16),
+        if (leaderboard.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceColor,
+              borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+            ),
+            child: Text(
+              'No other players have completed this pack yet',
+              style: Theme.of(context).textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+          )
+        else
+          ...leaderboard.asMap().entries.map((entry) {
+            final index = entry.key;
+            final leaderboardEntry = entry.value;
+            final rank = index + 1;
+
+            Color rankColor;
+            if (rank == 1) {
+              rankColor = const Color(0xFFFFD700); // Gold
+            } else if (rank == 2) {
+              rankColor = const Color(0xFFC0C0C0); // Silver
+            } else if (rank == 3) {
+              rankColor = const Color(0xFFCD7F32); // Bronze
+            } else {
+              rankColor = AppTheme.textSecondary;
+            }
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.surfaceColor,
+                borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: rankColor.withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        '$rank',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: rankColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          leaderboardEntry.user.username,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        Text(
+                          'Stage ${leaderboardEntry.stageNumber} - ${DateFormat.Hm().format(leaderboardEntry.completedAt.toLocal())}',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: AppTheme.textSecondary,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      gradient: AppTheme.primaryGradient,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      '${leaderboardEntry.pointsEarned}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+      ],
+    );
+  }
+
+  Widget _buildChatSection(PackBundleProvider provider) {
+    final currentUserId = context.watch<AuthProvider>().user?.id;
+    final messages = provider.messages;
+    final displayMessages = messages.take(10).toList().reversed.toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Chat',
+          style: Theme.of(context).textTheme.headlineMedium,
+        ),
+        const SizedBox(height: 16),
+        Container(
+          constraints: const BoxConstraints(maxHeight: 300),
+          child: messages.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.chat_bubble_outline,
+                        size: 40,
+                        color: AppTheme.textSecondary,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No messages yet',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Start the conversation!',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  controller: _chatScrollController,
+                  shrinkWrap: true,
+                  itemCount: displayMessages.length,
+                  itemBuilder: (context, index) {
+                    final message = displayMessages[index];
+                    final isCurrentUser = message.user.id == currentUserId;
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Align(
+                        alignment: isCurrentUser
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
+                        child: Container(
+                          constraints: BoxConstraints(
+                            maxWidth: MediaQuery.of(context).size.width * 0.7,
+                          ),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            gradient: isCurrentUser ? AppTheme.primaryGradient : null,
+                            color: isCurrentUser ? null : AppTheme.surfaceColor,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: isCurrentUser
+                                ? CrossAxisAlignment.end
+                                : CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                isCurrentUser ? 'You' : message.user.username,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: isCurrentUser ? Colors.white70 : AppTheme.primaryColor,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                message.message,
+                                style: TextStyle(
+                                  color: isCurrentUser ? Colors.white : AppTheme.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                DateFormat.Hm().format(message.createdAt.toLocal()),
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: isCurrentUser ? Colors.white70 : AppTheme.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _messageController,
+                decoration: InputDecoration(
+                  hintText: 'Type a message...',
+                  filled: true,
+                  fillColor: AppTheme.surfaceColor,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                ),
+                maxLines: 1,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => _handleSendMessage(),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Container(
+              width: 48,
+              height: 48,
+              decoration: const BoxDecoration(
+                gradient: AppTheme.primaryGradient,
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.send, color: Colors.white),
+                onPressed: _handleSendMessage,
+              ),
+            ),
+          ],
         ),
       ],
     );

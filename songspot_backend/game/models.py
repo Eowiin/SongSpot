@@ -506,3 +506,43 @@ class RoomMessage(models.Model):
 
     def __str__(self):
         return f"{self.user.username} in {self.room.room_code}: {self.message[:50]}"
+
+
+class PackBundleMessage(models.Model):
+    """
+    Message board for pack bundle discussion (scoped per room/pack/day).
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    room = models.ForeignKey(
+        Room,
+        on_delete=models.CASCADE,
+        related_name='pack_bundle_messages'
+    )
+    pack = models.ForeignKey(
+        SongPack,
+        on_delete=models.CASCADE,
+        related_name='bundle_messages'
+    )
+    pack_daily_track = models.ForeignKey(
+        PackDailyTrack,
+        on_delete=models.CASCADE,
+        related_name='bundle_messages'
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='pack_bundle_messages'
+    )
+    message = models.TextField(max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'pack_bundle_messages'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['pack_daily_track', 'created_at']),
+            models.Index(fields=['room', 'pack']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} in {self.room.room_code} ({self.pack.name}): {self.message[:50]}"

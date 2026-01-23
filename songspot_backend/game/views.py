@@ -10,7 +10,7 @@ import random
 from .models import (
     Track, SongPack, Room, RoomUser, RoomPack,
     DailySong, PackTrack, PackDailyTrack, PackBundleSession, PackBundleAttempt,
-    DailyGameSession, GuessAttempt, RoomMessage
+    DailyGameSession, GuessAttempt, RoomMessage, PackBundleMessage
 )
 from .serializers import (
     TrackSerializer,
@@ -25,6 +25,7 @@ from .serializers import (
     SubmitGuessSerializer,
     LeaderboardEntrySerializer,
     RoomMessageSerializer,
+    PackBundleMessageSerializer,
     PostMessageSerializer,
     GameHistoryEntrySerializer,
     PackBundleSessionSerializer,
@@ -592,6 +593,141 @@ class PackBundleGuessView(APIView):
             'is_correct': is_correct,
             'points_awarded': points_awarded,
         }, status=status.HTTP_200_OK)
+
+
+class PackBundleLeaderboardView(APIView):
+    """
+    Get leaderboard for today's pack bundle in a room.
+
+    GET /api/game/rooms/<room_id>/packs/<pack_id>/bundle/leaderboard/
+    Headers: Authorization: Bearer <access_token>
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, room_id, pack_id):
+        room = get_object_or_404(Room, id=room_id)
+        pack = get_object_or_404(SongPack, id=pack_id)
+        today = timezone.now().date()
+
+        if not RoomUser.objects.filter(room=room, user=request.user).exists():
+            return Response({'error': 'You must be in the room to view leaderboard'}, status=status.HTTP_403_FORBIDDEN)
+
+        if not RoomPack.objects.filter(room=room, pack=pack).exists():
+            return Response({'error': 'This pack is not owned by the room'}, status=status.HTTP_403_FORBIDDEN)
+
+        daily_track = _get_daily_pack_track(room, pack, today)
+        if not daily_track:
+            return Response({'error': 'Pack has no tracks'}, status=status.HTTP_404_NOT_FOUND)
+
+        sessions = PackBundleSession.objects.filter(
+            room=room,
+            pack=pack,
+            pack_daily_track=daily_track,
+            completed_at__isnull=False,
+        ).select_related('user').order_by('-points_earned', 'completed_at')
+
+        leaderboard = []
+        for session in sessions:
+            stage_number = max(1, min(session.current_stage - 1, len(PACK_BUNDLE_STAGE_ORDER)))
+            leaderboard.append({
+                'user': {
+                    'id': str(session.user.id),
+                    'username': session.user.username,
+                    'email': session.user.email
+                },
+                'points_earned': session.points_earned,
+                'stage_number': stage_number,
+                'completed_at': session.completed_at
+            })
+
+        return Response({
+            'date': today,
+            'leaderboard': leaderboard
+        }, status=status.HTTP_200_OK)
+
+
+class PackBundleMessagesView(APIView):
+    """
+    Get or post messages for a pack bundle (scoped per room/pack/day).
+
+    GET /api/game/rooms/<room_id>/packs/<pack_id>/bundle/messages/?limit=50&offset=0
+    POST /api/game/rooms/<room_id>/packs/<pack_id>/bundle/messages/
+    Headers: Authorization: Bearer <access_token>
+
+    Rate limited: POST 30 messages per minute
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get_throttles(self):
+        if self.request.method == 'POST':
+            return [MessageRateThrottle()]
+        return []
+
+    def get(self, request, room_id, pack_id):
+        room = get_object_or_404(Room, id=room_id)
+        pack = get_object_or_404(SongPack, id=pack_id)
+        today = timezone.now().date()
+
+        if not RoomUser.objects.filter(room=room, user=request.user).exists():
+            return Response({
+                'error': 'You must be in the room to view messages'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        if not RoomPack.objects.filter(room=room, pack=pack).exists():
+            return Response({'error': 'This pack is not owned by the room'}, status=status.HTTP_403_FORBIDDEN)
+
+        daily_track = _get_daily_pack_track(room, pack, today)
+        if not daily_track:
+            return Response({'error': 'Pack has no tracks'}, status=status.HTTP_404_NOT_FOUND)
+
+        limit = int(request.query_params.get('limit', 50))
+        offset = int(request.query_params.get('offset', 0))
+        limit = min(limit, 100)
+
+        messages = PackBundleMessage.objects.filter(
+            room=room,
+            pack=pack,
+            pack_daily_track=daily_track,
+        ).select_related('user')[offset:offset + limit]
+
+        serializer = PackBundleMessageSerializer(messages, many=True)
+        return Response({
+            'messages': serializer.data,
+            'limit': limit,
+            'offset': offset
+        }, status=status.HTTP_200_OK)
+
+    def post(self, request, room_id, pack_id):
+        room = get_object_or_404(Room, id=room_id)
+        pack = get_object_or_404(SongPack, id=pack_id)
+        today = timezone.now().date()
+
+        if not RoomUser.objects.filter(room=room, user=request.user).exists():
+            return Response({
+                'error': 'You must be in the room to post messages'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        if not RoomPack.objects.filter(room=room, pack=pack).exists():
+            return Response({'error': 'This pack is not owned by the room'}, status=status.HTTP_403_FORBIDDEN)
+
+        daily_track = _get_daily_pack_track(room, pack, today)
+        if not daily_track:
+            return Response({'error': 'Pack has no tracks'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = PostMessageSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        message = PackBundleMessage.objects.create(
+            room=room,
+            pack=pack,
+            pack_daily_track=daily_track,
+            user=request.user,
+            message=serializer.validated_data['message']
+        )
+
+        response_serializer = PackBundleMessageSerializer(message)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
 
 class TrackListView(APIView):

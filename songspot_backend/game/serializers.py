@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from .models import (
     Track, SongPack, PackTrack, Room, RoomUser, RoomPack,
     DailySong, PackDailyTrack, PackBundleSession, PackBundleAttempt,
-    DailyGameSession, GuessAttempt, RoomMessage
+    DailyGameSession, GuessAttempt, RoomMessage, PackBundleMessage
 )
 
 User = get_user_model()
@@ -273,6 +273,15 @@ class RoomMessageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = RoomMessage
+        fields = ('id', 'user', 'message', 'created_at')
+        read_only_fields = ('id', 'user', 'created_at')
+
+
+class PackBundleMessageSerializer(serializers.ModelSerializer):
+    user = UserBasicSerializer(read_only=True)
+
+    class Meta:
+        model = PackBundleMessage
         fields = ('id', 'user', 'message', 'created_at')
         read_only_fields = ('id', 'user', 'created_at')
 

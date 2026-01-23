@@ -43,6 +43,10 @@ class ApiConfig {
       '/game/rooms/$roomId/packs/$packId/bundle/skip/';
   static String packBundleGuess(String roomId, String packId) =>
       '/game/rooms/$roomId/packs/$packId/bundle/guess/';
+  static String packBundleLeaderboard(String roomId, String packId) =>
+      '/game/rooms/$roomId/packs/$packId/bundle/leaderboard/';
+  static String packBundleMessages(String roomId, String packId) =>
+      '/game/rooms/$roomId/packs/$packId/bundle/messages/';
   static const String tracks = '/game/tracks/';
   static const String searchTracks = '/game/tracks/search/';
   static String trackRefreshPreview(String trackId) => '/game/tracks/$trackId/refresh-preview/';

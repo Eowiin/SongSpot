@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'pack.dart';
+import 'user.dart';
 
 class Stem extends Equatable {
   final String type;
@@ -65,4 +66,30 @@ class PackBundleSession extends Equatable {
         packTrack,
         date,
       ];
+}
+
+class PackBundleLeaderboardEntry extends Equatable {
+  final User user;
+  final int pointsEarned;
+  final int stageNumber;
+  final DateTime completedAt;
+
+  const PackBundleLeaderboardEntry({
+    required this.user,
+    required this.pointsEarned,
+    required this.stageNumber,
+    required this.completedAt,
+  });
+
+  factory PackBundleLeaderboardEntry.fromJson(Map<String, dynamic> json) {
+    return PackBundleLeaderboardEntry(
+      user: User.fromJson(json['user'] as Map<String, dynamic>),
+      pointsEarned: json['points_earned'] as int,
+      stageNumber: json['stage_number'] as int,
+      completedAt: DateTime.parse(json['completed_at'] as String),
+    );
+  }
+
+  @override
+  List<Object?> get props => [user, pointsEarned, stageNumber, completedAt];
 }

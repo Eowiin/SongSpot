@@ -323,6 +323,47 @@ class ApiService {
     return response as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> getPackBundleLeaderboard({
+    required String roomId,
+    required String packId,
+  }) async {
+    final response = await get(
+      ApiConfig.packBundleLeaderboard(roomId, packId),
+      includeAuth: true,
+    );
+    return response as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getPackBundleMessages({
+    required String roomId,
+    required String packId,
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    final response = await get(
+      ApiConfig.packBundleMessages(roomId, packId),
+      queryParameters: {
+        'limit': limit.toString(),
+        'offset': offset.toString(),
+      },
+      includeAuth: true,
+    );
+    return response as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> sendPackBundleMessage({
+    required String roomId,
+    required String packId,
+    required String message,
+  }) async {
+    final response = await post(
+      ApiConfig.packBundleMessages(roomId, packId),
+      body: {'message': message},
+      includeAuth: true,
+    );
+    return response as Map<String, dynamic>;
+  }
+
   // Auth methods
   Future<Map<String, dynamic>> register({
     required String email,

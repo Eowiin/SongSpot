@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../models/message.dart';
 import '../models/pack_bundle.dart';
 import '../services/api_service.dart';
 
@@ -7,12 +8,16 @@ class PackBundleProvider with ChangeNotifier {
 
   PackBundleSession? _session;
   List<Stem> _stems = [];
+  List<PackBundleLeaderboardEntry> _leaderboard = [];
+  List<Message> _messages = [];
   bool _isLoading = false;
   String? _errorMessage;
   String? _guessResult;
 
   PackBundleSession? get session => _session;
   List<Stem> get stems => _stems;
+  List<PackBundleLeaderboardEntry> get leaderboard => _leaderboard;
+  List<Message> get messages => _messages;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   String? get guessResult => _guessResult;
@@ -37,6 +42,40 @@ class PackBundleProvider with ChangeNotifier {
     }
   }
 
+  Future<void> loadLeaderboard({required String roomId, required String packId}) async {
+    try {
+      _errorMessage = null;
+      final response = await _apiService.getPackBundleLeaderboard(
+        roomId: roomId,
+        packId: packId,
+      );
+      _leaderboard = (response['leaderboard'] as List)
+          .map((entry) => PackBundleLeaderboardEntry.fromJson(entry as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      _errorMessage = e.toString();
+    } finally {
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadMessages({required String roomId, required String packId}) async {
+    try {
+      _errorMessage = null;
+      final response = await _apiService.getPackBundleMessages(
+        roomId: roomId,
+        packId: packId,
+      );
+      _messages = (response['messages'] as List)
+          .map((item) => Message.fromJson(item as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      _errorMessage = e.toString();
+    } finally {
+      notifyListeners();
+    }
+  }
+
   Future<void> skipStage({required String roomId, required String packId}) async {
     if (_session == null) return;
     try {
@@ -50,6 +89,10 @@ class PackBundleProvider with ChangeNotifier {
       _stems = (response['stems'] as List)
           .map((item) => Stem.fromJson(item as Map<String, dynamic>))
           .toList();
+      if (_session?.isCompleted == true) {
+        await loadLeaderboard(roomId: roomId, packId: packId);
+        await loadMessages(roomId: roomId, packId: packId);
+      }
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
@@ -85,6 +128,10 @@ class PackBundleProvider with ChangeNotifier {
       _guessResult = isCorrect
           ? 'Correct! +$points points'
           : 'Wrong guess. Next instrument!';
+      if (_session?.isCompleted == true) {
+        await loadLeaderboard(roomId: roomId, packId: packId);
+        await loadMessages(roomId: roomId, packId: packId);
+      }
       return isCorrect;
     } catch (e) {
       _errorMessage = e.toString();
@@ -97,6 +144,33 @@ class PackBundleProvider with ChangeNotifier {
 
   void clearGuessResult() {
     _guessResult = null;
+    notifyListeners();
+  }
+
+  Future<bool> sendMessage({
+    required String roomId,
+    required String packId,
+    required String message,
+  }) async {
+    try {
+      final response = await _apiService.sendPackBundleMessage(
+        roomId: roomId,
+        packId: packId,
+        message: message,
+      );
+      final newMessage = Message.fromJson(response);
+      _messages.insert(0, newMessage);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  void clearMessages() {
+    _messages = [];
     notifyListeners();
   }
 }

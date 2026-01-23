@@ -13,6 +13,8 @@ from .views import (
     PackBundleSessionView,
     PackBundleSkipView,
     PackBundleGuessView,
+    PackBundleLeaderboardView,
+    PackBundleMessagesView,
     TrackListView,
     TrackRefreshPreviewView,
     RoomDailySongView,
@@ -54,6 +56,8 @@ urlpatterns = [
     path('rooms/<uuid:room_id>/packs/<uuid:pack_id>/bundle/', PackBundleSessionView.as_view(), name='pack_bundle'),
     path('rooms/<uuid:room_id>/packs/<uuid:pack_id>/bundle/skip/', PackBundleSkipView.as_view(), name='pack_bundle_skip'),
     path('rooms/<uuid:room_id>/packs/<uuid:pack_id>/bundle/guess/', PackBundleGuessView.as_view(), name='pack_bundle_guess'),
+    path('rooms/<uuid:room_id>/packs/<uuid:pack_id>/bundle/leaderboard/', PackBundleLeaderboardView.as_view(), name='pack_bundle_leaderboard'),
+    path('rooms/<uuid:room_id>/packs/<uuid:pack_id>/bundle/messages/', PackBundleMessagesView.as_view(), name='pack_bundle_messages'),
 
     # Track endpoints
     path('tracks/', TrackListView.as_view(), name='track_list'),
