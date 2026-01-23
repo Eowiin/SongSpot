@@ -155,7 +155,7 @@ class _PackBundleContentState extends State<PackBundleContent> {
                 ),
               )
             : session.isCompleted
-                ? _buildCompletedView(session.pointsEarned)
+                ? _buildCompletedView(session)
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -218,9 +218,11 @@ class _PackBundleContentState extends State<PackBundleContent> {
   Widget _buildProgressCard(PackBundleSession session, {required VoidCallback onPlay}) {
     final stageNames = ['Drums', 'Bass', 'Other', 'Vocals'];
     final stageIndex = (session.currentStage as int) - 1;
-    final stageLabel = stageIndex >= 0 && stageIndex < stageNames.length
-        ? stageNames[stageIndex]
-        : 'Stage ${session.currentStage}';
+    final clampedIndex = stageIndex.clamp(0, stageNames.length - 1);
+    final activeStages = stageNames.take(clampedIndex + 1).toList();
+    final stageLabel = activeStages.isEmpty
+        ? 'Stage ${session.currentStage}'
+        : activeStages.join(' + ');
 
     return Container(
       padding: const EdgeInsets.all(32),
@@ -303,24 +305,116 @@ class _PackBundleContentState extends State<PackBundleContent> {
     );
   }
 
-  Widget _buildCompletedView(int points) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.check_circle, size: 60, color: AppTheme.successColor),
-          const SizedBox(height: 16),
-          Text(
-            'Pack completed!',
-            style: Theme.of(context).textTheme.titleLarge,
+  Widget _buildCompletedView(PackBundleSession session) {
+    final track = session.packTrack?.track;
+    if (track == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.check_circle, size: 60, color: AppTheme.successColor),
+            const SizedBox(height: 16),
+            Text(
+              'Pack completed!',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Total points: ${session.pointsEarned}',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: AppTheme.cardGradient,
+            borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Total points: $points',
-            style: Theme.of(context).textTheme.bodyMedium,
+          child: Column(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: track.coverUrl != null
+                    ? Image.network(
+                        track.coverUrl!,
+                        width: 200,
+                        height: 200,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          width: 200,
+                          height: 200,
+                          color: AppTheme.surfaceColor,
+                          child: const Icon(
+                            Icons.album,
+                            size: 80,
+                            color: AppTheme.primaryColor,
+                          ),
+                        ),
+                      )
+                    : Container(
+                        width: 200,
+                        height: 200,
+                        color: AppTheme.surfaceColor,
+                        child: const Icon(
+                          Icons.album,
+                          size: 80,
+                          color: AppTheme.primaryColor,
+                        ),
+                      ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                track.title,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                track.artist,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: AppTheme.textSecondary,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppTheme.successColor.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.check_circle,
+                      color: AppTheme.successColor,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Pack completed · ${session.pointsEarned} points',
+                      style: const TextStyle(
+                        color: AppTheme.successColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
