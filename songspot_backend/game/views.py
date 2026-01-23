@@ -82,6 +82,14 @@ def _get_pack_bundle_stems(pack_track, stage):
     return stems
 
 
+def _make_stem_urls_absolute(request, stems):
+    for stem in stems:
+        url = stem.get('url')
+        if url and url.startswith('/'):
+            stem['url'] = request.build_absolute_uri(url)
+    return stems
+
+
 def _get_ordered_pack_tracks(pack):
     return list(pack.pack_tracks.select_related('track').order_by('order_in_pack', 'id'))
 
@@ -452,7 +460,7 @@ class PackBundleSessionView(APIView):
 
         return Response({
             'session': serializer.data,
-            'stems': stems,
+            'stems': _make_stem_urls_absolute(request, stems),
         }, status=status.HTTP_200_OK)
 
 
@@ -500,7 +508,7 @@ class PackBundleSkipView(APIView):
 
         return Response({
             'session': serializer.data,
-            'stems': stems,
+            'stems': _make_stem_urls_absolute(request, stems),
             'message': 'Skipped to next stage',
         }, status=status.HTTP_200_OK)
 
@@ -580,7 +588,7 @@ class PackBundleGuessView(APIView):
 
         return Response({
             'session': response_serializer.data,
-            'stems': stems,
+            'stems': _make_stem_urls_absolute(request, stems),
             'is_correct': is_correct,
             'points_awarded': points_awarded,
         }, status=status.HTTP_200_OK)

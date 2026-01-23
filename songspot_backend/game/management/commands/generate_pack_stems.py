@@ -89,7 +89,7 @@ class Command(BaseCommand):
                     raise CommandError(f'No preview_url for track {pack_track.track_id}')
                 temp_dir = tempfile.TemporaryDirectory()
                 input_path = Path(temp_dir.name) / f'{pack_track.track_id}.mp3'
-                self._download_preview(pack_track.track.preview_url, input_path)
+                self._download_preview_with_refresh(pack_track, input_path)
 
             output_dir = Path(settings.MEDIA_ROOT) / 'stems'
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -136,6 +136,24 @@ class Command(BaseCommand):
         response = requests.get(url, timeout=30)
         response.raise_for_status()
         dest_path.write_bytes(response.content)
+
+    def _download_preview_with_refresh(self, pack_track, dest_path):
+        try:
+            self._download_preview(pack_track.track.preview_url, dest_path)
+            return
+        except requests.HTTPError as exc:
+            status_code = getattr(exc.response, 'status_code', None)
+            if status_code != 403:
+                raise
+
+        # Refresh preview URL and retry once on 403 (expired Deezer URL).
+        refreshed_url = pack_track.track.get_fresh_preview_url(
+            prefer_cached=False,
+            force_refresh=True,
+        )
+        if not refreshed_url:
+            raise CommandError(f'Preview URL refresh failed for track {pack_track.track_id}')
+        self._download_preview(refreshed_url, dest_path)
 
     def _find_stems_dir(self, output_dir, model, stem_name):
         candidate = output_dir / model / stem_name

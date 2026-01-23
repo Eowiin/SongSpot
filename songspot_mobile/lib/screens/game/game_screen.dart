@@ -395,45 +395,32 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  Widget _buildResultView(GameSession session, List<LeaderboardEntry> leaderboard) {
+  Widget _buildResultContent(GameSession session, List<LeaderboardEntry> leaderboard) {
     final track = session.dailySong.track;
     final isCorrect = session.correctGuess;
 
-    return SingleChildScrollView(
-      padding: AppTheme.pagePadding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Result Header
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: AppTheme.cardGradient,
-              borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-            ),
-            child: Column(
-              children: [
-                // Cover Image
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: track.coverUrl != null
-                      ? Image.network(
-                          track.coverUrl!,
-                          width: 200,
-                          height: 200,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Container(
-                            width: 200,
-                            height: 200,
-                            color: AppTheme.surfaceColor,
-                            child: const Icon(
-                              Icons.album,
-                              size: 80,
-                              color: AppTheme.primaryColor,
-                            ),
-                          ),
-                        )
-                      : Container(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Result Header
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: AppTheme.cardGradient,
+            borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+          ),
+          child: Column(
+            children: [
+              // Cover Image
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: track.coverUrl != null
+                    ? Image.network(
+                        track.coverUrl!,
+                        width: 200,
+                        height: 200,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
                           width: 200,
                           height: 200,
                           color: AppTheme.surfaceColor,
@@ -443,179 +430,189 @@ class _GameScreenState extends State<GameScreen> {
                             color: AppTheme.primaryColor,
                           ),
                         ),
-                ),
-                const SizedBox(height: 20),
-
-                // Song Info
-                Text(
-                  track.title,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  track.artist,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppTheme.textSecondary,
-                      ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-
-                // Result Badge
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: isCorrect
-                        ? AppTheme.successColor.withValues(alpha: 0.2)
-                        : AppTheme.errorColor.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        isCorrect ? Icons.check_circle : Icons.cancel,
-                        color: isCorrect ? AppTheme.successColor : AppTheme.errorColor,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        isCorrect
-                            ? '+${session.pointsEarned} points (Snippet ${session.currentSnippet})'
-                            : 'Not guessed',
-                        style: TextStyle(
-                          color: isCorrect ? AppTheme.successColor : AppTheme.errorColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                      )
+                    : Container(
+                        width: 200,
+                        height: 200,
+                        color: AppTheme.surfaceColor,
+                        child: const Icon(
+                          Icons.album,
+                          size: 80,
+                          color: AppTheme.primaryColor,
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Today's Results Section
-          Text(
-            'Today\'s Results',
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
-          const SizedBox(height: 16),
-
-          if (leaderboard.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: AppTheme.surfaceColor,
-                borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
               ),
-              child: Text(
-                'No other players have guessed yet',
-                style: Theme.of(context).textTheme.bodyMedium,
+              const SizedBox(height: 20),
+
+              // Song Info
+              Text(
+                track.title,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                 textAlign: TextAlign.center,
               ),
-            )
-          else
-            ...leaderboard.asMap().entries.map((entry) {
-              final index = entry.key;
-              final leaderboardEntry = entry.value;
-              final rank = index + 1;
+              const SizedBox(height: 4),
+              Text(
+                track.artist,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: AppTheme.textSecondary,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
 
-              Color rankColor;
-              if (rank == 1) {
-                rankColor = const Color(0xFFFFD700); // Gold
-              } else if (rank == 2) {
-                rankColor = const Color(0xFFC0C0C0); // Silver
-              } else if (rank == 3) {
-                rankColor = const Color(0xFFCD7F32); // Bronze
-              } else {
-                rankColor = AppTheme.textSecondary;
-              }
-
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(12),
+              // Result Badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 decoration: BoxDecoration(
-                  color: AppTheme.surfaceColor,
-                  borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+                  color: isCorrect
+                      ? AppTheme.successColor.withValues(alpha: 0.2)
+                      : AppTheme.errorColor.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Rank
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: rankColor.withValues(alpha: 0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          '$rank',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: rankColor,
-                          ),
-                        ),
-                      ),
+                    Icon(
+                      isCorrect ? Icons.check_circle : Icons.cancel,
+                      color: isCorrect ? AppTheme.successColor : AppTheme.errorColor,
                     ),
-                    const SizedBox(width: 12),
-
-                    // User Info
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            leaderboardEntry.user.username,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          Text(
-                            'Snippet ${leaderboardEntry.snippetNumber} - ${DateFormat.Hm().format(leaderboardEntry.completedAt.toLocal())}',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: AppTheme.textSecondary,
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Points
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        gradient: AppTheme.primaryGradient,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Text(
-                        '${leaderboardEntry.pointsEarned}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
+                    const SizedBox(width: 8),
+                    Text(
+                      isCorrect
+                          ? '+${session.pointsEarned} points (Snippet ${session.currentSnippet})'
+                          : 'Not guessed',
+                      style: TextStyle(
+                        color: isCorrect ? AppTheme.successColor : AppTheme.errorColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
                       ),
                     ),
                   ],
                 ),
-              );
-            }),
-          const SizedBox(height: 32),
-
-          // Chat Section
-          Text(
-            'Chat',
-            style: Theme.of(context).textTheme.headlineMedium,
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-          _buildInlineChat(),
-          const SizedBox(height: 24),
-        ],
-      ),
+        ),
+        const SizedBox(height: 24),
+
+        // Today's Results Section
+        Text(
+          'Today\'s Results',
+          style: Theme.of(context).textTheme.headlineMedium,
+        ),
+        const SizedBox(height: 16),
+
+        if (leaderboard.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceColor,
+              borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+            ),
+            child: Text(
+              'No other players have guessed yet',
+              style: Theme.of(context).textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+          )
+        else
+          ...leaderboard.asMap().entries.map((entry) {
+            final index = entry.key;
+            final leaderboardEntry = entry.value;
+            final rank = index + 1;
+
+            Color rankColor;
+            if (rank == 1) {
+              rankColor = const Color(0xFFFFD700); // Gold
+            } else if (rank == 2) {
+              rankColor = const Color(0xFFC0C0C0); // Silver
+            } else if (rank == 3) {
+              rankColor = const Color(0xFFCD7F32); // Bronze
+            } else {
+              rankColor = AppTheme.textSecondary;
+            }
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.surfaceColor,
+                borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+              ),
+              child: Row(
+                children: [
+                  // Rank
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: rankColor.withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        '$rank',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: rankColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+
+                  // User Info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          leaderboardEntry.user.username,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        Text(
+                          'Snippet ${leaderboardEntry.snippetNumber} - ${DateFormat.Hm().format(leaderboardEntry.completedAt.toLocal())}',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: AppTheme.textSecondary,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Points
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      gradient: AppTheme.primaryGradient,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      '${leaderboardEntry.pointsEarned}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        const SizedBox(height: 32),
+
+        // Chat Section
+        Text(
+          'Chat',
+          style: Theme.of(context).textTheme.headlineMedium,
+        ),
+        const SizedBox(height: 16),
+        _buildInlineChat(),
+        const SizedBox(height: 24),
+      ],
     );
   }
 
@@ -833,7 +830,25 @@ class _GameScreenState extends State<GameScreen> {
             }
 
             if (session.isCompleted) {
-              return _buildResultView(session, gameProvider.leaderboard);
+              return SingleChildScrollView(
+                padding: AppTheme.pagePadding,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildPackSwitcher(context, packProvider.ownedPacks),
+                    if (_activePackId == null)
+                      _buildResultContent(session, gameProvider.leaderboard)
+                    else
+                      PackBundleContent(
+                        key: ValueKey(_activePackId),
+                        roomId: widget.roomId,
+                        packId: _activePackId!,
+                        packName: _activePackName ?? 'Pack',
+                        embedInScroll: true,
+                      ),
+                  ],
+                ),
+              );
             }
 
             return SingleChildScrollView(

@@ -64,6 +64,21 @@ To use a local file:
 python manage.py generate_pack_stems --pack-track-id <PACK_TRACK_UUID> --source /path/to/song.mp3
 ```
 
+## SSL Setup (macOS)
+
+If Demucs fails with `CERTIFICATE_VERIFY_FAILED` while downloading the model,
+your local Python SSL certs are missing. Fix it once, then rerun the command:
+
+```bash
+python -m pip install --upgrade certifi
+export SSL_CERT_FILE="$(python -m certifi)"
+```
+
+If you installed Python from python.org, you can also run:
+```bash
+/Applications/Python\ 3.13/Install\ Certificates.command
+```
+
 ## Cleanup (Auto-Delete)
 
 Stems are removed after a TTL (hours) using:
