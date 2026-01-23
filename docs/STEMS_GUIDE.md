@@ -121,6 +121,18 @@ tracks: [
 ]
 ```
 
+Pack bundle session now returns absolute stem URLs:
+```
+GET /api/game/rooms/{room_id}/packs/{pack_id}/bundle/
+{
+  session: { ... },
+  stems: [
+    { type: "drums", url: "http://<host>/media/stems/..." },
+    ...
+  ]
+}
+```
+
 ## Mobile Playback
 
 The pack detail screen loads stems directly from the URLs.
@@ -137,6 +149,19 @@ The pack detail screen loads stems directly from the URLs.
 - Points decrease by stage (4 → 3 → 2 → 1).
 - Pack can be completed only once per user per room.
 - Pack bundle uses the daily pack track (one new track per room/pack/day, UTC).
+
+## Bundle Results + Chat
+
+Leaderboard (per room/pack/day):
+```
+GET /api/game/rooms/{room_id}/packs/{pack_id}/bundle/leaderboard/
+```
+
+Chat (scoped per room/pack/day):
+```
+GET /api/game/rooms/{room_id}/packs/{pack_id}/bundle/messages/?limit=50&offset=0
+POST /api/game/rooms/{room_id}/packs/{pack_id}/bundle/messages/
+```
 
 ## Next Ideas (Optional)
 
