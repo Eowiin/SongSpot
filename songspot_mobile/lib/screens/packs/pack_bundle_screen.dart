@@ -190,14 +190,9 @@ class _PackBundleContentState extends State<PackBundleContent> {
     final session = provider.session;
 
     final content = provider.isLoading && session == null
-        ? const Center(child: CircularProgressIndicator())
-            : session == null
-                ? Center(
-                    child: Text(
-                      provider.errorMessage ?? 'Pack session unavailable',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                  )
+        ? _buildLoadingSkeleton()
+        : session == null
+            ? _buildLoadingSkeleton()
             : session.isCompleted
                 ? _buildCompletedView(session, provider)
                 : Column(
@@ -264,9 +259,129 @@ class _PackBundleContentState extends State<PackBundleContent> {
       return content;
     }
 
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    return SingleChildScrollView(
+      padding: AppTheme.pagePadding.copyWith(
+        bottom: AppTheme.pagePadding.bottom + bottomInset,
+      ),
+      child: content,
+    );
+  }
+
+  Widget _buildLoadingSkeleton() {
     return SingleChildScrollView(
       padding: AppTheme.pagePadding,
-      child: content,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(4, (index) {
+              return Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppTheme.surfaceColor,
+                  border: Border.all(
+                    color: AppTheme.textSecondary.withValues(alpha: 0.3),
+                    width: 2,
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 32),
+          Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              gradient: AppTheme.cardGradient,
+              borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Container(
+                  width: 120,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceColor,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: 160,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceColor,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Container(
+                  width: double.infinity,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceColor,
+                    borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 32),
+          Container(
+            width: 150,
+            height: 24,
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceColor,
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            height: 56,
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceColor,
+              borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceColor,
+                    borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceColor,
+                    borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 

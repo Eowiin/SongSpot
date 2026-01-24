@@ -797,36 +797,14 @@ class _GameScreenState extends State<GameScreen> {
         decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
         child: Consumer<GameProvider>(
           builder: (context, gameProvider, _) {
-            // Show skeleton while loading
-            if (gameProvider.isLoading || gameProvider.currentSession == null && gameProvider.errorMessage == null) {
+            // Show skeleton while loading or until session is available
+            if (gameProvider.isLoading || gameProvider.currentSession == null) {
               return _buildLoadingSkeleton();
             }
 
             final session = gameProvider.currentSession;
             if (session == null) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.error, size: 60, color: AppTheme.errorColor),
-                    const SizedBox(height: 16),
-                    Text(
-                      gameProvider.errorMessage ?? 'Failed to load game',
-                      style: Theme.of(context).textTheme.titleLarge,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 24),
-                    OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppTheme.textPrimary,
-                        side: const BorderSide(color: AppTheme.textSecondary),
-                      ),
-                      child: const Text('Go Back'),
-                    ),
-                  ],
-                ),
-              );
+              return _buildLoadingSkeleton();
             }
 
             if (session.isCompleted) {
@@ -851,8 +829,11 @@ class _GameScreenState extends State<GameScreen> {
               );
             }
 
+            final bottomInset = MediaQuery.of(context).viewInsets.bottom;
             return SingleChildScrollView(
-              padding: AppTheme.pagePadding,
+              padding: AppTheme.pagePadding.copyWith(
+                bottom: AppTheme.pagePadding.bottom + bottomInset,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [

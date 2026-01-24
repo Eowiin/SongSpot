@@ -24,6 +24,7 @@ class TrackAutocomplete extends StatefulWidget {
 
 class _TrackAutocompleteState extends State<TrackAutocomplete> {
   final ApiService _apiService = ApiService();
+  final ScrollController _suggestionsScrollController = ScrollController();
   List<Track> _suggestions = [];
   bool _isLoading = false;
   Track? _selectedTrack;
@@ -76,6 +77,7 @@ class _TrackAutocompleteState extends State<TrackAutocomplete> {
 
   @override
   void dispose() {
+    _suggestionsScrollController.dispose();
     _debounce?.cancel();
     super.dispose();
   }
@@ -144,24 +146,31 @@ class _TrackAutocompleteState extends State<TrackAutocomplete> {
                 ),
               ],
             ),
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: _suggestions.length,
-              itemBuilder: (context, index) {
-                final track = _suggestions[index];
-                return ListTile(
-                  leading: const Icon(Icons.music_note, color: AppTheme.primaryColor),
-                  title: Text(
-                    track.title,
-                    style: const TextStyle(color: AppTheme.textPrimary),
-                  ),
-                  subtitle: Text(
-                    track.artist,
-                    style: const TextStyle(color: AppTheme.textSecondary),
-                  ),
-                  onTap: () => _selectTrack(track),
-                );
-              },
+            child: Scrollbar(
+              controller: _suggestionsScrollController,
+              thumbVisibility: true,
+              thickness: 4,
+              radius: const Radius.circular(8),
+              child: ListView.builder(
+                controller: _suggestionsScrollController,
+                shrinkWrap: true,
+                itemCount: _suggestions.length,
+                itemBuilder: (context, index) {
+                  final track = _suggestions[index];
+                  return ListTile(
+                    leading: const Icon(Icons.music_note, color: AppTheme.primaryColor),
+                    title: Text(
+                      track.title,
+                      style: const TextStyle(color: AppTheme.textPrimary),
+                    ),
+                    subtitle: Text(
+                      track.artist,
+                      style: const TextStyle(color: AppTheme.textSecondary),
+                    ),
+                    onTap: () => _selectTrack(track),
+                  );
+                },
+              ),
             ),
           ),
         ],
