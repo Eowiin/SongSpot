@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../config/app_theme.dart';
 import '../models/track.dart';
@@ -26,6 +27,7 @@ class _TrackAutocompleteState extends State<TrackAutocomplete> {
   List<Track> _suggestions = [];
   bool _isLoading = false;
   Track? _selectedTrack;
+  Timer? _debounce;
 
   Future<void> _searchTracks(String query) async {
     if (query.trim().isEmpty) {
@@ -62,6 +64,20 @@ class _TrackAutocompleteState extends State<TrackAutocomplete> {
       _suggestions = [];
     });
     widget.onTrackSelected(track);
+  }
+
+  void _onQueryChanged(String value) {
+    _selectedTrack = null;
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      _searchTracks(value);
+    });
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
   }
 
   @override
@@ -111,10 +127,7 @@ class _TrackAutocompleteState extends State<TrackAutocomplete> {
             ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           ),
-          onChanged: (value) {
-            _selectedTrack = null;
-            _searchTracks(value);
-          },
+          onChanged: _onQueryChanged,
         ),
         if (_suggestions.isNotEmpty) ...[
           const SizedBox(height: 8),

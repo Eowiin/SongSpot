@@ -172,7 +172,7 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_THROTTLE_RATES': {
         'anon': '20/minute',      # Anonymous users: 20 requests/minute
-        'user': '100/minute',     # Authenticated users: 100 requests/minute
+        'user': '300/minute',     # Authenticated users: 300 requests/minute
         'auth': '5/minute',       # Auth endpoints (login, register): 5/minute
         'guess': '10/minute',     # Game guess submissions: 10/minute
         'message': '30/minute',   # Chat messages: 30/minute

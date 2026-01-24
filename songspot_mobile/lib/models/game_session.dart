@@ -67,12 +67,12 @@ class GameSession extends Equatable {
     );
   }
 
-  bool get isCompleted => correctGuess || currentSnippet >= 6;
+  bool get isCompleted => completedAt != null || correctGuess;
 
   double get snippetDuration {
     switch (currentSnippet) {
       case 1:
-        return 0.1;
+        return 0.2;
       case 2:
         return 0.5;
       case 3:

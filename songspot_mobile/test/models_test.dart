@@ -306,7 +306,7 @@ void main() {
             createdAt: DateTime.now(),
           );
 
-      expect(createWithSnippet(1).snippetDuration, 0.1);
+      expect(createWithSnippet(1).snippetDuration, 0.2);
       expect(createWithSnippet(2).snippetDuration, 0.5);
       expect(createWithSnippet(3).snippetDuration, 2.0);
       expect(createWithSnippet(4).snippetDuration, 4.0);

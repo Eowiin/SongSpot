@@ -35,7 +35,7 @@ from songspot.throttling import GuessRateThrottle, MessageRateThrottle
 
 # Scoring constants
 SNIPPET_POINTS = {
-    1: 6,  # Guessed on 0.1s snippet
+    1: 6,  # Guessed on 0.2s snippet
     2: 5,  # Guessed on 0.5s snippet
     3: 4,  # Guessed on 2s snippet
     4: 3,  # Guessed on 4s snippet
@@ -561,13 +561,14 @@ class PackBundleGuessView(APIView):
             return Response({'error': 'Already guessed for this stage'}, status=status.HTTP_400_BAD_REQUEST)
 
         guessed_track = Track.objects.get(id=serializer.validated_data['track_id'])
+        stage_guessed = session.current_stage
         is_correct = guessed_track.id == current_pack_track.track_id
-        points_awarded = PACK_BUNDLE_STAGE_POINTS.get(session.current_stage, 0) if is_correct else 0
+        points_awarded = PACK_BUNDLE_STAGE_POINTS.get(stage_guessed, 0) if is_correct else 0
 
         PackBundleAttempt.objects.create(
             session=session,
             pack_track=current_pack_track,
-            stage=session.current_stage,
+            stage=stage_guessed,
             guessed_track=guessed_track,
             is_correct=is_correct,
             points_awarded=points_awarded
@@ -575,10 +576,14 @@ class PackBundleGuessView(APIView):
 
         session.points_earned += points_awarded
 
-        # Advance stage or track after each guess
-        session.current_stage += 1
-        if session.current_stage > len(PACK_BUNDLE_STAGE_ORDER):
+        # Advance stage or complete on correct guess
+        if is_correct:
+            session.current_stage = stage_guessed + 1
             session.completed_at = timezone.now()
+        else:
+            session.current_stage += 1
+            if session.current_stage > len(PACK_BUNDLE_STAGE_ORDER):
+                session.completed_at = timezone.now()
 
         session.save(update_fields=['points_earned', 'current_stage', 'completed_at'])
 
@@ -628,7 +633,14 @@ class PackBundleLeaderboardView(APIView):
 
         leaderboard = []
         for session in sessions:
-            stage_number = max(1, min(session.current_stage - 1, len(PACK_BUNDLE_STAGE_ORDER)))
+            correct_attempt = PackBundleAttempt.objects.filter(
+                session=session,
+                is_correct=True
+            ).order_by('stage').first()
+            if correct_attempt:
+                stage_number = correct_attempt.stage
+            else:
+                stage_number = max(1, min(session.current_stage - 1, len(PACK_BUNDLE_STAGE_ORDER)))
             leaderboard.append({
                 'user': {
                     'id': str(session.user.id),

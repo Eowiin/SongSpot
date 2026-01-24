@@ -123,7 +123,7 @@ class AudioService {
     double duration;
     switch (snippetNumber) {
       case 1:
-        duration = 0.1;
+        duration = 0.2;
         break;
       case 2:
         duration = 0.5;
@@ -141,7 +141,7 @@ class AudioService {
         duration = 15.0;
         break;
       default:
-        duration = 0.1;
+        duration = 0.2;
     }
     await playSnippet(duration);
   }

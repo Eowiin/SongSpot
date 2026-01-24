@@ -6,7 +6,7 @@ A Flutter mobile application for the SongSpot music guessing game.
 
 - **User Authentication**: Register and login with JWT token management
 - **Room Management**: Create and join game rooms using room codes
-- **Heardle-Style Gameplay**: Progressive audio reveals (6 snippets: 0.1s, 0.5s, 2s, 4s, 8s, 15s)
+- **Heardle-Style Gameplay**: Progressive audio reveals (6 snippets: 0.2s, 0.5s, 2s, 4s, 8s, 15s)
 - **Daily Challenges**: One song per day per room
 - **Leaderboard**: Compete with friends and see daily rankings
 - **Room Chat**: Chat with other players in your room
