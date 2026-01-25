@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -65,6 +66,7 @@ class _PackBundleContentState extends State<PackBundleContent> {
   final StemAudioService _stemAudioService = StemAudioService();
   Track? _selectedTrack;
   bool _requestedCompletionData = false;
+  Timer? _stemsPollTimer;
 
   @override
   void initState() {
@@ -76,6 +78,7 @@ class _PackBundleContentState extends State<PackBundleContent> {
           roomId: widget.roomId,
           packId: widget.packId,
         );
+        _ensureStemsPolling(provider);
         if (provider.session?.isCompleted == true) {
           await provider.loadLeaderboard(roomId: widget.roomId, packId: widget.packId);
           await provider.loadMessages(roomId: widget.roomId, packId: widget.packId);
@@ -94,12 +97,22 @@ class _PackBundleContentState extends State<PackBundleContent> {
     _titleController.dispose();
     _messageController.dispose();
     _chatScrollController.dispose();
+    _stemsPollTimer?.cancel();
     _stemAudioService.dispose();
     super.dispose();
   }
 
   Future<void> _playStems() async {
     final provider = context.read<PackBundleProvider>();
+    if (provider.stemsStatus == 'generating') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Stems are being generated. Try again in a moment.'),
+          backgroundColor: AppTheme.primaryColor,
+        ),
+      );
+      return;
+    }
     final stems = provider.stems.map((stem) => stem.url).toList();
     if (stems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -188,6 +201,7 @@ class _PackBundleContentState extends State<PackBundleContent> {
   Widget build(BuildContext context) {
     final provider = context.watch<PackBundleProvider>();
     final session = provider.session;
+    _ensureStemsPolling(provider);
 
     final content = provider.isLoading && session == null
         ? _buildLoadingSkeleton()
@@ -266,6 +280,22 @@ class _PackBundleContentState extends State<PackBundleContent> {
       ),
       child: content,
     );
+  }
+
+  void _ensureStemsPolling(PackBundleProvider provider) {
+    if (provider.stemsStatus == 'generating') {
+      _stemsPollTimer ??= Timer.periodic(const Duration(seconds: 6), (_) async {
+        final refreshed = context.read<PackBundleProvider>();
+        await refreshed.loadSession(roomId: widget.roomId, packId: widget.packId);
+        if (refreshed.stemsStatus != 'generating') {
+          _stemsPollTimer?.cancel();
+          _stemsPollTimer = null;
+        }
+      });
+    } else {
+      _stemsPollTimer?.cancel();
+      _stemsPollTimer = null;
+    }
   }
 
   Widget _buildLoadingSkeleton() {
@@ -386,6 +416,7 @@ class _PackBundleContentState extends State<PackBundleContent> {
   }
 
   Widget _buildProgressCard(PackBundleSession session, {required VoidCallback onPlay}) {
+    final stemsStatus = context.watch<PackBundleProvider>().stemsStatus;
     final stageNames = ['Drums', 'Bass', 'Other', 'Vocals'];
     final stageIndex = (session.currentStage as int) - 1;
     final clampedIndex = stageIndex.clamp(0, stageNames.length - 1);
@@ -425,10 +456,19 @@ class _PackBundleContentState extends State<PackBundleContent> {
             '${session.pointsEarned} points so far',
             style: Theme.of(context).textTheme.bodyLarge,
           ),
+          if (stemsStatus == 'generating') ...[
+            const SizedBox(height: 8),
+            Text(
+              'Generating stems...',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.textSecondary,
+                  ),
+            ),
+          ],
           const SizedBox(height: 24),
           GradientButton(
             text: 'Play Stems',
-            onPressed: onPlay,
+            onPressed: stemsStatus == 'generating' ? null : onPlay,
             isLoading: false,
           ),
         ],

@@ -83,7 +83,53 @@ python manage.py fetch_deezer_tracks  # Populate tracks
 
 ---
 
-## 2. HTTPS with Let's Encrypt
+## 2. Redis + Celery (Stem Generation)
+
+### Install Redis
+
+```bash
+sudo apt install redis-server
+sudo systemctl enable redis-server
+sudo systemctl start redis-server
+```
+
+### Configure Celery Env Vars
+
+Add to your `.env`:
+```env
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/0
+```
+
+### Run Celery Worker (systemd)
+
+Create a service file (example: `/etc/systemd/system/songspot-celery.service`):
+```ini
+[Unit]
+Description=SongSpot Celery Worker
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/path/to/BlindTest-friends/songspot_backend
+EnvironmentFile=/path/to/BlindTest-friends/songspot_backend/.env
+ExecStart=/path/to/BlindTest-friends/.venv/bin/celery -A songspot worker -l info
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Then enable and start:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable songspot-celery
+sudo systemctl start songspot-celery
+```
+
+---
+
+## 3. HTTPS with Let's Encrypt
 
 ### Install Certbot
 
@@ -109,7 +155,7 @@ sudo systemctl status certbot.timer
 
 ---
 
-## 3. Nginx Configuration
+## 4. Nginx Configuration
 
 ### Install Nginx
 

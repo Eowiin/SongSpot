@@ -10,7 +10,7 @@ import random
 from .models import (
     Track, SongPack, Room, RoomUser, RoomPack,
     DailySong, PackTrack, PackDailyTrack, PackBundleSession, PackBundleAttempt,
-    DailyGameSession, GuessAttempt, RoomMessage, PackBundleMessage
+    DailyGameSession, GuessAttempt, RoomMessage, PackBundleMessage, PackBundleStemJob
 )
 from .serializers import (
     TrackSerializer,
@@ -31,6 +31,7 @@ from .serializers import (
     PackBundleSessionSerializer,
     PackBundleGuessSerializer,
 )
+from .tasks import generate_pack_stems_task
 from songspot.throttling import GuessRateThrottle, MessageRateThrottle
 
 # Scoring constants
@@ -89,6 +90,36 @@ def _make_stem_urls_absolute(request, stems):
         if url and url.startswith('/'):
             stem['url'] = request.build_absolute_uri(url)
     return stems
+
+
+def _pack_track_stems_missing(pack_track):
+    return not all([
+        pack_track.vocals_url,
+        pack_track.drums_url,
+        pack_track.bass_url,
+        pack_track.other_url,
+    ])
+
+
+def _get_stems_status_and_enqueue(pack_track):
+    if not pack_track or not _pack_track_stems_missing(pack_track):
+        return 'ready'
+
+    job = PackBundleStemJob.objects.filter(pack_track=pack_track).first()
+    if job and job.status in (PackBundleStemJob.STATUS_QUEUED, PackBundleStemJob.STATUS_RUNNING):
+        return 'generating'
+
+    if not job:
+        job = PackBundleStemJob.objects.create(pack_track=pack_track, status=PackBundleStemJob.STATUS_QUEUED)
+    else:
+        job.status = PackBundleStemJob.STATUS_QUEUED
+        job.error_message = ''
+        job.started_at = None
+        job.completed_at = None
+        job.save(update_fields=['status', 'error_message', 'started_at', 'completed_at'])
+
+    generate_pack_stems_task.delay(str(pack_track.id))
+    return 'generating'
 
 
 def _get_ordered_pack_tracks(pack):
@@ -454,14 +485,17 @@ class PackBundleSessionView(APIView):
 
         serializer = PackBundleSessionSerializer(session)
         stems = []
+        stems_status = 'ready'
         if not session.completed_at:
             current_pack_track = PackTrack.objects.filter(pack=pack, track=daily_track.track).first()
             if current_pack_track:
                 stems = _get_pack_bundle_stems(current_pack_track, session.current_stage)
+                stems_status = _get_stems_status_and_enqueue(current_pack_track)
 
         return Response({
             'session': serializer.data,
             'stems': _make_stem_urls_absolute(request, stems),
+            'stems_status': stems_status,
         }, status=status.HTTP_200_OK)
 
 
@@ -502,14 +536,17 @@ class PackBundleSkipView(APIView):
 
         serializer = PackBundleSessionSerializer(session)
         stems = []
+        stems_status = 'ready'
         if not session.completed_at:
             current_pack_track = PackTrack.objects.filter(pack=pack, track=daily_track.track).first()
             if current_pack_track:
                 stems = _get_pack_bundle_stems(current_pack_track, session.current_stage)
+                stems_status = _get_stems_status_and_enqueue(current_pack_track)
 
         return Response({
             'session': serializer.data,
             'stems': _make_stem_urls_absolute(request, stems),
+            'stems_status': stems_status,
             'message': 'Skipped to next stage',
         }, status=status.HTTP_200_OK)
 
@@ -589,12 +626,15 @@ class PackBundleGuessView(APIView):
 
         response_serializer = PackBundleSessionSerializer(session)
         stems = []
+        stems_status = 'ready'
         if not session.completed_at:
             stems = _get_pack_bundle_stems(current_pack_track, session.current_stage)
+            stems_status = _get_stems_status_and_enqueue(current_pack_track)
 
         return Response({
             'session': response_serializer.data,
             'stems': _make_stem_urls_absolute(request, stems),
+            'stems_status': stems_status,
             'is_correct': is_correct,
             'points_awarded': points_awarded,
         }, status=status.HTTP_200_OK)

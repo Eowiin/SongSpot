@@ -10,12 +10,14 @@ class PackBundleProvider with ChangeNotifier {
   List<Stem> _stems = [];
   List<PackBundleLeaderboardEntry> _leaderboard = [];
   List<Message> _messages = [];
+  String _stemsStatus = 'ready';
   bool _isLoading = false;
   String? _errorMessage;
   String? _guessResult;
 
   PackBundleSession? get session => _session;
   List<Stem> get stems => _stems;
+  String get stemsStatus => _stemsStatus;
   List<PackBundleLeaderboardEntry> get leaderboard => _leaderboard;
   List<Message> get messages => _messages;
   bool get isLoading => _isLoading;
@@ -34,6 +36,7 @@ class PackBundleProvider with ChangeNotifier {
       _stems = (response['stems'] as List)
           .map((item) => Stem.fromJson(item as Map<String, dynamic>))
           .toList();
+      _stemsStatus = response['stems_status'] as String? ?? 'ready';
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
@@ -89,6 +92,7 @@ class PackBundleProvider with ChangeNotifier {
       _stems = (response['stems'] as List)
           .map((item) => Stem.fromJson(item as Map<String, dynamic>))
           .toList();
+      _stemsStatus = response['stems_status'] as String? ?? 'ready';
       if (_session?.isCompleted == true) {
         await loadLeaderboard(roomId: roomId, packId: packId);
         await loadMessages(roomId: roomId, packId: packId);
@@ -123,6 +127,7 @@ class PackBundleProvider with ChangeNotifier {
       _stems = (response['stems'] as List)
           .map((item) => Stem.fromJson(item as Map<String, dynamic>))
           .toList();
+      _stemsStatus = response['stems_status'] as String? ?? 'ready';
       final isCorrect = response['is_correct'] as bool? ?? false;
       final points = response['points_awarded'] as int? ?? 0;
       _guessResult = isCorrect

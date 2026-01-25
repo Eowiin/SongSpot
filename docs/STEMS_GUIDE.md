@@ -163,6 +163,67 @@ GET /api/game/rooms/{room_id}/packs/{pack_id}/bundle/messages/?limit=50&offset=0
 POST /api/game/rooms/{room_id}/packs/{pack_id}/bundle/messages/
 ```
 
+## Async Stem Generation (Celery + Redis)
+
+When stems are missing for a pack track, the backend can enqueue a background job
+to generate them. The bundle endpoints return a `stems_status` field:
+
+- `ready`: stems available
+- `generating`: job queued/running
+- `failed`: generation failed (check backend logs)
+
+Example response:
+```
+{
+  session: { ... },
+  stems: [],
+  stems_status: "generating"
+}
+```
+
+### Setup
+1) Install and run Redis (macOS):
+```
+brew install redis
+brew services start redis
+```
+
+2) Install Python deps:
+```
+pip install -r songspot_backend/requirements.txt
+```
+
+3) Start Celery worker (from `songspot_backend/`):
+```
+celery -A songspot worker -l info
+```
+
+4) Optional env vars:
+```
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/0
+```
+
+### Deployment Notes
+
+In production you need:
+- A running Redis instance (managed service or self-hosted).
+- A persistent Celery worker process.
+
+Typical setup:
+1) Set env vars to your Redis host:
+```
+CELERY_BROKER_URL=redis://<redis-host>:6379/0
+CELERY_RESULT_BACKEND=redis://<redis-host>:6379/0
+```
+
+2) Run Celery as a service (systemd/supervisor/Docker):
+```
+celery -A songspot worker -l info
+```
+
+3) Scale workers based on stem generation load.
+
 ## Next Ideas (Optional)
 
 - Add stem guessing sessions (scoring, streaks) in a dedicated endpoint.

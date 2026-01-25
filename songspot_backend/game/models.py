@@ -408,6 +408,43 @@ class PackBundleAttempt(models.Model):
         return f"{self.session.user.username} - {self.pack_track} (stage {self.stage})"
 
 
+class PackBundleStemJob(models.Model):
+    """
+    Tracks async stem generation per pack track.
+    """
+    STATUS_QUEUED = 'queued'
+    STATUS_RUNNING = 'running'
+    STATUS_READY = 'ready'
+    STATUS_FAILED = 'failed'
+    STATUS_CHOICES = [
+        (STATUS_QUEUED, 'Queued'),
+        (STATUS_RUNNING, 'Running'),
+        (STATUS_READY, 'Ready'),
+        (STATUS_FAILED, 'Failed'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    pack_track = models.OneToOneField(
+        PackTrack,
+        on_delete=models.CASCADE,
+        related_name='stem_job'
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_QUEUED)
+    error_message = models.TextField(blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'pack_bundle_stem_jobs'
+        indexes = [
+            models.Index(fields=['status', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.pack_track} - {self.status}"
+
+
 class DailyGameSession(models.Model):
     """
     Tracks user's progress on today's song in a room.
