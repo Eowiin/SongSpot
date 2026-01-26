@@ -15,6 +15,8 @@ class PackListScreen extends StatefulWidget {
 }
 
 class _PackListScreenState extends State<PackListScreen> {
+  final Set<String> _purchasingPackIds = {};
+
   @override
   void initState() {
     super.initState();
@@ -26,6 +28,7 @@ class _PackListScreenState extends State<PackListScreen> {
   @override
   Widget build(BuildContext context) {
     final packProvider = context.watch<PackProvider>();
+    final showLoadingState = packProvider.isLoading && packProvider.packs.isEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -33,7 +36,7 @@ class _PackListScreenState extends State<PackListScreen> {
       ),
       body: Container(
         decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
-        child: packProvider.isLoading
+        child: showLoadingState
             ? const Center(child: CircularProgressIndicator())
             : ListView(
                 padding: AppTheme.pagePadding,
@@ -153,9 +156,12 @@ class _PackListScreenState extends State<PackListScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton(
-                  onPressed: pack.isOwned
+                  onPressed: pack.isOwned || _purchasingPackIds.contains(pack.id)
                       ? null
                       : () async {
+                          setState(() {
+                            _purchasingPackIds.add(pack.id);
+                          });
                           final success = await context.read<PackProvider>().purchasePack(
                                 roomId: widget.roomId,
                                 packId: pack.id,
@@ -168,8 +174,19 @@ class _PackListScreenState extends State<PackListScreen> {
                               ),
                             );
                           }
+                          if (mounted) {
+                            setState(() {
+                              _purchasingPackIds.remove(pack.id);
+                            });
+                          }
                         },
-                  child: Text(pack.isOwned ? 'Owned' : 'Buy'),
+                  child: Text(
+                    pack.isOwned
+                        ? 'Owned'
+                        : _purchasingPackIds.contains(pack.id)
+                            ? 'Buying...'
+                            : 'Buy',
+                  ),
                 ),
               ),
             ],

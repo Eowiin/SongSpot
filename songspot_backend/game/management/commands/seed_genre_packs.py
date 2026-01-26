@@ -129,7 +129,7 @@ class Command(BaseCommand):
             pack = SongPack.objects.create(
                 name=pack_name,
                 description=f'{genre.capitalize()} focused stem pack',
-                price_coins=0,
+                price_coins=600,
                 is_featured=True,
             )
 

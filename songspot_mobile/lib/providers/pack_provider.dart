@@ -88,6 +88,20 @@ class PackProvider with ChangeNotifier {
       _packs = _packs.map((pack) {
         return pack.id == updatedPack.id ? updatedPack : pack;
       }).toList();
+      final ownedIndex = _ownedPacks.indexWhere((pack) => pack.id == updatedPack.id);
+      if (updatedPack.isOwned) {
+        if (ownedIndex == -1) {
+          _ownedPacks = [..._ownedPacks, updatedPack];
+        } else {
+          _ownedPacks = _ownedPacks
+              .asMap()
+              .entries
+              .map((entry) => entry.key == ownedIndex ? updatedPack : entry.value)
+              .toList();
+        }
+      } else if (ownedIndex != -1) {
+        _ownedPacks = _ownedPacks.where((pack) => pack.id != updatedPack.id).toList();
+      }
       _currentPack = updatedPack;
       return true;
     } catch (e) {

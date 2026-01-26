@@ -77,7 +77,7 @@ class SongPack(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     icon_url = models.URLField(max_length=500, blank=True)
-    price_coins = models.PositiveIntegerField(default=500, help_text="Price in coins")
+    price_coins = models.PositiveIntegerField(default=600, help_text="Price in coins")
     is_free = models.BooleanField(default=False, help_text="Free packs available to all users")
     is_featured = models.BooleanField(default=False, help_text="Featured packs shown prominently")
     created_at = models.DateTimeField(auto_now_add=True)

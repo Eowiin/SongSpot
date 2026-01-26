@@ -43,7 +43,13 @@ SNIPPET_POINTS = {
     5: 2,  # Guessed on 8s snippet
     6: 1,  # Guessed on 15s snippet
 }
-COIN_REWARD_PER_POINT = 10
+COIN_REWARD_MIN = 5
+COIN_REWARD_MAX = 8
+
+
+def _coins_for_correct_guess(snippet_number):
+    # Reward 8 coins for first try, taper to a 5-coin floor.
+    return max(COIN_REWARD_MIN, COIN_REWARD_MAX + 1 - int(snippet_number))
 
 # Pack bundle constants
 PACK_BUNDLE_STAGE_POINTS = {
@@ -1090,7 +1096,7 @@ class SubmitGuessView(APIView):
             game_session.completed_at = timezone.now()
             game_session.save()
 
-            coins_awarded = points * COIN_REWARD_PER_POINT
+            coins_awarded = _coins_for_correct_guess(game_session.current_snippet)
             with transaction.atomic():
                 if coins_awarded:
                     request.user.add_coins(
