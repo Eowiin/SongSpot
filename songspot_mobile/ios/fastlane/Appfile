@@ -1,0 +1,8 @@
+app_identifier("com.songspot.app")
+team_id("WM42CA5NH5")
+
+# Uncomment and add your Apple ID email if needed for certain operations
+# apple_id("your-email@example.com")
+
+# For more information about the Appfile, see:
+# https://docs.fastlane.tools/advanced/#appfile
