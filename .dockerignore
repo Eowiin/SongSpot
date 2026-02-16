@@ -1,0 +1,13 @@
+.git
+.gitignore
+.DS_Store
+.venv
+songspot_backend/.venv
+songspot_mobile
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.pytest_cache
+songspot_backend/db.sqlite3
+songspot_backend/media

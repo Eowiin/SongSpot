@@ -1,0 +1,40 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: songspot_backend/Dockerfile
+    container_name: songspot_backend_dev
+    working_dir: /app/songspot_backend
+    command: python manage.py runserver 0.0.0.0:8000
+    environment:
+      DJANGO_SECRET_KEY: docker-dev-secret-key
+      DEBUG: "True"
+      ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./songspot_backend:/app/songspot_backend
+      - demucs_models:/root/.cache/torch/hub/checkpoints
+    stdin_open: true
+    tty: true
+
+    # Edit these two values directly to test different resource limits.
+    cpus: "4.0"
+    mem_limit: 8g
+
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    container_name: songspot_redis_dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  redis_data:
+  demucs_models:
