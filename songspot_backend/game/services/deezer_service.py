@@ -24,6 +24,27 @@ class DeezerService:
         464,  # Indie Pop
     ]
 
+    def _collect_unique_preview_tracks(
+        self,
+        destination: List[Dict],
+        candidates: List[Dict],
+        seen_ids: set[int],
+    ) -> None:
+        """Append previewable tracks while avoiding duplicate Deezer track IDs."""
+        for track in candidates:
+            if not track.get('preview'):
+                continue
+
+            track_id = track.get('id')
+            if track_id is None:
+                continue
+
+            if track_id in seen_ids:
+                continue
+
+            seen_ids.add(track_id)
+            destination.append(track)
+
     def search_track(self, query: str, limit: int = 25) -> Dict:
         """
         Search for tracks by query.
@@ -205,24 +226,52 @@ class DeezerService:
         Returns:
             List of track dictionaries with preview URLs
         """
-        all_tracks = []
+        if count <= 0:
+            return []
 
-        # Fetch from multiple genres
-        genres_to_try = random.sample(self.GENRE_IDS, min(3, len(self.GENRE_IDS)))
+        all_tracks: List[Dict] = []
+        seen_ids: set[int] = set()
+
+        # Pull from randomly ordered genres for variety.
+        genres_to_try = self.GENRE_IDS.copy()
+        random.shuffle(genres_to_try)
 
         for genre_id in genres_to_try:
-            tracks = self.get_random_tracks_from_genre(genre_id, limit=10)
-            # Filter tracks that have preview URLs
-            valid_tracks = [t for t in tracks if t.get('preview')]
-            all_tracks.extend(valid_tracks)
+            if len(all_tracks) >= count:
+                break
 
-        # If not enough tracks, fetch from charts
+            remaining = count - len(all_tracks)
+            tracks = self.get_random_tracks_from_genre(
+                genre_id,
+                limit=min(25, max(10, remaining)),
+            )
+            self._collect_unique_preview_tracks(all_tracks, tracks, seen_ids)
+
+        # Fill from chart tracks if genre sampling is short.
         if len(all_tracks) < count:
-            chart_tracks = self.get_chart_tracks(limit=50)
-            valid_chart_tracks = [t for t in chart_tracks if t.get('preview')]
-            all_tracks.extend(valid_chart_tracks)
+            chart_tracks = self.get_chart_tracks(limit=max(50, min(count * 2, 300)))
+            self._collect_unique_preview_tracks(all_tracks, chart_tracks, seen_ids)
 
-        # Shuffle and return requested count
+        # Final fill from top artists to support larger requests.
+        if len(all_tracks) < count:
+            artists = self.get_top_artists(limit=max(100, min(count * 2, 500)))
+            random.shuffle(artists)
+
+            for artist in artists:
+                if len(all_tracks) >= count:
+                    break
+
+                artist_id = artist.get('id')
+                if not artist_id:
+                    continue
+
+                remaining = count - len(all_tracks)
+                artist_tracks = self.get_artist_top_tracks(
+                    artist_id,
+                    limit=min(5, max(3, remaining)),
+                )
+                self._collect_unique_preview_tracks(all_tracks, artist_tracks, seen_ids)
+
         random.shuffle(all_tracks)
         return all_tracks[:count]
 

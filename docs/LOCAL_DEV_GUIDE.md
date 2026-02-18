@@ -141,8 +141,9 @@ docker compose up --build -d
 ```
 
 ### Run Backend Setup Commands in Container
+`docker-compose.yml` runs `python manage.py migrate` automatically before `runserver` on backend startup.
+You still need to seed track data manually:
 ```bash
-docker compose exec backend python manage.py migrate
 docker compose exec backend python manage.py fetch_deezer_tracks --count 200
 ```
 

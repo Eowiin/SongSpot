@@ -5,7 +5,7 @@ services:
       dockerfile: songspot_backend/Dockerfile
     container_name: songspot_backend_dev
     working_dir: /app/songspot_backend
-    command: python manage.py runserver 0.0.0.0:8000
+    command: sh -c "python manage.py migrate && exec python manage.py runserver 0.0.0.0:8000"
     environment:
       DJANGO_SECRET_KEY: docker-dev-secret-key
       DEBUG: "True"
