@@ -5,7 +5,17 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth import authenticate, get_user_model
-from .serializers import UserRegistrationSerializer, UserSerializer, UserProfileSerializer, LoginSerializer
+from django.db import transaction
+from django.utils import timezone
+from .models import UserDevicePushToken
+from .serializers import (
+    UserRegistrationSerializer,
+    UserSerializer,
+    UserProfileSerializer,
+    LoginSerializer,
+    PushDeviceRegisterSerializer,
+    PushDeviceUnregisterSerializer,
+)
 from songspot.throttling import AuthRateThrottle
 
 User = get_user_model()
@@ -191,3 +201,91 @@ class UserProfileView(APIView):
     def get(self, request):
         serializer = UserProfileSerializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class PushDeviceRegisterView(APIView):
+    """
+    Register or refresh the current device FCM token.
+
+    POST /api/auth/push/devices/register/
+    Headers: Authorization: Bearer <access_token>
+    Body: {
+        "token": "<fcm_token>",
+        "platform": "ios|android",
+        "device_id": "optional-stable-device-id",
+        "device_name": "optional-friendly-name",
+        "app_version": "optional-version",
+        "daily_song_enabled": true,
+        "messages_enabled": true
+    }
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = PushDeviceRegisterSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        now = timezone.now()
+
+        defaults = {
+            'user': request.user,
+            'platform': data['platform'],
+            'device_id': data.get('device_id') or None,
+            'device_name': data.get('device_name', ''),
+            'app_version': data.get('app_version', ''),
+            'is_active': True,
+            'daily_song_enabled': data.get('daily_song_enabled', True),
+            'messages_enabled': data.get('messages_enabled', True),
+            'last_seen_at': now,
+        }
+
+        with transaction.atomic():
+            device, created = UserDevicePushToken.objects.update_or_create(
+                token=data['token'],
+                defaults=defaults,
+            )
+
+            if device.device_id:
+                UserDevicePushToken.objects.filter(
+                    user=request.user,
+                    platform=device.platform,
+                    device_id=device.device_id,
+                    is_active=True,
+                ).exclude(id=device.id).update(is_active=False)
+
+        return Response({
+            'id': str(device.id),
+            'created': created,
+            'message': 'Push device registered',
+        }, status=status.HTTP_200_OK)
+
+
+class PushDeviceUnregisterView(APIView):
+    """
+    Deactivate an FCM token for this user.
+
+    POST /api/auth/push/devices/unregister/
+    Headers: Authorization: Bearer <access_token>
+    Body: {
+        "token": "<fcm_token>"
+    }
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = PushDeviceUnregisterSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        token = serializer.validated_data['token']
+
+        updated = UserDevicePushToken.objects.filter(
+            user=request.user,
+            token=token,
+            is_active=True,
+        ).update(is_active=False)
+
+        return Response({
+            'deactivated': updated,
+            'message': 'Push device unregistered',
+        }, status=status.HTTP_200_OK)

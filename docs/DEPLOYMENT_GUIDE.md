@@ -170,13 +170,8 @@ sudo nano /etc/nginx/sites-available/songspot
 ```
 
 ```nginx
-upstream django {
+upstream asgi {
     server 127.0.0.1:8000;
-}
-
-# WebSocket upstream (for Django Channels)
-upstream websocket {
-    server 127.0.0.1:8001;
 }
 
 server {
@@ -198,7 +193,7 @@ server {
     add_header X-XSS-Protection "1; mode=block" always;
 
     location / {
-        proxy_pass http://django;
+        proxy_pass http://asgi;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -207,7 +202,7 @@ server {
 
     # WebSocket endpoint for real-time chat
     location /ws/ {
-        proxy_pass http://websocket;
+        proxy_pass http://asgi;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -247,6 +242,15 @@ DATABASE_URL=postgres://songspot_user:password@localhost:5432/songspot
 
 # Stems cleanup (hours)
 STEM_TTL_HOURS=72
+
+# Channels (Redis-backed websocket fan-out)
+USE_REDIS_CHANNEL_LAYER=True
+CHANNEL_LAYERS_REDIS_URL=redis://localhost:6379/1
+
+# Firebase Cloud Messaging
+# FCM_SERVICE_ACCOUNT_PATH=/var/www/songspot/secrets/firebase-service-account.json
+# OR
+# FCM_SERVICE_ACCOUNT_JSON={"type":"service_account", ...}
 ```
 
 ---
@@ -338,15 +342,9 @@ CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',')
 
 ---
 
-## 5. Gunicorn Setup (Production Server)
+## 5. ASGI Server Setup (HTTP + WebSocket)
 
-### Install Gunicorn
-
-```bash
-pip install gunicorn
-```
-
-### Create Systemd Service
+Use one ASGI server (Daphne) for both REST and websocket traffic.
 
 ```bash
 sudo nano /etc/systemd/system/songspot.service
@@ -354,51 +352,7 @@ sudo nano /etc/systemd/system/songspot.service
 
 ```ini
 [Unit]
-Description=SongSpot Django Application
-After=network.target
-
-[Service]
-User=www-data
-Group=www-data
-WorkingDirectory=/var/www/songspot/songspot_backend
-Environment="PATH=/var/www/songspot/venv/bin"
-EnvironmentFile=/var/www/songspot/songspot_backend/.env
-ExecStart=/var/www/songspot/venv/bin/gunicorn \
-    --workers 3 \
-    --bind 127.0.0.1:8000 \
-    --access-logfile /var/log/songspot/access.log \
-    --error-logfile /var/log/songspot/error.log \
-    songspot.wsgi:application
-
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-### Start Service
-
-```bash
-sudo mkdir -p /var/log/songspot
-sudo chown www-data:www-data /var/log/songspot
-sudo systemctl daemon-reload
-sudo systemctl start songspot
-sudo systemctl enable songspot
-```
-
----
-
-## 6. Daphne Setup (WebSocket Server)
-
-For Django Channels WebSocket support:
-
-```bash
-sudo nano /etc/systemd/system/songspot-ws.service
-```
-
-```ini
-[Unit]
-Description=SongSpot WebSocket Server
+Description=SongSpot ASGI Application
 After=network.target
 
 [Service]
@@ -409,9 +363,8 @@ Environment="PATH=/var/www/songspot/venv/bin"
 EnvironmentFile=/var/www/songspot/songspot_backend/.env
 ExecStart=/var/www/songspot/venv/bin/daphne \
     -b 127.0.0.1 \
-    -p 8001 \
+    -p 8000 \
     songspot.asgi:application
-
 Restart=always
 
 [Install]
@@ -419,9 +372,11 @@ WantedBy=multi-user.target
 ```
 
 ```bash
+sudo mkdir -p /var/log/songspot
+sudo chown www-data:www-data /var/log/songspot
 sudo systemctl daemon-reload
-sudo systemctl start songspot-ws
-sudo systemctl enable songspot-ws
+sudo systemctl start songspot
+sudo systemctl enable songspot
 ```
 
 ---

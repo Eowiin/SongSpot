@@ -9,10 +9,12 @@ import 'providers/pack_provider.dart';
 import 'providers/pack_bundle_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
+import 'services/push_notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env');
+  await PushNotificationService().initializeCore();
   runApp(const MyApp());
 }
 

@@ -13,6 +13,8 @@ class ApiConfig {
   static const String authLogout = '/auth/logout/';
   static const String authRefresh = '/auth/token/refresh/';
   static const String authProfile = '/auth/profile/';
+  static const String pushDevicesRegister = '/auth/push/devices/register/';
+  static const String pushDevicesUnregister = '/auth/push/devices/unregister/';
 
   // Game endpoints
   static const String roomsCreate = '/game/rooms/create/';

@@ -82,22 +82,26 @@ WSGI_APPLICATION = 'songspot.wsgi.application'
 ASGI_APPLICATION = 'songspot.asgi.application'
 
 # Django Channels - Channel Layer Configuration
-# For development, use in-memory channel layer
-# For production, use Redis: channels_redis.core.RedisChannelLayer
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+# Use Redis in production/multi-worker setup to support websocket fan-out.
+CHANNEL_LAYERS_REDIS_URL = os.environ.get('CHANNEL_LAYERS_REDIS_URL')
+if not CHANNEL_LAYERS_REDIS_URL and os.environ.get('USE_REDIS_CHANNEL_LAYER', 'False') == 'True':
+    CHANNEL_LAYERS_REDIS_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/1')
+
+if CHANNEL_LAYERS_REDIS_URL:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                'hosts': [CHANNEL_LAYERS_REDIS_URL],
+            },
+        }
     }
-}
-# Production Redis config (uncomment when deploying):
-# CHANNEL_LAYERS = {
-#     'default': {
-#         'BACKEND': 'channels_redis.core.RedisChannelLayer',
-#         'CONFIG': {
-#             'hosts': [(os.environ.get('REDIS_HOST', 'localhost'), 6379)],
-#         },
-#     },
-# }
+else:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        }
+    }
 
 
 # Database
@@ -189,6 +193,10 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
+
+# Firebase Cloud Messaging
+FCM_SERVICE_ACCOUNT_PATH = os.environ.get('FCM_SERVICE_ACCOUNT_PATH')
+FCM_SERVICE_ACCOUNT_JSON = os.environ.get('FCM_SERVICE_ACCOUNT_JSON')
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),

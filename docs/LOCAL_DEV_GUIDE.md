@@ -34,7 +34,7 @@ It focuses on the fastest path to a working dev loop.
 ## Backend Setup (Django)
 
 ### Prerequisites
-- Python (compatible with Django 6.0.x)
+- Python 3.11 or 3.12 (3.12 recommended; 3.14 is not supported by some audio deps like `lameenc`)
 - `pip` and `virtualenv`
 - Optional: Redis (only needed for Celery tasks like stem generation)
 - Optional: Demucs (for stem generation; included in `requirements.txt`)
@@ -49,6 +49,15 @@ ALLOWED_HOSTS=localhost,127.0.0.1
 # Optional (only needed if you run Celery)
 CELERY_BROKER_URL=redis://localhost:6379/0
 CELERY_RESULT_BACKEND=redis://localhost:6379/0
+
+# Optional websocket fan-out for multi-process ASGI
+USE_REDIS_CHANNEL_LAYER=True
+CHANNEL_LAYERS_REDIS_URL=redis://localhost:6379/1
+
+# Optional push notifications (FCM)
+# FCM_SERVICE_ACCOUNT_PATH=/absolute/path/to/firebase-service-account.json
+# OR
+# FCM_SERVICE_ACCOUNT_JSON={"type":"service_account", ...}
 
 # Optional stem cleanup TTL (hours)
 STEM_TTL_HOURS=72
@@ -88,6 +97,17 @@ python manage.py runserver 0.0.0.0:8000
 ```
 and add your LAN IP (and `0.0.0.0` if needed) to `ALLOWED_HOSTS`.
 
+### WebSocket Notes
+
+- `runserver` is enough for local websocket development.
+- For production-style local runs, use ASGI directly:
+
+```bash
+daphne -b 0.0.0.0 -p 8000 songspot.asgi:application
+```
+
+- If you run multiple ASGI workers/instances, use Redis channel layer (`USE_REDIS_CHANNEL_LAYER=True`) instead of in-memory.
+
 ---
 
 ## Optional: Celery + Redis (Stem Generation)
@@ -101,6 +121,20 @@ Stem generation runs asynchronously via Celery.
    ```
 
 If you are not generating stems, you can skip Redis + Celery entirely.
+Push notifications also use Celery tasks, so keep the worker running if you want to test push end-to-end.
+
+For push notifications, you also need Firebase server credentials in `songspot_backend/.env`:
+```env
+FCM_SERVICE_ACCOUNT_PATH=/absolute/path/to/firebase-service-account.json
+```
+or
+```env
+FCM_SERVICE_ACCOUNT_JSON={"type":"service_account", ...}
+```
+
+iOS note:
+- APNs `.p8` key is the recommended setup in Firebase (Cloud Messaging tab).
+- `.p12` certificates are optional legacy alternative.
 
 ---
 
@@ -137,8 +171,14 @@ Change these values to the limits you want to test.
 ### Start Backend Container
 From repo root:
 ```bash
+export FCM_SERVICE_ACCOUNT_PATH=/absolute/path/to/firebase-service-account.json
 docker compose up --build -d
 ```
+
+This starts:
+- `backend` (Django)
+- `redis`
+- `celery` worker
 
 ### Run Backend Setup Commands in Container
 `docker-compose.yml` runs `python manage.py migrate` automatically before `runserver` on backend startup.
@@ -194,6 +234,12 @@ flutter pub get
 flutter run
 ```
 
+### FCM Files (Optional for Push)
+- Android: place `google-services.json` in `songspot_mobile/android/app/`
+- iOS: add `GoogleService-Info.plist` to `songspot_mobile/ios/Runner/` and enable push capabilities in Xcode.
+- These Firebase client config files are gitignored and should stay local-only.
+- Full guide: `docs/PUSH_NOTIFICATIONS.md`
+
 ---
 
 ## Troubleshooting
@@ -217,3 +263,4 @@ You can disable it in local dev (see `docs/THROTTLING.md`).
 - `docs/GAME_API_DOCUMENTATION.md`
 - `docs/THROTTLING.md`
 - `docs/STEMS_GUIDE.md`
+- `docs/PUSH_NOTIFICATIONS.md`

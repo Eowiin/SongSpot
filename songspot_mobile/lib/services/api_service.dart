@@ -411,6 +411,34 @@ class ApiService {
     return await get(ApiConfig.authProfile, includeAuth: true);
   }
 
+  Future<void> registerPushDevice({
+    required String token,
+    required String platform,
+    bool dailySongEnabled = true,
+    bool messagesEnabled = true,
+  }) async {
+    await post(
+      ApiConfig.pushDevicesRegister,
+      includeAuth: true,
+      body: {
+        'token': token,
+        'platform': platform,
+        'daily_song_enabled': dailySongEnabled,
+        'messages_enabled': messagesEnabled,
+      },
+    );
+  }
+
+  Future<void> unregisterPushDevice({
+    required String token,
+  }) async {
+    await post(
+      ApiConfig.pushDevicesUnregister,
+      includeAuth: true,
+      body: {'token': token},
+    );
+  }
+
   // Room methods
   Future<Map<String, dynamic>> createRoom() async {
     return await post(

@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
+from .models import UserDevicePushToken
 
 User = get_user_model()
 
@@ -56,3 +57,33 @@ class UserProfileSerializer(serializers.ModelSerializer):
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
     password = serializers.CharField(required=True, write_only=True)
+
+
+class PushDeviceRegisterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserDevicePushToken
+        fields = (
+            'token',
+            'platform',
+            'device_id',
+            'device_name',
+            'app_version',
+            'daily_song_enabled',
+            'messages_enabled',
+        )
+
+    def validate_token(self, value):
+        value = value.strip()
+        if len(value) < 32:
+            raise serializers.ValidationError('Invalid FCM token.')
+        return value
+
+
+class PushDeviceUnregisterSerializer(serializers.Serializer):
+    token = serializers.CharField(required=True)
+
+    def validate_token(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError('Token is required.')
+        return value

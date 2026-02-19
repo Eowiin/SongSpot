@@ -122,6 +122,50 @@ class User(AbstractBaseUser, PermissionsMixin):
         self.save(update_fields=['current_streak', 'best_streak', 'last_played_date'])
 
 
+class UserDevicePushToken(models.Model):
+    """
+    Stores one FCM token per mobile installation/device.
+    A user can have multiple active devices at the same time.
+    """
+
+    PLATFORM_IOS = 'ios'
+    PLATFORM_ANDROID = 'android'
+    PLATFORM_CHOICES = [
+        (PLATFORM_IOS, 'iOS'),
+        (PLATFORM_ANDROID, 'Android'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='push_devices'
+    )
+    token = models.CharField(max_length=255, unique=True)
+    platform = models.CharField(max_length=20, choices=PLATFORM_CHOICES)
+    device_id = models.CharField(max_length=191, blank=True, null=True)
+    device_name = models.CharField(max_length=120, blank=True)
+    app_version = models.CharField(max_length=50, blank=True)
+    is_active = models.BooleanField(default=True)
+    daily_song_enabled = models.BooleanField(default=True)
+    messages_enabled = models.BooleanField(default=True)
+    last_seen_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'user_device_push_tokens'
+        ordering = ['-last_seen_at']
+        indexes = [
+            models.Index(fields=['user', 'is_active'], name='udpt_user_active_idx'),
+            models.Index(fields=['platform', 'is_active'], name='udpt_platform_active_idx'),
+            models.Index(fields=['device_id'], name='udpt_device_id_idx'),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} ({self.platform})"
+
+
 class CoinTransaction(models.Model):
     """
     Tracks all coin transactions for auditing and history.

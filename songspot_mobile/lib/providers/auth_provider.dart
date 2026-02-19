@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
+import '../services/push_notification_service.dart';
 import '../services/storage_service.dart';
 
 enum AuthStatus { initial, authenticated, unauthenticated, loading }
@@ -8,6 +9,7 @@ enum AuthStatus { initial, authenticated, unauthenticated, loading }
 class AuthProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
   final StorageService _storageService = StorageService();
+  final PushNotificationService _pushNotificationService = PushNotificationService();
 
   AuthStatus _status = AuthStatus.initial;
   User? _user;
@@ -27,6 +29,7 @@ class AuthProvider with ChangeNotifier {
         if (userData != null) {
           _user = User.fromJson(userData);
           _status = AuthStatus.authenticated;
+          await _pushNotificationService.syncTokenWithBackend();
           notifyListeners();
         } else {
           _status = AuthStatus.unauthenticated;
@@ -78,6 +81,7 @@ class AuthProvider with ChangeNotifier {
       );
 
       _status = AuthStatus.authenticated;
+      await _pushNotificationService.syncTokenWithBackend();
       notifyListeners();
       return true;
     } catch (e) {
@@ -120,6 +124,7 @@ class AuthProvider with ChangeNotifier {
       );
 
       _status = AuthStatus.authenticated;
+      await _pushNotificationService.syncTokenWithBackend();
       notifyListeners();
       return true;
     } catch (e) {
@@ -133,9 +138,15 @@ class AuthProvider with ChangeNotifier {
   /// Logout user
   Future<void> logout() async {
     try {
+      await _pushNotificationService.unregisterCurrentToken();
+    } catch (e) {
+      // Continue logout even if push cleanup fails
+    }
+
+    try {
       await _apiService.logout();
     } catch (e) {
-      // Continue with logout even if API call fails
+      await _storageService.clearAll();
     }
 
     _user = null;

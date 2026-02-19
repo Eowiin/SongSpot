@@ -1,6 +1,10 @@
 # Environment variables
 .env
 
+# Firebase service account credentials (local secrets, do not commit)
+firebase-service-account.json
+firebase-service-account*.json
+
 # Python
 __pycache__/
 *.py[cod]
