@@ -1,29 +1,29 @@
 # SongSpot Deployment Guide
 
-Guide for deploying SongSpot to a VPS with PostgreSQL, HTTPS, and proper environment configuration.
+Guide for deploying SongSpot to a VPS with PostgreSQL, Redis, HTTPS, and CI/CD.
+
+**Paths used throughout:** repo lives at `/var/www/songspot`, virtualenv at `/var/www/songspot/songspot_backend/.venv`.
 
 ---
 
 ## 1. PostgreSQL Setup
 
-### Install PostgreSQL on VPS
+### Install PostgreSQL
 
 ```bash
-# Ubuntu/Debian
 sudo apt update
 sudo apt install postgresql postgresql-contrib
-
-# Start and enable
-sudo systemctl start postgresql
 sudo systemctl enable postgresql
+sudo systemctl start postgresql
 ```
 
 ### Create Database and User
 
 ```bash
 sudo -u postgres psql
+```
 
-# In PostgreSQL shell:
+```sql
 CREATE DATABASE songspot;
 CREATE USER songspot_user WITH PASSWORD 'your_secure_password_here';
 ALTER ROLE songspot_user SET client_encoding TO 'utf8';
@@ -33,57 +33,34 @@ GRANT ALL PRIVILEGES ON DATABASE songspot TO songspot_user;
 \q
 ```
 
-### Update Django Settings
+### Configure Django
 
-Add to `requirements.txt`:
-```
-psycopg2-binary==2.9.9
-```
-
-Update `.env`:
+Add to your production `.env`:
 ```env
 DATABASE_URL=postgres://songspot_user:your_secure_password_here@localhost:5432/songspot
 ```
 
-Update `songspot/settings.py`:
+`settings.py` reads `DATABASE_URL` automatically and falls back to sqlite3 for local dev:
 ```python
-import dj_database_url
-
-# Replace the DATABASES section with:
 DATABASES = {
     'default': dj_database_url.config(
-        default=os.environ.get('DATABASE_URL'),
-        conn_max_age=600,
-        conn_health_checks=True,
+        default=f'sqlite:///{BASE_DIR / "db.sqlite3"}'
     )
 }
-
-# Fallback for local development
-if not os.environ.get('DATABASE_URL'):
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
-```
-
-Add to `requirements.txt`:
-```
-dj-database-url==2.1.0
 ```
 
 ### Run Migrations
 
 ```bash
+cd /var/www/songspot/songspot_backend
+source .venv/bin/activate
 python manage.py migrate
 python manage.py createsuperuser
-python manage.py fetch_deezer_tracks  # Populate tracks
 ```
 
 ---
 
-## 2. Redis + Celery (Stem Generation)
+## 2. Redis + Celery
 
 ### Install Redis
 
@@ -93,34 +70,50 @@ sudo systemctl enable redis-server
 sudo systemctl start redis-server
 ```
 
-### Configure Celery Env Vars
+### Configure Env Vars
 
-Add to your `.env`:
+Add to `.env`:
 ```env
 CELERY_BROKER_URL=redis://localhost:6379/0
 CELERY_RESULT_BACKEND=redis://localhost:6379/0
+USE_REDIS_CHANNEL_LAYER=True
+CHANNEL_LAYERS_REDIS_URL=redis://localhost:6379/1
 ```
 
-### Run Celery Worker (systemd)
+### Celery Worker (systemd)
 
-Create a service file (example: `/etc/systemd/system/songspot-celery.service`):
+Create `/etc/systemd/system/songspot-celery.service`:
 ```ini
 [Unit]
 Description=SongSpot Celery Worker
-After=network.target
+After=network.target redis-server.service
 
 [Service]
-User=ubuntu
-WorkingDirectory=/path/to/BlindTest-friends/songspot_backend
-EnvironmentFile=/path/to/BlindTest-friends/songspot_backend/.env
-ExecStart=/path/to/BlindTest-friends/.venv/bin/celery -A songspot worker -l info
-Restart=always
+Type=forking
+User=root
+WorkingDirectory=/var/www/songspot/songspot_backend
+EnvironmentFile=/var/www/songspot/songspot_backend/.env
+ExecStart=/var/www/songspot/songspot_backend/.venv/bin/celery \
+    -A songspot multi start worker \
+    --pidfile=/var/run/celery/%n.pid \
+    --logfile=/var/log/celery/%n%%I.log \
+    --loglevel=info
+ExecStop=/var/www/songspot/songspot_backend/.venv/bin/celery \
+    -A songspot multi stopwait worker \
+    --pidfile=/var/run/celery/%n.pid
+ExecReload=/var/www/songspot/songspot_backend/.venv/bin/celery \
+    -A songspot multi restart worker \
+    --pidfile=/var/run/celery/%n.pid \
+    --logfile=/var/log/celery/%n%%I.log \
+    --loglevel=info
+Restart=on-failure
+RuntimeDirectory=celery
+LogsDirectory=celery
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-Then enable and start:
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable songspot-celery
@@ -140,16 +133,13 @@ sudo apt install certbot python3-certbot-nginx
 ### Get SSL Certificate
 
 ```bash
-sudo certbot --nginx -d your-domain.com -d api.your-domain.com
+sudo certbot --nginx -d your-domain.com
 ```
 
 ### Auto-Renewal
 
 ```bash
-# Test renewal
 sudo certbot renew --dry-run
-
-# Certbot auto-adds a cron job, verify with:
 sudo systemctl status certbot.timer
 ```
 
@@ -165,10 +155,7 @@ sudo apt install nginx
 
 ### Create Site Config
 
-```bash
-sudo nano /etc/nginx/sites-available/songspot
-```
-
+Create `/etc/nginx/sites-available/songspot`:
 ```nginx
 upstream asgi {
     server 127.0.0.1:8000;
@@ -176,13 +163,13 @@ upstream asgi {
 
 server {
     listen 80;
-    server_name your-domain.com api.your-domain.com;
+    server_name your-domain.com;
     return 301 https://$server_name$request_uri;
 }
 
 server {
     listen 443 ssl http2;
-    server_name your-domain.com api.your-domain.com;
+    server_name your-domain.com;
 
     ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
@@ -190,8 +177,8 @@ server {
     # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
-    add_header X-XSS-Protection "1; mode=block" always;
 
+    # REST API
     location / {
         proxy_pass http://asgi;
         proxy_set_header Host $host;
@@ -200,7 +187,7 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # WebSocket endpoint for real-time chat
+    # WebSocket
     location /ws/ {
         proxy_pass http://asgi;
         proxy_http_version 1.1;
@@ -211,8 +198,14 @@ server {
         proxy_read_timeout 86400;
     }
 
+    # Static files
     location /static/ {
         alias /var/www/songspot/static/;
+    }
+
+    # Media files (stems)
+    location /media/ {
+        alias /var/www/songspot/songspot_backend/media/;
     }
 }
 ```
@@ -221,46 +214,101 @@ server {
 
 ```bash
 sudo ln -s /etc/nginx/sites-available/songspot /etc/nginx/sites-enabled/
+sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t
 sudo systemctl reload nginx
 ```
 
 ---
 
-## 4. Environment Configuration
+## 5. ASGI Server (Daphne)
 
-### Production `.env` File
+Daphne serves both REST and WebSocket traffic.
 
-```env
-# Django
-DJANGO_SECRET_KEY=your-very-long-random-secret-key-here
-DEBUG=False
-ALLOWED_HOSTS=your-domain.com,api.your-domain.com
+Create `/etc/systemd/system/songspot.service`:
+```ini
+[Unit]
+Description=SongSpot ASGI Application
+After=network.target
 
-# Database
-DATABASE_URL=postgres://songspot_user:password@localhost:5432/songspot
+[Service]
+User=root
+WorkingDirectory=/var/www/songspot/songspot_backend
+EnvironmentFile=/var/www/songspot/songspot_backend/.env
+ExecStart=/var/www/songspot/songspot_backend/.venv/bin/daphne \
+    -b 127.0.0.1 \
+    -p 8000 \
+    songspot.asgi:application
+Restart=always
 
-# Stems cleanup (hours)
-STEM_TTL_HOURS=72
+[Install]
+WantedBy=multi-user.target
+```
 
-# Channels (Redis-backed websocket fan-out)
-USE_REDIS_CHANNEL_LAYER=True
-CHANNEL_LAYERS_REDIS_URL=redis://localhost:6379/1
-
-# Firebase Cloud Messaging
-# FCM_SERVICE_ACCOUNT_PATH=/var/www/songspot/secrets/firebase-service-account.json
-# OR
-# FCM_SERVICE_ACCOUNT_JSON={"type":"service_account", ...}
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable songspot
+sudo systemctl start songspot
 ```
 
 ---
 
-## 5. Stems Pipeline (Demucs)
+## 6. Static Files
 
-### Install Demucs
-```bash
-pip install demucs
+Add to `settings.py`:
+```python
+STATIC_ROOT = '/var/www/songspot/static/'
 ```
+
+```bash
+cd /var/www/songspot/songspot_backend
+source .venv/bin/activate
+python manage.py collectstatic
+```
+
+---
+
+## 7. Security Settings
+
+Add to `settings.py`:
+```python
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
+CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',')
+```
+
+> Note: `SECURE_SSL_REDIRECT` is omitted because Nginx already handles HTTP -> HTTPS redirection.
+
+---
+
+## 8. Firewall
+
+```bash
+sudo ufw allow 'Nginx Full'
+sudo ufw allow OpenSSH
+sudo ufw enable
+```
+
+---
+
+## 9. Seed Data
+
+```bash
+cd /var/www/songspot/songspot_backend
+source .venv/bin/activate
+python manage.py fetch_deezer_tracks --count 200
+python manage.py seed_genre_packs --count-per-pack 30 --genres pop,rock,hiphop
+```
+
+---
+
+## 10. Stems Pipeline (Demucs)
 
 ### Generate Stems (Batch)
 ```bash
@@ -272,187 +320,139 @@ python manage.py generate_pack_stems --all --missing-only
 python manage.py cleanup_stems --max-age-hours 72
 ```
 
-### Serve Media (Stems)
-For production, serve `/media/` via Nginx:
-```nginx
-location /media/ {
-    alias /var/www/songspot/media/;
-}
-```
-
-Make sure `MEDIA_ROOT` points to the same directory in your Django settings.
-
 ---
 
-## 6. Daily UTC Jobs (Single VPS with Cron)
+## 11. Daily Cron Jobs
 
-Run a daily job to preselect daily songs and daily pack tracks, and generate stems:
+Daily content preparation and stem generation:
 ```bash
-0 0 * * * cd /path/to/BlindTest-friends/songspot_backend && /path/to/venv/bin/python manage.py prepare_daily_content --generate-stems >> /var/log/songspot_daily.log 2>&1
+0 0 * * * cd /var/www/songspot/songspot_backend && /var/www/songspot/songspot_backend/.venv/bin/python manage.py prepare_daily_content --generate-stems >> /var/log/songspot_daily.log 2>&1
 ```
 
-Optional cleanup job:
+Cleanup old stems:
 ```bash
-0 3 * * * cd /path/to/BlindTest-friends/songspot_backend && /path/to/venv/bin/python manage.py cleanup_stems --max-age-hours 72 >> /var/log/songspot_cleanup.log 2>&1
+0 3 * * * cd /var/www/songspot/songspot_backend && /var/www/songspot/songspot_backend/.venv/bin/python manage.py cleanup_stems --max-age-hours 72 >> /var/log/songspot_cleanup.log 2>&1
 ```
 
 ---
 
-## 7. Seed Data (Option A)
+## 12. Production `.env` Reference
 
-Populate tracks and create 3 genre packs:
-```bash
-python manage.py fetch_deezer_tracks --count 200
-python manage.py seed_genre_packs --count-per-pack 30 --genres pop,rock,hiphop
-```
+```env
+# Django
+DJANGO_SECRET_KEY=your-very-long-random-secret-key-here
+DEBUG=False
+ALLOWED_HOSTS=your-domain.com
+
+# Database
+DATABASE_URL=postgres://songspot_user:password@localhost:5432/songspot
+
+# Celery
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/0
+
+# Channels (Redis-backed websocket fan-out)
+USE_REDIS_CHANNEL_LAYER=True
+CHANNEL_LAYERS_REDIS_URL=redis://localhost:6379/1
+
+# Stems cleanup (hours)
+STEM_TTL_HOURS=72
 
 # Security
-CSRF_TRUSTED_ORIGINS=https://your-domain.com,https://api.your-domain.com
+CSRF_TRUSTED_ORIGINS=https://your-domain.com
 
-# Deezer API (if using app credentials)
-DEEZER_APP_ID=your_app_id
-DEEZER_APP_SECRET=your_app_secret
+# Firebase Cloud Messaging (pick one)
+# FCM_SERVICE_ACCOUNT_PATH=/var/www/songspot/secrets/firebase-service-account.json
+# FCM_SERVICE_ACCOUNT_JSON={"type":"service_account", ...}
 ```
 
-### Generate Secret Key
-
+Generate a secret key:
 ```bash
 python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
 ```
 
-### Update Settings for Production
+---
 
-Add to `songspot/settings.py`:
+## 13. Automatic Deploy from GitHub
 
-```python
-# Security settings for production
-if not DEBUG:
-    SECURE_SSL_REDIRECT = True
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
-    SECURE_HSTS_SECONDS = 31536000  # 1 year
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
+The repo includes `.github/workflows/backend-deploy.yml` which deploys automatically when `main` is pushed with changes to `songspot_backend/**`, `docker-compose.yml`, or `scripts/deploy_backend.sh`.
 
-# CSRF trusted origins
-CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',')
-```
+### GitHub Secrets Required
+
+Set in `Settings -> Secrets and variables -> Actions`:
+
+| Secret | Required | Description |
+|--------|----------|-------------|
+| `VPS_SSH_PRIVATE_KEY` | Yes | SSH private key for the VPS |
+| `VPS_HOST` | Yes | VPS hostname or IP |
+| `VPS_USER` | Yes | SSH username (e.g. `root`) |
+| `VPS_APP_DIR` | Yes | Repo path on VPS (e.g. `/var/www/songspot`) |
+| `VPS_PORT` | No | SSH port (default: `22`) |
+| `VPS_HOST_KEY` | No | Pinned host key for `known_hosts` |
+| `VPS_DEPLOY_SCRIPT` | No | Deploy script path (default: `scripts/deploy_backend.sh`) |
+
+### VPS Requirements
+
+1. Clone the repo on the VPS at `VPS_APP_DIR`
+2. Ensure `main` tracks the remote correctly
+3. Ensure the VPS user can run:
+   - `sudo -n systemctl restart songspot`
+   - `sudo -n systemctl restart songspot-celery`
+
+The deploy script (`scripts/deploy_backend.sh`) runs:
+- `pip install -r requirements.txt`
+- `python manage.py migrate --noinput`
+- `python manage.py collectstatic --noinput`
+- Restarts `songspot` and `songspot-celery` services
 
 ---
 
-## 5. ASGI Server Setup (HTTP + WebSocket)
-
-Use one ASGI server (Daphne) for both REST and websocket traffic.
-
-```bash
-sudo nano /etc/systemd/system/songspot.service
-```
-
-```ini
-[Unit]
-Description=SongSpot ASGI Application
-After=network.target
-
-[Service]
-User=www-data
-Group=www-data
-WorkingDirectory=/var/www/songspot/songspot_backend
-Environment="PATH=/var/www/songspot/venv/bin"
-EnvironmentFile=/var/www/songspot/songspot_backend/.env
-ExecStart=/var/www/songspot/venv/bin/daphne \
-    -b 127.0.0.1 \
-    -p 8000 \
-    songspot.asgi:application
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-sudo mkdir -p /var/log/songspot
-sudo chown www-data:www-data /var/log/songspot
-sudo systemctl daemon-reload
-sudo systemctl start songspot
-sudo systemctl enable songspot
-```
-
----
-
-## 7. Static Files
-
-```bash
-# Collect static files
-python manage.py collectstatic
-
-# Set permissions
-sudo chown -R www-data:www-data /var/www/songspot/static/
-```
-
-Add to `settings.py`:
-```python
-STATIC_ROOT = '/var/www/songspot/static/'
-```
-
----
-
-## 8. Firewall Setup
-
-```bash
-sudo ufw allow 'Nginx Full'
-sudo ufw allow OpenSSH
-sudo ufw enable
-```
-
----
-
-## 9. Mobile App Configuration
+## 14. Mobile App Configuration
 
 Update `songspot_mobile/.env`:
 ```env
-API_BASE_URL=https://api.your-domain.com
-WS_BASE_URL=wss://api.your-domain.com/ws
+API_BASE_URL=https://your-domain.com
+WS_BASE_URL=wss://your-domain.com/ws
 ```
-
----
-
-## Quick Deployment Checklist
-
-- [ ] PostgreSQL installed and configured
-- [ ] Database created with user permissions
-- [ ] Django migrations run
-- [ ] Tracks populated (`fetch_deezer_tracks`)
-- [ ] Nginx installed and configured
-- [ ] SSL certificate obtained (Let's Encrypt)
-- [ ] Gunicorn service running
-- [ ] Daphne service running (for WebSockets)
-- [ ] Static files collected
-- [ ] Firewall configured
-- [ ] Environment variables set (DEBUG=False)
-- [ ] Mobile app API URL updated
 
 ---
 
 ## Useful Commands
 
 ```bash
-# Check service status
+# Service status
 sudo systemctl status songspot
-sudo systemctl status songspot-ws
+sudo systemctl status songspot-celery
 sudo systemctl status nginx
 
-# View logs
+# Logs
 sudo journalctl -u songspot -f
-sudo tail -f /var/log/songspot/error.log
+sudo journalctl -u songspot-celery -f
 
-# Restart services
-sudo systemctl restart songspot songspot-ws nginx
+# Restart everything
+sudo systemctl restart songspot songspot-celery nginx
 
 # Django management
 cd /var/www/songspot/songspot_backend
-source ../venv/bin/activate
+source .venv/bin/activate
 python manage.py migrate
 python manage.py createsuperuser
 ```
+
+---
+
+## Deployment Checklist
+
+- [ ] PostgreSQL installed, database and user created
+- [ ] `.env` configured with all production values
+- [ ] Django migrations run
+- [ ] Tracks populated (`fetch_deezer_tracks`)
+- [ ] Redis installed and running
+- [ ] Daphne service running (`songspot.service`)
+- [ ] Celery worker running (`songspot-celery.service`)
+- [ ] Nginx configured with SSL
+- [ ] Static files collected
+- [ ] Firewall configured (UFW)
+- [ ] Cron jobs set up (daily content + stem cleanup)
+- [ ] GitHub secrets configured for CI/CD
+- [ ] Mobile app `.env` updated with production URL
