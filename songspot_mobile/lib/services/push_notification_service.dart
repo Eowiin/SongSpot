@@ -26,6 +26,13 @@ class PushNotificationService {
   bool _initialized = false;
   StreamSubscription<String>? _tokenRefreshSubscription;
 
+  void Function(Map<String, dynamic> data)? _onNotificationTap;
+
+  /// Register a callback invoked when the user taps a push notification.
+  void setOnNotificationTap(void Function(Map<String, dynamic> data) callback) {
+    _onNotificationTap = callback;
+  }
+
   Future<void> initializeCore() async {
     if (_initialized) return;
 
@@ -54,7 +61,24 @@ class PushNotificationService {
       await _registerToken(token);
     });
 
+    // Handle notification tap when app is in background
+    FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
+
+    // Handle notification tap that launched the app from terminated state
+    messaging.getInitialMessage().then((message) {
+      if (message != null) {
+        _handleNotificationTap(message);
+      }
+    });
+
     _initialized = true;
+  }
+
+  void _handleNotificationTap(RemoteMessage message) {
+    final data = message.data;
+    if (data.isNotEmpty && _onNotificationTap != null) {
+      _onNotificationTap!(Map<String, dynamic>.from(data));
+    }
   }
 
   Future<void> syncTokenWithBackend() async {
