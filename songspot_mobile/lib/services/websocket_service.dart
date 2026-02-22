@@ -15,6 +15,7 @@ enum WebSocketEventType {
   userJoined,
   userLeft,
   typing,
+  stemsReady,
   error,
 }
 
@@ -30,9 +31,12 @@ class WebSocketService {
   final StorageService _storageService = StorageService();
 
   WebSocketChannel? _channel;
+  StreamSubscription? _streamSubscription;
   String? _currentRoomId;
   bool _isConnected = false;
+  bool _intentionalDisconnect = false;
   Timer? _reconnectTimer;
+  Timer? _reconnectResetTimer;
   int _reconnectAttempts = 0;
   static const int _maxReconnectAttempts = 5;
 
@@ -57,7 +61,9 @@ class WebSocketService {
   /// Connect to a room's chat WebSocket
   Future<bool> connect(String roomId) async {
     // Disconnect from any existing connection
+    _intentionalDisconnect = true;
     await disconnect();
+    _intentionalDisconnect = false;
 
     try {
       final token = await _storageService.getAccessToken();
@@ -76,7 +82,7 @@ class WebSocketService {
       _currentRoomId = roomId;
 
       // Listen to messages
-      _channel!.stream.listen(
+      _streamSubscription = _channel!.stream.listen(
         _onMessage,
         onError: _onError,
         onDone: _onDone,
@@ -84,8 +90,13 @@ class WebSocketService {
       );
 
       _isConnected = true;
-      _reconnectAttempts = 0;
       _eventController.add(WebSocketEvent(WebSocketEventType.connected));
+
+      // Only reset reconnect attempts after connection is stable for 10s
+      _reconnectResetTimer?.cancel();
+      _reconnectResetTimer = Timer(const Duration(seconds: 10), () {
+        _reconnectAttempts = 0;
+      });
 
       return true;
     } catch (e) {
@@ -100,8 +111,15 @@ class WebSocketService {
 
   /// Disconnect from the current WebSocket
   Future<void> disconnect() async {
+    _intentionalDisconnect = true;
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
+    _reconnectResetTimer?.cancel();
+    _reconnectResetTimer = null;
+
+    // Cancel stream subscription first to prevent _onDone from triggering reconnect
+    await _streamSubscription?.cancel();
+    _streamSubscription = null;
 
     if (_channel != null) {
       await _channel!.sink.close();
@@ -168,6 +186,13 @@ class WebSocketService {
           }));
           break;
 
+        case 'stems_ready':
+          _eventController.add(WebSocketEvent(WebSocketEventType.stemsReady, {
+            'pack_id': json['pack_id'] as String?,
+            'pack_track_id': json['pack_track_id'] as String?,
+          }));
+          break;
+
         case 'error':
           _eventController.add(WebSocketEvent(
             WebSocketEventType.error,
@@ -193,8 +218,12 @@ class WebSocketService {
   void _onDone() {
     debugPrint('WebSocket connection closed');
     _isConnected = false;
+    _reconnectResetTimer?.cancel();
+    _reconnectResetTimer = null;
     _eventController.add(WebSocketEvent(WebSocketEventType.disconnected));
-    _scheduleReconnect();
+    if (!_intentionalDisconnect) {
+      _scheduleReconnect();
+    }
   }
 
   void _scheduleReconnect() {
@@ -220,7 +249,10 @@ class WebSocketService {
 
   /// Dispose of resources
   void dispose() {
+    _intentionalDisconnect = true;
     _reconnectTimer?.cancel();
+    _reconnectResetTimer?.cancel();
+    _streamSubscription?.cancel();
     _channel?.sink.close();
     _eventController.close();
   }

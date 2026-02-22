@@ -8,8 +8,11 @@ import 'providers/game_provider.dart';
 import 'providers/pack_provider.dart';
 import 'providers/pack_bundle_provider.dart';
 import 'screens/auth/login_screen.dart';
+import 'screens/game/game_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'services/push_notification_service.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,6 +35,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => PackBundleProvider()),
       ],
       child: MaterialApp(
+        navigatorKey: navigatorKey,
         title: 'SongSpot',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.darkTheme,
@@ -60,6 +64,9 @@ class _SplashScreenState extends State<SplashScreen> {
     await authProvider.checkAuthStatus();
 
     if (mounted) {
+      // Set up push notification tap handler
+      PushNotificationService().setOnNotificationTap(_handleNotificationTap);
+
       if (authProvider.isAuthenticated) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const HomeScreen()),
@@ -69,6 +76,18 @@ class _SplashScreenState extends State<SplashScreen> {
           MaterialPageRoute(builder: (_) => const LoginScreen()),
         );
       }
+    }
+  }
+
+  void _handleNotificationTap(Map<String, dynamic> data) {
+    final type = data['type'] as String?;
+    final roomId = data['room_id'] as String?;
+    if (roomId == null) return;
+
+    if (type == 'daily_song_available') {
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(builder: (_) => GameScreen(roomId: roomId)),
+      );
     }
   }
 

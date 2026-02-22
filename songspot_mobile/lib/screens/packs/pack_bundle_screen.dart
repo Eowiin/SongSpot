@@ -6,8 +6,10 @@ import '../../config/app_theme.dart';
 import '../../models/track.dart';
 import '../../models/pack_bundle.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/game_provider.dart';
 import '../../providers/pack_bundle_provider.dart';
 import '../../services/stem_audio_service.dart';
+import '../../services/websocket_service.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/track_autocomplete.dart';
 
@@ -66,7 +68,7 @@ class _PackBundleContentState extends State<PackBundleContent> {
   final StemAudioService _stemAudioService = StemAudioService();
   Track? _selectedTrack;
   bool _requestedCompletionData = false;
-  Timer? _stemsPollTimer;
+  StreamSubscription<WebSocketEvent>? _wsSubscription;
 
   @override
   void initState() {
@@ -78,7 +80,7 @@ class _PackBundleContentState extends State<PackBundleContent> {
           roomId: widget.roomId,
           packId: widget.packId,
         );
-        _ensureStemsPolling(provider);
+        _listenForStemsReady();
         if (provider.session?.isCompleted == true) {
           await provider.loadLeaderboard(roomId: widget.roomId, packId: widget.packId);
           await provider.loadMessages(roomId: widget.roomId, packId: widget.packId);
@@ -92,12 +94,29 @@ class _PackBundleContentState extends State<PackBundleContent> {
     });
   }
 
+  void _listenForStemsReady() {
+    _wsSubscription?.cancel();
+    final gameProvider = context.read<GameProvider>();
+    _wsSubscription = gameProvider.webSocketEvents.listen((event) {
+      if (event.type == WebSocketEventType.stemsReady) {
+        final data = event.data as Map<String, dynamic>?;
+        final packId = data?['pack_id'] as String?;
+        if (packId == widget.packId && mounted) {
+          context.read<PackBundleProvider>().loadSession(
+            roomId: widget.roomId,
+            packId: widget.packId,
+          );
+        }
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _wsSubscription?.cancel();
     _titleController.dispose();
     _messageController.dispose();
     _chatScrollController.dispose();
-    _stemsPollTimer?.cancel();
     _stemAudioService.dispose();
     super.dispose();
   }
@@ -201,7 +220,6 @@ class _PackBundleContentState extends State<PackBundleContent> {
   Widget build(BuildContext context) {
     final provider = context.watch<PackBundleProvider>();
     final session = provider.session;
-    _ensureStemsPolling(provider);
 
     final content = provider.isLoading && session == null
         ? _buildLoadingSkeleton()
@@ -280,22 +298,6 @@ class _PackBundleContentState extends State<PackBundleContent> {
       ),
       child: content,
     );
-  }
-
-  void _ensureStemsPolling(PackBundleProvider provider) {
-    if (provider.stemsStatus == 'generating') {
-      _stemsPollTimer ??= Timer.periodic(const Duration(seconds: 6), (_) async {
-        final refreshed = context.read<PackBundleProvider>();
-        await refreshed.loadSession(roomId: widget.roomId, packId: widget.packId);
-        if (refreshed.stemsStatus != 'generating') {
-          _stemsPollTimer?.cancel();
-          _stemsPollTimer = null;
-        }
-      });
-    } else {
-      _stemsPollTimer?.cancel();
-      _stemsPollTimer = null;
-    }
   }
 
   Widget _buildLoadingSkeleton() {
@@ -457,20 +459,36 @@ class _PackBundleContentState extends State<PackBundleContent> {
             style: Theme.of(context).textTheme.bodyLarge,
           ),
           if (stemsStatus == 'generating') ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
+            const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+              ),
+            ),
+            const SizedBox(height: 12),
             Text(
-              'Generating stems...',
+              'Preparing your challenge...',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppTheme.primaryColor,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'This may take a moment',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppTheme.textSecondary,
                   ),
             ),
+          ] else ...[
+            const SizedBox(height: 24),
+            GradientButton(
+              text: 'Play Stems',
+              onPressed: onPlay,
+            ),
           ],
-          const SizedBox(height: 24),
-          GradientButton(
-            text: 'Play Stems',
-            onPressed: stemsStatus == 'generating' ? null : onPlay,
-            isLoading: false,
-          ),
         ],
       ),
     );

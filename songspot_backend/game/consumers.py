@@ -183,6 +183,14 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
                 'is_typing': event['is_typing'],
             }))
 
+    async def stems_ready(self, event):
+        """Notify clients that stems have finished generating for a pack track."""
+        await self.send(text_data=json.dumps({
+            'type': 'stems_ready',
+            'pack_id': event['pack_id'],
+            'pack_track_id': event['pack_track_id'],
+        }))
+
     # Database operations
 
     @database_sync_to_async

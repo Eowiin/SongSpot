@@ -38,6 +38,7 @@ class _GameScreenState extends State<GameScreen> {
       final gameProvider = context.read<GameProvider>();
       gameProvider.startGameSession(widget.roomId);
       gameProvider.loadLeaderboard(widget.roomId);
+      gameProvider.connectToChat(widget.roomId);
       // Load room details for name and host info
       context.read<RoomProvider>().loadRoomDetails(widget.roomId);
       context.read<PackProvider>().loadMyPacks(widget.roomId);
@@ -46,6 +47,7 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   void dispose() {
+    context.read<GameProvider>().disconnectFromChat();
     _titleController.dispose();
     _messageController.dispose();
     _chatScrollController.dispose();
@@ -769,6 +771,7 @@ class _GameScreenState extends State<GameScreen> {
     final packProvider = context.watch<PackProvider>();
 
     return Scaffold(
+      backgroundColor: const Color(0xFF0F0F1E),
       appBar: AppBar(
         title: Text(room?.displayName ?? 'Daily Challenge'),
         actions: [
