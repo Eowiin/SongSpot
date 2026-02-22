@@ -71,6 +71,9 @@ class PushDeviceRegisterSerializer(serializers.ModelSerializer):
             'daily_song_enabled',
             'messages_enabled',
         )
+        extra_kwargs = {
+            'token': {'validators': []},  # Remove UniqueValidator; view handles upsert
+        }
 
     def validate_token(self, value):
         value = value.strip()

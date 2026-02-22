@@ -32,6 +32,7 @@ class GameProvider with ChangeNotifier {
   String? get guessResult => _guessResult;
   AudioService get audioService => _audioService;
   bool get isWebSocketConnected => _isWebSocketConnected;
+  Stream<WebSocketEvent> get webSocketEvents => _webSocketService.events;
   List<String> get typingUsernames => _typingUsers.entries
       .where((e) => e.value)
       .map((e) => e.key)
@@ -306,6 +307,10 @@ class GameProvider with ChangeNotifier {
           _typingUsers.remove(user.username);
         }
         notifyListeners();
+        break;
+
+      case WebSocketEventType.stemsReady:
+        // Handled by PackBundleContent via webSocketEvents stream
         break;
 
       case WebSocketEventType.error:
