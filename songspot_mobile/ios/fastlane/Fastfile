@@ -13,6 +13,12 @@ platform :ios do
 
   private_lane :build_ipa do
     setup_asc_key
+
+    # Build Flutter before Xcode archive (generates Generated.xcconfig + framework)
+    Dir.chdir("..") do
+      sh("flutter", "build", "ios", "--release", "--no-codesign")
+    end
+
     app_id = CredentialsManager::AppfileConfig.try_fetch_value(:app_identifier)
     latest = latest_testflight_build_number(app_identifier: app_id) || 0
     increment_build_number(
