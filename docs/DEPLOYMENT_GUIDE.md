@@ -326,13 +326,13 @@ python manage.py cleanup_stems --max-age-hours 72
 
 **These cron jobs are required for the app to function properly.** Add them with `crontab -e`:
 
-### Daily song preparation (midnight UTC)
+### Daily song preparation (noon UTC)
 
 Creates today's `DailySong` for every room and triggers push notifications to all users.
 Stems are generated on-demand when users start playing (not pre-generated).
 
 ```bash
-0 0 * * * cd /var/www/songspot/songspot_backend && /var/www/songspot/songspot_backend/.venv/bin/python manage.py prepare_daily_content >> /var/log/songspot_daily.log 2>&1
+0 12 * * * cd /var/www/songspot/songspot_backend && /var/www/songspot/songspot_backend/.venv/bin/python manage.py prepare_daily_content >> /var/log/songspot_daily.log 2>&1
 ```
 
 ### Cleanup old stems (3 AM UTC)
