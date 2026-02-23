@@ -66,7 +66,7 @@ platform :ios do
   end
 
   desc "Distribute to TestFlight"
-  lane :beta do
+  lane :testflight do
     ipa_path = build_ipa
     generic_notes = "Bug fixes and performance improvements"
     upload_to_store(
@@ -76,8 +76,8 @@ platform :ios do
     )
   end
 
-  desc "Release to App Store"
-  lane :release do
+  desc "Build and release directly to App Store"
+  lane :app_store do
     ipa_path = build_ipa
     generic_notes = "Bug fixes and performance improvements"
     upload_to_store(

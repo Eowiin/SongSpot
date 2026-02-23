@@ -1,0 +1,50 @@
+default_platform(:android)
+
+platform :android do
+  private_lane :build_aab do
+    Dir.chdir("../..") do
+      sh("flutter", "build", "appbundle", "--release")
+    end
+    File.expand_path("../../build/app/outputs/bundle/release/app-release.aab", __dir__)
+  end
+
+  desc "Build and upload to internal testing track"
+  lane :internal do
+    aab_path = build_aab
+    upload_to_play_store(
+      track: "internal",
+      aab: aab_path,
+      json_key: "fastlane/google-play-key.json",
+      release_status: "completed"
+    )
+  end
+
+  desc "Promote internal track to closed testing (alpha)"
+  lane :closed_testing do
+    upload_to_play_store(
+      track: "internal",
+      track_promote_to: "alpha",
+      json_key: "fastlane/google-play-key.json"
+    )
+  end
+
+  desc "Promote closed testing (alpha) track to production"
+  lane :production do
+    upload_to_play_store(
+      track: "alpha",
+      track_promote_to: "production",
+      json_key: "fastlane/google-play-key.json"
+    )
+  end
+
+  desc "Build and release directly to Play Store production"
+  lane :play_store do
+    aab_path = build_aab
+    upload_to_play_store(
+      track: "production",
+      aab: aab_path,
+      json_key: "fastlane/google-play-key.json",
+      release_status: "completed"
+    )
+  end
+end

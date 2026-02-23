@@ -1,12 +1,19 @@
-# Fastlane Setup for TestFlight Deployment
+# Fastlane Setup — iOS & Android Deployment
 
-This guide will help you set up Fastlane to deploy your iOS app to TestFlight.
+This guide covers local deployment to TestFlight / App Store (iOS) and Play Store (Android) using Fastlane.
 
 ## Prerequisites
 
+**iOS:**
 - Xcode installed
 - Ruby installed (macOS comes with Ruby)
 - An Apple Developer account with Admin access
+
+**Android:**
+- Flutter SDK installed
+- Java 11+ installed
+- A Google Play Developer account
+- App already created in the Play Console (Fastlane cannot create the initial listing)
 
 ## Step 0: Apple Developer & App Store Connect Setup
 
@@ -143,16 +150,19 @@ cd songspot_mobile/ios
 bundle exec fastlane run validate_app_store_connect_api_key
 ```
 
-## Step 4: Deploy to TestFlight
-
-Once everything is set up, deploy to TestFlight:
+## Step 4: Deploy
 
 ```bash
 cd songspot_mobile/ios
-bundle exec fastlane beta
+
+# Upload to TestFlight for testing
+bundle exec fastlane testflight
+
+# Build and release directly to the App Store
+bundle exec fastlane app_store
 ```
 
-This will:
+`testflight` will:
 1. Authenticate with App Store Connect
 2. Fetch the latest TestFlight build number
 3. Increment the build number
@@ -161,18 +171,18 @@ This will:
 
 ## Available Lanes
 
-### `beta`
+### `testflight`
 Builds and uploads to TestFlight for internal/external testing.
 
 ```bash
-bundle exec fastlane beta
+bundle exec fastlane testflight
 ```
 
-### `release`
-Builds, uploads, and submits to the App Store for review.
+### `app_store`
+Builds, uploads, and submits directly to the App Store for review with automatic release.
 
 ```bash
-bundle exec fastlane release
+bundle exec fastlane app_store
 ```
 
 ## Troubleshooting
@@ -229,3 +239,141 @@ Always use `bundle exec fastlane` instead of just `fastlane` to ensure you're us
 - [Fastlane Documentation](https://docs.fastlane.tools/)
 - [App Store Connect API](https://developer.apple.com/documentation/appstoreconnectapi)
 - [TestFlight Documentation](https://developer.apple.com/testflight/)
+
+---
+
+# Android Fastlane Setup
+
+## Step 0: Play Store Setup
+
+Before using Fastlane, the app must already exist in the Play Console with at least one manual upload (Play requires a first build to be uploaded manually via the web interface).
+
+## Step 1: Generate a Release Keystore
+
+If you haven't already:
+
+```bash
+keytool -genkey -v -keystore ~/songspot-release.jks \
+  -keyalg RSA -keysize 2048 -validity 10000 \
+  -alias songspot
+```
+
+Store the `.jks` file **outside the repo** and never commit it. The personal information prompted (name, org, etc.) does not need to match any account — press Enter to skip it.
+
+## Step 2: Configure key.properties
+
+Fill in `songspot_mobile/android/key.properties` (already git-ignored):
+
+```properties
+storePassword=<your-keystore-password>
+keyPassword=<your-key-password>
+keyAlias=songspot
+storeFile=<absolute-path-to>/songspot-release.jks
+```
+
+`build.gradle.kts` reads this file automatically at build time.
+
+## Step 3: Create a Google Play Service Account
+
+Fastlane uses a service account to authenticate with the Play Store API.
+
+1. Go to [Google Play Console](https://play.google.com/console) → **Setup** → **API access**
+2. Link to a Google Cloud project (or create one)
+3. Click **Create new service account** → follow the Google Cloud Console link
+4. In Google Cloud Console:
+   - Click **+ Create Service Account**
+   - Give it a name (e.g., `fastlane-deploy`)
+   - Click **Create and Continue** → skip role assignment → **Done**
+   - Open the service account → **Keys** tab → **Add Key** → **JSON**
+   - Download the JSON file
+5. Back in Play Console → **Grant access** next to the service account
+6. Set permissions to **Release manager** (or **Admin** for full access)
+7. Save the JSON file as `songspot_mobile/android/fastlane/google-play-key.json` (already git-ignored)
+
+## Step 4: Install Dependencies
+
+```bash
+cd songspot_mobile/android
+bundle config set --local path 'vendor/bundle'
+bundle install
+```
+
+## Step 5: Deploy
+
+```bash
+cd songspot_mobile/android
+
+# Option A: build and release directly to Play Store
+bundle exec fastlane play_store
+
+# Option B: gradual rollout through testing tracks
+bundle exec fastlane internal       # build + upload to internal testing
+bundle exec fastlane closed_testing # promote internal → closed testing (alpha)
+bundle exec fastlane production     # promote closed testing → production
+```
+
+## Available Lanes
+
+### `play_store`
+Builds the AAB and uploads it **directly to production**. Use this when you want to skip testing tracks.
+
+```bash
+bundle exec fastlane play_store
+```
+
+### `internal`
+Builds the AAB and uploads it to the **internal testing** track.
+
+```bash
+bundle exec fastlane internal
+```
+
+### `closed_testing`
+Promotes the current internal build to the **closed testing (alpha)** track — no rebuild needed.
+
+```bash
+bundle exec fastlane closed_testing
+```
+
+### `production`
+Promotes the current closed testing build to **production** — no rebuild needed.
+
+```bash
+bundle exec fastlane production
+```
+
+## Deployment Flow
+
+```
+# Direct
+play_store (build + production)
+
+# Gradual
+internal (build) → closed_testing (promote to alpha) → production (promote to production)
+```
+
+## Versioning
+
+`versionCode` and `versionName` are read from `pubspec.yaml` via Flutter's Gradle plugin. Increment the version there before running `beta`:
+
+```yaml
+# pubspec.yaml
+version: 1.0.1+2   # versionName=1.0.1, versionCode=2
+```
+
+## Troubleshooting
+
+### "No such file or directory — key.properties"
+Make sure `songspot_mobile/android/key.properties` exists and `storeFile` points to the actual `.jks` file (not the Google Play JSON key).
+
+### "Google Play API: applicationNotFound"
+The app must have at least one build uploaded manually through the Play Console before Fastlane can upload subsequent ones.
+
+### "Permission denied" on service account
+Ensure the service account has **Release manager** permissions in Play Console under **Setup → API access**.
+
+### Build fails with signing error
+Verify `key.properties` values match the keystore exactly (alias, passwords). Test the keystore manually:
+```bash
+keytool -list -v -keystore /path/to/songspot-release.jks -alias songspot
+```
