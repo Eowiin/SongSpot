@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -817,6 +818,8 @@ class _GameScreenState extends State<GameScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    const _NextSongCountdown(),
+                    const SizedBox(height: 16),
                     _buildPackSwitcher(context, packProvider.ownedPacks),
                     if (_activePackId == null)
                       _buildResultContent(session, gameProvider.leaderboard)
@@ -841,6 +844,8 @@ class _GameScreenState extends State<GameScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const _NextSongCountdown(),
+                  const SizedBox(height: 16),
                   _buildPackSwitcher(context, packProvider.ownedPacks),
                   if (_activePackId == null)
                     ...[
@@ -992,6 +997,70 @@ class _GameScreenState extends State<GameScreen> {
           },
         ),
       ),
+    );
+  }
+}
+
+/// Countdown widget showing time remaining until the next daily song (12:00 UTC).
+class _NextSongCountdown extends StatefulWidget {
+  const _NextSongCountdown();
+
+  @override
+  State<_NextSongCountdown> createState() => _NextSongCountdownState();
+}
+
+class _NextSongCountdownState extends State<_NextSongCountdown> {
+  late Timer _timer;
+  late Duration _remaining;
+
+  @override
+  void initState() {
+    super.initState();
+    _remaining = _timeUntilNoonUtc();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() => _remaining = _timeUntilNoonUtc());
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  Duration _timeUntilNoonUtc() {
+    final now = DateTime.now().toUtc();
+    var next = DateTime.utc(now.year, now.month, now.day, 12);
+    if (!next.isAfter(now)) {
+      next = next.add(const Duration(days: 1));
+    }
+    return next.difference(now);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final h = _remaining.inHours.toString().padLeft(2, '0');
+    final m = (_remaining.inMinutes % 60).toString().padLeft(2, '0');
+    final s = (_remaining.inSeconds % 60).toString().padLeft(2, '0');
+
+    return Text.rich(
+      TextSpan(
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
+        children: [
+          const TextSpan(text: 'Next song in '),
+          TextSpan(
+            text: '$h:$m:$s',
+            style: const TextStyle(
+              color: AppTheme.primaryColor,
+              fontWeight: FontWeight.bold,
+              fontFeatures: [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ),
+      textAlign: TextAlign.center,
     );
   }
 }
