@@ -10,6 +10,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   # UI
   cupertino_icons: ^1.0.8
@@ -44,6 +46,12 @@ dependencies:
   firebase_core: ^4.4.0
   firebase_messaging: ^16.1.1
 
+  # Settings page
+  package_info_plus: ^8.0.0
+  share_plus: ^10.0.0
+  url_launcher: ^6.3.0
+  path_provider: ^2.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -70,6 +78,7 @@ flutter_launcher_icons:
 
 # The following section is specific to Flutter packages.
 flutter:
+  generate: true
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'config/app_theme.dart';
+import 'l10n/app_localizations.dart';
 import 'providers/auth_provider.dart';
-import 'providers/room_provider.dart';
 import 'providers/game_provider.dart';
-import 'providers/pack_provider.dart';
 import 'providers/pack_bundle_provider.dart';
+import 'providers/pack_provider.dart';
+import 'providers/room_provider.dart';
+import 'providers/settings_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/game/game_screen.dart';
 import 'screens/home/home_screen.dart';
@@ -28,18 +31,43 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider(create: (_) => SettingsProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => RoomProvider()),
         ChangeNotifierProvider(create: (_) => GameProvider()),
         ChangeNotifierProvider(create: (_) => PackProvider()),
         ChangeNotifierProvider(create: (_) => PackBundleProvider()),
       ],
-      child: MaterialApp(
-        navigatorKey: navigatorKey,
-        title: 'SongSpot',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.darkTheme,
-        home: const SplashScreen(),
+      child: Consumer<SettingsProvider>(
+        builder: (context, settings, _) {
+          return MaterialApp(
+            navigatorKey: navigatorKey,
+            title: 'SongSpot',
+            debugShowCheckedModeBanner: false,
+            // Localization
+            locale: settings.locale,
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            supportedLocales: AppLocalizations.supportedLocales,
+            // Theme (high contrast / color blindness override)
+            theme: settings.currentTheme,
+            // Apply text scale and animation speed via builder
+            builder: (context, child) {
+              return MediaQuery(
+                data: MediaQuery.of(context).copyWith(
+                  textScaler: TextScaler.linear(settings.textScaleFactor),
+                  disableAnimations: settings.reduceAnimations,
+                ),
+                child: child!,
+              );
+            },
+            home: const SplashScreen(),
+          );
+        },
       ),
     );
   }

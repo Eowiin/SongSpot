@@ -53,6 +53,12 @@ class ApiConfig {
   static const String searchTracks = '/game/tracks/search/';
   static String trackRefreshPreview(String trackId) => '/game/tracks/$trackId/refresh-preview/';
 
+  // Account management endpoints
+  static const String changeEmail = '/auth/change-email/';
+  static const String changePassword = '/auth/change-password/';
+  static const String dataExport = '/auth/data/export/';
+  static const String deleteAccount = '/auth/account/';
+
   // Request timeout
   static const Duration timeout = Duration(seconds: 30);
 }

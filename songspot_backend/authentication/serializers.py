@@ -90,3 +90,29 @@ class PushDeviceUnregisterSerializer(serializers.Serializer):
         if not value:
             raise serializers.ValidationError('Token is required.')
         return value
+
+
+class ChangeEmailSerializer(serializers.Serializer):
+    current_password = serializers.CharField(required=True, write_only=True)
+    new_email = serializers.EmailField(required=True)
+
+    def validate_new_email(self, value):
+        value = value.lower().strip()
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError('This email address is already in use.')
+        return value
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(required=True, write_only=True)
+    new_password = serializers.CharField(required=True, write_only=True, validators=[validate_password])
+    confirm_new_password = serializers.CharField(required=True, write_only=True)
+
+    def validate(self, attrs):
+        if attrs['new_password'] != attrs['confirm_new_password']:
+            raise serializers.ValidationError({'new_password': "New passwords didn't match."})
+        return attrs
+
+
+class DeleteAccountSerializer(serializers.Serializer):
+    password = serializers.CharField(required=True, write_only=True)

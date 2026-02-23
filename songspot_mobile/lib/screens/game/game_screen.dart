@@ -30,15 +30,16 @@ class _GameScreenState extends State<GameScreen> {
   Track? _selectedTrack;
   String? _activePackId;
   String? _activePackName;
+  late GameProvider _gameProvider;
 
   @override
   void initState() {
     super.initState();
+    _gameProvider = context.read<GameProvider>();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final gameProvider = context.read<GameProvider>();
-      gameProvider.startGameSession(widget.roomId);
-      gameProvider.loadLeaderboard(widget.roomId);
-      gameProvider.connectToChat(widget.roomId);
+      _gameProvider.startGameSession(widget.roomId);
+      _gameProvider.loadLeaderboard(widget.roomId);
+      _gameProvider.connectToChat(widget.roomId);
       // Load room details for name and host info
       context.read<RoomProvider>().loadRoomDetails(widget.roomId);
       context.read<PackProvider>().loadMyPacks(widget.roomId);
@@ -47,7 +48,7 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   void dispose() {
-    context.read<GameProvider>().disconnectFromChat();
+    _gameProvider.disconnectFromChat();
     _titleController.dispose();
     _messageController.dispose();
     _chatScrollController.dispose();
