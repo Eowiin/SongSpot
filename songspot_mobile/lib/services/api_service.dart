@@ -620,4 +620,29 @@ class ApiService {
       throw ApiException('Network error: $e');
     }
   }
+
+  Future<Map<String, dynamic>> getRoomHistory(
+    String roomId, {
+    int limit = 30,
+    int offset = 0,
+  }) async {
+    return await get(
+      ApiConfig.roomHistory(roomId),
+      includeAuth: true,
+      queryParameters: {
+        'limit': limit.toString(),
+        'offset': offset.toString(),
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> getRoomHistoryDetail(
+    String roomId,
+    String date,
+  ) async {
+    return await get(
+      ApiConfig.roomHistoryDetail(roomId, date),
+      includeAuth: true,
+    );
+  }
 }

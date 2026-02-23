@@ -53,6 +53,10 @@ class ApiConfig {
   static const String searchTracks = '/game/tracks/search/';
   static String trackRefreshPreview(String trackId) => '/game/tracks/$trackId/refresh-preview/';
 
+  // History endpoints
+  static String roomHistory(String roomId) => '/game/rooms/$roomId/history/';
+  static String roomHistoryDetail(String roomId, String date) => '/game/rooms/$roomId/history/$date/';
+
   // Account management endpoints
   static const String changeEmail = '/auth/change-email/';
   static const String changePassword = '/auth/change-password/';
