@@ -5,8 +5,8 @@ import '../../config/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/room_provider.dart';
 import '../../widgets/gradient_button.dart';
-import '../auth/login_screen.dart';
 import '../game/game_screen.dart';
+import '../settings/settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -92,34 +92,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _handleLogout() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.surfaceColor,
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Logout', style: TextStyle(color: AppTheme.errorColor)),
-          ),
-        ],
-      ),
+  void _handleOpenSettings() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const SettingsScreen()),
     );
-
-    if (confirmed == true && mounted) {
-      await context.read<AuthProvider>().logout();
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-        );
-      }
-    }
   }
 
   @override
@@ -163,10 +139,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.logout),
-                      onPressed: _handleLogout,
-                      color: AppTheme.textPrimary,
+                    Semantics(
+                      label: 'Settings',
+                      button: true,
+                      child: IconButton(
+                        icon: const Icon(Icons.settings_outlined),
+                        onPressed: _handleOpenSettings,
+                        color: AppTheme.textPrimary,
+                      ),
                     ),
                   ],
                 ),

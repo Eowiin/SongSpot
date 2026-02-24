@@ -25,6 +25,8 @@ from .views import (
     RoomMessagesView,
     SearchTracksView,
     UserGameHistoryView,
+    RoomHistoryListView,
+    RoomHistoryDetailView,
 )
 
 app_name = 'game'
@@ -66,4 +68,8 @@ urlpatterns = [
 
     # User stats/history
     path('history/', UserGameHistoryView.as_view(), name='game_history'),
+
+    # Room-specific history
+    path('rooms/<uuid:room_id>/history/', RoomHistoryListView.as_view(), name='room_history_list'),
+    path('rooms/<uuid:room_id>/history/<str:date>/', RoomHistoryDetailView.as_view(), name='room_history_detail'),
 ]

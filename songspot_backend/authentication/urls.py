@@ -7,6 +7,10 @@ from .views import (
     UserProfileView,
     PushDeviceRegisterView,
     PushDeviceUnregisterView,
+    ChangeEmailView,
+    ChangePasswordView,
+    DataExportView,
+    DeleteAccountView,
 )
 
 app_name = 'authentication'
@@ -19,4 +23,8 @@ urlpatterns = [
     path('profile/', UserProfileView.as_view(), name='profile'),
     path('push/devices/register/', PushDeviceRegisterView.as_view(), name='push_device_register'),
     path('push/devices/unregister/', PushDeviceUnregisterView.as_view(), name='push_device_unregister'),
+    path('change-email/', ChangeEmailView.as_view(), name='change_email'),
+    path('change-password/', ChangePasswordView.as_view(), name='change_password'),
+    path('data/export/', DataExportView.as_view(), name='data_export'),
+    path('account/', DeleteAccountView.as_view(), name='delete_account'),
 ]

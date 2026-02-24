@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -7,6 +9,21 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 import random
+
+
+def _active_game_date():
+    """
+    Returns the 'active' date for daily game content.
+    The day rolls over at 12:00 UTC when the cron pre-generates new content.
+      - Before 12:00 UTC → yesterday's date (yesterday's song is still active)
+      - From 12:00 UTC   → today's date
+    """
+    now = timezone.now()
+    if now.hour < 12:
+        return (now - timedelta(days=1)).date()
+    return now.date()
+
+
 from .models import (
     Track, SongPack, Room, RoomUser, RoomPack,
     DailySong, PackTrack, PackDailyTrack, PackBundleSession, PackBundleAttempt,
@@ -469,7 +486,7 @@ class PackBundleSessionView(APIView):
     def get(self, request, room_id, pack_id):
         room = get_object_or_404(Room, id=room_id)
         pack = get_object_or_404(SongPack, id=pack_id)
-        today = timezone.now().date()
+        today = _active_game_date()
 
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
             return Response({'error': 'You must be in the room to play this pack'}, status=status.HTTP_403_FORBIDDEN)
@@ -517,7 +534,7 @@ class PackBundleSkipView(APIView):
     def post(self, request, room_id, pack_id):
         room = get_object_or_404(Room, id=room_id)
         pack = get_object_or_404(SongPack, id=pack_id)
-        today = timezone.now().date()
+        today = _active_game_date()
 
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
             return Response({'error': 'You must be in the room to play this pack'}, status=status.HTTP_403_FORBIDDEN)
@@ -570,7 +587,7 @@ class PackBundleGuessView(APIView):
     def post(self, request, room_id, pack_id):
         room = get_object_or_404(Room, id=room_id)
         pack = get_object_or_404(SongPack, id=pack_id)
-        today = timezone.now().date()
+        today = _active_game_date()
 
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
             return Response({'error': 'You must be in the room to play this pack'}, status=status.HTTP_403_FORBIDDEN)
@@ -658,7 +675,7 @@ class PackBundleLeaderboardView(APIView):
     def get(self, request, room_id, pack_id):
         room = get_object_or_404(Room, id=room_id)
         pack = get_object_or_404(SongPack, id=pack_id)
-        today = timezone.now().date()
+        today = _active_game_date()
 
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
             return Response({'error': 'You must be in the room to view leaderboard'}, status=status.HTTP_403_FORBIDDEN)
@@ -724,7 +741,7 @@ class PackBundleMessagesView(APIView):
     def get(self, request, room_id, pack_id):
         room = get_object_or_404(Room, id=room_id)
         pack = get_object_or_404(SongPack, id=pack_id)
-        today = timezone.now().date()
+        today = _active_game_date()
 
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
             return Response({
@@ -758,7 +775,7 @@ class PackBundleMessagesView(APIView):
     def post(self, request, room_id, pack_id):
         room = get_object_or_404(Room, id=room_id)
         pack = get_object_or_404(SongPack, id=pack_id)
-        today = timezone.now().date()
+        today = _active_game_date()
 
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
             return Response({
@@ -834,7 +851,7 @@ class RoomDailySongView(APIView):
 
     def get(self, request, room_id):
         room = get_object_or_404(Room, id=room_id)
-        today = timezone.now().date()
+        today = _active_game_date()
 
         # Check if user is in the room
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
@@ -894,7 +911,7 @@ class DailyGameView(APIView):
 
     def get(self, request, room_id):
         room = get_object_or_404(Room, id=room_id)
-        today = timezone.now().date()
+        today = _active_game_date()
 
         # Check if user is in the room
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
@@ -963,7 +980,7 @@ class SkipSnippetView(APIView):
 
     def post(self, request, room_id):
         room = get_object_or_404(Room, id=room_id)
-        today = timezone.now().date()
+        today = _active_game_date()
 
         # Check if user is in the room
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
@@ -1028,7 +1045,7 @@ class SubmitGuessView(APIView):
 
     def post(self, request, room_id):
         room = get_object_or_404(Room, id=room_id)
-        today = timezone.now().date()
+        today = _active_game_date()
 
         # Check if user is in the room
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
@@ -1171,7 +1188,7 @@ class LeaderboardView(APIView):
 
     def get(self, request, room_id):
         room = get_object_or_404(Room, id=room_id)
-        today = timezone.now().date()
+        today = _active_game_date()
 
         # Check if user is in the room
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
@@ -1247,8 +1264,9 @@ class RoomMessagesView(APIView):
         # Limit max to 100 messages per request
         limit = min(limit, 100)
 
-        # Get messages
-        messages = RoomMessage.objects.filter(room=room).select_related('user')[offset:offset + limit]
+        # Get messages for today only (daily-scoped chat)
+        today = _active_game_date()
+        messages = RoomMessage.objects.filter(room=room, created_at__date=today).select_related('user')[offset:offset + limit]
 
         serializer = RoomMessageSerializer(messages, many=True)
         return Response({
@@ -1335,4 +1353,148 @@ class UserGameHistoryView(APIView):
             'results': serializer.data,
             'limit': limit,
             'offset': offset
+        }, status=status.HTTP_200_OK)
+
+
+class RoomHistoryListView(APIView):
+    """
+    List of past daily songs for a room with the user's result for each.
+    Excludes the currently active game date.
+
+    GET /api/game/rooms/<room_id>/history/?limit=30&offset=0
+    Headers: Authorization: Bearer <access_token>
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, room_id):
+        room = get_object_or_404(Room, id=room_id)
+        if not RoomUser.objects.filter(room=room, user=request.user).exists():
+            return Response({'error': 'You must be in the room to view history'}, status=status.HTTP_403_FORBIDDEN)
+
+        limit = min(int(request.query_params.get('limit', 30)), 100)
+        offset = int(request.query_params.get('offset', 0))
+
+        daily_songs = DailySong.objects.filter(
+            room=room,
+        ).exclude(
+            date=_active_game_date(),
+        ).select_related('track').order_by('-date')
+
+        total = daily_songs.count()
+        page = list(daily_songs[offset:offset + limit])
+
+        session_map = {
+            s.daily_song_id: s
+            for s in DailyGameSession.objects.filter(
+                room=room,
+                user=request.user,
+                daily_song__in=page,
+            )
+        }
+
+        results = []
+        for ds in page:
+            session = session_map.get(ds.id)
+            results.append({
+                'date': ds.date.isoformat(),
+                'track': {
+                    'id': str(ds.track.id),
+                    'title': ds.track.title,
+                    'artist': ds.track.artist,
+                    'cover_url': ds.track.cover_url,
+                },
+                'my_session': {
+                    'correct_guess': session.correct_guess,
+                    'points_earned': session.points_earned,
+                    'current_snippet': session.current_snippet,
+                    'guesses_made': session.guesses_made,
+                } if session else None,
+            })
+
+        return Response({
+            'results': results,
+            'limit': limit,
+            'offset': offset,
+            'total': total,
+        }, status=status.HTTP_200_OK)
+
+
+class RoomHistoryDetailView(APIView):
+    """
+    Full details for a specific past day in a room.
+
+    GET /api/game/rooms/<room_id>/history/<date>/  (date: YYYY-MM-DD)
+    Headers: Authorization: Bearer <access_token>
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, room_id, date):
+        from datetime import date as date_type
+        try:
+            parsed_date = date_type.fromisoformat(date)
+        except ValueError:
+            return Response({'error': 'Invalid date format. Use YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        room = get_object_or_404(Room, id=room_id)
+        if not RoomUser.objects.filter(room=room, user=request.user).exists():
+            return Response({'error': 'You must be in the room to view history'}, status=status.HTTP_403_FORBIDDEN)
+
+        if parsed_date >= _active_game_date():
+            return Response({'error': 'This date is not yet in history.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        daily_song = DailySong.objects.filter(room=room, date=parsed_date).select_related('track').first()
+        if not daily_song:
+            return Response({'error': 'No song found for this date.'}, status=status.HTTP_404_NOT_FOUND)
+
+        session = DailyGameSession.objects.filter(
+            room=room, user=request.user, daily_song=daily_song
+        ).first()
+
+        leaderboard_sessions = DailyGameSession.objects.filter(
+            room=room,
+            daily_song=daily_song,
+            correct_guess=True,
+        ).select_related('user').order_by('-points_earned', 'completed_at')
+
+        leaderboard = [
+            {
+                'user': {'id': str(s.user.id), 'username': s.user.username},
+                'points_earned': s.points_earned,
+                'snippet_number': s.current_snippet,
+                'completed_at': s.completed_at.isoformat() if s.completed_at else None,
+            }
+            for s in leaderboard_sessions
+        ]
+
+        messages = RoomMessage.objects.filter(
+            room=room,
+            created_at__date=parsed_date,
+        ).select_related('user').order_by('created_at')
+
+        return Response({
+            'date': parsed_date.isoformat(),
+            'track': {
+                'id': str(daily_song.track.id),
+                'title': daily_song.track.title,
+                'artist': daily_song.track.artist,
+                'cover_url': daily_song.track.cover_url,
+                'preview_url': daily_song.track.preview_url,
+            },
+            'my_session': {
+                'correct_guess': session.correct_guess,
+                'points_earned': session.points_earned,
+                'current_snippet': session.current_snippet,
+                'guesses_made': session.guesses_made,
+                'completed_at': session.completed_at.isoformat() if session.completed_at else None,
+            } if session else None,
+            'leaderboard': leaderboard,
+            'messages': [
+                {
+                    'id': str(m.id),
+                    'user': {'id': str(m.user.id), 'username': m.user.username},
+                    'message': m.message,
+                    'created_at': m.created_at.isoformat(),
+                }
+                for m in messages
+            ],
         }, status=status.HTTP_200_OK)

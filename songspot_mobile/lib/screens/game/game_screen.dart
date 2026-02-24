@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -11,6 +12,8 @@ import '../../models/game_session.dart';
 import '../../models/pack.dart';
 import '../../widgets/track_autocomplete.dart';
 import '../../widgets/gradient_button.dart';
+import '../../services/api_service.dart';
+import '../../models/history_day.dart';
 import '../packs/pack_list_screen.dart';
 import '../packs/pack_bundle_screen.dart';
 
@@ -27,30 +30,41 @@ class _GameScreenState extends State<GameScreen> {
   final _titleController = TextEditingController();
   final _messageController = TextEditingController();
   final _chatScrollController = ScrollController();
+  final _dateScrollController = ScrollController();
   Track? _selectedTrack;
   String? _activePackId;
   String? _activePackName;
+  late GameProvider _gameProvider;
+
+  // History
+  final _apiService = ApiService();
+  String? _selectedHistoryDate; // null = active game (today)
+  Map<String, HistoryDay> _historyMap = {};
+  HistoryDayDetail? _historyDetail;
+  bool _historyDetailLoading = false;
 
   @override
   void initState() {
     super.initState();
+    _gameProvider = context.read<GameProvider>();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final gameProvider = context.read<GameProvider>();
-      gameProvider.startGameSession(widget.roomId);
-      gameProvider.loadLeaderboard(widget.roomId);
-      gameProvider.connectToChat(widget.roomId);
+      _gameProvider.startGameSession(widget.roomId);
+      _gameProvider.loadLeaderboard(widget.roomId);
+      _gameProvider.connectToChat(widget.roomId);
       // Load room details for name and host info
       context.read<RoomProvider>().loadRoomDetails(widget.roomId);
       context.read<PackProvider>().loadMyPacks(widget.roomId);
+      _loadHistoryList();
     });
   }
 
   @override
   void dispose() {
-    context.read<GameProvider>().disconnectFromChat();
+    _gameProvider.disconnectFromChat();
     _titleController.dispose();
     _messageController.dispose();
     _chatScrollController.dispose();
+    _dateScrollController.dispose();
     super.dispose();
   }
 
@@ -108,6 +122,60 @@ class _GameScreenState extends State<GameScreen> {
     final gameProvider = context.read<GameProvider>();
     gameProvider.loadLeaderboard(widget.roomId);
     gameProvider.loadMessages(widget.roomId);
+  }
+
+  DateTime _activeGameDate() {
+    final now = DateTime.now().toUtc();
+    final base = DateTime.utc(now.year, now.month, now.day);
+    return now.hour < 12 ? base.subtract(const Duration(days: 1)) : base;
+  }
+
+  Future<void> _loadHistoryList() async {
+    try {
+      final data = await _apiService.getRoomHistory(widget.roomId, limit: 31);
+      if (!mounted) return;
+      final days = (data['results'] as List)
+          .map((j) => HistoryDay.fromJson(j as Map<String, dynamic>))
+          .toList();
+      setState(() {
+        _historyMap = {for (final d in days) d.date: d};
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_dateScrollController.hasClients) {
+          _dateScrollController.animateTo(
+            _dateScrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+    } catch (_) {
+      // History chips are optional; fail silently
+    }
+  }
+
+  Future<void> _selectDate(String? dateStr) async {
+    if (dateStr == _selectedHistoryDate) return;
+    if (dateStr == null) {
+      setState(() => _selectedHistoryDate = null);
+      return;
+    }
+    setState(() {
+      _selectedHistoryDate = dateStr;
+      _historyDetail = null;
+      _historyDetailLoading = true;
+    });
+    try {
+      final data = await _apiService.getRoomHistoryDetail(widget.roomId, dateStr);
+      if (mounted) {
+        setState(() {
+          _historyDetail = HistoryDayDetail.fromJson(data);
+          _historyDetailLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _historyDetailLoading = false);
+    }
   }
 
   Widget _buildPackSwitcher(BuildContext context, List<SongPack> packs) {
@@ -800,15 +868,29 @@ class _GameScreenState extends State<GameScreen> {
         decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
         child: Consumer<GameProvider>(
           builder: (context, gameProvider, _) {
-            // Show skeleton while loading or until session is available
-            if (gameProvider.isLoading || gameProvider.currentSession == null) {
-              return _buildLoadingSkeleton();
-            }
+            return Column(
+              children: [
+                _buildDateRow(gameProvider),
+                Expanded(
+                  child: _selectedHistoryDate != null
+                      ? _buildHistoryView()
+                      : _buildActiveGameContent(context, gameProvider, packProvider),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
 
-            final session = gameProvider.currentSession;
-            if (session == null) {
-              return _buildLoadingSkeleton();
-            }
+  Widget _buildActiveGameContent(
+      BuildContext context, GameProvider gameProvider, PackProvider packProvider) {
+    if (gameProvider.isLoading || gameProvider.currentSession == null) {
+      return _buildLoadingSkeleton();
+    }
+
+    final session = gameProvider.currentSession!;
 
             if (session.isCompleted) {
               return SingleChildScrollView(
@@ -816,6 +898,8 @@ class _GameScreenState extends State<GameScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    const _NextSongCountdown(),
+                    const SizedBox(height: 16),
                     _buildPackSwitcher(context, packProvider.ownedPacks),
                     if (_activePackId == null)
                       _buildResultContent(session, gameProvider.leaderboard)
@@ -840,6 +924,8 @@ class _GameScreenState extends State<GameScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const _NextSongCountdown(),
+                  const SizedBox(height: 16),
                   _buildPackSwitcher(context, packProvider.ownedPacks),
                   if (_activePackId == null)
                     ...[
@@ -988,9 +1074,445 @@ class _GameScreenState extends State<GameScreen> {
                 ],
               ),
             );
-          },
-        ),
+  }
+
+  // ── Date row ────────────────────────────────────────────────────────────
+
+  Widget _buildDateRow(GameProvider gameProvider) {
+    final activeDate = _activeGameDate();
+    final dates = List.generate(31, (i) => activeDate.subtract(Duration(days: 30 - i)));
+
+    return SizedBox(
+      height: 76,
+      child: ListView.builder(
+        controller: _dateScrollController,
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        itemCount: dates.length,
+        itemBuilder: (context, index) {
+          final date = dates[index];
+          final dateStr = DateFormat('yyyy-MM-dd').format(date);
+          final isToday = index == dates.length - 1;
+          final isSelected = isToday
+              ? _selectedHistoryDate == null
+              : _selectedHistoryDate == dateStr;
+
+          // Result dot color
+          Color? dotColor;
+          if (isToday) {
+            final session = gameProvider.currentSession;
+            if (session != null && session.isCompleted) {
+              dotColor = session.correctGuess ? AppTheme.successColor : AppTheme.errorColor;
+            }
+          } else {
+            final histDay = _historyMap[dateStr];
+            if (histDay?.mySession != null) {
+              dotColor = histDay!.mySession!.correctGuess
+                  ? AppTheme.successColor
+                  : AppTheme.errorColor;
+            }
+          }
+
+          return GestureDetector(
+            onTap: () => isToday ? _selectDate(null) : _selectDate(dateStr),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.only(right: 6),
+              width: 48,
+              decoration: BoxDecoration(
+                gradient: isSelected ? AppTheme.primaryGradient : null,
+                color: isSelected ? null : AppTheme.surfaceColor,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    '${date.day}',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: isSelected ? Colors.white : AppTheme.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    DateFormat('MMM').format(date),
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: isSelected ? Colors.white70 : AppTheme.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: dotColor ?? Colors.transparent,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
+    );
+  }
+
+  // ── History view ─────────────────────────────────────────────────────────
+
+  Widget _buildHistoryView() {
+    if (_historyDetailLoading) {
+      return const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor));
+    }
+    if (_historyDetail == null) {
+      return Center(
+        child: Text(
+          'Could not load data',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
+        ),
+      );
+    }
+    return _buildHistoryContent(_historyDetail!);
+  }
+
+  Widget _buildHistoryContent(HistoryDayDetail detail) {
+    final currentUserId = context.read<AuthProvider>().user?.id;
+    final session = detail.mySession;
+
+    return SingleChildScrollView(
+      padding: AppTheme.pagePadding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Song card
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: AppTheme.cardGradient,
+              borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+            ),
+            child: Column(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: detail.track.coverUrl != null
+                      ? Image.network(
+                          detail.track.coverUrl!,
+                          width: 160,
+                          height: 160,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context2, e, s) => _historyAlbumPlaceholder(),
+                        )
+                      : _historyAlbumPlaceholder(),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  detail.track.title,
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  detail.track.artist,
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(color: AppTheme.textSecondary),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                if (session != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: session.correctGuess
+                          ? AppTheme.successColor.withValues(alpha: 0.2)
+                          : AppTheme.errorColor.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          session.correctGuess ? Icons.check_circle : Icons.cancel,
+                          color: session.correctGuess
+                              ? AppTheme.successColor
+                              : AppTheme.errorColor,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          session.correctGuess
+                              ? '+${session.pointsEarned ?? 0} pts · Snippet ${session.currentSnippet}'
+                              : 'Not guessed',
+                          style: TextStyle(
+                            color: session.correctGuess
+                                ? AppTheme.successColor
+                                : AppTheme.errorColor,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.surfaceColor,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'You didn\'t play this day',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: AppTheme.textSecondary),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Leaderboard
+          Text('Results', style: Theme.of(context).textTheme.headlineMedium),
+          const SizedBox(height: 12),
+
+          if (detail.leaderboard.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppTheme.surfaceColor,
+                borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+              ),
+              child: Text(
+                'Nobody guessed this day',
+                style: Theme.of(context).textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+            )
+          else
+            ...detail.leaderboard.asMap().entries.map((entry) {
+              final rank = entry.key + 1;
+              final e = entry.value;
+              final rankColor = rank == 1
+                  ? const Color(0xFFFFD700)
+                  : rank == 2
+                      ? const Color(0xFFC0C0C0)
+                      : rank == 3
+                          ? const Color(0xFFCD7F32)
+                          : AppTheme.textSecondary;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.surfaceColor,
+                  borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: rankColor.withValues(alpha: 0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          '$rank',
+                          style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: rankColor),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(e.username,
+                              style: Theme.of(context).textTheme.titleMedium),
+                          Text(
+                            'Snippet ${e.snippetNumber}${e.completedAt != null ? ' · ${DateFormat.Hm().format(e.completedAt!.toLocal())}' : ''}',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: AppTheme.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        gradient: AppTheme.primaryGradient,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${e.pointsEarned}',
+                        style: const TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          const SizedBox(height: 24),
+
+          // Chat
+          Text('Chat', style: Theme.of(context).textTheme.headlineMedium),
+          const SizedBox(height: 12),
+
+          if (detail.messages.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Column(
+                children: [
+                  const Icon(Icons.chat_bubble_outline,
+                      size: 36, color: AppTheme.textSecondary),
+                  const SizedBox(height: 8),
+                  Text('No messages that day',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: AppTheme.textSecondary)),
+                ],
+              ),
+            )
+          else
+            ...detail.messages.map((msg) {
+              final isMe = msg.userId == currentUserId;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Align(
+                  alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                  child: Container(
+                    constraints: BoxConstraints(
+                        maxWidth: MediaQuery.of(context).size.width * 0.75),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isMe
+                          ? AppTheme.primaryColor.withValues(alpha: 0.2)
+                          : AppTheme.surfaceColor,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: isMe
+                          ? CrossAxisAlignment.end
+                          : CrossAxisAlignment.start,
+                      children: [
+                        if (!isMe)
+                          Text(
+                            msg.username,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: AppTheme.primaryColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                        Text(msg.message,
+                            style: Theme.of(context).textTheme.bodyMedium),
+                        const SizedBox(height: 2),
+                        Text(
+                          DateFormat.Hm().format(msg.createdAt.toLocal()),
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: AppTheme.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          const SizedBox(height: 32),
+        ],
+      ),
+    );
+  }
+
+  Widget _historyAlbumPlaceholder() {
+    return Container(
+      width: 160,
+      height: 160,
+      color: AppTheme.surfaceColor,
+      child: const Icon(Icons.album, size: 64, color: AppTheme.primaryColor),
+    );
+  }
+}
+
+/// Countdown widget showing time remaining until the next daily song (12:00 UTC).
+class _NextSongCountdown extends StatefulWidget {
+  const _NextSongCountdown();
+
+  @override
+  State<_NextSongCountdown> createState() => _NextSongCountdownState();
+}
+
+class _NextSongCountdownState extends State<_NextSongCountdown> {
+  late Timer _timer;
+  late Duration _remaining;
+
+  @override
+  void initState() {
+    super.initState();
+    _remaining = _timeUntilNoonUtc();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() => _remaining = _timeUntilNoonUtc());
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  Duration _timeUntilNoonUtc() {
+    final now = DateTime.now().toUtc();
+    var next = DateTime.utc(now.year, now.month, now.day, 12);
+    if (!next.isAfter(now)) {
+      next = next.add(const Duration(days: 1));
+    }
+    return next.difference(now);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final h = _remaining.inHours.toString().padLeft(2, '0');
+    final m = (_remaining.inMinutes % 60).toString().padLeft(2, '0');
+    final s = (_remaining.inSeconds % 60).toString().padLeft(2, '0');
+
+    return Text.rich(
+      TextSpan(
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
+        children: [
+          const TextSpan(text: 'Next song in '),
+          TextSpan(
+            text: '$h:$m:$s',
+            style: const TextStyle(
+              color: AppTheme.primaryColor,
+              fontWeight: FontWeight.bold,
+              fontFeatures: [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ),
+      textAlign: TextAlign.center,
     );
   }
 }

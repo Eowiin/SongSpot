@@ -1,0 +1,296 @@
+{
+  "@@locale": "en",
+
+  "appTitle": "SongSpot",
+  "@appTitle": { "description": "The name of the application" },
+
+  "loading": "Loading...",
+  "@loading": { "description": "Generic loading text" },
+
+  "cancel": "Cancel",
+  "@cancel": { "description": "Cancel action" },
+
+  "confirm": "Confirm",
+  "@confirm": { "description": "Confirm action" },
+
+  "save": "Save",
+  "@save": { "description": "Save action" },
+
+  "submit": "Submit",
+  "@submit": { "description": "Submit action" },
+
+  "error": "Error",
+  "@error": { "description": "Generic error label" },
+
+  "success": "Success",
+  "@success": { "description": "Generic success label" },
+
+  "logout": "Logout",
+  "@logout": { "description": "Logout action" },
+
+  "logoutConfirmTitle": "Logout",
+  "@logoutConfirmTitle": { "description": "Title of the logout confirmation dialog" },
+
+  "logoutConfirmMessage": "Are you sure you want to logout?",
+  "@logoutConfirmMessage": { "description": "Message in the logout confirmation dialog" },
+
+  "createRoom": "Create New Room",
+  "@createRoom": { "description": "Create new room button" },
+
+  "joinRoom": "Join a Room",
+  "@joinRoom": { "description": "Join a room section title" },
+
+  "myRooms": "My Rooms",
+  "@myRooms": { "description": "My rooms section title" },
+
+  "noRoomsYet": "No rooms yet",
+  "@noRoomsYet": { "description": "Empty state for rooms list" },
+
+  "noRoomsHint": "Create or join a room to start playing!",
+  "@noRoomsHint": { "description": "Hint when no rooms exist" },
+
+  "enterRoomCode": "Enter room code",
+  "@enterRoomCode": { "description": "Placeholder for room code input" },
+
+  "members": "{count, plural, =1{1 member} other{{count} members}}",
+  "@members": {
+    "description": "Member count label",
+    "placeholders": {
+      "count": { "type": "num", "format": "compact" }
+    }
+  },
+
+  "loginTitle": "Welcome back",
+  "@loginTitle": { "description": "Login screen title" },
+
+  "loginSubtitle": "Sign in to continue playing",
+  "@loginSubtitle": { "description": "Login screen subtitle" },
+
+  "emailLabel": "Email",
+  "@emailLabel": { "description": "Email input label" },
+
+  "passwordLabel": "Password",
+  "@passwordLabel": { "description": "Password input label" },
+
+  "loginButton": "Login",
+  "@loginButton": { "description": "Login button" },
+
+  "noAccountPrompt": "Don't have an account?",
+  "@noAccountPrompt": { "description": "Prompt to register" },
+
+  "registerLink": "Register",
+  "@registerLink": { "description": "Link to register" },
+
+  "registerTitle": "Create account",
+  "@registerTitle": { "description": "Register screen title" },
+
+  "registerSubtitle": "Join SongSpot and start guessing",
+  "@registerSubtitle": { "description": "Register screen subtitle" },
+
+  "usernameLabel": "Username",
+  "@usernameLabel": { "description": "Username input label" },
+
+  "confirmPasswordLabel": "Confirm password",
+  "@confirmPasswordLabel": { "description": "Confirm password input label" },
+
+  "registerButton": "Create account",
+  "@registerButton": { "description": "Register button" },
+
+  "alreadyHaveAccount": "Already have an account?",
+  "@alreadyHaveAccount": { "description": "Prompt to login" },
+
+  "loginLink": "Login",
+  "@loginLink": { "description": "Link to login" },
+
+  "settingsTitle": "Settings",
+  "@settingsTitle": { "description": "Settings screen title" },
+
+  "settingsSectionAccount": "Account",
+  "@settingsSectionAccount": { "description": "Account section header in settings" },
+
+  "settingsSectionNotifications": "Notifications",
+  "@settingsSectionNotifications": { "description": "Notifications section header in settings" },
+
+  "settingsSectionAccessibility": "Accessibility",
+  "@settingsSectionAccessibility": { "description": "Accessibility section header in settings" },
+
+  "settingsSectionLanguage": "Language",
+  "@settingsSectionLanguage": { "description": "Language section header in settings" },
+
+  "settingsSectionMyData": "My Data",
+  "@settingsSectionMyData": { "description": "My Data section header in settings" },
+
+  "settingsSectionAbout": "About",
+  "@settingsSectionAbout": { "description": "About section header in settings" },
+
+  "settingsChangeEmail": "Change email",
+  "@settingsChangeEmail": { "description": "Change email tile" },
+
+  "settingsChangePassword": "Change password",
+  "@settingsChangePassword": { "description": "Change password tile" },
+
+  "settingsDailySongNotifications": "Daily song notifications",
+  "@settingsDailySongNotifications": { "description": "Daily song notifications toggle" },
+
+  "settingsMessageNotifications": "Message notifications",
+  "@settingsMessageNotifications": { "description": "Message notifications toggle" },
+
+  "settingsAccessibility": "Accessibility",
+  "@settingsAccessibility": { "description": "Accessibility tile" },
+
+  "settingsLanguage": "Language",
+  "@settingsLanguage": { "description": "Language tile" },
+
+  "settingsExportData": "Export my data",
+  "@settingsExportData": { "description": "Export data tile" },
+
+  "settingsExportDataSubtitle": "Download a copy of all your personal data",
+  "@settingsExportDataSubtitle": { "description": "Export data tile subtitle" },
+
+  "settingsDeleteAccount": "Delete my account",
+  "@settingsDeleteAccount": { "description": "Delete account tile" },
+
+  "settingsDeleteAccountSubtitle": "Permanently delete your account and all data",
+  "@settingsDeleteAccountSubtitle": { "description": "Delete account tile subtitle" },
+
+  "settingsAppVersion": "App version",
+  "@settingsAppVersion": { "description": "App version tile" },
+
+  "settingsPrivacyPolicy": "Privacy Policy",
+  "@settingsPrivacyPolicy": { "description": "Privacy policy tile" },
+
+  "settingsTermsOfService": "Terms of Service",
+  "@settingsTermsOfService": { "description": "Terms of service tile" },
+
+  "accessibilityTitle": "Accessibility",
+  "@accessibilityTitle": { "description": "Accessibility screen title" },
+
+  "accessibilityTextSize": "Text size",
+  "@accessibilityTextSize": { "description": "Text size section" },
+
+  "accessibilityTextSizePreview": "Preview text at this size",
+  "@accessibilityTextSizePreview": { "description": "Text size preview label" },
+
+  "accessibilityTextSizeSmall": "Small",
+  "@accessibilityTextSizeSmall": { "description": "Small text size label" },
+
+  "accessibilityTextSizeLarge": "Large",
+  "@accessibilityTextSizeLarge": { "description": "Large text size label" },
+
+  "accessibilityReduceAnimations": "Reduce animations",
+  "@accessibilityReduceAnimations": { "description": "Reduce animations toggle" },
+
+  "accessibilityReduceAnimationsSubtitle": "Minimize motion throughout the app",
+  "@accessibilityReduceAnimationsSubtitle": { "description": "Reduce animations subtitle" },
+
+  "accessibilityHighContrast": "High contrast",
+  "@accessibilityHighContrast": { "description": "High contrast toggle" },
+
+  "accessibilityHighContrastSubtitle": "Increase color contrast for readability",
+  "@accessibilityHighContrastSubtitle": { "description": "High contrast subtitle" },
+
+  "accessibilityColorBlindness": "Color blindness mode",
+  "@accessibilityColorBlindness": { "description": "Color blindness section" },
+
+  "accessibilityColorBlindnessNone": "None",
+  "@accessibilityColorBlindnessNone": { "description": "No color blindness mode" },
+
+  "accessibilityColorBlindnessDeuteranopia": "Deuteranopia (red-green)",
+  "@accessibilityColorBlindnessDeuteranopia": { "description": "Deuteranopia mode" },
+
+  "accessibilityColorBlindnessProtanopia": "Protanopia (red)",
+  "@accessibilityColorBlindnessProtanopia": { "description": "Protanopia mode" },
+
+  "accessibilityColorBlindnessTritanopia": "Tritanopia (blue-yellow)",
+  "@accessibilityColorBlindnessTritanopia": { "description": "Tritanopia mode" },
+
+  "accessibilityEnhancedScreenReader": "Enhanced screen reader",
+  "@accessibilityEnhancedScreenReader": { "description": "Enhanced screen reader toggle" },
+
+  "accessibilityEnhancedScreenReaderSubtitle": "Add more descriptive labels for VoiceOver / TalkBack",
+  "@accessibilityEnhancedScreenReaderSubtitle": { "description": "Enhanced screen reader subtitle" },
+
+  "languageTitle": "Language",
+  "@languageTitle": { "description": "Language screen title" },
+
+  "languageEnglish": "English",
+  "@languageEnglish": { "description": "English language option" },
+
+  "languageFrench": "Français",
+  "@languageFrench": { "description": "French language option" },
+
+  "changeEmailTitle": "Change email",
+  "@changeEmailTitle": { "description": "Change email screen title" },
+
+  "changeEmailCurrentPassword": "Current password",
+  "@changeEmailCurrentPassword": { "description": "Current password label" },
+
+  "changeEmailNewEmail": "New email address",
+  "@changeEmailNewEmail": { "description": "New email label" },
+
+  "changeEmailButton": "Update email",
+  "@changeEmailButton": { "description": "Update email button" },
+
+  "changeEmailSuccess": "Email updated successfully",
+  "@changeEmailSuccess": { "description": "Email update success message" },
+
+  "changePasswordTitle": "Change password",
+  "@changePasswordTitle": { "description": "Change password screen title" },
+
+  "changePasswordCurrent": "Current password",
+  "@changePasswordCurrent": { "description": "Current password label" },
+
+  "changePasswordNew": "New password",
+  "@changePasswordNew": { "description": "New password label" },
+
+  "changePasswordConfirm": "Confirm new password",
+  "@changePasswordConfirm": { "description": "Confirm new password label" },
+
+  "changePasswordButton": "Update password",
+  "@changePasswordButton": { "description": "Update password button" },
+
+  "changePasswordSuccess": "Password updated. Please log in again.",
+  "@changePasswordSuccess": { "description": "Password update success message" },
+
+  "myDataTitle": "My Data",
+  "@myDataTitle": { "description": "My Data screen title" },
+
+  "myDataExportTitle": "Export your data",
+  "@myDataExportTitle": { "description": "Export data section title" },
+
+  "myDataExportDescription": "Download a copy of all your personal data including your profile, game history, messages, and coin transactions.",
+  "@myDataExportDescription": { "description": "Export data description" },
+
+  "myDataExportButton": "Export my data",
+  "@myDataExportButton": { "description": "Export data button" },
+
+  "myDataDeleteTitle": "Delete your account",
+  "@myDataDeleteTitle": { "description": "Delete account section title" },
+
+  "myDataDeleteDescription": "Permanently delete your account and all associated data. This action cannot be undone.",
+  "@myDataDeleteDescription": { "description": "Delete account description" },
+
+  "myDataDeleteButton": "Delete my account",
+  "@myDataDeleteButton": { "description": "Delete account button" },
+
+  "myDataDeleteConfirmTitle": "Delete account",
+  "@myDataDeleteConfirmTitle": { "description": "Delete confirmation dialog title" },
+
+  "myDataDeleteConfirmMessage": "This will permanently delete your account and all your data. Enter your password to confirm.",
+  "@myDataDeleteConfirmMessage": { "description": "Delete confirmation dialog message" },
+
+  "myDataDeleteConfirmButton": "Delete permanently",
+  "@myDataDeleteConfirmButton": { "description": "Confirm delete button" },
+
+  "invalidPassword": "Invalid password",
+  "@invalidPassword": { "description": "Invalid password error" },
+
+  "invalidEmail": "Invalid email address",
+  "@invalidEmail": { "description": "Invalid email error" },
+
+  "passwordsDoNotMatch": "Passwords do not match",
+  "@passwordsDoNotMatch": { "description": "Passwords mismatch error" },
+
+  "fieldRequired": "This field is required",
+  "@fieldRequired": { "description": "Required field error" }
+}
