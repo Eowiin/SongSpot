@@ -132,7 +132,7 @@ class _GameScreenState extends State<GameScreen> {
 
   Future<void> _loadHistoryList() async {
     try {
-      final data = await _apiService.getRoomHistory(widget.roomId, limit: 30);
+      final data = await _apiService.getRoomHistory(widget.roomId, limit: 31);
       if (!mounted) return;
       final days = (data['results'] as List)
           .map((j) => HistoryDay.fromJson(j as Map<String, dynamic>))
@@ -1080,7 +1080,7 @@ class _GameScreenState extends State<GameScreen> {
 
   Widget _buildDateRow(GameProvider gameProvider) {
     final activeDate = _activeGameDate();
-    final dates = List.generate(30, (i) => activeDate.subtract(Duration(days: 29 - i)));
+    final dates = List.generate(31, (i) => activeDate.subtract(Duration(days: 30 - i)));
 
     return SizedBox(
       height: 76,
