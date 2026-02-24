@@ -62,6 +62,8 @@ SNIPPET_POINTS = {
 }
 COIN_REWARD_MIN = 5
 COIN_REWARD_MAX = 8
+STREAK_BONUS_INTERVAL = 7
+STREAK_BONUS_COINS = 50
 
 
 def _coins_for_correct_guess(snippet_number):
@@ -189,6 +191,15 @@ class RoomCreateView(APIView):
 
             # Automatically add the host to the room
             RoomUser.objects.create(room=room, user=request.user)
+
+            # Auto-unlock all free packs for the new room
+            free_packs = SongPack.objects.filter(is_free=True)
+            for pack in free_packs:
+                RoomPack.objects.get_or_create(
+                    room=room,
+                    pack=pack,
+                    defaults={'coins_spent': 0, 'purchased_by': request.user}
+                )
 
             response_serializer = RoomSerializer(room)
             return Response({
@@ -1114,6 +1125,7 @@ class SubmitGuessView(APIView):
             game_session.save()
 
             coins_awarded = _coins_for_correct_guess(game_session.current_snippet)
+            streak_bonus = 0
             with transaction.atomic():
                 if coins_awarded:
                     request.user.add_coins(
@@ -1129,7 +1141,18 @@ class SubmitGuessView(APIView):
                     perfect_game=(game_session.current_snippet == 1)
                 )
 
-            return Response({
+                # Weekly streak bonus: award bonus coins every 7th day
+                request.user.refresh_from_db(fields=['current_streak'])
+                if (request.user.current_streak > 0
+                        and request.user.current_streak % STREAK_BONUS_INTERVAL == 0):
+                    streak_bonus = STREAK_BONUS_COINS
+                    request.user.add_coins(
+                        streak_bonus,
+                        reason=f"Weekly streak bonus ({request.user.current_streak}-day streak)",
+                        transaction_type='bonus',
+                    )
+
+            response_data = {
                 'is_correct': True,
                 'points_earned': points,
                 'coins_awarded': coins_awarded,
@@ -1139,7 +1162,12 @@ class SubmitGuessView(APIView):
                     'title': daily_song.track.title,
                     'artist': daily_song.track.artist
                 }
-            }, status=status.HTTP_200_OK)
+            }
+            if streak_bonus:
+                response_data['streak_bonus'] = streak_bonus
+                response_data['streak_days'] = request.user.current_streak
+
+            return Response(response_data, status=status.HTTP_200_OK)
         else:
             # Incorrect guess - move to next snippet if not at max
             if game_session.current_snippet < 6:
@@ -1298,6 +1326,170 @@ class RoomMessagesView(APIView):
 
         response_serializer = RoomMessageSerializer(message)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+
+HINT_COSTS = {
+    'artist_letter': 50,
+    'artist_name': 100,
+}
+
+
+class DailyGameHintView(APIView):
+    """
+    Purchase a hint for the current daily game session.
+
+    POST /api/game/rooms/<room_id>/daily-game/hint/
+    Headers: Authorization: Bearer <access_token>
+    Body: {"hint_type": "artist_letter" | "artist_name"}
+
+    Hint types and costs:
+    - artist_letter: Reveal first letter of artist name (50 coins)
+    - artist_name: Reveal full artist name (100 coins)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, room_id):
+        room = get_object_or_404(Room, id=room_id)
+        today = _active_game_date()
+
+        if not RoomUser.objects.filter(room=room, user=request.user).exists():
+            return Response({'error': 'You must be in the room to use hints'}, status=status.HTTP_403_FORBIDDEN)
+
+        hint_type = request.data.get('hint_type', '').strip()
+        if hint_type not in HINT_COSTS:
+            return Response(
+                {'error': f'Invalid hint_type. Must be one of: {", ".join(HINT_COSTS.keys())}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        daily_song = DailySong.objects.filter(room=room, date=today).select_related('track').first()
+        if not daily_song:
+            return Response({'error': 'No song available for today'}, status=status.HTTP_404_NOT_FOUND)
+
+        game_session = DailyGameSession.objects.filter(
+            room=room, user=request.user, daily_song=daily_song
+        ).first()
+        if not game_session:
+            return Response({'error': 'No active game session.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if game_session.completed_at:
+            return Response({'error': 'Game already completed.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if hint already purchased
+        if hint_type in game_session.hints_used:
+            # Return the hint data without charging again
+            hint_value = self._get_hint_value(hint_type, daily_song.track)
+            return Response({
+                'hint_type': hint_type,
+                'hint_value': hint_value,
+                'already_owned': True,
+                'coins': request.user.coins,
+            }, status=status.HTTP_200_OK)
+
+        cost = HINT_COSTS[hint_type]
+        if request.user.coins < cost:
+            return Response({
+                'error': 'Insufficient coins',
+                'coins': request.user.coins,
+                'cost': cost,
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            if not request.user.spend_coins(cost, reason=f"Hint: {hint_type} in room {room.room_code}"):
+                return Response({'error': 'Insufficient coins'}, status=status.HTTP_400_BAD_REQUEST)
+
+            game_session.hints_used = game_session.hints_used + [hint_type]
+            game_session.save(update_fields=['hints_used'])
+
+        hint_value = self._get_hint_value(hint_type, daily_song.track)
+        return Response({
+            'hint_type': hint_type,
+            'hint_value': hint_value,
+            'cost': cost,
+            'coins': request.user.coins,
+        }, status=status.HTTP_200_OK)
+
+    @staticmethod
+    def _get_hint_value(hint_type, track):
+        if hint_type == 'artist_letter':
+            return track.artist[0].upper() if track.artist else '?'
+        elif hint_type == 'artist_name':
+            return track.artist
+        return None
+
+
+class PackBundleHintView(APIView):
+    """
+    Purchase a hint for the current pack bundle session.
+
+    POST /api/game/rooms/<room_id>/packs/<pack_id>/bundle/hint/
+    Headers: Authorization: Bearer <access_token>
+    Body: {"hint_type": "artist_letter" | "artist_name"}
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, room_id, pack_id):
+        room = get_object_or_404(Room, id=room_id)
+        pack = get_object_or_404(SongPack, id=pack_id)
+        today = _active_game_date()
+
+        if not RoomUser.objects.filter(room=room, user=request.user).exists():
+            return Response({'error': 'You must be in the room to use hints'}, status=status.HTTP_403_FORBIDDEN)
+
+        daily_track = _get_daily_pack_track(room, pack, today)
+        if not daily_track:
+            return Response({'error': 'Pack has no tracks'}, status=status.HTTP_404_NOT_FOUND)
+
+        session = PackBundleSession.objects.filter(
+            room=room, user=request.user, pack=pack, pack_daily_track=daily_track
+        ).first()
+        if not session:
+            return Response({'error': 'No active pack session.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if session.completed_at:
+            return Response({'error': 'Pack session already completed.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        hint_type = request.data.get('hint_type', '').strip()
+        if hint_type not in HINT_COSTS:
+            return Response(
+                {'error': f'Invalid hint_type. Must be one of: {", ".join(HINT_COSTS.keys())}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        track = daily_track.track
+
+        # Check if hint already purchased
+        if hint_type in session.hints_used:
+            hint_value = DailyGameHintView._get_hint_value(hint_type, track)
+            return Response({
+                'hint_type': hint_type,
+                'hint_value': hint_value,
+                'already_owned': True,
+                'coins': request.user.coins,
+            }, status=status.HTTP_200_OK)
+
+        cost = HINT_COSTS[hint_type]
+        if request.user.coins < cost:
+            return Response({
+                'error': 'Insufficient coins',
+                'coins': request.user.coins,
+                'cost': cost,
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            if not request.user.spend_coins(cost, reason=f"Hint: {hint_type} in pack {pack.name}"):
+                return Response({'error': 'Insufficient coins'}, status=status.HTTP_400_BAD_REQUEST)
+
+            session.hints_used = session.hints_used + [hint_type]
+            session.save(update_fields=['hints_used'])
+
+        hint_value = DailyGameHintView._get_hint_value(hint_type, track)
+        return Response({
+            'hint_type': hint_type,
+            'hint_value': hint_value,
+            'cost': cost,
+            'coins': request.user.coins,
+        }, status=status.HTTP_200_OK)
 
 
 class SearchTracksView(APIView):

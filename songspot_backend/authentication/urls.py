@@ -12,6 +12,7 @@ from .views import (
     DataExportView,
     DeleteAccountView,
 )
+from .iap_views import CoinProductListView, IAPVerifyView
 
 app_name = 'authentication'
 
@@ -27,4 +28,6 @@ urlpatterns = [
     path('change-password/', ChangePasswordView.as_view(), name='change_password'),
     path('data/export/', DataExportView.as_view(), name='data_export'),
     path('account/', DeleteAccountView.as_view(), name='delete_account'),
+    path('coin-products/', CoinProductListView.as_view(), name='coin_products'),
+    path('iap/verify/', IAPVerifyView.as_view(), name='iap_verify'),
 ]

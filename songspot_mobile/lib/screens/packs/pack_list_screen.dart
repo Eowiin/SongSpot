@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../models/pack.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/pack_provider.dart';
+import '../shop/coin_shop_screen.dart';
 import 'pack_detail_screen.dart';
 
 class PackListScreen extends StatefulWidget {
@@ -64,11 +66,59 @@ class _PackListScreenState extends State<PackListScreen> {
                         style: const TextStyle(color: AppTheme.errorColor),
                       ),
                     ),
+                  // Get More Coins CTA
+                  _buildGetMoreCoinsBanner(context),
                   ...packProvider.packs.map((pack) {
                     return _buildPackCard(context, pack);
                   }),
                 ],
               ),
+      ),
+    );
+  }
+
+  Widget _buildGetMoreCoinsBanner(BuildContext context) {
+    final coins = context.watch<AuthProvider>().user?.coins ?? 0;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: AppTheme.primaryGradient,
+        borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.monetization_on, color: Colors.white, size: 28),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$coins coins',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white),
+                ),
+                Text(
+                  'Need more coins?',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const CoinShopScreen()),
+              );
+            },
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.white.withValues(alpha: 0.2),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            ),
+            child: const Text('Get Coins'),
+          ),
+        ],
       ),
     );
   }

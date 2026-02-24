@@ -57,6 +57,15 @@ class ApiConfig {
   static String roomHistory(String roomId) => '/game/rooms/$roomId/history/';
   static String roomHistoryDetail(String roomId, String date) => '/game/rooms/$roomId/history/$date/';
 
+  // IAP / Coin shop endpoints
+  static const String coinProducts = '/auth/coin-products/';
+  static const String iapVerify = '/auth/iap/verify/';
+
+  // Hint endpoints
+  static String dailyGameHint(String roomId) => '/game/rooms/$roomId/daily-game/hint/';
+  static String packBundleHint(String roomId, String packId) =>
+      '/game/rooms/$roomId/packs/$packId/bundle/hint/';
+
   // Account management endpoints
   static const String changeEmail = '/auth/change-email/';
   static const String changePassword = '/auth/change-password/';

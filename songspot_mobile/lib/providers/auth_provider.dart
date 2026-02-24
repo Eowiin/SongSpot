@@ -20,25 +20,36 @@ class AuthProvider with ChangeNotifier {
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _status == AuthStatus.authenticated;
 
-  /// Check if user is already logged in
+  /// Check if user is already logged in and fetch fresh profile from API.
+  /// Always fetches from the backend so dynamic fields like coins are current.
+  /// Falls back to local storage only if the network call fails.
   Future<void> checkAuthStatus() async {
     try {
       final token = await _storageService.getAccessToken();
-      if (token != null) {
-        final userData = await _storageService.getUser();
-        if (userData != null) {
-          _user = User.fromJson(userData);
-          _status = AuthStatus.authenticated;
-          await _pushNotificationService.syncTokenWithBackend();
-          notifyListeners();
-        } else {
-          _status = AuthStatus.unauthenticated;
-          notifyListeners();
-        }
-      } else {
+      if (token == null) {
         _status = AuthStatus.unauthenticated;
         notifyListeners();
+        return;
       }
+
+      try {
+        // Fetch fresh profile from API — includes coins and all dynamic fields
+        final profileData = await _apiService.getProfile();
+        _user = User.fromJson(profileData);
+      } catch (_) {
+        // Network unavailable — fall back to local storage (coins may be stale)
+        final userData = await _storageService.getUser();
+        if (userData == null) {
+          _status = AuthStatus.unauthenticated;
+          notifyListeners();
+          return;
+        }
+        _user = User.fromJson(userData);
+      }
+
+      _status = AuthStatus.authenticated;
+      await _pushNotificationService.syncTokenWithBackend();
+      notifyListeners();
     } catch (e) {
       _status = AuthStatus.unauthenticated;
       notifyListeners();
@@ -152,6 +163,20 @@ class AuthProvider with ChangeNotifier {
     _user = null;
     _status = AuthStatus.unauthenticated;
     _errorMessage = null;
+    notifyListeners();
+  }
+
+  /// Update the user's coin balance in memory and notify listeners.
+  /// Called after a successful IAP purchase — no extra API call needed since
+  /// the backend already returned the correct new balance.
+  void updateCoinsBalance(int newBalance) {
+    if (_user == null) return;
+    _user = User(
+      id: _user!.id,
+      email: _user!.email,
+      username: _user!.username,
+      coins: newBalance,
+    );
     notifyListeners();
   }
 

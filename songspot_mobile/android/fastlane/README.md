@@ -21,7 +21,7 @@ For _fastlane_ installation instructions, see [Installing _fastlane_](https://do
 [bundle exec] fastlane android internal
 ```
 
-Build and upload to internal testing track
+Bump version, build, and upload to internal testing track. Options: bump:patch|minor|major
 
 ### android closed_testing
 
@@ -29,7 +29,7 @@ Build and upload to internal testing track
 [bundle exec] fastlane android closed_testing
 ```
 
-Promote internal track to closed testing (alpha)
+Promote internal track to closed testing (alpha) — no build
 
 ### android production
 
@@ -37,7 +37,7 @@ Promote internal track to closed testing (alpha)
 [bundle exec] fastlane android production
 ```
 
-Promote closed testing (alpha) track to production
+Promote closed testing (alpha) track to production — no build
 
 ### android play_store
 
@@ -45,7 +45,7 @@ Promote closed testing (alpha) track to production
 [bundle exec] fastlane android play_store
 ```
 
-Build and release directly to Play Store production
+Bump version, build, and release directly to Play Store production. Options: bump:patch|minor|major
 
 ----
 

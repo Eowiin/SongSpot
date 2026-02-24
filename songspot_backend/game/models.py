@@ -77,7 +77,7 @@ class SongPack(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     icon_url = models.URLField(max_length=500, blank=True)
-    price_coins = models.PositiveIntegerField(default=600, help_text="Price in coins")
+    price_coins = models.PositiveIntegerField(default=1000, help_text="Price in coins")
     is_free = models.BooleanField(default=False, help_text="Free packs available to all users")
     is_featured = models.BooleanField(default=False, help_text="Featured packs shown prominently")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -353,6 +353,7 @@ class PackBundleSession(models.Model):
     )
     current_stage = models.PositiveSmallIntegerField(default=1)
     points_earned = models.PositiveIntegerField(default=0)
+    hints_used = models.JSONField(default=list, blank=True, help_text="List of hint types purchased, e.g. ['genre', 'artist_letter']")
     completed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -470,6 +471,7 @@ class DailyGameSession(models.Model):
     guesses_made = models.PositiveSmallIntegerField(default=0)
     correct_guess = models.BooleanField(default=False)
     points_earned = models.PositiveSmallIntegerField(null=True, blank=True)
+    hints_used = models.JSONField(default=list, blank=True, help_text="List of hint types purchased, e.g. ['genre', 'artist_letter']")
     completed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

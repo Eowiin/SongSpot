@@ -12,6 +12,7 @@ import 'change_email_screen.dart';
 import 'change_password_screen.dart';
 import 'language_screen.dart';
 import 'my_data_screen.dart';
+import '../shop/coin_shop_screen.dart';
 
 // TODO: Replace with your actual URLs
 const _kPrivacyPolicyUrl = 'https://songspot.app/privacy';
@@ -140,6 +141,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: l10n.settingsChangePassword,
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // ── Shop ───────────────────────────────────────────────
+                    _SectionHeader('SHOP'),
+                    _SettingsTile(
+                      icon: Icons.monetization_on_outlined,
+                      title: 'Coin Shop',
+                      subtitle: 'Buy coins to unlock packs and hints',
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const CoinShopScreen()),
                       ),
                     ),
                     const SizedBox(height: 8),

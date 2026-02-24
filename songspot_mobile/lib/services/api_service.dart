@@ -543,6 +543,53 @@ class ApiService {
     );
   }
 
+  // IAP / Coin shop methods
+  Future<List<dynamic>> getCoinProducts() async {
+    return await get(ApiConfig.coinProducts, includeAuth: true);
+  }
+
+  Future<Map<String, dynamic>> verifyIAP({
+    required String store,
+    required String productId,
+    required String receiptData,
+    required String transactionId,
+  }) async {
+    return await post(
+      ApiConfig.iapVerify,
+      body: {
+        'store': store,
+        'product_id': productId,
+        'receipt_data': receiptData,
+        'transaction_id': transactionId,
+      },
+      includeAuth: true,
+    );
+  }
+
+  // Hint methods
+  Future<Map<String, dynamic>> purchaseDailyGameHint({
+    required String roomId,
+    required String hintType,
+  }) async {
+    return await post(
+      ApiConfig.dailyGameHint(roomId),
+      body: {'hint_type': hintType},
+      includeAuth: true,
+    );
+  }
+
+  Future<Map<String, dynamic>> purchasePackBundleHint({
+    required String roomId,
+    required String packId,
+    required String hintType,
+  }) async {
+    return await post(
+      ApiConfig.packBundleHint(roomId, packId),
+      body: {'hint_type': hintType},
+      includeAuth: true,
+    );
+  }
+
   // Account management methods
   Future<Map<String, dynamic>> changeEmail({
     required String currentPassword,
