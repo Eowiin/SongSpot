@@ -1329,7 +1329,8 @@ class RoomMessagesView(APIView):
 
 
 HINT_COSTS = {
-    'artist_letter': 50,
+    'genre': 30,
+    'decade': 60,
     'artist_name': 100,
 }
 
@@ -1340,11 +1341,12 @@ class DailyGameHintView(APIView):
 
     POST /api/game/rooms/<room_id>/daily-game/hint/
     Headers: Authorization: Bearer <access_token>
-    Body: {"hint_type": "artist_letter" | "artist_name"}
+    Body: {"hint_type": "genre" | "decade" | "artist_name"}
 
-    Hint types and costs:
-    - artist_letter: Reveal first letter of artist name (50 coins)
-    - artist_name: Reveal full artist name (100 coins)
+    Hint types and costs (sequential — buy in order):
+    - genre: Reveal the track genre (30 coins)
+    - decade: Reveal the release decade (60 coins)
+    - artist_name: Reveal the full artist name (100 coins)
     """
     permission_classes = [IsAuthenticated]
 
@@ -1411,8 +1413,13 @@ class DailyGameHintView(APIView):
 
     @staticmethod
     def _get_hint_value(hint_type, track):
-        if hint_type == 'artist_letter':
-            return track.artist[0].upper() if track.artist else '?'
+        if hint_type == 'genre':
+            return track.genre if track.genre else 'Unknown'
+        elif hint_type == 'decade':
+            if track.release_year:
+                decade_start = (track.release_year // 10) * 10
+                return f"{decade_start}s"
+            return 'Unknown'
         elif hint_type == 'artist_name':
             return track.artist
         return None
@@ -1424,7 +1431,7 @@ class PackBundleHintView(APIView):
 
     POST /api/game/rooms/<room_id>/packs/<pack_id>/bundle/hint/
     Headers: Authorization: Bearer <access_token>
-    Body: {"hint_type": "artist_letter" | "artist_name"}
+    Body: {"hint_type": "genre" | "decade" | "artist_name"}
     """
     permission_classes = [IsAuthenticated]
 

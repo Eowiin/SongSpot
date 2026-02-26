@@ -1007,7 +1007,11 @@ class _GameScreenState extends State<GameScreen> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 24),
+
+                      // Hints
+                      _buildHintsSection(context, gameProvider),
+                      const SizedBox(height: 24),
 
                       // Guess Form
                       Text(
@@ -1074,6 +1078,176 @@ class _GameScreenState extends State<GameScreen> {
                 ],
               ),
             );
+  }
+
+  // ── Hints ───────────────────────────────────────────────────────────────
+
+  // Hints are sequential: Genre (30🪙) → Decade (60🪙) → Artist (100🪙)
+  static const _hintOrder = [
+    {'type': 'genre',       'label': 'Genre',   'revealedLabel': 'Genre',  'cost': 30},
+    {'type': 'decade',      'label': 'Decade',  'revealedLabel': 'Decade', 'cost': 60},
+    {'type': 'artist_name', 'label': 'Artist',  'revealedLabel': 'Artist', 'cost': 100},
+  ];
+
+  Widget _buildHintsSection(BuildContext context, GameProvider gameProvider) {
+    final hintValues = gameProvider.hintValues;
+
+    // Find the index of the next unlockable hint (first one not yet purchased)
+    final nextIndex = _hintOrder.indexWhere(
+      (h) => !hintValues.containsKey(h['type']),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Hints', style: Theme.of(context).textTheme.headlineSmall),
+        const SizedBox(height: 12),
+        Row(
+          children: _hintOrder.asMap().entries.map((entry) {
+            final i = entry.key;
+            final hint = entry.value;
+            final hintType = hint['type'] as String;
+            final revealedValue = hintValues[hintType];
+            final isNextToBuy = i == nextIndex;
+            final isLocked = revealedValue == null && !isNextToBuy;
+
+            return Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(left: i == 0 ? 0 : 6, right: i == _hintOrder.length - 1 ? 0 : 6),
+                child: _buildHintButton(
+                  context: context,
+                  gameProvider: gameProvider,
+                  hintType: hintType,
+                  label: hint['label'] as String,
+                  cost: hint['cost'] as int,
+                  revealedValue: revealedValue,
+                  revealedLabel: hint['revealedLabel'] as String,
+                  isLocked: isLocked,
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHintButton({
+    required BuildContext context,
+    required GameProvider gameProvider,
+    required String hintType,
+    required String label,
+    required int cost,
+    required String? revealedValue,
+    required String revealedLabel,
+    required bool isLocked,
+  }) {
+    if (revealedValue != null) {
+      // Purchased — show the revealed value
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppTheme.primaryColor.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+          border: Border.all(color: AppTheme.primaryColor, width: 1),
+        ),
+        child: Column(
+          children: [
+            Text(
+              revealedLabel,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.primaryColor,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              revealedValue,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (isLocked) {
+      // Not yet unlockable — greyed out
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceColor.withOpacity(0.4),
+          borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+          border: Border.all(color: AppTheme.textSecondary.withOpacity(0.3), width: 1),
+        ),
+        child: Column(
+          children: [
+            const Icon(Icons.lock_outline, size: 16, color: AppTheme.textSecondary),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.textSecondary,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Available to purchase
+    return OutlinedButton(
+      onPressed: () => _handlePurchaseHint(context, gameProvider, hintType),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppTheme.textPrimary,
+        side: const BorderSide(color: AppTheme.textSecondary),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+        ),
+      ),
+      child: Column(
+        children: [
+          Text(label, style: Theme.of(context).textTheme.bodyMedium),
+          const SizedBox(height: 2),
+          Text(
+            '🪙 $cost',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppTheme.primaryColor,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handlePurchaseHint(
+    BuildContext context,
+    GameProvider gameProvider,
+    String hintType,
+  ) async {
+    try {
+      final response = await gameProvider.purchaseHint(
+        roomId: widget.roomId,
+        hintType: hintType,
+      );
+      // Update coin balance in auth provider
+      final newCoins = response['coins'] as int;
+      if (mounted) {
+        context.read<AuthProvider>().updateCoinsBalance(newCoins);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
   }
 
   // ── Date row ────────────────────────────────────────────────────────────

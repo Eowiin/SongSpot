@@ -23,6 +23,7 @@ class GameProvider with ChangeNotifier {
   String? _guessResult;
   bool _isWebSocketConnected = false;
   Map<String, bool> _typingUsers = {}; // userId -> isTyping
+  Map<String, String> _hintValues = {}; // hintType -> revealed value
 
   GameSession? get currentSession => _currentSession;
   List<LeaderboardEntry> get leaderboard => _leaderboard;
@@ -32,6 +33,7 @@ class GameProvider with ChangeNotifier {
   String? get guessResult => _guessResult;
   AudioService get audioService => _audioService;
   bool get isWebSocketConnected => _isWebSocketConnected;
+  Map<String, String> get hintValues => _hintValues;
   Stream<WebSocketEvent> get webSocketEvents => _webSocketService.events;
   List<String> get typingUsernames => _typingUsers.entries
       .where((e) => e.value)
@@ -45,6 +47,7 @@ class GameProvider with ChangeNotifier {
       _currentSession = null;
       _leaderboard = [];
       _messages = [];
+      _hintValues = {};
       _isLoading = true;
       _errorMessage = null;
       _guessResult = null;
@@ -52,6 +55,19 @@ class GameProvider with ChangeNotifier {
 
       final response = await _apiService.startGameSession(roomId);
       _currentSession = GameSession.fromJson(response);
+
+      // Restore any already-purchased hints (re-fetch values without charging)
+      for (final hintType in _currentSession!.hintsUsed) {
+        try {
+          final hintResponse = await _apiService.purchaseDailyGameHint(
+            roomId: roomId,
+            hintType: hintType,
+          );
+          _hintValues[hintType] = hintResponse['hint_value'] as String;
+        } catch (_) {
+          // Non-fatal — hint button will remain purchasable but won't double-charge
+        }
+      }
 
       // Load the audio
       await _loadAudioWithRefresh(_currentSession!);
@@ -104,6 +120,7 @@ class GameProvider with ChangeNotifier {
       pointsEarned: session.pointsEarned,
       completedAt: session.completedAt,
       createdAt: session.createdAt,
+      hintsUsed: session.hintsUsed,
     );
   }
 
@@ -131,6 +148,7 @@ class GameProvider with ChangeNotifier {
         pointsEarned: _currentSession!.pointsEarned,
         completedAt: _currentSession!.completedAt,
         createdAt: _currentSession!.createdAt,
+        hintsUsed: _currentSession!.hintsUsed,
       );
 
       _isLoading = false;
@@ -175,6 +193,7 @@ class GameProvider with ChangeNotifier {
           pointsEarned: response['points_earned'] as int?,
           completedAt: DateTime.now(),
           createdAt: _currentSession!.createdAt,
+          hintsUsed: _currentSession!.hintsUsed,
         );
       } else {
         // Update snippet if incorrect
@@ -190,6 +209,7 @@ class GameProvider with ChangeNotifier {
             pointsEarned: _currentSession!.pointsEarned,
             completedAt: _currentSession!.completedAt,
             createdAt: _currentSession!.createdAt,
+            hintsUsed: _currentSession!.hintsUsed,
           );
         } else {
           // All snippets used
@@ -203,6 +223,7 @@ class GameProvider with ChangeNotifier {
             pointsEarned: 0,
             completedAt: DateTime.now(),
             createdAt: _currentSession!.createdAt,
+            hintsUsed: _currentSession!.hintsUsed,
           );
         }
       }
@@ -216,6 +237,42 @@ class GameProvider with ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  /// Purchase a hint for the current game session.
+  /// Returns a map with `hint_value` (String) and `coins` (int, new balance).
+  /// Throws on API error (e.g. insufficient coins).
+  Future<Map<String, dynamic>> purchaseHint({
+    required String roomId,
+    required String hintType,
+  }) async {
+    final response = await _apiService.purchaseDailyGameHint(
+      roomId: roomId,
+      hintType: hintType,
+    );
+
+    final hintValue = response['hint_value'] as String;
+    _hintValues[hintType] = hintValue;
+
+    // Update hintsUsed on the session if not already present
+    if (_currentSession != null && !_currentSession!.hintsUsed.contains(hintType)) {
+      final updatedHints = List<String>.from(_currentSession!.hintsUsed)..add(hintType);
+      _currentSession = GameSession(
+        id: _currentSession!.id,
+        user: _currentSession!.user,
+        dailySong: _currentSession!.dailySong,
+        currentSnippet: _currentSession!.currentSnippet,
+        guessesMade: _currentSession!.guessesMade,
+        correctGuess: _currentSession!.correctGuess,
+        pointsEarned: _currentSession!.pointsEarned,
+        completedAt: _currentSession!.completedAt,
+        createdAt: _currentSession!.createdAt,
+        hintsUsed: updatedHints,
+      );
+    }
+
+    notifyListeners();
+    return response;
   }
 
   /// Load leaderboard

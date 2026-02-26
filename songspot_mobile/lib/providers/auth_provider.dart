@@ -82,7 +82,7 @@ class AuthProvider with ChangeNotifier {
         tokens['refresh'] as String,
       );
 
-      // Save user
+      // Save user (basic fields from register response)
       final userData = response['user'] as Map<String, dynamic>;
       _user = User.fromJson(userData);
       await _storageService.saveUser(
@@ -93,6 +93,15 @@ class AuthProvider with ChangeNotifier {
 
       _status = AuthStatus.authenticated;
       await _pushNotificationService.syncTokenWithBackend();
+
+      // Fetch full profile to populate streak and other stats
+      try {
+        final profileData = await _apiService.getProfile();
+        _user = User.fromJson(profileData);
+      } catch (_) {
+        // Non-fatal — streak will show 0 until next app start
+      }
+
       notifyListeners();
       return true;
     } catch (e) {
@@ -125,7 +134,7 @@ class AuthProvider with ChangeNotifier {
         tokens['refresh'] as String,
       );
 
-      // Save user
+      // Save user (basic fields from login response)
       final userData = response['user'] as Map<String, dynamic>;
       _user = User.fromJson(userData);
       await _storageService.saveUser(
@@ -136,6 +145,15 @@ class AuthProvider with ChangeNotifier {
 
       _status = AuthStatus.authenticated;
       await _pushNotificationService.syncTokenWithBackend();
+
+      // Fetch full profile to populate streak and other stats
+      try {
+        final profileData = await _apiService.getProfile();
+        _user = User.fromJson(profileData);
+      } catch (_) {
+        // Non-fatal — streak will show 0 until next app start
+      }
+
       notifyListeners();
       return true;
     } catch (e) {
@@ -176,6 +194,7 @@ class AuthProvider with ChangeNotifier {
       email: _user!.email,
       username: _user!.username,
       coins: newBalance,
+      currentStreak: _user!.currentStreak,
     );
     notifyListeners();
   }

@@ -17,6 +17,8 @@ class Track(models.Model):
     preview_url = models.URLField(max_length=500)
     cover_url = models.URLField(max_length=500, blank=True, null=True, help_text="Album cover image URL")
     deezer_id = models.BigIntegerField(null=True, blank=True, help_text="Deezer track ID for fetching fresh preview URLs")
+    release_year = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Year the track was released")
+    genre = models.CharField(max_length=100, blank=True, null=True, help_text="Music genre (e.g. Pop, Rock, Hip-Hop)")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

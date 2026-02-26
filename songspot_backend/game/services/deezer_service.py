@@ -24,6 +24,19 @@ class DeezerService:
         464,  # Indie Pop
     ]
 
+    # Map Deezer genre ID → human-readable name used when storing tracks
+    GENRE_NAMES = {
+        132: 'Pop',
+        116: 'Rap/Hip-Hop',
+        152: 'Rock',
+        113: 'Dance',
+        165: 'R&B',
+        129: 'Jazz',
+        85:  'Alternative',
+        106: 'Electronic',
+        464: 'Indie Pop',
+    }
+
     def _collect_unique_preview_tracks(
         self,
         destination: List[Dict],
@@ -187,7 +200,13 @@ class DeezerService:
             tracks_response.raise_for_status()
             tracks_data = tracks_response.json()
 
-            return tracks_data.get('data', [])
+            tracks = tracks_data.get('data', [])
+            # Annotate each track with the genre name so callers can store it
+            genre_name = self.GENRE_NAMES.get(genre_id)
+            if genre_name:
+                for track in tracks:
+                    track['_genre_name'] = genre_name
+            return tracks
 
         except requests.RequestException as e:
             print(f"Error fetching tracks from genre {genre_id}: {e}")
@@ -295,6 +314,15 @@ class DeezerService:
             album_data.get('cover', '')
         )
 
+        # Extract release year from track or album release_date (format: "YYYY-MM-DD" or "YYYY")
+        release_year = None
+        raw_date = track_data.get('release_date') or album_data.get('release_date', '')
+        if raw_date:
+            try:
+                release_year = int(str(raw_date)[:4])
+            except (ValueError, TypeError):
+                pass
+
         return {
             'title': track_data.get('title', ''),
             'artist': track_data.get('artist', {}).get('name', ''),
@@ -303,4 +331,6 @@ class DeezerService:
             'deezer_id': track_data.get('id'),
             'duration': track_data.get('duration', 0),
             'album': album_data.get('title', ''),
+            'release_year': release_year,
+            'genre': track_data.get('_genre_name'),
         }

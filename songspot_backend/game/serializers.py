@@ -189,11 +189,12 @@ class GameSessionSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'user', 'daily_song', 'current_snippet',
             'guesses_made', 'correct_guess', 'points_earned',
-            'completed_at', 'created_at'
+            'completed_at', 'created_at', 'hints_used'
         )
         read_only_fields = (
             'id', 'user', 'daily_song', 'guesses_made',
-            'correct_guess', 'points_earned', 'completed_at', 'created_at'
+            'correct_guess', 'points_earned', 'completed_at', 'created_at',
+            'hints_used'
         )
 
 

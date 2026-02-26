@@ -136,6 +136,20 @@ class _HomeScreenState extends State<HomeScreen> {
                             user?.email ?? '',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              _StatChip(
+                                label: '🔥 ${user?.currentStreak ?? 0}',
+                                tooltip: 'Daily streak',
+                              ),
+                              const SizedBox(width: 8),
+                              _StatChip(
+                                label: '🪙 ${user?.coins ?? 0}',
+                                tooltip: 'Coins',
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -360,6 +374,33 @@ class UpperCaseTextFormatter extends TextInputFormatter {
     return TextEditingValue(
       text: newValue.text.toUpperCase(),
       selection: newValue.selection,
+    );
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  final String label;
+  final String tooltip;
+
+  const _StatChip({required this.label, required this.tooltip});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceColor,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+        ),
+      ),
     );
   }
 }

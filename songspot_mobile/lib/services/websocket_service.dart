@@ -117,17 +117,18 @@ class WebSocketService {
     _reconnectResetTimer?.cancel();
     _reconnectResetTimer = null;
 
-    // Cancel stream subscription first to prevent _onDone from triggering reconnect
-    await _streamSubscription?.cancel();
-    _streamSubscription = null;
-
     if (_channel != null) {
       await _channel!.sink.close();
       _channel = null;
     }
 
+    // Cancel subscription after closing so _onDone fires and emits the disconnected event
+    await _streamSubscription?.cancel();
+    _streamSubscription = null;
+
     _currentRoomId = null;
     _isConnected = false;
+    debugPrint('WebSocket disconnected');
   }
 
   /// Send a chat message
