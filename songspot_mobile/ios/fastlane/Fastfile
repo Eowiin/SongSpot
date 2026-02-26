@@ -1,5 +1,31 @@
 default_platform(:ios)
 
+# ── Version helper ────────────────────────────────────────────────────────────
+# Bumps pubspec.yaml version (semver + build number).
+# part: "patch" | "minor" | "major"   (default: "patch")
+def bump_pubspec(part = "patch")
+  pubspec_path = File.expand_path("../../pubspec.yaml", __dir__)
+  content = File.read(pubspec_path)
+  current = content.match(/^version: (.+)$/)[1]
+  semver, build = current.split("+")
+  major, minor, patch_v = semver.split(".").map(&:to_i)
+
+  case part
+  when "major" then major += 1; minor = 0; patch_v = 0
+  when "minor" then minor += 1; patch_v = 0
+  when "patch" then patch_v += 1
+  else UI.user_error!("bump must be major, minor, or patch (got: #{part})")
+  end
+
+  new_build = build.to_i + 1
+  new_version = "#{major}.#{minor}.#{patch_v}+#{new_build}"
+  File.write(pubspec_path, content.gsub(/^version: .+$/, "version: #{new_version}"))
+  UI.success("Version: #{current} → #{new_version}")
+  new_version
+end
+
+# ─────────────────────────────────────────────────────────────────────────────
+
 platform :ios do
   private_lane :setup_asc_key do
     require 'base64'
@@ -11,7 +37,9 @@ platform :ios do
     )
   end
 
-  private_lane :build_ipa do
+  private_lane :build_ipa do |options|
+    bump_pubspec(options[:bump] || "patch")
+
     setup_asc_key
 
     # Build Flutter before Xcode archive (generates Generated.xcconfig + framework)
@@ -19,6 +47,7 @@ platform :ios do
       sh("flutter", "build", "ios", "--release", "--no-codesign")
     end
 
+    # Build number is managed from TestFlight (independent of pubspec build number)
     app_id = CredentialsManager::AppfileConfig.try_fetch_value(:app_identifier)
     latest = latest_testflight_build_number(app_identifier: app_id) || 0
     increment_build_number(
@@ -65,9 +94,9 @@ platform :ios do
     end
   end
 
-  desc "Distribute to TestFlight"
-  lane :testflight do
-    ipa_path = build_ipa
+  desc "Bump version, build, and distribute to TestFlight. Options: bump:patch|minor|major"
+  lane :testflight do |options|
+    ipa_path = build_ipa(bump: options[:bump] || "patch")
     generic_notes = "Bug fixes and performance improvements"
     upload_to_store(
       destination: :testflight,
@@ -76,9 +105,9 @@ platform :ios do
     )
   end
 
-  desc "Build and release directly to App Store"
-  lane :app_store do
-    ipa_path = build_ipa
+  desc "Bump version, build, and release directly to App Store. Options: bump:patch|minor|major"
+  lane :app_store do |options|
+    ipa_path = build_ipa(bump: options[:bump] || "patch")
     generic_notes = "Bug fixes and performance improvements"
     upload_to_store(
       destination: :app_store,

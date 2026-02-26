@@ -199,6 +199,10 @@ CELERY_TIMEZONE = TIME_ZONE
 FCM_SERVICE_ACCOUNT_PATH = os.environ.get('FCM_SERVICE_ACCOUNT_PATH')
 FCM_SERVICE_ACCOUNT_JSON = os.environ.get('FCM_SERVICE_ACCOUNT_JSON')
 
+# In-App Purchases
+# Set to False in production once Apple/Google receipt verification is implemented
+IAP_SANDBOX_MODE = os.environ.get('IAP_SANDBOX_MODE', 'True') == 'True'
+
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=90),

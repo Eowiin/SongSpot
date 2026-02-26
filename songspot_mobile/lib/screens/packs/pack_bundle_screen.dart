@@ -13,6 +13,13 @@ import '../../services/websocket_service.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/track_autocomplete.dart';
 
+// Hint order: sequential unlocking, same as daily game
+const _packHintOrder = [
+  {'type': 'genre',       'label': 'Genre',  'revealedLabel': 'Genre',  'cost': 30},
+  {'type': 'decade',      'label': 'Decade', 'revealedLabel': 'Decade', 'cost': 60},
+  {'type': 'artist_name', 'label': 'Artist', 'revealedLabel': 'Artist', 'cost': 100},
+];
+
 class PackBundleScreen extends StatelessWidget {
   final String roomId;
   final String packId;
@@ -76,6 +83,14 @@ class _PackBundleContentState extends State<PackBundleContent> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       () async {
         final provider = context.read<PackBundleProvider>();
+
+        // If this pack is already loaded in the provider, skip the reload to
+        // avoid a flash of stale hint state. Just wire up the WebSocket.
+        if (provider.loadedPackId == widget.packId && provider.session != null) {
+          _listenForStemsReady();
+          return;
+        }
+
         await provider.loadSession(
           roomId: widget.roomId,
           packId: widget.packId,
@@ -233,7 +248,9 @@ class _PackBundleContentState extends State<PackBundleContent> {
                       _buildStageIndicators(session),
                       const SizedBox(height: 32),
                       _buildProgressCard(session, onPlay: _playStems),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 24),
+                      _buildHintsSection(context, provider),
+                      const SizedBox(height: 24),
                       Text(
                         'Make Your Guess',
                         style: Theme.of(context).textTheme.headlineMedium,
@@ -298,6 +315,169 @@ class _PackBundleContentState extends State<PackBundleContent> {
       ),
       child: content,
     );
+  }
+
+  // ── Hints ───────────────────────────────────────────────────────────────
+
+  Widget _buildHintsSection(BuildContext context, PackBundleProvider provider) {
+    final hintValues = provider.hintValues;
+    final nextIndex = _packHintOrder.indexWhere(
+      (h) => !hintValues.containsKey(h['type']),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Hints', style: Theme.of(context).textTheme.headlineSmall),
+        const SizedBox(height: 12),
+        Row(
+          children: _packHintOrder.asMap().entries.map((entry) {
+            final i = entry.key;
+            final hint = entry.value;
+            final hintType = hint['type'] as String;
+            final revealedValue = hintValues[hintType];
+            final isNextToBuy = i == nextIndex;
+            final isLocked = revealedValue == null && !isNextToBuy;
+
+            return Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: i == 0 ? 0 : 6,
+                  right: i == _packHintOrder.length - 1 ? 0 : 6,
+                ),
+                child: _buildHintButton(
+                  context: context,
+                  provider: provider,
+                  hintType: hintType,
+                  label: hint['label'] as String,
+                  cost: hint['cost'] as int,
+                  revealedValue: revealedValue,
+                  revealedLabel: hint['revealedLabel'] as String,
+                  isLocked: isLocked,
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHintButton({
+    required BuildContext context,
+    required PackBundleProvider provider,
+    required String hintType,
+    required String label,
+    required int cost,
+    required String? revealedValue,
+    required String revealedLabel,
+    required bool isLocked,
+  }) {
+    if (revealedValue != null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppTheme.primaryColor.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+          border: Border.all(color: AppTheme.primaryColor, width: 1),
+        ),
+        child: Column(
+          children: [
+            Text(
+              revealedLabel,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.primaryColor,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              revealedValue,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (isLocked) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceColor.withOpacity(0.4),
+          borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+          border: Border.all(
+              color: AppTheme.textSecondary.withOpacity(0.3), width: 1),
+        ),
+        child: Column(
+          children: [
+            const Icon(Icons.lock_outline,
+                size: 16, color: AppTheme.textSecondary),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.textSecondary,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return OutlinedButton(
+      onPressed: () => _handlePurchaseHint(context, provider, hintType),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppTheme.textPrimary,
+        side: const BorderSide(color: AppTheme.textSecondary),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+        ),
+      ),
+      child: Column(
+        children: [
+          Text(label, style: Theme.of(context).textTheme.bodyMedium),
+          const SizedBox(height: 2),
+          Text(
+            '🪙 $cost',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppTheme.primaryColor,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handlePurchaseHint(
+    BuildContext context,
+    PackBundleProvider provider,
+    String hintType,
+  ) async {
+    try {
+      final response = await provider.purchaseHint(
+        roomId: widget.roomId,
+        packId: widget.packId,
+        hintType: hintType,
+      );
+      final newCoins = response['coins'] as int;
+      if (mounted) {
+        context.read<AuthProvider>().updateCoinsBalance(newCoins);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildLoadingSkeleton() {

@@ -43,6 +43,10 @@ class _GameScreenState extends State<GameScreen> {
   HistoryDayDetail? _historyDetail;
   bool _historyDetailLoading = false;
 
+  // Pack bundle history (populated when _activePackId != null)
+  Map<String, PackHistoryDay> _packHistoryMap = {};
+  PackHistoryDayDetail? _packHistoryDetail;
+
   @override
   void initState() {
     super.initState();
@@ -160,6 +164,29 @@ class _GameScreenState extends State<GameScreen> {
       setState(() => _selectedHistoryDate = null);
       return;
     }
+
+    // If a pack is active, load pack bundle history instead
+    if (_activePackId != null) {
+      setState(() {
+        _selectedHistoryDate = dateStr;
+        _packHistoryDetail = null;
+        _historyDetailLoading = true;
+      });
+      try {
+        final data = await _apiService.getPackBundleHistoryDetail(
+            widget.roomId, _activePackId!, dateStr);
+        if (mounted) {
+          setState(() {
+            _packHistoryDetail = PackHistoryDayDetail.fromJson(data);
+            _historyDetailLoading = false;
+          });
+        }
+      } catch (_) {
+        if (mounted) setState(() => _historyDetailLoading = false);
+      }
+      return;
+    }
+
     setState(() {
       _selectedHistoryDate = dateStr;
       _historyDetail = null;
@@ -175,6 +202,22 @@ class _GameScreenState extends State<GameScreen> {
       }
     } catch (_) {
       if (mounted) setState(() => _historyDetailLoading = false);
+    }
+  }
+
+  Future<void> _loadPackHistoryList(String packId) async {
+    try {
+      final data = await _apiService.getPackBundleHistory(
+          widget.roomId, packId, limit: 31);
+      if (!mounted) return;
+      final days = (data['results'] as List)
+          .map((j) => PackHistoryDay.fromJson(j as Map<String, dynamic>))
+          .toList();
+      setState(() {
+        _packHistoryMap = {for (final d in days) d.date: d};
+      });
+    } catch (_) {
+      // Fail silently
     }
   }
 
@@ -204,6 +247,9 @@ class _GameScreenState extends State<GameScreen> {
                   setState(() {
                     _activePackId = null;
                     _activePackName = null;
+                    _selectedHistoryDate = null;
+                    _packHistoryMap = {};
+                    _packHistoryDetail = null;
                   });
                 },
                 selectedColor: AppTheme.primaryColor.withValues(alpha: 0.2),
@@ -219,7 +265,10 @@ class _GameScreenState extends State<GameScreen> {
                       setState(() {
                         _activePackId = pack.id;
                         _activePackName = pack.name;
+                        _selectedHistoryDate = null;
+                        _packHistoryDetail = null;
                       });
+                      _loadPackHistoryList(pack.id);
                     },
                   ),
                 );
@@ -1007,7 +1056,11 @@ class _GameScreenState extends State<GameScreen> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 24),
+
+                      // Hints
+                      _buildHintsSection(context, gameProvider),
+                      const SizedBox(height: 24),
 
                       // Guess Form
                       Text(
@@ -1076,6 +1129,176 @@ class _GameScreenState extends State<GameScreen> {
             );
   }
 
+  // ── Hints ───────────────────────────────────────────────────────────────
+
+  // Hints are sequential: Genre (30🪙) → Decade (60🪙) → Artist (100🪙)
+  static const _hintOrder = [
+    {'type': 'genre',       'label': 'Genre',   'revealedLabel': 'Genre',  'cost': 30},
+    {'type': 'decade',      'label': 'Decade',  'revealedLabel': 'Decade', 'cost': 60},
+    {'type': 'artist_name', 'label': 'Artist',  'revealedLabel': 'Artist', 'cost': 100},
+  ];
+
+  Widget _buildHintsSection(BuildContext context, GameProvider gameProvider) {
+    final hintValues = gameProvider.hintValues;
+
+    // Find the index of the next unlockable hint (first one not yet purchased)
+    final nextIndex = _hintOrder.indexWhere(
+      (h) => !hintValues.containsKey(h['type']),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Hints', style: Theme.of(context).textTheme.headlineSmall),
+        const SizedBox(height: 12),
+        Row(
+          children: _hintOrder.asMap().entries.map((entry) {
+            final i = entry.key;
+            final hint = entry.value;
+            final hintType = hint['type'] as String;
+            final revealedValue = hintValues[hintType];
+            final isNextToBuy = i == nextIndex;
+            final isLocked = revealedValue == null && !isNextToBuy;
+
+            return Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(left: i == 0 ? 0 : 6, right: i == _hintOrder.length - 1 ? 0 : 6),
+                child: _buildHintButton(
+                  context: context,
+                  gameProvider: gameProvider,
+                  hintType: hintType,
+                  label: hint['label'] as String,
+                  cost: hint['cost'] as int,
+                  revealedValue: revealedValue,
+                  revealedLabel: hint['revealedLabel'] as String,
+                  isLocked: isLocked,
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHintButton({
+    required BuildContext context,
+    required GameProvider gameProvider,
+    required String hintType,
+    required String label,
+    required int cost,
+    required String? revealedValue,
+    required String revealedLabel,
+    required bool isLocked,
+  }) {
+    if (revealedValue != null) {
+      // Purchased — show the revealed value
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppTheme.primaryColor.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+          border: Border.all(color: AppTheme.primaryColor, width: 1),
+        ),
+        child: Column(
+          children: [
+            Text(
+              revealedLabel,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.primaryColor,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              revealedValue,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (isLocked) {
+      // Not yet unlockable — greyed out
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceColor.withOpacity(0.4),
+          borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+          border: Border.all(color: AppTheme.textSecondary.withOpacity(0.3), width: 1),
+        ),
+        child: Column(
+          children: [
+            const Icon(Icons.lock_outline, size: 16, color: AppTheme.textSecondary),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.textSecondary,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Available to purchase
+    return OutlinedButton(
+      onPressed: () => _handlePurchaseHint(context, gameProvider, hintType),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppTheme.textPrimary,
+        side: const BorderSide(color: AppTheme.textSecondary),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+        ),
+      ),
+      child: Column(
+        children: [
+          Text(label, style: Theme.of(context).textTheme.bodyMedium),
+          const SizedBox(height: 2),
+          Text(
+            '🪙 $cost',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppTheme.primaryColor,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handlePurchaseHint(
+    BuildContext context,
+    GameProvider gameProvider,
+    String hintType,
+  ) async {
+    try {
+      final response = await gameProvider.purchaseHint(
+        roomId: widget.roomId,
+        hintType: hintType,
+      );
+      // Update coin balance in auth provider
+      final newCoins = response['coins'] as int;
+      if (mounted) {
+        context.read<AuthProvider>().updateCoinsBalance(newCoins);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
   // ── Date row ────────────────────────────────────────────────────────────
 
   Widget _buildDateRow(GameProvider gameProvider) {
@@ -1099,7 +1322,17 @@ class _GameScreenState extends State<GameScreen> {
 
           // Result dot color
           Color? dotColor;
-          if (isToday) {
+          if (_activePackId != null) {
+            // Pack mode: show pack bundle session result
+            if (!isToday) {
+              final packDay = _packHistoryMap[dateStr];
+              if (packDay?.mySession != null) {
+                dotColor = packDay!.mySession!.completed
+                    ? AppTheme.successColor
+                    : AppTheme.errorColor;
+              }
+            }
+          } else if (isToday) {
             final session = gameProvider.currentSession;
             if (session != null && session.isCompleted) {
               dotColor = session.correctGuess ? AppTheme.successColor : AppTheme.errorColor;
@@ -1165,6 +1398,17 @@ class _GameScreenState extends State<GameScreen> {
   Widget _buildHistoryView() {
     if (_historyDetailLoading) {
       return const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor));
+    }
+    if (_activePackId != null) {
+      if (_packHistoryDetail == null) {
+        return Center(
+          child: Text(
+            'Could not load data',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
+          ),
+        );
+      }
+      return _buildPackHistoryContent(_packHistoryDetail!);
     }
     if (_historyDetail == null) {
       return Center(
@@ -1354,6 +1598,271 @@ class _GameScreenState extends State<GameScreen> {
                     Container(
                       padding:
                           const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        gradient: AppTheme.primaryGradient,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${e.pointsEarned}',
+                        style: const TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          const SizedBox(height: 24),
+
+          // Chat
+          Text('Chat', style: Theme.of(context).textTheme.headlineMedium),
+          const SizedBox(height: 12),
+
+          if (detail.messages.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Column(
+                children: [
+                  const Icon(Icons.chat_bubble_outline,
+                      size: 36, color: AppTheme.textSecondary),
+                  const SizedBox(height: 8),
+                  Text('No messages that day',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: AppTheme.textSecondary)),
+                ],
+              ),
+            )
+          else
+            ...detail.messages.map((msg) {
+              final isMe = msg.userId == currentUserId;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Align(
+                  alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                  child: Container(
+                    constraints: BoxConstraints(
+                        maxWidth: MediaQuery.of(context).size.width * 0.75),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isMe
+                          ? AppTheme.primaryColor.withValues(alpha: 0.2)
+                          : AppTheme.surfaceColor,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: isMe
+                          ? CrossAxisAlignment.end
+                          : CrossAxisAlignment.start,
+                      children: [
+                        if (!isMe)
+                          Text(
+                            msg.username,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: AppTheme.primaryColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                        Text(msg.message,
+                            style: Theme.of(context).textTheme.bodyMedium),
+                        const SizedBox(height: 2),
+                        Text(
+                          DateFormat.Hm().format(msg.createdAt.toLocal()),
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: AppTheme.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          const SizedBox(height: 32),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPackHistoryContent(PackHistoryDayDetail detail) {
+    final currentUserId = context.read<AuthProvider>().user?.id;
+    final session = detail.mySession;
+
+    return SingleChildScrollView(
+      padding: AppTheme.pagePadding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Track card
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: AppTheme.cardGradient,
+              borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+            ),
+            child: Column(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: detail.track.coverUrl != null
+                      ? Image.network(
+                          detail.track.coverUrl!,
+                          width: 160,
+                          height: 160,
+                          fit: BoxFit.cover,
+                          errorBuilder: (c, e, s) => _historyAlbumPlaceholder(),
+                        )
+                      : _historyAlbumPlaceholder(),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  detail.track.title,
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  detail.track.artist,
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(color: AppTheme.textSecondary),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                if (session != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: session.completed
+                          ? AppTheme.successColor.withValues(alpha: 0.2)
+                          : AppTheme.errorColor.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          session.completed ? Icons.check_circle : Icons.cancel,
+                          color: session.completed
+                              ? AppTheme.successColor
+                              : AppTheme.errorColor,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          session.completed
+                              ? '+${session.pointsEarned} pts · Stage ${session.currentStage}'
+                              : 'Not completed',
+                          style: TextStyle(
+                            color: session.completed
+                                ? AppTheme.successColor
+                                : AppTheme.errorColor,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.surfaceColor,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      "You didn't play this pack that day",
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: AppTheme.textSecondary),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Leaderboard
+          Text("Results", style: Theme.of(context).textTheme.headlineMedium),
+          const SizedBox(height: 12),
+
+          if (detail.leaderboard.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppTheme.surfaceColor,
+                borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+              ),
+              child: Text(
+                'Nobody completed this pack that day',
+                style: Theme.of(context).textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+            )
+          else
+            ...detail.leaderboard.asMap().entries.map((entry) {
+              final rank = entry.key + 1;
+              final e = entry.value;
+              final rankColor = rank == 1
+                  ? const Color(0xFFFFD700)
+                  : rank == 2
+                      ? const Color(0xFFC0C0C0)
+                      : rank == 3
+                          ? const Color(0xFFCD7F32)
+                          : AppTheme.textSecondary;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.surfaceColor,
+                  borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: rankColor.withValues(alpha: 0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          '$rank',
+                          style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: rankColor),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(e.username,
+                              style: Theme.of(context).textTheme.titleMedium),
+                          Text(
+                            'Stage ${e.stageNumber} · ${DateFormat.Hm().format(e.completedAt.toLocal())}',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: AppTheme.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         gradient: AppTheme.primaryGradient,
                         borderRadius: BorderRadius.circular(12),

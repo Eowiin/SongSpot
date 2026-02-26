@@ -62,6 +62,8 @@ SNIPPET_POINTS = {
 }
 COIN_REWARD_MIN = 5
 COIN_REWARD_MAX = 8
+STREAK_BONUS_INTERVAL = 7
+STREAK_BONUS_COINS = 50
 
 
 def _coins_for_correct_guess(snippet_number):
@@ -189,6 +191,15 @@ class RoomCreateView(APIView):
 
             # Automatically add the host to the room
             RoomUser.objects.create(room=room, user=request.user)
+
+            # Auto-unlock all free packs for the new room
+            free_packs = SongPack.objects.filter(is_free=True)
+            for pack in free_packs:
+                RoomPack.objects.get_or_create(
+                    room=room,
+                    pack=pack,
+                    defaults={'coins_spent': 0, 'purchased_by': request.user}
+                )
 
             response_serializer = RoomSerializer(room)
             return Response({
@@ -1114,6 +1125,7 @@ class SubmitGuessView(APIView):
             game_session.save()
 
             coins_awarded = _coins_for_correct_guess(game_session.current_snippet)
+            streak_bonus = 0
             with transaction.atomic():
                 if coins_awarded:
                     request.user.add_coins(
@@ -1129,7 +1141,18 @@ class SubmitGuessView(APIView):
                     perfect_game=(game_session.current_snippet == 1)
                 )
 
-            return Response({
+                # Weekly streak bonus: award bonus coins every 7th day
+                request.user.refresh_from_db(fields=['current_streak'])
+                if (request.user.current_streak > 0
+                        and request.user.current_streak % STREAK_BONUS_INTERVAL == 0):
+                    streak_bonus = STREAK_BONUS_COINS
+                    request.user.add_coins(
+                        streak_bonus,
+                        reason=f"Weekly streak bonus ({request.user.current_streak}-day streak)",
+                        transaction_type='bonus',
+                    )
+
+            response_data = {
                 'is_correct': True,
                 'points_earned': points,
                 'coins_awarded': coins_awarded,
@@ -1139,7 +1162,12 @@ class SubmitGuessView(APIView):
                     'title': daily_song.track.title,
                     'artist': daily_song.track.artist
                 }
-            }, status=status.HTTP_200_OK)
+            }
+            if streak_bonus:
+                response_data['streak_bonus'] = streak_bonus
+                response_data['streak_days'] = request.user.current_streak
+
+            return Response(response_data, status=status.HTTP_200_OK)
         else:
             # Incorrect guess - move to next snippet if not at max
             if game_session.current_snippet < 6:
@@ -1298,6 +1326,177 @@ class RoomMessagesView(APIView):
 
         response_serializer = RoomMessageSerializer(message)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+
+HINT_COSTS = {
+    'genre': 30,
+    'decade': 60,
+    'artist_name': 100,
+}
+
+
+class DailyGameHintView(APIView):
+    """
+    Purchase a hint for the current daily game session.
+
+    POST /api/game/rooms/<room_id>/daily-game/hint/
+    Headers: Authorization: Bearer <access_token>
+    Body: {"hint_type": "genre" | "decade" | "artist_name"}
+
+    Hint types and costs (sequential — buy in order):
+    - genre: Reveal the track genre (30 coins)
+    - decade: Reveal the release decade (60 coins)
+    - artist_name: Reveal the full artist name (100 coins)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, room_id):
+        room = get_object_or_404(Room, id=room_id)
+        today = _active_game_date()
+
+        if not RoomUser.objects.filter(room=room, user=request.user).exists():
+            return Response({'error': 'You must be in the room to use hints'}, status=status.HTTP_403_FORBIDDEN)
+
+        hint_type = request.data.get('hint_type', '').strip()
+        if hint_type not in HINT_COSTS:
+            return Response(
+                {'error': f'Invalid hint_type. Must be one of: {", ".join(HINT_COSTS.keys())}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        daily_song = DailySong.objects.filter(room=room, date=today).select_related('track').first()
+        if not daily_song:
+            return Response({'error': 'No song available for today'}, status=status.HTTP_404_NOT_FOUND)
+
+        game_session = DailyGameSession.objects.filter(
+            room=room, user=request.user, daily_song=daily_song
+        ).first()
+        if not game_session:
+            return Response({'error': 'No active game session.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if game_session.completed_at:
+            return Response({'error': 'Game already completed.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if hint already purchased
+        if hint_type in game_session.hints_used:
+            # Return the hint data without charging again
+            hint_value = self._get_hint_value(hint_type, daily_song.track)
+            return Response({
+                'hint_type': hint_type,
+                'hint_value': hint_value,
+                'already_owned': True,
+                'coins': request.user.coins,
+            }, status=status.HTTP_200_OK)
+
+        cost = HINT_COSTS[hint_type]
+        if request.user.coins < cost:
+            return Response({
+                'error': 'Insufficient coins',
+                'coins': request.user.coins,
+                'cost': cost,
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            if not request.user.spend_coins(cost, reason=f"Hint: {hint_type} in room {room.room_code}"):
+                return Response({'error': 'Insufficient coins'}, status=status.HTTP_400_BAD_REQUEST)
+
+            game_session.hints_used = game_session.hints_used + [hint_type]
+            game_session.save(update_fields=['hints_used'])
+
+        hint_value = self._get_hint_value(hint_type, daily_song.track)
+        return Response({
+            'hint_type': hint_type,
+            'hint_value': hint_value,
+            'cost': cost,
+            'coins': request.user.coins,
+        }, status=status.HTTP_200_OK)
+
+    @staticmethod
+    def _get_hint_value(hint_type, track):
+        if hint_type == 'genre':
+            return track.genre if track.genre else 'Unknown'
+        elif hint_type == 'decade':
+            if track.release_year:
+                decade_start = (track.release_year // 10) * 10
+                return f"{decade_start}s"
+            return 'Unknown'
+        elif hint_type == 'artist_name':
+            return track.artist
+        return None
+
+
+class PackBundleHintView(APIView):
+    """
+    Purchase a hint for the current pack bundle session.
+
+    POST /api/game/rooms/<room_id>/packs/<pack_id>/bundle/hint/
+    Headers: Authorization: Bearer <access_token>
+    Body: {"hint_type": "genre" | "decade" | "artist_name"}
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, room_id, pack_id):
+        room = get_object_or_404(Room, id=room_id)
+        pack = get_object_or_404(SongPack, id=pack_id)
+        today = _active_game_date()
+
+        if not RoomUser.objects.filter(room=room, user=request.user).exists():
+            return Response({'error': 'You must be in the room to use hints'}, status=status.HTTP_403_FORBIDDEN)
+
+        daily_track = _get_daily_pack_track(room, pack, today)
+        if not daily_track:
+            return Response({'error': 'Pack has no tracks'}, status=status.HTTP_404_NOT_FOUND)
+
+        session = PackBundleSession.objects.filter(
+            room=room, user=request.user, pack=pack, pack_daily_track=daily_track
+        ).first()
+        if not session:
+            return Response({'error': 'No active pack session.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if session.completed_at:
+            return Response({'error': 'Pack session already completed.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        hint_type = request.data.get('hint_type', '').strip()
+        if hint_type not in HINT_COSTS:
+            return Response(
+                {'error': f'Invalid hint_type. Must be one of: {", ".join(HINT_COSTS.keys())}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        track = daily_track.track
+
+        # Check if hint already purchased
+        if hint_type in session.hints_used:
+            hint_value = DailyGameHintView._get_hint_value(hint_type, track)
+            return Response({
+                'hint_type': hint_type,
+                'hint_value': hint_value,
+                'already_owned': True,
+                'coins': request.user.coins,
+            }, status=status.HTTP_200_OK)
+
+        cost = HINT_COSTS[hint_type]
+        if request.user.coins < cost:
+            return Response({
+                'error': 'Insufficient coins',
+                'coins': request.user.coins,
+                'cost': cost,
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            if not request.user.spend_coins(cost, reason=f"Hint: {hint_type} in pack {pack.name}"):
+                return Response({'error': 'Insufficient coins'}, status=status.HTTP_400_BAD_REQUEST)
+
+            session.hints_used = session.hints_used + [hint_type]
+            session.save(update_fields=['hints_used'])
+
+        hint_value = DailyGameHintView._get_hint_value(hint_type, track)
+        return Response({
+            'hint_type': hint_type,
+            'hint_value': hint_value,
+            'cost': cost,
+            'coins': request.user.coins,
+        }, status=status.HTTP_200_OK)
 
 
 class SearchTracksView(APIView):
@@ -1485,6 +1684,151 @@ class RoomHistoryDetailView(APIView):
                 'points_earned': session.points_earned,
                 'current_snippet': session.current_snippet,
                 'guesses_made': session.guesses_made,
+                'completed_at': session.completed_at.isoformat() if session.completed_at else None,
+            } if session else None,
+            'leaderboard': leaderboard,
+            'messages': [
+                {
+                    'id': str(m.id),
+                    'user': {'id': str(m.user.id), 'username': m.user.username},
+                    'message': m.message,
+                    'created_at': m.created_at.isoformat(),
+                }
+                for m in messages
+            ],
+        }, status=status.HTTP_200_OK)
+
+
+class PackBundleHistoryListView(APIView):
+    """
+    List of past pack bundle tracks for a room/pack with the user's result.
+    Excludes the currently active game date.
+
+    GET /api/game/rooms/<room_id>/packs/<pack_id>/history/?limit=30&offset=0
+    Headers: Authorization: Bearer <access_token>
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, room_id, pack_id):
+        room = get_object_or_404(Room, id=room_id)
+        pack = get_object_or_404(SongPack, id=pack_id)
+        if not RoomUser.objects.filter(room=room, user=request.user).exists():
+            return Response({'error': 'You must be in the room to view history'}, status=status.HTTP_403_FORBIDDEN)
+
+        limit = min(int(request.query_params.get('limit', 30)), 100)
+        offset = int(request.query_params.get('offset', 0))
+
+        daily_tracks = PackDailyTrack.objects.filter(
+            room=room, pack=pack,
+        ).exclude(
+            date=_active_game_date(),
+        ).select_related('track').order_by('-date')
+
+        total = daily_tracks.count()
+        page = list(daily_tracks[offset:offset + limit])
+
+        session_map = {
+            s.pack_daily_track_id: s
+            for s in PackBundleSession.objects.filter(
+                room=room,
+                user=request.user,
+                pack=pack,
+                pack_daily_track__in=page,
+            )
+        }
+
+        results = []
+        for dt in page:
+            session = session_map.get(dt.id)
+            results.append({
+                'date': dt.date.isoformat(),
+                'track': {
+                    'id': str(dt.track.id),
+                    'title': dt.track.title,
+                    'artist': dt.track.artist,
+                    'cover_url': dt.track.cover_url,
+                },
+                'my_session': {
+                    'completed': session.completed_at is not None,
+                    'points_earned': session.points_earned,
+                    'current_stage': session.current_stage,
+                } if session else None,
+            })
+
+        return Response({
+            'results': results,
+            'limit': limit,
+            'offset': offset,
+            'total': total,
+        }, status=status.HTTP_200_OK)
+
+
+class PackBundleHistoryDetailView(APIView):
+    """
+    Full details for a specific past day in a room/pack bundle.
+
+    GET /api/game/rooms/<room_id>/packs/<pack_id>/history/<date>/  (date: YYYY-MM-DD)
+    Headers: Authorization: Bearer <access_token>
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, room_id, pack_id, date):
+        from datetime import date as date_type
+        try:
+            parsed_date = date_type.fromisoformat(date)
+        except ValueError:
+            return Response({'error': 'Invalid date format. Use YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        room = get_object_or_404(Room, id=room_id)
+        pack = get_object_or_404(SongPack, id=pack_id)
+        if not RoomUser.objects.filter(room=room, user=request.user).exists():
+            return Response({'error': 'You must be in the room to view history'}, status=status.HTTP_403_FORBIDDEN)
+
+        if parsed_date >= _active_game_date():
+            return Response({'error': 'This date is not yet in history.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        daily_track = PackDailyTrack.objects.filter(
+            room=room, pack=pack, date=parsed_date,
+        ).select_related('track').first()
+        if not daily_track:
+            return Response({'error': 'No pack track found for this date.'}, status=status.HTTP_404_NOT_FOUND)
+
+        session = PackBundleSession.objects.filter(
+            room=room, user=request.user, pack=pack, pack_daily_track=daily_track,
+        ).first()
+
+        leaderboard_sessions = PackBundleSession.objects.filter(
+            room=room, pack=pack, pack_daily_track=daily_track,
+            completed_at__isnull=False,
+        ).select_related('user').order_by('-points_earned', 'completed_at')
+
+        leaderboard = [
+            {
+                'user': {'id': str(s.user.id), 'username': s.user.username},
+                'points_earned': s.points_earned,
+                'stage_number': s.current_stage,
+                'completed_at': s.completed_at.isoformat(),
+            }
+            for s in leaderboard_sessions
+        ]
+
+        messages = PackBundleMessage.objects.filter(
+            room=room, pack=pack,
+            created_at__date=parsed_date,
+        ).select_related('user').order_by('created_at')
+
+        return Response({
+            'date': parsed_date.isoformat(),
+            'track': {
+                'id': str(daily_track.track.id),
+                'title': daily_track.track.title,
+                'artist': daily_track.track.artist,
+                'cover_url': daily_track.track.cover_url,
+            },
+            'my_session': {
+                'completed': session.completed_at is not None,
+                'points_earned': session.points_earned,
+                'current_stage': session.current_stage,
                 'completed_at': session.completed_at.isoformat() if session.completed_at else None,
             } if session else None,
             'leaderboard': leaderboard,

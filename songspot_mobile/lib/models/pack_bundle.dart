@@ -27,6 +27,7 @@ class PackBundleSession extends Equatable {
   final DateTime createdAt;
   final PackTrack? packTrack;
   final String date;
+  final List<String> hintsUsed;
 
   const PackBundleSession({
     required this.id,
@@ -36,6 +37,7 @@ class PackBundleSession extends Equatable {
     required this.createdAt,
     required this.packTrack,
     required this.date,
+    this.hintsUsed = const [],
   });
 
   factory PackBundleSession.fromJson(Map<String, dynamic> json) {
@@ -51,6 +53,7 @@ class PackBundleSession extends Equatable {
           ? PackTrack.fromJson(json['pack_track'] as Map<String, dynamic>)
           : null,
       date: json['date'] as String? ?? '',
+      hintsUsed: List<String>.from(json['hints_used'] as List? ?? []),
     );
   }
 
@@ -65,6 +68,7 @@ class PackBundleSession extends Equatable {
         createdAt,
         packTrack,
         date,
+        hintsUsed,
       ];
 }
 

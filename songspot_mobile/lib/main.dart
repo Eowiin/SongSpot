@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'config/app_theme.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/auth_provider.dart';
+import 'providers/coin_shop_provider.dart';
 import 'providers/game_provider.dart';
 import 'providers/pack_bundle_provider.dart';
 import 'providers/pack_provider.dart';
@@ -37,6 +38,10 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => GameProvider()),
         ChangeNotifierProvider(create: (_) => PackProvider()),
         ChangeNotifierProvider(create: (_) => PackBundleProvider()),
+        ChangeNotifierProxyProvider<AuthProvider, CoinShopProvider>(
+          create: (_) => CoinShopProvider(),
+          update: (_, auth, shop) => shop!..setAuthProvider(auth),
+        ),
       ],
       child: Consumer<SettingsProvider>(
         builder: (context, settings, _) {

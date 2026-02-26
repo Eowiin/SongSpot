@@ -38,6 +38,7 @@ class GameSession extends Equatable {
   final int? pointsEarned;
   final DateTime? completedAt;
   final DateTime createdAt;
+  final List<String> hintsUsed;
 
   const GameSession({
     required this.id,
@@ -49,6 +50,7 @@ class GameSession extends Equatable {
     this.pointsEarned,
     this.completedAt,
     required this.createdAt,
+    this.hintsUsed = const [],
   });
 
   factory GameSession.fromJson(Map<String, dynamic> json) {
@@ -64,6 +66,7 @@ class GameSession extends Equatable {
           ? DateTime.parse(json['completed_at'] as String)
           : null,
       createdAt: DateTime.parse(json['created_at'] as String),
+      hintsUsed: List<String>.from(json['hints_used'] as List? ?? []),
     );
   }
 
@@ -103,6 +106,7 @@ class GameSession extends Equatable {
         pointsEarned,
         completedAt,
         createdAt,
+        hintsUsed,
       ];
 }
 
