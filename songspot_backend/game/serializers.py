@@ -18,6 +18,13 @@ class TrackSerializer(serializers.ModelSerializer):
 
 class PackTrackSerializer(serializers.ModelSerializer):
     track = TrackSerializer(read_only=True)
+    # Stems are stored on Track (not PackTrack) so one song can appear in
+    # multiple packs without regenerating stems. We expose them at the same
+    # top-level keys to keep the API shape unchanged for mobile clients.
+    vocals_url = serializers.SerializerMethodField()
+    drums_url = serializers.SerializerMethodField()
+    bass_url = serializers.SerializerMethodField()
+    other_url = serializers.SerializerMethodField()
 
     class Meta:
         model = PackTrack
@@ -30,16 +37,17 @@ class PackTrackSerializer(serializers.ModelSerializer):
             'other_url',
         )
 
+    def get_vocals_url(self, obj):
+        return obj.track.vocals_url
 
-class PackTrackPreviewSerializer(serializers.ModelSerializer):
-    track = TrackSerializer(read_only=True)
+    def get_drums_url(self, obj):
+        return obj.track.drums_url
 
-    class Meta:
-        model = PackTrack
-        fields = (
-            'track',
-            'order_in_pack',
-        )
+    def get_bass_url(self, obj):
+        return obj.track.bass_url
+
+    def get_other_url(self, obj):
+        return obj.track.other_url
 
 
 class SongPackListSerializer(serializers.ModelSerializer):
@@ -50,7 +58,8 @@ class SongPackListSerializer(serializers.ModelSerializer):
         model = SongPack
         fields = (
             'id', 'name', 'description', 'icon_url', 'track_count',
-            'price_coins', 'is_free', 'is_featured', 'is_owned', 'created_at'
+            'category', 'price_coins', 'is_free', 'auto_unlock',
+            'is_featured', 'is_owned', 'created_at',
         )
         read_only_fields = ('id', 'created_at')
 
@@ -66,39 +75,15 @@ class SongPackListSerializer(serializers.ModelSerializer):
 
 
 class SongPackDetailSerializer(serializers.ModelSerializer):
-    tracks = PackTrackSerializer(source='pack_tracks', many=True, read_only=True)
     track_count = serializers.SerializerMethodField()
     is_owned = serializers.SerializerMethodField()
 
     class Meta:
         model = SongPack
         fields = (
-            'id', 'name', 'description', 'icon_url', 'track_count', 'tracks',
-            'price_coins', 'is_free', 'is_featured', 'is_owned', 'created_at'
-        )
-        read_only_fields = ('id', 'created_at')
-
-    def get_track_count(self, obj):
-        return obj.pack_tracks.count()
-
-    def get_is_owned(self, obj):
-        request = self.context.get('request')
-        room = self.context.get('room')
-        if not request or not request.user.is_authenticated or not room:
-            return False
-        return RoomPack.objects.filter(room=room, pack=obj).exists()
-
-
-class SongPackPreviewSerializer(serializers.ModelSerializer):
-    tracks = PackTrackPreviewSerializer(source='pack_tracks', many=True, read_only=True)
-    track_count = serializers.SerializerMethodField()
-    is_owned = serializers.SerializerMethodField()
-
-    class Meta:
-        model = SongPack
-        fields = (
-            'id', 'name', 'description', 'icon_url', 'track_count', 'tracks',
-            'price_coins', 'is_free', 'is_featured', 'is_owned', 'created_at'
+            'id', 'name', 'description', 'icon_url', 'track_count',
+            'category', 'price_coins', 'is_free', 'auto_unlock',
+            'is_featured', 'is_owned', 'created_at',
         )
         read_only_fields = ('id', 'created_at')
 

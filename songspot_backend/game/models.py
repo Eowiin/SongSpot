@@ -10,6 +10,8 @@ class Track(models.Model):
     """
     Music tracks from Deezer API.
     Stores track information including preview URL for the blind test game.
+    Stem URLs are stored here so the same track can appear in multiple packs
+    without regenerating stems.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=255)
@@ -19,6 +21,10 @@ class Track(models.Model):
     deezer_id = models.BigIntegerField(null=True, blank=True, help_text="Deezer track ID for fetching fresh preview URLs")
     release_year = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Year the track was released")
     genre = models.CharField(max_length=100, blank=True, null=True, help_text="Music genre (e.g. Pop, Rock, Hip-Hop)")
+    vocals_url = models.URLField(max_length=500, blank=True, null=True, help_text="Stem URL for vocals")
+    drums_url = models.URLField(max_length=500, blank=True, null=True, help_text="Stem URL for drums")
+    bass_url = models.URLField(max_length=500, blank=True, null=True, help_text="Stem URL for bass")
+    other_url = models.URLField(max_length=500, blank=True, null=True, help_text="Stem URL for other instruments")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -70,6 +76,24 @@ class Track(models.Model):
         return self.preview_url
 
 
+CATEGORY_CHOICES = [
+    ('pop', 'Pop'),
+    ('hiphop', 'Hip-Hop / Rap'),
+    ('rock', 'Rock'),
+    ('electro', 'Électro'),
+    ('dance', 'Dance'),
+    ('rnb', 'R&B'),
+    ('kpop', 'K-pop'),
+    ('rap_fr', 'Rap Français'),
+    ('variete_fr', 'Variété Française'),
+    ('reggaeton', 'Reggaeton / Urbano'),
+    ('latin', 'Latin Pop'),
+    ('afrobeats', 'Afrobeats'),
+    ('jpop', 'J-pop'),
+    ('bollywood', 'Bollywood'),
+]
+
+
 class SongPack(models.Model):
     """
     Purchasable song packs that users can buy.
@@ -79,8 +103,16 @@ class SongPack(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     icon_url = models.URLField(max_length=500, blank=True)
+    category = models.CharField(
+        max_length=20, choices=CATEGORY_CHOICES, blank=True, null=True,
+        help_text="Music category/genre of this pack",
+    )
     price_coins = models.PositiveIntegerField(default=1000, help_text="Price in coins")
-    is_free = models.BooleanField(default=False, help_text="Free packs available to all users")
+    is_free = models.BooleanField(default=False, help_text="Pack costs 0 coins")
+    auto_unlock = models.BooleanField(
+        default=False,
+        help_text="Automatically unlock for all new rooms on creation",
+    )
     is_featured = models.BooleanField(default=False, help_text="Featured packs shown prominently")
     created_at = models.DateTimeField(auto_now_add=True)
 

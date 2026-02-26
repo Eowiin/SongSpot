@@ -212,6 +212,64 @@ class DeezerService:
             print(f"Error fetching tracks from genre {genre_id}: {e}")
             return []
 
+    def list_genres(self) -> List[Dict]:
+        """
+        Return all Deezer genres with their IDs. Useful for verifying genre IDs
+        before seeding packs (run with --list-genres flag in seed command).
+        """
+        url = f"{self.BASE_URL}/genre"
+        try:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            return response.json().get('data', [])
+        except requests.RequestException as e:
+            print(f"Error fetching genres: {e}")
+            return []
+
+    def get_genre_chart_tracks(self, genre_id: int, limit: int = 100) -> List[Dict]:
+        """
+        Get chart tracks for a specific genre from Deezer's editorial charts.
+        More geographically stable than fetching via genre artists.
+
+        Args:
+            genre_id: Deezer genre ID (use list_genres() to verify IDs)
+            limit: Maximum number of tracks
+
+        Returns:
+            List of track dicts with 'rank' field included
+        """
+        url = f"{self.BASE_URL}/chart/{genre_id}/tracks"
+        params = {'limit': limit}
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            return response.json().get('data', [])
+        except requests.RequestException as e:
+            print(f"Error fetching genre chart tracks for {genre_id}: {e}")
+            return []
+
+    def get_playlist_tracks(self, playlist_id: int, limit: int = 100) -> List[Dict]:
+        """
+        Get tracks from a Deezer editorial playlist.
+        Used for categories without a dedicated Deezer genre ID (Rap FR, Bollywood).
+
+        Args:
+            playlist_id: Deezer playlist ID
+            limit: Maximum number of tracks
+
+        Returns:
+            List of track dicts
+        """
+        url = f"{self.BASE_URL}/playlist/{playlist_id}/tracks"
+        params = {'limit': limit}
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            return response.json().get('data', [])
+        except requests.RequestException as e:
+            print(f"Error fetching playlist {playlist_id}: {e}")
+            return []
+
     def get_genre_artists(self, genre_id: int, limit: int = 100) -> List[Dict]:
         """
         Get artists for a specific genre.
@@ -333,4 +391,5 @@ class DeezerService:
             'album': album_data.get('title', ''),
             'release_year': release_year,
             'genre': track_data.get('_genre_name'),
+            'rank': track_data.get('rank', 0),
         }
