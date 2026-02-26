@@ -71,7 +71,7 @@ restart_service() {
     return 0
   fi
 
-  if ! systemctl list-unit-files --type=service --no-legend | awk '{print $1}' | grep -qx "${service_name}.service"; then
+  if [ ! -f "/etc/systemd/system/${service_name}.service" ]; then
     echo "[deploy] ${service_name}.service not found. Skipping restart."
     return 0
   fi
