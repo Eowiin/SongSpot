@@ -53,28 +53,40 @@ class Command(BaseCommand):
             pack_tracks = PackTrack.objects.all()
 
         if missing_only and not overwrite:
+            # Filter by stems missing on the Track (not PackTrack)
             missing_q = (
-                Q(vocals_url__isnull=True) | Q(vocals_url='') |
-                Q(drums_url__isnull=True) | Q(drums_url='') |
-                Q(bass_url__isnull=True) | Q(bass_url='') |
-                Q(other_url__isnull=True) | Q(other_url='')
+                Q(track__vocals_url__isnull=True) | Q(track__vocals_url='') |
+                Q(track__drums_url__isnull=True) | Q(track__drums_url='') |
+                Q(track__bass_url__isnull=True) | Q(track__bass_url='') |
+                Q(track__other_url__isnull=True) | Q(track__other_url='')
             )
             pack_tracks = pack_tracks.filter(missing_q)
+            # Deduplicate: if multiple packs share a track, only process it once
+            seen_track_ids = set()
+            unique_pack_tracks = []
+            for pt in pack_tracks.select_related('track'):
+                if pt.track_id not in seen_track_ids:
+                    seen_track_ids.add(pt.track_id)
+                    unique_pack_tracks.append(pt)
+            pack_tracks = unique_pack_tracks
 
-        if not pack_tracks.exists():
+        has_records = pack_tracks.exists() if hasattr(pack_tracks, 'exists') else bool(pack_tracks)
+        if not has_records:
             raise CommandError('No PackTrack records found')
 
         for pack_track in pack_tracks:
             self._process_pack_track(pack_track, source, model, overwrite)
 
     def _process_pack_track(self, pack_track, source, model, overwrite):
+        track = pack_track.track
+        # Stems are stored on Track so the same track is never processed twice
         if not overwrite and all([
-            pack_track.vocals_url,
-            pack_track.drums_url,
-            pack_track.bass_url,
-            pack_track.other_url,
+            track.vocals_url,
+            track.drums_url,
+            track.bass_url,
+            track.other_url,
         ]):
-            self.stdout.write(self.style.WARNING(f'Skipping {pack_track.id}: stems already set'))
+            self.stdout.write(self.style.WARNING(f'Skipping {track.id}: stems already set'))
             return
 
         input_path = None
@@ -85,16 +97,16 @@ class Command(BaseCommand):
                 if not input_path.exists():
                     raise CommandError(f'Source file not found: {source}')
             else:
-                if not pack_track.track.preview_url:
-                    raise CommandError(f'No preview_url for track {pack_track.track_id}')
+                if not track.preview_url:
+                    raise CommandError(f'No preview_url for track {track.id}')
                 temp_dir = tempfile.TemporaryDirectory()
-                input_path = Path(temp_dir.name) / f'{pack_track.track_id}.mp3'
+                input_path = Path(temp_dir.name) / f'{track.id}.mp3'
                 self._download_preview_with_refresh(pack_track, input_path)
 
             output_dir = Path(settings.MEDIA_ROOT) / 'stems'
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            self.stdout.write(self.style.WARNING(f'Running demucs for {pack_track.track.title}...'))
+            self.stdout.write(self.style.WARNING(f'Running demucs for {track.title}...'))
             subprocess.run(
                 ['demucs', '-n', model, '--mp3', '-o', str(output_dir), str(input_path)],
                 check=True
@@ -104,7 +116,9 @@ class Command(BaseCommand):
             if not stems_dir:
                 raise CommandError('Could not locate demucs output directory')
 
-            target_dir = output_dir / f'pack_{pack_track.pack_id}' / f'track_{pack_track.track_id}'
+            # Stems are stored per-track (not per-pack-track) so they can be
+            # shared across all packs that reference the same track.
+            target_dir = output_dir / f'track_{track.id}'
             target_dir.mkdir(parents=True, exist_ok=True)
 
             stem_map = {
@@ -121,13 +135,13 @@ class Command(BaseCommand):
                     continue
                 dest_file = target_dir / filename
                 shutil.copy2(source_file, dest_file)
-                url = f'{settings.MEDIA_URL}stems/pack_{pack_track.pack_id}/track_{pack_track.track_id}/{filename}'
-                setattr(pack_track, field, url)
+                url = f'{settings.MEDIA_URL}stems/track_{track.id}/{filename}'
+                setattr(track, field, url)
                 updated_fields.append(field)
 
             if updated_fields:
-                pack_track.save(update_fields=updated_fields)
-                self.stdout.write(self.style.SUCCESS(f'Updated stems for {pack_track.id}'))
+                track.save(update_fields=updated_fields)
+                self.stdout.write(self.style.SUCCESS(f'Updated stems for track {track.id} ({track.title})'))
         finally:
             if temp_dir:
                 temp_dir.cleanup()

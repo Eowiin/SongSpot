@@ -78,7 +78,12 @@ class _PackDetailScreenState extends State<PackDetailScreen> {
                         pack.description.isEmpty ? 'Stem Pack' : pack.description,
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${pack.trackCount} tracks • ${pack.isFree || pack.priceCoins == 0 ? 'Free' : '${pack.priceCoins} coins'}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 24),
                       if (pack.isOwned)
                         ElevatedButton.icon(
                           onPressed: () {
@@ -105,89 +110,8 @@ class _PackDetailScreenState extends State<PackDetailScreen> {
                                 : 'Buy & Play (${pack.priceCoins} coins)',
                           ),
                         ),
-                      const SizedBox(height: 24),
-                      ..._buildTrackCards(pack.tracks ?? []),
                     ],
                   ),
-      ),
-    );
-  }
-
-  List<Widget> _buildTrackCards(List<PackTrack> tracks) {
-    if (tracks.isEmpty) {
-      return [
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            gradient: AppTheme.cardGradient,
-            borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-          ),
-          child: const Text('No tracks in this pack yet.'),
-        ),
-      ];
-    }
-
-    return tracks.map((packTrack) {
-      final track = packTrack.track;
-      return Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: AppTheme.cardGradient,
-          borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-        ),
-        child: Row(
-          children: [
-            _buildCover(track.coverUrl, packTrack.orderInPack),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    track.title,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    track.artist,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }).toList();
-  }
-
-  Widget _buildCover(String? url, int order) {
-    if (url == null || url.isEmpty) {
-      return CircleAvatar(
-        radius: 24,
-        backgroundColor: AppTheme.backgroundColor,
-        child: Text(
-          order.toString(),
-          style: const TextStyle(color: AppTheme.primaryColor),
-        ),
-      );
-    }
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: Image.network(
-        url,
-        width: 48,
-        height: 48,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => CircleAvatar(
-          radius: 24,
-          backgroundColor: AppTheme.backgroundColor,
-          child: Text(
-            order.toString(),
-            style: const TextStyle(color: AppTheme.primaryColor),
-          ),
-        ),
       ),
     );
   }

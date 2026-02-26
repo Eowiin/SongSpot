@@ -33,7 +33,6 @@ from .serializers import (
     TrackSerializer,
     SongPackListSerializer,
     SongPackDetailSerializer,
-    SongPackPreviewSerializer,
     RoomSerializer,
     RoomCreateSerializer,
     RoomRenameSerializer,
@@ -103,7 +102,7 @@ def _get_pack_bundle_stems(pack_track, stage):
     stage = max(1, min(stage, len(PACK_BUNDLE_STAGE_ORDER)))
     stems = []
     for field in PACK_BUNDLE_STAGE_ORDER[:stage]:
-        url = getattr(pack_track, field, None)
+        url = getattr(pack_track.track, field, None)
         if url:
             stems.append({'type': field.replace('_url', ''), 'url': url})
     return stems
@@ -118,11 +117,12 @@ def _make_stem_urls_absolute(request, stems):
 
 
 def _pack_track_stems_missing(pack_track):
+    track = pack_track.track
     return not all([
-        pack_track.vocals_url,
-        pack_track.drums_url,
-        pack_track.bass_url,
-        pack_track.other_url,
+        track.vocals_url,
+        track.drums_url,
+        track.bass_url,
+        track.other_url,
     ])
 
 
@@ -192,8 +192,8 @@ class RoomCreateView(APIView):
             # Automatically add the host to the room
             RoomUser.objects.create(room=room, user=request.user)
 
-            # Auto-unlock all free packs for the new room
-            free_packs = SongPack.objects.filter(is_free=True)
+            # Auto-unlock packs flagged for automatic room unlock
+            free_packs = SongPack.objects.filter(auto_unlock=True)
             for pack in free_packs:
                 RoomPack.objects.get_or_create(
                     room=room,
@@ -391,9 +391,7 @@ class SongPackDetailView(APIView):
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
             return Response({'error': 'You must be in the room to view this pack'}, status=status.HTTP_403_FORBIDDEN)
         pack = get_object_or_404(SongPack, id=pack_id)
-        is_owned = RoomPack.objects.filter(room=room, pack=pack).exists()
-        serializer_class = SongPackDetailSerializer if is_owned else SongPackPreviewSerializer
-        serializer = serializer_class(pack, context={'request': request, 'room': room})
+        serializer = SongPackDetailSerializer(pack, context={'request': request, 'room': room})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
