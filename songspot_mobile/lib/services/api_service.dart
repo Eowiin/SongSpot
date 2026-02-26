@@ -692,4 +692,31 @@ class ApiService {
       includeAuth: true,
     );
   }
+
+  Future<Map<String, dynamic>> getPackBundleHistory(
+    String roomId,
+    String packId, {
+    int limit = 30,
+    int offset = 0,
+  }) async {
+    return await get(
+      ApiConfig.packBundleHistory(roomId, packId),
+      includeAuth: true,
+      queryParameters: {
+        'limit': limit.toString(),
+        'offset': offset.toString(),
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> getPackBundleHistoryDetail(
+    String roomId,
+    String packId,
+    String date,
+  ) async {
+    return await get(
+      ApiConfig.packBundleHistoryDetail(roomId, packId, date),
+      includeAuth: true,
+    );
+  }
 }

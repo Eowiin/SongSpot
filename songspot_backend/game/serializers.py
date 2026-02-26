@@ -231,6 +231,7 @@ class PackBundleSessionSerializer(serializers.ModelSerializer):
             'created_at',
             'date',
             'pack_track',
+            'hints_used',
         )
         read_only_fields = (
             'id',
@@ -239,6 +240,7 @@ class PackBundleSessionSerializer(serializers.ModelSerializer):
             'created_at',
             'date',
             'pack_track',
+            'hints_used',
         )
 
     def get_pack_track(self, obj):

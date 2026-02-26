@@ -56,6 +56,10 @@ class ApiConfig {
   // History endpoints
   static String roomHistory(String roomId) => '/game/rooms/$roomId/history/';
   static String roomHistoryDetail(String roomId, String date) => '/game/rooms/$roomId/history/$date/';
+  static String packBundleHistory(String roomId, String packId) =>
+      '/game/rooms/$roomId/packs/$packId/history/';
+  static String packBundleHistoryDetail(String roomId, String packId, String date) =>
+      '/game/rooms/$roomId/packs/$packId/history/$date/';
 
   // IAP / Coin shop endpoints
   static const String coinProducts = '/auth/coin-products/';

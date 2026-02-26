@@ -29,6 +29,8 @@ from .views import (
     UserGameHistoryView,
     RoomHistoryListView,
     RoomHistoryDetailView,
+    PackBundleHistoryListView,
+    PackBundleHistoryDetailView,
 )
 
 app_name = 'game'
@@ -76,4 +78,8 @@ urlpatterns = [
     # Room-specific history
     path('rooms/<uuid:room_id>/history/', RoomHistoryListView.as_view(), name='room_history_list'),
     path('rooms/<uuid:room_id>/history/<str:date>/', RoomHistoryDetailView.as_view(), name='room_history_detail'),
+
+    # Pack bundle history
+    path('rooms/<uuid:room_id>/packs/<uuid:pack_id>/history/', PackBundleHistoryListView.as_view(), name='pack_bundle_history_list'),
+    path('rooms/<uuid:room_id>/packs/<uuid:pack_id>/history/<str:date>/', PackBundleHistoryDetailView.as_view(), name='pack_bundle_history_detail'),
 ]
