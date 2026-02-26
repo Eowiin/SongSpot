@@ -46,11 +46,12 @@ class Command(BaseCommand):
                     pack=room_pack.pack,
                     track=daily_track.track
                 ).first()
+                track = daily_track.track
                 if pack_track and not all([
-                    pack_track.vocals_url,
-                    pack_track.drums_url,
-                    pack_track.bass_url,
-                    pack_track.other_url,
+                    track.vocals_url,
+                    track.drums_url,
+                    track.bass_url,
+                    track.other_url,
                 ]):
                     call_command('generate_pack_stems', pack_track_id=str(pack_track.id))
 

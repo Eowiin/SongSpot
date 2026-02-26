@@ -52,6 +52,9 @@ pip install -r requirements.txt
 echo "[deploy] Running migrations"
 python manage.py migrate --noinput
 
+echo "[deploy] Seeding coin products"
+python manage.py seed_coin_products
+
 echo "[deploy] Collecting static files"
 python manage.py collectstatic --noinput
 

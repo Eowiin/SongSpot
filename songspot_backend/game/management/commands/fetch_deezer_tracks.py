@@ -80,7 +80,9 @@ class Command(BaseCommand):
                     artist=track_info['artist'],
                     preview_url=track_info['preview_url'],
                     cover_url=track_info.get('cover_url'),
-                    deezer_id=track_info.get('deezer_id')
+                    deezer_id=track_info.get('deezer_id'),
+                    release_year=track_info.get('release_year'),
+                    genre=track_info.get('genre'),
                 )
 
                 self.stdout.write(

@@ -67,7 +67,7 @@ class User(AbstractBaseUser, PermissionsMixin):
             return 0.0
         return round(self.total_points / self.games_played, 1)
 
-    def add_coins(self, amount, reason=""):
+    def add_coins(self, amount, reason="", transaction_type='earn'):
         """Add coins to user's balance."""
         self.coins += amount
         self.save(update_fields=['coins'])
@@ -75,7 +75,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         CoinTransaction.objects.create(
             user=self,
             amount=amount,
-            transaction_type='earn',
+            transaction_type=transaction_type,
             reason=reason
         )
         return self.coins
@@ -184,6 +184,7 @@ class CoinTransaction(models.Model):
             ('spend', 'Spent'),
             ('bonus', 'Bonus'),
             ('refund', 'Refund'),
+            ('purchase', 'IAP Purchase'),
         ]
     )
     reason = models.CharField(max_length=255, blank=True)
@@ -199,3 +200,102 @@ class CoinTransaction(models.Model):
     def __str__(self):
         sign = '+' if self.amount > 0 else ''
         return f"{self.user.username}: {sign}{self.amount} coins ({self.reason})"
+
+
+class CoinProduct(models.Model):
+    """
+    Defines a coin pack available for real-money purchase via IAP.
+    Product IDs must match App Store Connect / Google Play Console products.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    product_id = models.CharField(
+        max_length=255,
+        unique=True,
+        help_text="Store product ID, e.g. 'com.songspot.coins.500'"
+    )
+    name = models.CharField(max_length=100)
+    coins_amount = models.PositiveIntegerField(help_text="Number of coins awarded on purchase")
+    price_display = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Reference display price, e.g. '$1.99'. Real price comes from the store."
+    )
+    bonus_label = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Optional badge label, e.g. 'Best Value!', 'Most Popular'"
+    )
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'coin_products'
+        ordering = ['sort_order']
+
+    def __str__(self):
+        return f"{self.name} ({self.coins_amount} coins) - {self.product_id}"
+
+
+class IAPReceipt(models.Model):
+    """
+    Audit log of every in-app purchase receipt verification attempt.
+    Ensures idempotency via unique transaction_id.
+    """
+    STORE_APPLE = 'apple'
+    STORE_GOOGLE = 'google'
+    STORE_CHOICES = [
+        (STORE_APPLE, 'Apple'),
+        (STORE_GOOGLE, 'Google'),
+    ]
+
+    STATUS_PENDING = 'pending'
+    STATUS_VERIFIED = 'verified'
+    STATUS_FAILED = 'failed'
+    STATUS_REFUNDED = 'refunded'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_VERIFIED, 'Verified'),
+        (STATUS_FAILED, 'Failed'),
+        (STATUS_REFUNDED, 'Refunded'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='iap_receipts'
+    )
+    coin_product = models.ForeignKey(
+        CoinProduct,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='receipts'
+    )
+    store = models.CharField(max_length=10, choices=STORE_CHOICES)
+    transaction_id = models.CharField(
+        max_length=255,
+        unique=True,
+        help_text="Store-assigned transaction/order ID for idempotency"
+    )
+    receipt_data = models.TextField(
+        blank=True,
+        help_text="Raw receipt/token sent by the client for server verification"
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    coins_credited = models.PositiveIntegerField(default=0)
+    error_message = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    verified_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'iap_receipts'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['transaction_id']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.store} - {self.status} ({self.coins_credited} coins)"

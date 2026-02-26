@@ -38,9 +38,11 @@ class SongPack extends Equatable {
   final String name;
   final String description;
   final String? iconUrl;
+  final String? category;
   final int trackCount;
   final int priceCoins;
   final bool isFree;
+  final bool autoUnlock;
   final bool isFeatured;
   final bool isOwned;
   final DateTime createdAt;
@@ -51,9 +53,11 @@ class SongPack extends Equatable {
     required this.name,
     required this.description,
     this.iconUrl,
+    this.category,
     required this.trackCount,
     required this.priceCoins,
     required this.isFree,
+    required this.autoUnlock,
     required this.isFeatured,
     required this.isOwned,
     required this.createdAt,
@@ -66,9 +70,11 @@ class SongPack extends Equatable {
       name: json['name'] as String,
       description: (json['description'] as String?) ?? '',
       iconUrl: json['icon_url'] as String?,
+      category: json['category'] as String?,
       trackCount: json['track_count'] as int? ?? 0,
       priceCoins: json['price_coins'] as int? ?? 0,
       isFree: json['is_free'] as bool? ?? false,
+      autoUnlock: json['auto_unlock'] as bool? ?? false,
       isFeatured: json['is_featured'] as bool? ?? false,
       isOwned: json['is_owned'] as bool? ?? false,
       createdAt: DateTime.parse(json['created_at'] as String),
@@ -86,9 +92,11 @@ class SongPack extends Equatable {
         name,
         description,
         iconUrl,
+        category,
         trackCount,
         priceCoins,
         isFree,
+        autoUnlock,
         isFeatured,
         isOwned,
         createdAt,

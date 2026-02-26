@@ -12,3 +12,7 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+
+# Fastlane secrets
+fastlane/google-play-key.jks
+fastlane/google-play-key.json

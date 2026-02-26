@@ -15,6 +15,8 @@ from .views import (
     PackBundleGuessView,
     PackBundleLeaderboardView,
     PackBundleMessagesView,
+    DailyGameHintView,
+    PackBundleHintView,
     TrackListView,
     TrackRefreshPreviewView,
     RoomDailySongView,
@@ -25,6 +27,10 @@ from .views import (
     RoomMessagesView,
     SearchTracksView,
     UserGameHistoryView,
+    RoomHistoryListView,
+    RoomHistoryDetailView,
+    PackBundleHistoryListView,
+    PackBundleHistoryDetailView,
 )
 
 app_name = 'game'
@@ -44,6 +50,7 @@ urlpatterns = [
     path('rooms/<uuid:room_id>/daily-game/skip/', SkipSnippetView.as_view(), name='skip_snippet'),
     path('rooms/<uuid:room_id>/daily-game/guess/', SubmitGuessView.as_view(), name='submit_guess'),
     path('rooms/<uuid:room_id>/daily-game/leaderboard/', LeaderboardView.as_view(), name='leaderboard'),
+    path('rooms/<uuid:room_id>/daily-game/hint/', DailyGameHintView.as_view(), name='daily_game_hint'),
 
     # Chat endpoints
     path('rooms/<uuid:room_id>/messages/', RoomMessagesView.as_view(), name='room_messages'),
@@ -58,6 +65,7 @@ urlpatterns = [
     path('rooms/<uuid:room_id>/packs/<uuid:pack_id>/bundle/guess/', PackBundleGuessView.as_view(), name='pack_bundle_guess'),
     path('rooms/<uuid:room_id>/packs/<uuid:pack_id>/bundle/leaderboard/', PackBundleLeaderboardView.as_view(), name='pack_bundle_leaderboard'),
     path('rooms/<uuid:room_id>/packs/<uuid:pack_id>/bundle/messages/', PackBundleMessagesView.as_view(), name='pack_bundle_messages'),
+    path('rooms/<uuid:room_id>/packs/<uuid:pack_id>/bundle/hint/', PackBundleHintView.as_view(), name='pack_bundle_hint'),
 
     # Track endpoints
     path('tracks/', TrackListView.as_view(), name='track_list'),
@@ -66,4 +74,12 @@ urlpatterns = [
 
     # User stats/history
     path('history/', UserGameHistoryView.as_view(), name='game_history'),
+
+    # Room-specific history
+    path('rooms/<uuid:room_id>/history/', RoomHistoryListView.as_view(), name='room_history_list'),
+    path('rooms/<uuid:room_id>/history/<str:date>/', RoomHistoryDetailView.as_view(), name='room_history_detail'),
+
+    # Pack bundle history
+    path('rooms/<uuid:room_id>/packs/<uuid:pack_id>/history/', PackBundleHistoryListView.as_view(), name='pack_bundle_history_list'),
+    path('rooms/<uuid:room_id>/packs/<uuid:pack_id>/history/<str:date>/', PackBundleHistoryDetailView.as_view(), name='pack_bundle_history_detail'),
 ]

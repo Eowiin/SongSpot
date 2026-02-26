@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import 'storage_service.dart';
@@ -538,6 +539,183 @@ class ApiService {
     return await get(
       ApiConfig.searchTracks,
       queryParameters: {'q': query},
+      includeAuth: true,
+    );
+  }
+
+  // IAP / Coin shop methods
+  Future<List<dynamic>> getCoinProducts() async {
+    return await get(ApiConfig.coinProducts, includeAuth: true);
+  }
+
+  Future<Map<String, dynamic>> verifyIAP({
+    required String store,
+    required String productId,
+    required String receiptData,
+    required String transactionId,
+  }) async {
+    return await post(
+      ApiConfig.iapVerify,
+      body: {
+        'store': store,
+        'product_id': productId,
+        'receipt_data': receiptData,
+        'transaction_id': transactionId,
+      },
+      includeAuth: true,
+    );
+  }
+
+  // Hint methods
+  Future<Map<String, dynamic>> purchaseDailyGameHint({
+    required String roomId,
+    required String hintType,
+  }) async {
+    return await post(
+      ApiConfig.dailyGameHint(roomId),
+      body: {'hint_type': hintType},
+      includeAuth: true,
+    );
+  }
+
+  Future<Map<String, dynamic>> purchasePackBundleHint({
+    required String roomId,
+    required String packId,
+    required String hintType,
+  }) async {
+    return await post(
+      ApiConfig.packBundleHint(roomId, packId),
+      body: {'hint_type': hintType},
+      includeAuth: true,
+    );
+  }
+
+  // Account management methods
+  Future<Map<String, dynamic>> changeEmail({
+    required String currentPassword,
+    required String newEmail,
+  }) async {
+    return await post(
+      ApiConfig.changeEmail,
+      body: {
+        'current_password': currentPassword,
+        'new_email': newEmail,
+      },
+      includeAuth: true,
+    );
+  }
+
+  Future<Map<String, dynamic>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String confirmNewPassword,
+  }) async {
+    return await post(
+      ApiConfig.changePassword,
+      body: {
+        'current_password': currentPassword,
+        'new_password': newPassword,
+        'confirm_new_password': confirmNewPassword,
+      },
+      includeAuth: true,
+    );
+  }
+
+  /// Returns the raw JSON bytes of the data export file.
+  Future<Uint8List> exportData() async {
+    final token = await _storageService.getAccessToken();
+    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.dataExport}');
+    final headers = {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+
+    try {
+      final response = await http.get(uri, headers: headers).timeout(ApiConfig.timeout);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return response.bodyBytes;
+      } else {
+        throw ApiException('Export failed with status: ${response.statusCode}', statusCode: response.statusCode);
+      }
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Network error: $e');
+    }
+  }
+
+  Future<void> deleteAccount({required String password}) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.deleteAccount}');
+    final token = await _storageService.getAccessToken();
+    final headers = {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+
+    try {
+      final response = await http
+          .delete(
+            uri,
+            headers: headers,
+            body: jsonEncode({'password': password}),
+          )
+          .timeout(ApiConfig.timeout);
+
+      if (response.statusCode == 204) return;
+      _handleResponse(response);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Network error: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> getRoomHistory(
+    String roomId, {
+    int limit = 30,
+    int offset = 0,
+  }) async {
+    return await get(
+      ApiConfig.roomHistory(roomId),
+      includeAuth: true,
+      queryParameters: {
+        'limit': limit.toString(),
+        'offset': offset.toString(),
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> getRoomHistoryDetail(
+    String roomId,
+    String date,
+  ) async {
+    return await get(
+      ApiConfig.roomHistoryDetail(roomId, date),
+      includeAuth: true,
+    );
+  }
+
+  Future<Map<String, dynamic>> getPackBundleHistory(
+    String roomId,
+    String packId, {
+    int limit = 30,
+    int offset = 0,
+  }) async {
+    return await get(
+      ApiConfig.packBundleHistory(roomId, packId),
+      includeAuth: true,
+      queryParameters: {
+        'limit': limit.toString(),
+        'offset': offset.toString(),
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> getPackBundleHistoryDetail(
+    String roomId,
+    String packId,
+    String date,
+  ) async {
+    return await get(
+      ApiConfig.packBundleHistoryDetail(roomId, packId, date),
       includeAuth: true,
     );
   }

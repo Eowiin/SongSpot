@@ -1,0 +1,381 @@
+import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../config/app_theme.dart';
+import '../../l10n/app_localizations.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/settings_provider.dart';
+import '../auth/login_screen.dart';
+import 'accessibility_screen.dart';
+import 'change_email_screen.dart';
+import 'change_password_screen.dart';
+import 'language_screen.dart';
+import 'my_data_screen.dart';
+import '../shop/coin_shop_screen.dart';
+
+// TODO: Replace with your actual URLs
+const _kPrivacyPolicyUrl = 'https://songspot.app/privacy';
+const _kTermsOfServiceUrl = 'https://songspot.app/terms';
+
+class SettingsScreen extends StatefulWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  String _appVersion = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() {
+        _appVersion = '${info.version} (${info.buildNumber})';
+      });
+    }
+  }
+
+  Future<void> _handleLogout() async {
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceColor,
+        title: Text(l10n.logoutConfirmTitle),
+        content: Text(l10n.logoutConfirmMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              l10n.logout,
+              style: const TextStyle(color: AppTheme.errorColor),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      await context.read<AuthProvider>().logout();
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (route) => false,
+        );
+      }
+    }
+  }
+
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open link')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final settings = context.watch<SettingsProvider>();
+
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // App bar
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(
+                  children: [
+                    Semantics(
+                      label: 'Back',
+                      button: true,
+                      child: IconButton(
+                        icon: const Icon(Icons.arrow_back_ios_new),
+                        onPressed: () => Navigator.of(context).pop(),
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                    Flexible(
+                      child: Text(
+                        l10n.settingsTitle,
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  children: [
+                    // ── Account ──────────────────────────────────────────
+                    _SectionHeader(l10n.settingsSectionAccount),
+                    _SettingsTile(
+                      icon: Icons.email_outlined,
+                      title: l10n.settingsChangeEmail,
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const ChangeEmailScreen()),
+                      ),
+                    ),
+                    _SettingsTile(
+                      icon: Icons.lock_outline,
+                      title: l10n.settingsChangePassword,
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // ── Shop ───────────────────────────────────────────────
+                    _SectionHeader('SHOP'),
+                    _SettingsTile(
+                      icon: Icons.monetization_on_outlined,
+                      title: 'Coin Shop',
+                      subtitle: 'Buy coins to unlock packs and hints',
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const CoinShopScreen()),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // ── Notifications ─────────────────────────────────────
+                    _SectionHeader(l10n.settingsSectionNotifications),
+                    _SettingsSwitch(
+                      icon: Icons.music_note_outlined,
+                      title: l10n.settingsDailySongNotifications,
+                      value: settings.dailySongNotifications,
+                      onChanged: (v) => settings.setDailySongNotifications(v),
+                    ),
+                    _SettingsSwitch(
+                      icon: Icons.chat_bubble_outline,
+                      title: l10n.settingsMessageNotifications,
+                      value: settings.messagesNotifications,
+                      onChanged: (v) => settings.setMessagesNotifications(v),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // ── Accessibility ─────────────────────────────────────
+                    _SectionHeader(l10n.settingsSectionAccessibility),
+                    _SettingsTile(
+                      icon: Icons.accessibility_new_outlined,
+                      title: l10n.settingsAccessibility,
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const AccessibilityScreen()),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // ── Language ──────────────────────────────────────────
+                    _SectionHeader(l10n.settingsSectionLanguage),
+                    _SettingsTile(
+                      icon: Icons.language_outlined,
+                      title: l10n.settingsLanguage,
+                      trailing: Text(
+                        settings.locale.languageCode == 'fr' ? 'Français' : 'English',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const LanguageScreen()),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // ── My Data ───────────────────────────────────────────
+                    _SectionHeader(l10n.settingsSectionMyData),
+                    _SettingsTile(
+                      icon: Icons.download_outlined,
+                      title: l10n.settingsExportData,
+                      subtitle: l10n.settingsExportDataSubtitle,
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const MyDataScreen()),
+                      ),
+                    ),
+                    _SettingsTile(
+                      icon: Icons.delete_outline,
+                      title: l10n.settingsDeleteAccount,
+                      subtitle: l10n.settingsDeleteAccountSubtitle,
+                      iconColor: AppTheme.errorColor,
+                      titleColor: AppTheme.errorColor,
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const MyDataScreen(showDeleteSection: true)),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // ── About ─────────────────────────────────────────────
+                    _SectionHeader(l10n.settingsSectionAbout),
+                    _SettingsTile(
+                      icon: Icons.info_outline,
+                      title: l10n.settingsAppVersion,
+                      trailing: Text(
+                        _appVersion,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      onTap: null,
+                    ),
+                    _SettingsTile(
+                      icon: Icons.privacy_tip_outlined,
+                      title: l10n.settingsPrivacyPolicy,
+                      onTap: () => _openUrl(_kPrivacyPolicyUrl),
+                    ),
+                    _SettingsTile(
+                      icon: Icons.article_outlined,
+                      title: l10n.settingsTermsOfService,
+                      onTap: () => _openUrl(_kTermsOfServiceUrl),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // ── Logout ────────────────────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: OutlinedButton.icon(
+                        onPressed: _handleLogout,
+                        icon: const Icon(Icons.logout, color: AppTheme.errorColor),
+                        label: Text(
+                          l10n.logout,
+                          style: const TextStyle(color: AppTheme.errorColor),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: AppTheme.errorColor),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader(this.title);
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      header: true,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(4, 16, 4, 6),
+        child: Text(
+          title.toUpperCase(),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                letterSpacing: 1.2,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.primaryColor,
+              ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsTile extends StatelessWidget {
+  const _SettingsTile({
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    this.trailing,
+    this.onTap,
+    this.iconColor,
+    this.titleColor,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+  final Color? iconColor;
+  final Color? titleColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 2),
+      decoration: BoxDecoration(
+        gradient: AppTheme.cardGradient,
+        borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+      ),
+      child: ListTile(
+        leading: Icon(icon, color: iconColor ?? AppTheme.primaryColor),
+        title: Text(
+          title,
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: titleColor,
+              ),
+        ),
+        subtitle: subtitle != null
+            ? Text(subtitle!, style: Theme.of(context).textTheme.bodyMedium)
+            : null,
+        trailing: trailing ??
+            (onTap != null
+                ? const Icon(Icons.arrow_forward_ios, size: 16, color: AppTheme.textSecondary)
+                : null),
+        onTap: onTap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.borderRadius)),
+      ),
+    );
+  }
+}
+
+class _SettingsSwitch extends StatelessWidget {
+  const _SettingsSwitch({
+    required this.icon,
+    required this.title,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String title;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 2),
+      decoration: BoxDecoration(
+        gradient: AppTheme.cardGradient,
+        borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+      ),
+      child: SwitchListTile(
+        secondary: Icon(icon, color: AppTheme.primaryColor),
+        title: Text(title, style: Theme.of(context).textTheme.bodyLarge),
+        value: value,
+        onChanged: onChanged,
+        activeThumbColor: AppTheme.primaryColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.borderRadius)),
+      ),
+    );
+  }
+}

@@ -3,11 +3,14 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth import authenticate, get_user_model
 from django.db import transaction
 from django.utils import timezone
-from .models import UserDevicePushToken
+from django.http import HttpResponse
+import json
+from .models import UserDevicePushToken, CoinTransaction
 from .serializers import (
     UserRegistrationSerializer,
     UserSerializer,
@@ -15,6 +18,9 @@ from .serializers import (
     LoginSerializer,
     PushDeviceRegisterSerializer,
     PushDeviceUnregisterSerializer,
+    ChangeEmailSerializer,
+    ChangePasswordSerializer,
+    DeleteAccountSerializer,
 )
 from songspot.throttling import AuthRateThrottle
 
@@ -289,3 +295,223 @@ class PushDeviceUnregisterView(APIView):
             'deactivated': updated,
             'message': 'Push device unregistered',
         }, status=status.HTTP_200_OK)
+
+
+class ChangeEmailView(APIView):
+    """
+    Change the current user's email address.
+
+    POST /api/auth/change-email/
+    Headers: Authorization: Bearer <access_token>
+    Body: {
+        "current_password": "secret",
+        "new_email": "new@example.com"
+    }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ChangeEmailSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = request.user
+        if not user.check_password(serializer.validated_data['current_password']):
+            return Response(
+                {'error': 'Invalid password.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.email = serializer.validated_data['new_email']
+        user.save(update_fields=['email'])
+
+        return Response(
+            {'message': 'Email updated successfully.', 'email': user.email},
+            status=status.HTTP_200_OK,
+        )
+
+
+class ChangePasswordView(APIView):
+    """
+    Change the current user's password.
+    All existing refresh tokens are blacklisted on success (forces re-login).
+
+    POST /api/auth/change-password/
+    Headers: Authorization: Bearer <access_token>
+    Body: {
+        "current_password": "old_secret",
+        "new_password": "new_secret",
+        "confirm_new_password": "new_secret"
+    }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = request.user
+        if not user.check_password(serializer.validated_data['current_password']):
+            return Response(
+                {'error': 'Invalid current password.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            user.set_password(serializer.validated_data['new_password'])
+            user.save(update_fields=['password'])
+
+            # Blacklist all outstanding tokens to force re-login on all devices
+            outstanding = OutstandingToken.objects.filter(user=user)
+            for token in outstanding:
+                try:
+                    token.blacklistedtoken
+                except Exception:
+                    from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
+                    BlacklistedToken.objects.get_or_create(token=token)
+
+        return Response(
+            {'message': 'Password updated successfully. Please log in again.'},
+            status=status.HTTP_200_OK,
+        )
+
+
+class DataExportView(APIView):
+    """
+    Export all personal data for the current user (GDPR data portability).
+
+    GET /api/auth/data/export/
+    Headers: Authorization: Bearer <access_token>
+
+    Returns a JSON file attachment with all user data.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from game.models import DailyGameSession, GuessAttempt, RoomUser, RoomMessage, UserPack, PackBundleMessage
+
+        user = request.user
+
+        game_sessions = list(
+            DailyGameSession.objects.filter(user=user).values(
+                'id', 'room_id', 'correct_guess', 'guesses_made',
+                'current_snippet', 'points_earned', 'completed_at', 'created_at',
+            )
+        )
+
+        guess_attempts = list(
+            GuessAttempt.objects.filter(game_session__user=user).values(
+                'id', 'game_session_id', 'guessed_title', 'guessed_artist',
+                'snippet_number', 'is_correct', 'created_at',
+            )
+        )
+
+        room_memberships = list(
+            RoomUser.objects.filter(user=user).values(
+                'room_id', 'room__name', 'joined_at',
+            )
+        )
+
+        messages_sent = list(
+            RoomMessage.objects.filter(user=user).values(
+                'id', 'room_id', 'message', 'created_at',
+            )
+        )
+
+        bundle_messages_sent = list(
+            PackBundleMessage.objects.filter(user=user).values(
+                'id', 'room_id', 'pack_id', 'message', 'created_at',
+            )
+        )
+
+        packs_purchased = list(
+            UserPack.objects.filter(user=user).values(
+                'pack_id', 'pack__name', 'purchased_at',
+            )
+        )
+
+        coin_history = list(
+            CoinTransaction.objects.filter(user=user).values(
+                'id', 'amount', 'transaction_type', 'reason', 'created_at',
+            )
+        )
+
+        payload = {
+            'exported_at': timezone.now().isoformat(),
+            'profile': {
+                'id': str(user.id),
+                'username': user.username,
+                'email': user.email,
+                'coins': user.coins,
+                'games_played': user.games_played,
+                'games_won': user.games_won,
+                'total_points': user.total_points,
+                'current_streak': user.current_streak,
+                'best_streak': user.best_streak,
+                'perfect_games': user.perfect_games,
+                'created_at': user.created_at.isoformat(),
+            },
+            'game_sessions': [
+                {**s, 'id': str(s['id']), 'room_id': str(s['room_id']), 'created_at': s['created_at'].isoformat() if s['created_at'] else None}
+                for s in game_sessions
+            ],
+            'guess_attempts': [
+                {**g, 'id': str(g['id']), 'game_session_id': str(g['game_session_id']), 'created_at': g['created_at'].isoformat() if g['created_at'] else None}
+                for g in guess_attempts
+            ],
+            'room_memberships': [
+                {**r, 'room_id': str(r['room_id']), 'joined_at': r['joined_at'].isoformat() if r['joined_at'] else None}
+                for r in room_memberships
+            ],
+            'messages_sent': [
+                {**m, 'id': str(m['id']), 'room_id': str(m['room_id']), 'created_at': m['created_at'].isoformat() if m['created_at'] else None}
+                for m in messages_sent
+            ],
+            'bundle_messages_sent': [
+                {**m, 'id': str(m['id']), 'created_at': m['created_at'].isoformat() if m['created_at'] else None}
+                for m in bundle_messages_sent
+            ],
+            'packs_purchased': [
+                {**p, 'pack_id': str(p['pack_id']), 'purchased_at': p['purchased_at'].isoformat() if p['purchased_at'] else None}
+                for p in packs_purchased
+            ],
+            'coin_transactions': [
+                {**c, 'id': str(c['id']), 'created_at': c['created_at'].isoformat() if c['created_at'] else None}
+                for c in coin_history
+            ],
+        }
+
+        json_bytes = json.dumps(payload, indent=2, default=str).encode('utf-8')
+        filename = f"songspot_data_{user.id}.json"
+
+        response = HttpResponse(json_bytes, content_type='application/json')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+
+class DeleteAccountView(APIView):
+    """
+    Permanently delete the current user's account and all associated data.
+
+    DELETE /api/auth/account/
+    Headers: Authorization: Bearer <access_token>
+    Body: {
+        "password": "secret"
+    }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request):
+        serializer = DeleteAccountSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = request.user
+        if not user.check_password(serializer.validated_data['password']):
+            return Response(
+                {'error': 'Invalid password.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            user.delete()
+
+        return Response(status=status.HTTP_204_NO_CONTENT)

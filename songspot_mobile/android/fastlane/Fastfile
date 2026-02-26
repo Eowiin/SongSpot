@@ -1,0 +1,77 @@
+default_platform(:android)
+
+# ── Version helper ────────────────────────────────────────────────────────────
+# Bumps pubspec.yaml version (semver + build number).
+# part: "patch" | "minor" | "major"   (default: "patch")
+def bump_pubspec(part = "patch")
+  pubspec_path = File.expand_path("../../pubspec.yaml", __dir__)
+  content = File.read(pubspec_path)
+  current = content.match(/^version: (.+)$/)[1]
+  semver, build = current.split("+")
+  major, minor, patch_v = semver.split(".").map(&:to_i)
+
+  case part
+  when "major" then major += 1; minor = 0; patch_v = 0
+  when "minor" then minor += 1; patch_v = 0
+  when "patch" then patch_v += 1
+  else UI.user_error!("bump must be major, minor, or patch (got: #{part})")
+  end
+
+  new_build = build.to_i + 1
+  new_version = "#{major}.#{minor}.#{patch_v}+#{new_build}"
+  File.write(pubspec_path, content.gsub(/^version: .+$/, "version: #{new_version}"))
+  UI.success("Version: #{current} → #{new_version}")
+  new_version
+end
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+platform :android do
+  private_lane :build_aab do |options|
+    bump_pubspec(options[:bump] || "patch")
+    Dir.chdir("../..") do
+      sh("flutter", "build", "appbundle", "--release")
+    end
+    File.expand_path("../../build/app/outputs/bundle/release/app-release.aab", __dir__)
+  end
+
+  desc "Bump version, build, and upload to internal testing track. Options: bump:patch|minor|major"
+  lane :internal do |options|
+    aab_path = build_aab(bump: options[:bump] || "patch")
+    upload_to_play_store(
+      track: "internal",
+      aab: aab_path,
+      json_key: "fastlane/google-play-key.json",
+      release_status: "draft"
+    )
+  end
+
+  desc "Promote internal track to closed testing (alpha) — no build"
+  lane :closed_testing do
+    upload_to_play_store(
+      track: "internal",
+      track_promote_to: "alpha",
+      json_key: "fastlane/google-play-key.json"
+    )
+  end
+
+  desc "Promote closed testing (alpha) track to production — no build"
+  lane :production do
+    upload_to_play_store(
+      track: "alpha",
+      track_promote_to: "production",
+      json_key: "fastlane/google-play-key.json"
+    )
+  end
+
+  desc "Bump version, build, and release directly to Play Store production. Options: bump:patch|minor|major"
+  lane :play_store do |options|
+    aab_path = build_aab(bump: options[:bump] || "patch")
+    upload_to_play_store(
+      track: "production",
+      aab: aab_path,
+      json_key: "fastlane/google-play-key.json",
+      release_status: "completed"
+    )
+  end
+end

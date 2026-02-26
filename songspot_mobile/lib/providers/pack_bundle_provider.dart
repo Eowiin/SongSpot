@@ -14,6 +14,8 @@ class PackBundleProvider with ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
   String? _guessResult;
+  Map<String, String> _hintValues = {};
+  String? _loadedPackId;
 
   PackBundleSession? get session => _session;
   List<Stem> get stems => _stems;
@@ -23,26 +25,85 @@ class PackBundleProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   String? get guessResult => _guessResult;
+  Map<String, String> get hintValues => _hintValues;
+  String? get loadedPackId => _loadedPackId;
 
   Future<void> loadSession({required String roomId, required String packId}) async {
-    try {
-      _isLoading = true;
-      _errorMessage = null;
-      _guessResult = null;
-      notifyListeners();
+    // If switching to a different pack, clear stale state so loading skeleton shows.
+    if (_loadedPackId != packId) {
+      _session = null;
+      _hintValues = {};
+      _loadedPackId = null;
+    }
 
+    _isLoading = true;
+    _errorMessage = null;
+    _guessResult = null;
+    notifyListeners();
+
+    try {
       final response = await _apiService.getPackBundle(roomId: roomId, packId: packId);
-      _session = PackBundleSession.fromJson(response['session'] as Map<String, dynamic>);
-      _stems = (response['stems'] as List)
+      final newSession = PackBundleSession.fromJson(response['session'] as Map<String, dynamic>);
+      final newStems = (response['stems'] as List)
           .map((item) => Stem.fromJson(item as Map<String, dynamic>))
           .toList();
-      _stemsStatus = response['stems_status'] as String? ?? 'ready';
+      final newStemsStatus = response['stems_status'] as String? ?? 'ready';
+
+      // Restore previously purchased hints into a local map first.
+      final newHintValues = <String, String>{};
+      for (final hintType in newSession.hintsUsed) {
+        try {
+          final hintResponse = await _apiService.purchasePackBundleHint(
+            roomId: roomId,
+            packId: packId,
+            hintType: hintType,
+          );
+          newHintValues[hintType] = hintResponse['hint_value'] as String;
+        } catch (_) {
+          // Ignore errors restoring individual hints
+        }
+      }
+
+      // Atomic swap — no intermediate state is ever rendered.
+      _session = newSession;
+      _stems = newStems;
+      _stemsStatus = newStemsStatus;
+      _hintValues = newHintValues;
+      _loadedPackId = packId;
     } catch (e) {
       _errorMessage = e.toString();
+      _hintValues = {};
     } finally {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  Future<Map<String, dynamic>> purchaseHint({
+    required String roomId,
+    required String packId,
+    required String hintType,
+  }) async {
+    final response = await _apiService.purchasePackBundleHint(
+      roomId: roomId,
+      packId: packId,
+      hintType: hintType,
+    );
+    _hintValues[hintType] = response['hint_value'] as String;
+    if (_session != null && !_session!.hintsUsed.contains(hintType)) {
+      _session = PackBundleSession(
+        id: _session!.id,
+        currentStage: _session!.currentStage,
+        pointsEarned: _session!.pointsEarned,
+        completedAt: _session!.completedAt,
+        createdAt: _session!.createdAt,
+        packTrack: _session!.packTrack,
+        date: _session!.date,
+        hintsUsed: [..._session!.hintsUsed, hintType],
+      );
+    }
+    notifyListeners();
+    return response;
   }
 
   Future<void> loadLeaderboard({required String roomId, required String packId}) async {
