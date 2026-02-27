@@ -305,7 +305,6 @@ class Command(BaseCommand):
             description=f'{category_name} stem pack.',
             category=category_key,
             price_coins=price_coins,
-            is_featured=True,
             auto_unlock=False,
         )
         for order, track in enumerate(selected_tracks, start=1):

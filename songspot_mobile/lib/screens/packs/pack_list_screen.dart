@@ -263,7 +263,6 @@ class _PackListScreenState extends State<PackListScreen> {
                   _categoryLabels[pack.category!] ?? pack.category!,
                   AppTheme.primaryColor,
                 ),
-              if (pack.isFeatured) _buildTag(context, 'Featured', AppTheme.primaryColor),
               if (pack.isOwned) _buildTag(context, 'Owned', AppTheme.successColor),
               if (pack.isFree || pack.priceCoins == 0)
                 _buildTag(context, 'Free', AppTheme.secondaryColor),

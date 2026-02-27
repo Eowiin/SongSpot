@@ -59,7 +59,7 @@ class SongPackListSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'name', 'description', 'icon_url', 'track_count',
             'category', 'price_coins', 'is_free', 'auto_unlock',
-            'is_featured', 'is_owned', 'created_at',
+            'is_owned', 'created_at',
         )
         read_only_fields = ('id', 'created_at')
 
@@ -83,7 +83,7 @@ class SongPackDetailSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'name', 'description', 'icon_url', 'track_count',
             'category', 'price_coins', 'is_free', 'auto_unlock',
-            'is_featured', 'is_owned', 'created_at',
+            'is_owned', 'created_at',
         )
         read_only_fields = ('id', 'created_at')
 
