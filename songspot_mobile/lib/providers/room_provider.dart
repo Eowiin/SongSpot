@@ -128,6 +128,26 @@ class RoomProvider with ChangeNotifier {
     }
   }
 
+  /// Leave a room without toggling global loading state.
+  /// Useful for swipe-to-delete flows with optimistic UI.
+  Future<bool> leaveRoomSilently(String roomId) async {
+    try {
+      _errorMessage = null;
+      await _apiService.leaveRoom(roomId);
+
+      _myRooms = _myRooms.where((room) => room.id != roomId).toList();
+      if (_currentRoom?.id == roomId) {
+        _currentRoom = null;
+      }
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Rename a room (host only)
   Future<Room?> renameRoom(String roomId, String? name) async {
     try {

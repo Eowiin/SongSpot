@@ -25,6 +25,8 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
   int? _rewardDailyCap;
   int? _rewardRemainingToday;
   int? _rewardCoinsPerClaim;
+  int? _lastRewardCoinsEarned;
+  Timer? _rewardFeedbackTimer;
   BannerAd? _bannerAd;
   bool _isBannerReady = false;
 
@@ -46,6 +48,7 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
 
   @override
   void dispose() {
+    _rewardFeedbackTimer?.cancel();
     _bannerAd?.dispose();
     super.dispose();
   }
@@ -121,6 +124,12 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
             _rewardCoinsPerClaim = coinsAwarded;
             if (dailyCap != null) _rewardDailyCap = dailyCap;
             if (remainingToday != null) _rewardRemainingToday = remainingToday;
+            _lastRewardCoinsEarned = coinsAwarded;
+          });
+          _rewardFeedbackTimer?.cancel();
+          _rewardFeedbackTimer = Timer(const Duration(seconds: 4), () {
+            if (!mounted) return;
+            setState(() => _lastRewardCoinsEarned = null);
           });
         },
       );
@@ -489,6 +498,46 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
                 : _handleWatchAdForCoins,
             icon: const Icon(Icons.play_circle_outline),
             label: Text(buttonLabel),
+          ),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: _lastRewardCoinsEarned == null
+                ? const SizedBox.shrink()
+                : Container(
+                    key: ValueKey('reward-feedback-$_lastRewardCoinsEarned'),
+                    margin: const EdgeInsets.only(top: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.successColor.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppTheme.successColor.withValues(alpha: 0.45),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.check_circle_outline,
+                          color: AppTheme.successColor,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '+$_lastRewardCoinsEarned coins added to your balance.',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: AppTheme.successColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
           ),
         ],
       ),

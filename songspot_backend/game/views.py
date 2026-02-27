@@ -81,6 +81,14 @@ def _daily_game_retry_coin_cost():
     return max(0, int(getattr(settings, 'DAILY_GAME_RETRY_COIN_COST', 120)))
 
 
+def _max_hosted_rooms_per_user():
+    return max(1, int(getattr(settings, 'MAX_HOSTED_ROOMS_PER_USER', 5)))
+
+
+def _max_room_creations_per_day():
+    return max(1, int(getattr(settings, 'MAX_ROOM_CREATIONS_PER_DAY', 5)))
+
+
 def _next_retry_requirement(game_session):
     if game_session.retry_credits > 0:
         return None
@@ -220,6 +228,26 @@ class RoomCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        hosted_rooms_count = Room.objects.filter(host_user=request.user).count()
+        max_hosted_rooms = _max_hosted_rooms_per_user()
+        if hosted_rooms_count >= max_hosted_rooms:
+            return Response({
+                'error': f'Room limit reached ({max_hosted_rooms} hosted rooms). '
+                         f'Delete or leave one room before creating another.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        today = timezone.now().date()
+        created_today_count = Room.objects.filter(
+            host_user=request.user,
+            created_at__date=today,
+        ).count()
+        max_creations_per_day = _max_room_creations_per_day()
+        if created_today_count >= max_creations_per_day:
+            return Response({
+                'error': f'Daily room creation limit reached ({max_creations_per_day}/day). '
+                         f'Try again tomorrow.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         # Create new room with auto-generated code
         serializer = RoomCreateSerializer(data={})
         if serializer.is_valid():

@@ -1,4 +1,4 @@
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 from rest_framework import status
@@ -97,6 +97,22 @@ class RoomCreateViewTests(APITestCase):
         self.client.credentials()
         response = self.client.post(self.create_url, {}, format='json')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @override_settings(MAX_HOSTED_ROOMS_PER_USER=1, MAX_ROOM_CREATIONS_PER_DAY=5)
+    def test_create_room_fails_when_hosted_room_limit_reached(self):
+        """Test room creation fails when hosted room cap is reached."""
+        Room.objects.create(host_user=self.user)
+        response = self.client.post(self.create_url, {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('Room limit reached', response.data.get('error', ''))
+
+    @override_settings(MAX_HOSTED_ROOMS_PER_USER=50, MAX_ROOM_CREATIONS_PER_DAY=1)
+    def test_create_room_fails_when_daily_creation_limit_reached(self):
+        """Test room creation fails when daily creation cap is reached."""
+        Room.objects.create(host_user=self.user)
+        response = self.client.post(self.create_url, {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('Daily room creation limit reached', response.data.get('error', ''))
 
 
 class RoomJoinViewTests(APITestCase):

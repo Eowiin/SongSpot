@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../models/room.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/room_provider.dart';
 import '../../widgets/gradient_button.dart';
@@ -17,6 +20,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _roomCodeController = TextEditingController();
+  Room? _pendingDeleteRoom;
+  bool _isCommittingRoomDeletion = false;
 
   @override
   void initState() {
@@ -37,11 +42,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final room = await roomProvider.createRoom();
 
     if (room != null && mounted) {
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => GameScreen(roomId: room.id),
-        ),
-      );
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => GameScreen(roomId: room.id)));
       // Refresh rooms when returning from GameScreen
       if (mounted) {
         roomProvider.loadMyRooms();
@@ -73,11 +76,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (room != null && mounted) {
       _roomCodeController.clear();
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => GameScreen(roomId: room.id),
-        ),
-      );
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => GameScreen(roomId: room.id)));
       // Refresh rooms when returning from GameScreen
       if (mounted) {
         roomProvider.loadMyRooms();
@@ -93,9 +94,103 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _handleOpenSettings() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+  }
+
+  Future<bool> _handleRoomDismiss(Room room) async {
+    if (_pendingDeleteRoom != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Finish or undo the current room deletion first.'),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+      return false;
+    }
+
+    setState(() => _pendingDeleteRoom = room);
+
+    final currentUserId = context.read<AuthProvider>().user?.id;
+    final isHost = currentUserId != null && room.isHost(currentUserId);
+    final message = isHost && room.userCount > 1
+        ? 'Left room. Host transferred.'
+        : 'Room removed.';
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    unawaited(
+      messenger
+          .showSnackBar(
+            SnackBar(
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 5),
+              backgroundColor: AppTheme.surfaceColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: AppTheme.primaryColor.withValues(alpha: 0.45),
+                ),
+              ),
+              content: Text(
+                message,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              action: SnackBarAction(
+                label: 'Undo',
+                textColor: AppTheme.accentColor,
+                onPressed: _undoPendingRoomDeletion,
+              ),
+            ),
+          )
+          .closed
+          .then((reason) {
+            if (!mounted) return;
+            if (_pendingDeleteRoom?.id != room.id) return;
+            if (reason == SnackBarClosedReason.action) return;
+            unawaited(_commitPendingRoomDeletion(room));
+          }),
     );
+
+    return true;
+  }
+
+  void _undoPendingRoomDeletion() {
+    if (_pendingDeleteRoom == null || _isCommittingRoomDeletion) return;
+    setState(() => _pendingDeleteRoom = null);
+  }
+
+  Future<void> _commitPendingRoomDeletion(Room room) async {
+    if (_pendingDeleteRoom?.id != room.id || _isCommittingRoomDeletion) return;
+
+    setState(() => _isCommittingRoomDeletion = true);
+
+    final roomProvider = context.read<RoomProvider>();
+    final success = await roomProvider.leaveRoomSilently(room.id);
+
+    if (!mounted) return;
+
+    setState(() {
+      _isCommittingRoomDeletion = false;
+      _pendingDeleteRoom = null;
+    });
+
+    if (!success) {
+      final errorText = roomProvider.errorMessage ?? 'Could not delete room.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorText.replaceFirst('Exception: ', '')),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+      roomProvider.clearError();
+    }
   }
 
   @override
@@ -211,7 +306,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                 filled: true,
                                 fillColor: AppTheme.surfaceColor,
                                 border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+                                  borderRadius: BorderRadius.circular(
+                                    AppTheme.borderRadius,
+                                  ),
                                   borderSide: BorderSide.none,
                                 ),
                                 contentPadding: const EdgeInsets.symmetric(
@@ -220,9 +317,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                               ),
                               textCapitalization: TextCapitalization.characters,
-                              inputFormatters: [
-                                UpperCaseTextFormatter(),
-                              ],
+                              inputFormatters: [UpperCaseTextFormatter()],
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -231,14 +326,21 @@ class _HomeScreenState extends State<HomeScreen> {
                             width: 56,
                             decoration: BoxDecoration(
                               gradient: AppTheme.primaryGradient,
-                              borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.borderRadius,
+                              ),
                             ),
                             child: Material(
                               color: Colors.transparent,
                               child: InkWell(
                                 onTap: _handleJoinRoom,
-                                borderRadius: BorderRadius.circular(AppTheme.borderRadius),
-                                child: const Icon(Icons.arrow_forward, color: Colors.white),
+                                borderRadius: BorderRadius.circular(
+                                  AppTheme.borderRadius,
+                                ),
+                                child: const Icon(
+                                  Icons.arrow_forward,
+                                  color: Colors.white,
+                                ),
                               ),
                             ),
                           ),
@@ -255,15 +357,24 @@ class _HomeScreenState extends State<HomeScreen> {
                       Consumer<RoomProvider>(
                         builder: (context, roomProvider, _) {
                           if (roomProvider.isLoading) {
-                            return const Center(child: CircularProgressIndicator());
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
                           }
 
-                          if (roomProvider.myRooms.isEmpty) {
+                          final pendingRoomId = _pendingDeleteRoom?.id;
+                          final visibleRooms = roomProvider.myRooms
+                              .where((room) => room.id != pendingRoomId)
+                              .toList();
+
+                          if (visibleRooms.isEmpty) {
                             return Container(
                               padding: const EdgeInsets.all(32),
                               decoration: BoxDecoration(
                                 gradient: AppTheme.cardGradient,
-                                borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+                                borderRadius: BorderRadius.circular(
+                                  AppTheme.cardBorderRadius,
+                                ),
                               ),
                               child: Column(
                                 children: [
@@ -275,12 +386,16 @@ class _HomeScreenState extends State<HomeScreen> {
                                   const SizedBox(height: 16),
                                   Text(
                                     'No rooms yet',
-                                    style: Theme.of(context).textTheme.titleLarge,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleLarge,
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
                                     'Create or join a room to start playing!',
-                                    style: Theme.of(context).textTheme.bodyMedium,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium,
                                     textAlign: TextAlign.center,
                                   ),
                                 ],
@@ -289,61 +404,118 @@ class _HomeScreenState extends State<HomeScreen> {
                           }
 
                           return Column(
-                            children: roomProvider.myRooms.map((room) {
-                              return Container(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                decoration: BoxDecoration(
-                                  gradient: AppTheme.cardGradient,
-                                  borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-                                ),
-                                child: Material(
-                                  color: Colors.transparent,
-                                  child: InkWell(
-                                    onTap: () async {
-                                      await Navigator.of(context).push(
-                                        MaterialPageRoute(
-                                          builder: (_) => GameScreen(roomId: room.id),
+                            children: visibleRooms.map((room) {
+                              return Dismissible(
+                                key: ValueKey('room-${room.id}'),
+                                direction: DismissDirection.endToStart,
+                                dismissThresholds: const {
+                                  DismissDirection.endToStart: 0.25,
+                                },
+                                background: Container(
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.errorColor.withValues(
+                                      alpha: 0.85,
+                                    ),
+                                    borderRadius: BorderRadius.circular(
+                                      AppTheme.cardBorderRadius,
+                                    ),
+                                  ),
+                                  alignment: Alignment.centerRight,
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.delete_outline,
+                                        color: Colors.white,
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Delete',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w600,
                                         ),
-                                      );
-                                      // Refresh rooms when returning from GameScreen
-                                      if (context.mounted) {
-                                        context.read<RoomProvider>().loadMyRooms();
-                                      }
-                                    },
-                                    borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(16.0),
-                                      child: Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.all(12),
-                                            decoration: BoxDecoration(
-                                              color: AppTheme.primaryColor.withValues(alpha: 0.2),
-                                              borderRadius: BorderRadius.circular(12),
-                                            ),
-                                            child: const Icon(
-                                              Icons.people,
-                                              color: AppTheme.primaryColor,
-                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                confirmDismiss: (_) => _handleRoomDismiss(room),
+                                child: Container(
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  decoration: BoxDecoration(
+                                    gradient: AppTheme.cardGradient,
+                                    borderRadius: BorderRadius.circular(
+                                      AppTheme.cardBorderRadius,
+                                    ),
+                                  ),
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      onTap: () async {
+                                        await Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                GameScreen(roomId: room.id),
                                           ),
-                                          const SizedBox(width: 16),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  room.displayName,
-                                                  style: Theme.of(context).textTheme.titleLarge,
-                                                ),
-                                                Text(
-                                                  '${room.userCount} member${room.userCount != 1 ? 's' : ''} • ${room.roomCode}',
-                                                  style: Theme.of(context).textTheme.bodyMedium,
-                                                ),
-                                              ],
+                                        );
+                                        // Refresh rooms when returning from GameScreen
+                                        if (context.mounted) {
+                                          context
+                                              .read<RoomProvider>()
+                                              .loadMyRooms();
+                                        }
+                                      },
+                                      borderRadius: BorderRadius.circular(
+                                        AppTheme.cardBorderRadius,
+                                      ),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(16.0),
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.all(12),
+                                              decoration: BoxDecoration(
+                                                color: AppTheme.primaryColor
+                                                    .withValues(alpha: 0.2),
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                              child: const Icon(
+                                                Icons.people,
+                                                color: AppTheme.primaryColor,
+                                              ),
                                             ),
-                                          ),
-                                          const Icon(Icons.arrow_forward_ios, size: 16),
-                                        ],
+                                            const SizedBox(width: 16),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    room.displayName,
+                                                    style: Theme.of(
+                                                      context,
+                                                    ).textTheme.titleLarge,
+                                                  ),
+                                                  Text(
+                                                    '${room.userCount} member${room.userCount != 1 ? 's' : ''} • ${room.roomCode}',
+                                                    style: Theme.of(
+                                                      context,
+                                                    ).textTheme.bodyMedium,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            const Icon(
+                                              Icons.arrow_forward_ios,
+                                              size: 16,
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -396,9 +568,9 @@ class _StatChip extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
         ),
       ),
     );
