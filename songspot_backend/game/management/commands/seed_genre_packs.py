@@ -1,17 +1,18 @@
 """
 Seed packs for each music category by fetching ranked tracks from Deezer.
 
-Strategy:
-- Fetch candidate tracks via Deezer genre chart (stable, rank-ordered)
-- Fall back to artist-based fetching if chart returns insufficient results
-- Sort all candidates by rank (highest = most famous first)
-- Exclude tracks already in any pack of the same category (no duplicates)
-- Fill pack in rank order: most famous songs first
-- Name packs automatically based on how many packs of that category exist:
-    1st → "{Category} — Mega Hits"
-    2nd → "{Category} — Top Hits"
-    3rd → "{Category} — Hits"
-    4th+ → "{Category} Vol. N"
+Strategy (two modes depending on the category):
+
+1. Genre chart (categories with a reliable Deezer genre_id):
+   - Page through GET /chart/{genre_id}/tracks (100 tracks/page)
+   - Tracks are already genre-filtered by Deezer — includes new artists automatically
+   - Apply max-per-artist limit and cross-pack dedup as we go
+   - Stop as soon as we have enough tracks OR the chart is exhausted
+
+2. Search queries (categories without a reliable Deezer genre chart, e.g. K-pop, Rap FR):
+   - Fetch results for each artist query, sort by rank, apply same filters
+
+In both cases: if fewer than --count-per-pack tracks can be found, no pack is created.
 
 Run --list-genres to print all Deezer genre IDs and verify the CATEGORY_MAP below.
 """
@@ -23,7 +24,8 @@ from game.services import DeezerService
 
 
 # Deezer genre IDs verified against GET https://api.deezer.com/genre
-# Categories using playlist_id instead of genre_id fetch from an editorial playlist.
+# Categories with only genre_id use the Deezer genre chart (already genre-filtered).
+# Categories with search_queries use artist search (for genres Deezer doesn't chart well).
 CATEGORY_MAP = {
     'pop': {
         'name': 'Pop',
@@ -41,22 +43,13 @@ CATEGORY_MAP = {
         'name': 'Électro',
         'genre_id': 106,
     },
-    'dance': {
-        'name': 'Dance',
-        'genre_id': 113,
-        'search_queries': [
-            'Avicii', 'David Guetta', 'Calvin Harris', 'Martin Garrix',
-            'Tiësto', 'Marshmello', 'Kygo', 'Robin Schulz',
-            'Galantis', 'Zedd', 'Alan Walker', 'Afrojack',
-            'Swedish House Mafia', 'Illenium', 'Diplo',
-            'Hardwell', 'Armin van Buuren', 'W&W', 'Nicky Romero',
-            'Don Diablo', 'Quintino', 'Oliver Heldens', 'Sam Feldt',
-            'Jonas Blue', 'Sigala', 'Alle Farben', 'Lost Frequencies',
-        ],
-    },
     'rnb': {
         'name': 'R&B',
         'genre_id': 165,
+    },
+    'dance': {
+        'name': 'Dance',
+        'genre_id': 113,
     },
     'kpop': {
         'name': 'K-pop',
@@ -81,8 +74,7 @@ CATEGORY_MAP = {
     },
     'rap_fr': {
         'name': 'Rap Français',
-        'genre_id': 116,        # hip-hop genre for artist pool
-        # Search queries guarantee French artists are well represented
+        'genre_id': None,
         'search_queries': [
             'Jul', 'PNL', 'Nekfeu', 'Orelsan', 'Ninho', 'Booba',
             'Kaaris', 'Damso', 'SCH', 'Hamza', 'Lomepal', 'Laylow',
@@ -95,7 +87,7 @@ CATEGORY_MAP = {
     },
     'variete_fr': {
         'name': 'Variété Française',
-        'genre_id': 52,         # Chanson française
+        'genre_id': 52,         # Chanson française — chart is reliable here
         'search_queries': [
             # classics
             'Edith Piaf', 'Charles Aznavour', 'Jacques Brel', 'Michel Sardou',
@@ -111,7 +103,7 @@ CATEGORY_MAP = {
     },
     'reggaeton': {
         'name': 'Reggaeton / Urbano',
-        'genre_id': 197,        # Latin genre
+        'genre_id': None,
         'search_queries': [
             'Bad Bunny', 'J Balvin', 'Maluma', 'Ozuna', 'Anuel AA',
             'Karol G', 'Daddy Yankee', 'Nicky Jam', 'Sech', 'Myke Towers',
@@ -123,7 +115,7 @@ CATEGORY_MAP = {
     },
     'latin': {
         'name': 'Latin Pop',
-        'genre_id': 197,        # same base genre
+        'genre_id': None,
         'search_queries': [
             'Shakira', 'Enrique Iglesias', 'Ricky Martin', 'Jennifer Lopez',
             'Marc Anthony', 'Luis Fonsi', 'Sebastian Yatra', 'Carlos Vives',
@@ -172,7 +164,6 @@ CATEGORY_MAP = {
     'bollywood': {
         'name': 'Bollywood',
         'genre_id': 81,         # Musique indienne
-        # Search queries supplement the chart with well-known Bollywood artists
         'search_queries': [
             # modern
             'Arijit Singh', 'Shreya Ghoshal', 'AR Rahman', 'Pritam',
@@ -197,6 +188,9 @@ PACK_NAME_TIERS = [
 
 # Minimum Deezer rank to include a track (0–1,000,000 scale)
 DEFAULT_MIN_RANK = 400_000
+
+# How many chart tracks to fetch per API page
+CHART_PAGE_SIZE = 100
 
 
 class Command(BaseCommand):
@@ -228,12 +222,6 @@ class Command(BaseCommand):
             help='Maximum tracks per artist in a pack (default: 3)',
         )
         parser.add_argument(
-            '--artist-pool',
-            type=int,
-            default=200,
-            help='Number of genre artists to sample when chart falls short (default: 200)',
-        )
-        parser.add_argument(
             '--list-genres',
             action='store_true',
             help='Print all Deezer genre IDs and exit (useful to verify CATEGORY_MAP)',
@@ -256,7 +244,6 @@ class Command(BaseCommand):
         count_per_pack = options['count_per_pack']
         min_rank = options['min_rank']
         max_per_artist = options['max_per_artist']
-        artist_pool = options['artist_pool']
         price_coins = options['price_coins']
 
         for category_key in categories:
@@ -266,17 +253,17 @@ class Command(BaseCommand):
                 continue
             self._seed_category(
                 deezer, category_key, config,
-                count_per_pack, min_rank, max_per_artist, artist_pool, price_coins,
+                count_per_pack, min_rank, max_per_artist, price_coins,
             )
 
-    def _seed_category(self, deezer, category_key, config, count_per_pack, min_rank, max_per_artist, artist_pool, price_coins):  # noqa: E501
+    def _seed_category(self, deezer, category_key, config, count_per_pack, min_rank, max_per_artist, price_coins):
         category_name = config['name']
         genre_id = config.get('genre_id')
-        playlist_id = config.get('playlist_id')
+        search_queries = config.get('search_queries', [])
 
         self.stdout.write(self.style.WARNING(f'\n=== {category_name} ==='))
 
-        # Collect tracks already used in any pack of this category to avoid overlap
+        # Tracks already used in any pack of this category (no cross-pack duplicates)
         existing_packs = SongPack.objects.filter(category=category_key)
         used_track_ids = set(
             PackTrack.objects.filter(pack__in=existing_packs)
@@ -284,80 +271,35 @@ class Command(BaseCommand):
         )
         self.stdout.write(f'Existing packs: {existing_packs.count()} | Used tracks: {len(used_track_ids)}')
 
-        # Fetch candidates
-        search_queries = config.get('search_queries', [])
-        raw_candidates = self._fetch_candidates(deezer, genre_id, playlist_id, search_queries, artist_pool)
-        if not raw_candidates:
-            self.stdout.write(self.style.ERROR(f'No candidates found for {category_name}'))
-            return
+        artist_counts: dict[str, int] = {}
 
-        # Extract, filter, deduplicate by deezer_id, sort by rank
-        seen_deezer_ids = set()
-        candidates = []
-        for raw in raw_candidates:
-            info = deezer.extract_track_info(raw)
-            if not info['preview_url']:
-                continue
-            deezer_id = info.get('deezer_id')
-            if deezer_id in seen_deezer_ids:
-                continue
-            seen_deezer_ids.add(deezer_id)
-            candidates.append(info)
-
-        # Sort by rank descending (most famous first)
-        candidates.sort(key=lambda t: t.get('rank', 0), reverse=True)
-
-        # Filter by minimum rank; lower threshold if not enough candidates
-        filtered = [t for t in candidates if t.get('rank', 0) >= min_rank]
-        if len(filtered) < count_per_pack:
-            self.stdout.write(self.style.WARNING(
-                f'Only {len(filtered)} tracks above rank {min_rank}. '
-                f'Using all {len(candidates)} candidates instead.'
-            ))
-            filtered = candidates
-
-        # Select tracks: most famous first, skipping already-used, max N per artist
-        selected_tracks = []
-        artist_counts = {}
-        for info in filtered:
-            if len(selected_tracks) >= count_per_pack:
-                break
-
-            track, _ = Track.objects.get_or_create(
-                title=info['title'],
-                artist=info['artist'],
-                defaults={
-                    'preview_url': info['preview_url'],
-                    'cover_url': info.get('cover_url'),
-                    'deezer_id': info.get('deezer_id'),
-                    'release_year': info.get('release_year'),
-                    'genre': info.get('genre') or config['name'],
-                },
+        if search_queries:
+            # Categories without a reliable Deezer genre chart (K-pop, Rap FR, etc.):
+            # collect candidates from search queries, sort by rank, then filter.
+            selected_tracks = self._select_from_queries(
+                deezer, search_queries, used_track_ids, artist_counts,
+                count_per_pack, min_rank, max_per_artist, category_name,
             )
-
-            if track.id in used_track_ids:
-                continue
-
-            artist = info['artist']
-            if artist_counts.get(artist, 0) >= max_per_artist:
-                continue
-
-            selected_tracks.append(track)
-            used_track_ids.add(track.id)
-            artist_counts[artist] = artist_counts.get(artist, 0) + 1
-
-        if not selected_tracks:
-            self.stdout.write(self.style.ERROR(f'No tracks available — skipping {category_name}'))
+        elif genre_id:
+            # Categories with a reliable Deezer genre chart:
+            # page through the chart; every track is already genre-filtered by Deezer.
+            selected_tracks = self._select_from_chart(
+                deezer, genre_id, used_track_ids, artist_counts,
+                count_per_pack, min_rank, max_per_artist, category_name,
+            )
+        else:
+            self.stdout.write(self.style.ERROR(
+                f'No genre_id or search_queries for {category_name} — skipping'
+            ))
             return
 
         if len(selected_tracks) < count_per_pack:
             self.stdout.write(self.style.WARNING(
-                f'Only {len(selected_tracks)}/{count_per_pack} unique tracks found.'
+                f'Only {len(selected_tracks)}/{count_per_pack} tracks found — skipping pack creation.'
             ))
+            return
 
-        # Determine pack name based on existing pack count for this category
         pack_name = self._pack_name(category_name, existing_packs.count())
-
         pack = SongPack.objects.create(
             name=pack_name,
             description=f'{category_name} stem pack.',
@@ -373,58 +315,129 @@ class Command(BaseCommand):
             f'Created "{pack_name}" with {len(selected_tracks)} tracks.'
         ))
 
-    def _fetch_candidates(self, deezer, genre_id, playlist_id, search_queries, artist_pool):
+    # ------------------------------------------------------------------
+    # Selection helpers
+    # ------------------------------------------------------------------
+
+    def _select_from_chart(self, deezer, genre_id, used_track_ids, artist_counts,
+                           count_per_pack, min_rank, max_per_artist, category_name):
         """
-        Fetch a large pool of raw track dicts (~500+).
-        1. Genre chart (rank-ordered, geo-stable)
-        2. Editorial playlist (optional)
-        3. Search queries (for categories without a genre_id, e.g. Bollywood, Rap FR)
-        4. Artist-based fill — always runs for genre_id categories to expand the pool
-           to hundreds of candidates so rank-filtering and deduplication leave enough tracks.
+        Page through the Deezer genre chart until count_per_pack tracks are
+        selected or the chart is exhausted. Tracks from the chart are already
+        genre-filtered by Deezer, so no artist pool is needed.
         """
+        selected_tracks = []
+        seen_deezer_ids: set[int] = set()
+        page = 0
+
+        while len(selected_tracks) < count_per_pack:
+            raw_page = deezer.get_genre_chart_tracks(
+                genre_id, limit=CHART_PAGE_SIZE, index=page * CHART_PAGE_SIZE
+            )
+            if not raw_page:
+                self.stdout.write(f'  Chart exhausted after {page} page(s).')
+                break
+
+            self.stdout.write(f'  Chart page {page + 1}: {len(raw_page)} tracks')
+            page += 1
+
+            for raw in raw_page:
+                if len(selected_tracks) >= count_per_pack:
+                    break
+
+                track = self._try_select(
+                    deezer, raw, used_track_ids, artist_counts,
+                    seen_deezer_ids, min_rank, max_per_artist, category_name,
+                )
+                if track:
+                    selected_tracks.append(track)
+
+        return selected_tracks
+
+    def _select_from_queries(self, deezer, search_queries, used_track_ids, artist_counts,
+                             count_per_pack, min_rank, max_per_artist, category_name):
+        """
+        Fetch all candidates via artist search queries, sort by rank descending,
+        then pick greedily until count_per_pack is reached.
+        """
+        seen_deezer_ids: set[int] = set()
         candidates = []
 
-        if genre_id:
-            # Fetch up to 200 from the genre chart
-            chart_tracks = deezer.get_genre_chart_tracks(genre_id, limit=200)
-            candidates.extend(chart_tracks)
-            self.stdout.write(f'  Chart ({genre_id}): {len(chart_tracks)} tracks')
-
-        if playlist_id:
-            playlist_tracks = deezer.get_playlist_tracks(playlist_id, limit=100)
-            candidates.extend(playlist_tracks)
-            self.stdout.write(f'  Playlist ({playlist_id}): {len(playlist_tracks)} tracks')
-
-        # Search queries expand the pool for categories that need geographic specificity
-        # (Rap FR, Bollywood, Reggaeton/Latin, etc.)
         for query in search_queries:
             result = deezer.search_track(query, limit=50)
             tracks = result.get('data', []) if isinstance(result, dict) else []
-            candidates.extend(tracks)
+            for raw in tracks:
+                deezer_id = raw.get('id')
+                if deezer_id and deezer_id not in seen_deezer_ids:
+                    seen_deezer_ids.add(deezer_id)
+                    candidates.append(raw)
 
-        if search_queries:
-            self.stdout.write(f'  Search queries ({len(search_queries)}): added tracks')
+        self.stdout.write(f'  Search queries ({len(search_queries)}): {len(candidates)} unique raw tracks')
 
-        # Artist-based fill always runs for genre_id categories.
-        # The chart alone gives ~100-200 tracks; after cross-pack dedup and max-per-artist
-        # filtering that often leaves fewer than 30.  Fetching top-5 from each genre artist
-        # pushes the raw pool to 500+ so the selection step always has enough to work with.
-        if genre_id:
-            artists = deezer.get_genre_artists(genre_id, limit=artist_pool)
-            added = 0
-            for artist in artists:
-                artist_id = artist.get('id')
-                if not artist_id:
-                    continue
-                top_tracks = deezer.get_artist_top_tracks(artist_id, limit=10)
-                candidates.extend(top_tracks)
-                added += len(top_tracks)
-                if len(candidates) >= 600:
-                    break
-            self.stdout.write(f'  Artist fallback: {added} tracks from {len(artists)} artists')
+        # Sort by Deezer rank descending so we pick the most famous songs first
+        candidates.sort(key=lambda t: t.get('rank', 0), reverse=True)
 
-        self.stdout.write(f'  Total raw candidates: {len(candidates)}')
-        return candidates
+        # Reset seen_deezer_ids — we deduplicated during collection above,
+        # but _try_select also checks it so pass a fresh set.
+        seen_for_select: set[int] = set()
+        selected_tracks = []
+
+        for raw in candidates:
+            if len(selected_tracks) >= count_per_pack:
+                break
+            track = self._try_select(
+                deezer, raw, used_track_ids, artist_counts,
+                seen_for_select, min_rank, max_per_artist, category_name,
+            )
+            if track:
+                selected_tracks.append(track)
+
+        return selected_tracks
+
+    def _try_select(self, deezer, raw, used_track_ids, artist_counts,
+                    seen_deezer_ids, min_rank, max_per_artist, category_name):
+        """
+        Extract track info, apply all filters, persist to DB if it passes.
+        Returns a Track instance on success, None otherwise.
+        """
+        info = deezer.extract_track_info(raw)
+
+        if not info['preview_url']:
+            return None
+        if info.get('rank', 0) < min_rank:
+            return None
+
+        deezer_id = info.get('deezer_id')
+        if deezer_id in seen_deezer_ids:
+            return None
+        seen_deezer_ids.add(deezer_id)
+
+        artist = info['artist']
+        if artist_counts.get(artist, 0) >= max_per_artist:
+            return None
+
+        track, _ = Track.objects.get_or_create(
+            title=info['title'],
+            artist=info['artist'],
+            defaults={
+                'preview_url': info['preview_url'],
+                'cover_url': info.get('cover_url'),
+                'deezer_id': deezer_id,
+                'release_year': info.get('release_year'),
+                'genre': info.get('genre') or category_name,
+            },
+        )
+
+        if track.id in used_track_ids:
+            return None
+
+        used_track_ids.add(track.id)
+        artist_counts[artist] = artist_counts.get(artist, 0) + 1
+        return track
+
+    # ------------------------------------------------------------------
+    # Utilities
+    # ------------------------------------------------------------------
 
     @staticmethod
     def _pack_name(category_name, existing_count):

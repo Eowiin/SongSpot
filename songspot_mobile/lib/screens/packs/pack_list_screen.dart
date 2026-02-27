@@ -5,7 +5,6 @@ import '../../models/pack.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/pack_provider.dart';
 import '../shop/coin_shop_screen.dart';
-import 'pack_detail_screen.dart';
 
 // Display labels for each category key returned by the backend
 const _categoryLabels = <String, String>{
@@ -271,61 +270,41 @@ class _PackListScreenState extends State<PackListScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () async {
-                    await Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => PackDetailScreen(
-                          roomId: widget.roomId,
-                          packId: pack.id,
-                          packName: pack.name,
-                        ),
-                      ),
-                    );
-                  },
-                  child: const Text('Details'),
-                ),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: pack.isOwned || _purchasingPackIds.contains(pack.id)
+                  ? null
+                  : () async {
+                      setState(() {
+                        _purchasingPackIds.add(pack.id);
+                      });
+                      final success = await context.read<PackProvider>().purchasePack(
+                            roomId: widget.roomId,
+                            packId: pack.id,
+                          );
+                      if (success && mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Purchased ${pack.name}'),
+                            backgroundColor: AppTheme.successColor,
+                          ),
+                        );
+                      }
+                      if (mounted) {
+                        setState(() {
+                          _purchasingPackIds.remove(pack.id);
+                        });
+                      }
+                    },
+              child: Text(
+                pack.isOwned
+                    ? 'Owned'
+                    : _purchasingPackIds.contains(pack.id)
+                        ? 'Buying...'
+                        : 'Buy',
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: pack.isOwned || _purchasingPackIds.contains(pack.id)
-                      ? null
-                      : () async {
-                          setState(() {
-                            _purchasingPackIds.add(pack.id);
-                          });
-                          final success = await context.read<PackProvider>().purchasePack(
-                                roomId: widget.roomId,
-                                packId: pack.id,
-                              );
-                          if (success && mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Purchased ${pack.name}'),
-                                backgroundColor: AppTheme.successColor,
-                              ),
-                            );
-                          }
-                          if (mounted) {
-                            setState(() {
-                              _purchasingPackIds.remove(pack.id);
-                            });
-                          }
-                        },
-                  child: Text(
-                    pack.isOwned
-                        ? 'Owned'
-                        : _purchasingPackIds.contains(pack.id)
-                            ? 'Buying...'
-                            : 'Buy',
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ),
