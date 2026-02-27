@@ -422,4 +422,90 @@ class AppLocalizationsEn extends AppLocalizations {
   String coinsAddedSuccess(num coins) {
     return '+$coins coins added!';
   }
+
+  @override
+  String get backendRoomLimitReached =>
+      'Room limit reached. Delete or leave one room before creating another.';
+
+  @override
+  String get backendDailyRoomCreationLimitReached =>
+      'Daily room creation limit reached. Try again tomorrow.';
+
+  @override
+  String get backendAlreadyInRoom => 'You are already in this room.';
+
+  @override
+  String get backendNotInRoom => 'You are not in this room.';
+
+  @override
+  String get backendOnlyHostCanRenameRoom =>
+      'Only the host can rename the room.';
+
+  @override
+  String get backendRoomNotFound => 'Room not found.';
+
+  @override
+  String get backendInsufficientCoins => 'Insufficient coins.';
+
+  @override
+  String get backendNoRetriesRemaining => 'No retries remaining.';
+
+  @override
+  String get backendRetryAfterLastSnippetOnly =>
+      'Retry is only available after the last snippet.';
+
+  @override
+  String get backendGameAlreadyCompleted => 'Game already completed.';
+
+  @override
+  String get backendNoActiveGameSession => 'No active game session.';
+
+  @override
+  String get backendNoSongAvailableToday => 'No song available for today.';
+
+  @override
+  String get backendPackNotOwnedByRoom => 'This pack is not owned by the room.';
+
+  @override
+  String get backendPackHasNoTracks => 'This pack has no tracks.';
+
+  @override
+  String get backendNoActivePackSession => 'No active pack session.';
+
+  @override
+  String get backendPackAlreadyCompleted => 'Pack already completed.';
+
+  @override
+  String get backendTrackNotFound => 'Track not found.';
+
+  @override
+  String get backendAlreadyGuessedForStage =>
+      'You already guessed for this stage.';
+
+  @override
+  String get backendRoomIdRequired => 'Room is required.';
+
+  @override
+  String get backendInvalidPassword => 'Invalid password.';
+
+  @override
+  String get backendInvalidCurrentPassword => 'Invalid current password.';
+
+  @override
+  String get backendInvalidDateFormat => 'Invalid date format. Use YYYY-MM-DD.';
+
+  @override
+  String get backendDateNotInHistory => 'This date is not yet in history.';
+
+  @override
+  String get backendNoSongFoundForDate => 'No song found for this date.';
+
+  @override
+  String get backendNoPackTrackForDate => 'No pack track found for this date.';
+
+  @override
+  String get backendInvalidCredentials => 'Invalid email or password.';
+
+  @override
+  String get backendNetworkError => 'Network error';
 }

@@ -426,4 +426,97 @@ class AppLocalizationsFr extends AppLocalizations {
   String coinsAddedSuccess(num coins) {
     return '+$coins pièces ajoutées !';
   }
+
+  @override
+  String get backendRoomLimitReached =>
+      'Limite de salles atteinte. Supprimez ou quittez une salle avant d\'en créer une autre.';
+
+  @override
+  String get backendDailyRoomCreationLimitReached =>
+      'Limite quotidienne de création de salles atteinte. Réessayez demain.';
+
+  @override
+  String get backendAlreadyInRoom => 'Vous êtes déjà dans cette salle.';
+
+  @override
+  String get backendNotInRoom => 'Vous n\'êtes pas dans cette salle.';
+
+  @override
+  String get backendOnlyHostCanRenameRoom =>
+      'Seul l\'hôte peut renommer la salle.';
+
+  @override
+  String get backendRoomNotFound => 'Salle introuvable.';
+
+  @override
+  String get backendInsufficientCoins => 'Pièces insuffisantes.';
+
+  @override
+  String get backendNoRetriesRemaining =>
+      'Plus aucune nouvelle tentative disponible.';
+
+  @override
+  String get backendRetryAfterLastSnippetOnly =>
+      'La nouvelle tentative est disponible uniquement après le dernier extrait.';
+
+  @override
+  String get backendGameAlreadyCompleted => 'Partie déjà terminée.';
+
+  @override
+  String get backendNoActiveGameSession => 'Aucune partie active.';
+
+  @override
+  String get backendNoSongAvailableToday =>
+      'Aucune chanson disponible aujourd\'hui.';
+
+  @override
+  String get backendPackNotOwnedByRoom =>
+      'Ce pack n\'est pas possédé par la salle.';
+
+  @override
+  String get backendPackHasNoTracks => 'Ce pack ne contient aucune piste.';
+
+  @override
+  String get backendNoActivePackSession => 'Aucune session de pack active.';
+
+  @override
+  String get backendPackAlreadyCompleted => 'Pack déjà terminé.';
+
+  @override
+  String get backendTrackNotFound => 'Piste introuvable.';
+
+  @override
+  String get backendAlreadyGuessedForStage =>
+      'Vous avez déjà proposé une réponse pour cette étape.';
+
+  @override
+  String get backendRoomIdRequired => 'Salle requise.';
+
+  @override
+  String get backendInvalidPassword => 'Mot de passe invalide.';
+
+  @override
+  String get backendInvalidCurrentPassword => 'Mot de passe actuel invalide.';
+
+  @override
+  String get backendInvalidDateFormat =>
+      'Format de date invalide. Utilisez AAAA-MM-JJ.';
+
+  @override
+  String get backendDateNotInHistory =>
+      'Cette date n\'est pas encore dans l\'historique.';
+
+  @override
+  String get backendNoSongFoundForDate =>
+      'Aucune chanson trouvée pour cette date.';
+
+  @override
+  String get backendNoPackTrackForDate =>
+      'Aucune piste de pack trouvée pour cette date.';
+
+  @override
+  String get backendInvalidCredentials => 'Email ou mot de passe invalide.';
+
+  @override
+  String get backendNetworkError => 'Erreur réseau';
 }

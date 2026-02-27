@@ -853,6 +853,168 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'+{coins} coins added!'**
   String coinsAddedSuccess(num coins);
+
+  /// Backend room hosted limit error
+  ///
+  /// In en, this message translates to:
+  /// **'Room limit reached. Delete or leave one room before creating another.'**
+  String get backendRoomLimitReached;
+
+  /// Backend daily room creation limit error
+  ///
+  /// In en, this message translates to:
+  /// **'Daily room creation limit reached. Try again tomorrow.'**
+  String get backendDailyRoomCreationLimitReached;
+
+  /// Backend room join duplicate error
+  ///
+  /// In en, this message translates to:
+  /// **'You are already in this room.'**
+  String get backendAlreadyInRoom;
+
+  /// Backend room membership error
+  ///
+  /// In en, this message translates to:
+  /// **'You are not in this room.'**
+  String get backendNotInRoom;
+
+  /// Backend room rename permission error
+  ///
+  /// In en, this message translates to:
+  /// **'Only the host can rename the room.'**
+  String get backendOnlyHostCanRenameRoom;
+
+  /// Backend room not found error
+  ///
+  /// In en, this message translates to:
+  /// **'Room not found.'**
+  String get backendRoomNotFound;
+
+  /// Backend insufficient coins error
+  ///
+  /// In en, this message translates to:
+  /// **'Insufficient coins.'**
+  String get backendInsufficientCoins;
+
+  /// Backend no retries remaining error
+  ///
+  /// In en, this message translates to:
+  /// **'No retries remaining.'**
+  String get backendNoRetriesRemaining;
+
+  /// Backend retry requirement error
+  ///
+  /// In en, this message translates to:
+  /// **'Retry is only available after the last snippet.'**
+  String get backendRetryAfterLastSnippetOnly;
+
+  /// Backend game already completed error
+  ///
+  /// In en, this message translates to:
+  /// **'Game already completed.'**
+  String get backendGameAlreadyCompleted;
+
+  /// Backend missing active game session error
+  ///
+  /// In en, this message translates to:
+  /// **'No active game session.'**
+  String get backendNoActiveGameSession;
+
+  /// Backend no daily song error
+  ///
+  /// In en, this message translates to:
+  /// **'No song available for today.'**
+  String get backendNoSongAvailableToday;
+
+  /// Backend room pack ownership error
+  ///
+  /// In en, this message translates to:
+  /// **'This pack is not owned by the room.'**
+  String get backendPackNotOwnedByRoom;
+
+  /// Backend empty pack error
+  ///
+  /// In en, this message translates to:
+  /// **'This pack has no tracks.'**
+  String get backendPackHasNoTracks;
+
+  /// Backend missing active pack session error
+  ///
+  /// In en, this message translates to:
+  /// **'No active pack session.'**
+  String get backendNoActivePackSession;
+
+  /// Backend completed pack session error
+  ///
+  /// In en, this message translates to:
+  /// **'Pack already completed.'**
+  String get backendPackAlreadyCompleted;
+
+  /// Backend track not found error
+  ///
+  /// In en, this message translates to:
+  /// **'Track not found.'**
+  String get backendTrackNotFound;
+
+  /// Backend duplicate stage guess error
+  ///
+  /// In en, this message translates to:
+  /// **'You already guessed for this stage.'**
+  String get backendAlreadyGuessedForStage;
+
+  /// Backend missing room id error
+  ///
+  /// In en, this message translates to:
+  /// **'Room is required.'**
+  String get backendRoomIdRequired;
+
+  /// Backend invalid password error
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid password.'**
+  String get backendInvalidPassword;
+
+  /// Backend invalid current password error
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid current password.'**
+  String get backendInvalidCurrentPassword;
+
+  /// Backend invalid date format error
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid date format. Use YYYY-MM-DD.'**
+  String get backendInvalidDateFormat;
+
+  /// Backend date not in history error
+  ///
+  /// In en, this message translates to:
+  /// **'This date is not yet in history.'**
+  String get backendDateNotInHistory;
+
+  /// Backend no song for history date error
+  ///
+  /// In en, this message translates to:
+  /// **'No song found for this date.'**
+  String get backendNoSongFoundForDate;
+
+  /// Backend no pack track for date error
+  ///
+  /// In en, this message translates to:
+  /// **'No pack track found for this date.'**
+  String get backendNoPackTrackForDate;
+
+  /// Backend invalid credentials error
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid email or password.'**
+  String get backendInvalidCredentials;
+
+  /// Generic network error prefix
+  ///
+  /// In en, this message translates to:
+  /// **'Network error'**
+  String get backendNetworkError;
 }
 
 class _AppLocalizationsDelegate

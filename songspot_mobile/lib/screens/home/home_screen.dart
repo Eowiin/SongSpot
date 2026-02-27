@@ -21,8 +21,9 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _roomCodeController = TextEditingController();
-  Room? _pendingDeleteRoom;
-  bool _isCommittingRoomDeletion = false;
+  final Map<String, Room> _pendingDeletedRooms = {};
+  final Map<String, Timer> _pendingDeleteTimers = {};
+  final Set<String> _committingRoomIds = <String>{};
 
   @override
   void initState() {
@@ -34,6 +35,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    for (final timer in _pendingDeleteTimers.values) {
+      timer.cancel();
+    }
+    _pendingDeleteTimers.clear();
     _roomCodeController.dispose();
     super.dispose();
   }
@@ -103,17 +108,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<bool> _handleRoomDismiss(Room room) async {
     final l10n = AppLocalizations.of(context);
-    if (_pendingDeleteRoom != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.finishOrUndoCurrentRoomDeletion),
-          backgroundColor: AppTheme.errorColor,
-        ),
-      );
+    final roomId = room.id;
+    if (_pendingDeletedRooms.containsKey(roomId) ||
+        _committingRoomIds.contains(roomId)) {
       return false;
     }
 
-    setState(() => _pendingDeleteRoom = room);
+    setState(() {
+      _pendingDeletedRooms[roomId] = room;
+    });
+    _pendingDeleteTimers[roomId]?.cancel();
+    _pendingDeleteTimers[roomId] = Timer(const Duration(seconds: 5), () {
+      unawaited(_commitPendingRoomDeletion(roomId));
+    });
 
     final currentUserId = context.read<AuthProvider>().user?.id;
     final isHost = currentUserId != null && room.isHost(currentUserId);
@@ -148,25 +155,25 @@ class _HomeScreenState extends State<HomeScreen> {
               action: SnackBarAction(
                 label: l10n.undoAction,
                 textColor: AppTheme.accentColor,
-                onPressed: _undoPendingRoomDeletion,
+                onPressed: () => _undoPendingRoomDeletion(roomId),
               ),
             ),
           )
-          .closed
-          .then((reason) {
-            if (!mounted) return;
-            if (_pendingDeleteRoom?.id != room.id) return;
-            if (reason == SnackBarClosedReason.action) return;
-            unawaited(_commitPendingRoomDeletion(room));
-          }),
+          .closed,
     );
 
     return true;
   }
 
-  void _undoPendingRoomDeletion() {
-    if (_pendingDeleteRoom == null || _isCommittingRoomDeletion) return;
-    setState(() => _pendingDeleteRoom = null);
+  void _undoPendingRoomDeletion(String roomId) {
+    if (!_pendingDeletedRooms.containsKey(roomId)) return;
+    if (_committingRoomIds.contains(roomId)) return;
+
+    _pendingDeleteTimers.remove(roomId)?.cancel();
+    setState(() {
+      _pendingDeletedRooms.remove(roomId);
+    });
+
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -183,19 +190,23 @@ class _HomeScreenState extends State<HomeScreen> {
       );
   }
 
-  Future<void> _commitPendingRoomDeletion(Room room) async {
-    if (_pendingDeleteRoom?.id != room.id || _isCommittingRoomDeletion) return;
+  Future<void> _commitPendingRoomDeletion(String roomId) async {
+    if (!_pendingDeletedRooms.containsKey(roomId)) return;
+    if (_committingRoomIds.contains(roomId)) return;
 
-    setState(() => _isCommittingRoomDeletion = true);
+    _pendingDeleteTimers.remove(roomId)?.cancel();
+    setState(() {
+      _committingRoomIds.add(roomId);
+    });
 
     final roomProvider = context.read<RoomProvider>();
-    final success = await roomProvider.leaveRoomSilently(room.id);
+    final success = await roomProvider.leaveRoomSilently(roomId);
 
     if (!mounted) return;
 
     setState(() {
-      _isCommittingRoomDeletion = false;
-      _pendingDeleteRoom = null;
+      _committingRoomIds.remove(roomId);
+      _pendingDeletedRooms.remove(roomId);
     });
 
     if (!success) {
@@ -386,9 +397,11 @@ class _HomeScreenState extends State<HomeScreen> {
                             );
                           }
 
-                          final pendingRoomId = _pendingDeleteRoom?.id;
                           final visibleRooms = roomProvider.myRooms
-                              .where((room) => room.id != pendingRoomId)
+                              .where(
+                                (room) =>
+                                    !_pendingDeletedRooms.containsKey(room.id),
+                              )
                               .toList();
 
                           if (visibleRooms.isEmpty) {

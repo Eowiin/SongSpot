@@ -408,5 +408,86 @@
     "placeholders": {
       "coins": { "type": "num" }
     }
-  }
+  },
+
+  "backendRoomLimitReached": "Room limit reached. Delete or leave one room before creating another.",
+  "@backendRoomLimitReached": { "description": "Backend room hosted limit error" },
+
+  "backendDailyRoomCreationLimitReached": "Daily room creation limit reached. Try again tomorrow.",
+  "@backendDailyRoomCreationLimitReached": { "description": "Backend daily room creation limit error" },
+
+  "backendAlreadyInRoom": "You are already in this room.",
+  "@backendAlreadyInRoom": { "description": "Backend room join duplicate error" },
+
+  "backendNotInRoom": "You are not in this room.",
+  "@backendNotInRoom": { "description": "Backend room membership error" },
+
+  "backendOnlyHostCanRenameRoom": "Only the host can rename the room.",
+  "@backendOnlyHostCanRenameRoom": { "description": "Backend room rename permission error" },
+
+  "backendRoomNotFound": "Room not found.",
+  "@backendRoomNotFound": { "description": "Backend room not found error" },
+
+  "backendInsufficientCoins": "Insufficient coins.",
+  "@backendInsufficientCoins": { "description": "Backend insufficient coins error" },
+
+  "backendNoRetriesRemaining": "No retries remaining.",
+  "@backendNoRetriesRemaining": { "description": "Backend no retries remaining error" },
+
+  "backendRetryAfterLastSnippetOnly": "Retry is only available after the last snippet.",
+  "@backendRetryAfterLastSnippetOnly": { "description": "Backend retry requirement error" },
+
+  "backendGameAlreadyCompleted": "Game already completed.",
+  "@backendGameAlreadyCompleted": { "description": "Backend game already completed error" },
+
+  "backendNoActiveGameSession": "No active game session.",
+  "@backendNoActiveGameSession": { "description": "Backend missing active game session error" },
+
+  "backendNoSongAvailableToday": "No song available for today.",
+  "@backendNoSongAvailableToday": { "description": "Backend no daily song error" },
+
+  "backendPackNotOwnedByRoom": "This pack is not owned by the room.",
+  "@backendPackNotOwnedByRoom": { "description": "Backend room pack ownership error" },
+
+  "backendPackHasNoTracks": "This pack has no tracks.",
+  "@backendPackHasNoTracks": { "description": "Backend empty pack error" },
+
+  "backendNoActivePackSession": "No active pack session.",
+  "@backendNoActivePackSession": { "description": "Backend missing active pack session error" },
+
+  "backendPackAlreadyCompleted": "Pack already completed.",
+  "@backendPackAlreadyCompleted": { "description": "Backend completed pack session error" },
+
+  "backendTrackNotFound": "Track not found.",
+  "@backendTrackNotFound": { "description": "Backend track not found error" },
+
+  "backendAlreadyGuessedForStage": "You already guessed for this stage.",
+  "@backendAlreadyGuessedForStage": { "description": "Backend duplicate stage guess error" },
+
+  "backendRoomIdRequired": "Room is required.",
+  "@backendRoomIdRequired": { "description": "Backend missing room id error" },
+
+  "backendInvalidPassword": "Invalid password.",
+  "@backendInvalidPassword": { "description": "Backend invalid password error" },
+
+  "backendInvalidCurrentPassword": "Invalid current password.",
+  "@backendInvalidCurrentPassword": { "description": "Backend invalid current password error" },
+
+  "backendInvalidDateFormat": "Invalid date format. Use YYYY-MM-DD.",
+  "@backendInvalidDateFormat": { "description": "Backend invalid date format error" },
+
+  "backendDateNotInHistory": "This date is not yet in history.",
+  "@backendDateNotInHistory": { "description": "Backend date not in history error" },
+
+  "backendNoSongFoundForDate": "No song found for this date.",
+  "@backendNoSongFoundForDate": { "description": "Backend no song for history date error" },
+
+  "backendNoPackTrackForDate": "No pack track found for this date.",
+  "@backendNoPackTrackForDate": { "description": "Backend no pack track for date error" },
+
+  "backendInvalidCredentials": "Invalid email or password.",
+  "@backendInvalidCredentials": { "description": "Backend invalid credentials error" },
+
+  "backendNetworkError": "Network error",
+  "@backendNetworkError": { "description": "Generic network error prefix" }
 }

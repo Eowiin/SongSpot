@@ -1,15 +1,19 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
+import '../l10n/app_localizations.dart';
 import 'storage_service.dart';
 
 class ApiException implements Exception {
   final String message;
   final int? statusCode;
   final Map<String, dynamic>? errors;
+  final String? rawMessage;
 
-  ApiException(this.message, {this.statusCode, this.errors});
+  ApiException(this.message, {this.statusCode, this.errors, this.rawMessage});
 
   @override
   String toString() => message;
@@ -18,6 +22,7 @@ class ApiException implements Exception {
 class ApiService {
   final StorageService _storageService = StorageService();
   bool _isRefreshing = false;
+  static const String _settingsLocaleKey = 'settings_locale';
 
   Future<Map<String, String>> _getHeaders({bool includeAuth = false}) async {
     final headers = {'Content-Type': 'application/json'};
@@ -32,7 +37,145 @@ class ApiService {
     return headers;
   }
 
-  dynamic _handleResponse(http.Response response) {
+  String _extractFirstErrorMessage(Map<String, dynamic> body) {
+    final possibleKeys = <String>['error', 'message', 'detail'];
+    for (final key in possibleKeys) {
+      final value = body[key];
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+      if (value is List && value.isNotEmpty && value.first is String) {
+        final first = (value.first as String).trim();
+        if (first.isNotEmpty) return first;
+      }
+    }
+
+    for (final entry in body.entries) {
+      final value = entry.value;
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+      if (value is List && value.isNotEmpty && value.first is String) {
+        final first = (value.first as String).trim();
+        if (first.isNotEmpty) return first;
+      }
+    }
+
+    return '';
+  }
+
+  Future<AppLocalizations> _resolveLocalizations() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedLanguageCode = prefs.getString(_settingsLocaleKey);
+      final platformLanguageCode =
+          WidgetsBinding.instance.platformDispatcher.locale.languageCode;
+      final languageCode = savedLanguageCode ?? platformLanguageCode;
+
+      final supported = AppLocalizations.supportedLocales
+          .map((l) => l.languageCode)
+          .toSet();
+      final safeCode = supported.contains(languageCode) ? languageCode : 'en';
+      return lookupAppLocalizations(Locale(safeCode));
+    } catch (_) {
+      return lookupAppLocalizations(const Locale('en'));
+    }
+  }
+
+  Future<String> _localizeBackendMessage(String message) async {
+    final cleaned = message.replaceFirst(RegExp(r'^Exception:\s*'), '').trim();
+    if (cleaned.isEmpty) return cleaned;
+
+    final l10n = await _resolveLocalizations();
+
+    if (cleaned.startsWith('Room limit reached')) {
+      return l10n.backendRoomLimitReached;
+    }
+    if (cleaned.startsWith('Daily room creation limit reached')) {
+      return l10n.backendDailyRoomCreationLimitReached;
+    }
+    if (cleaned == 'You are already in this room') {
+      return l10n.backendAlreadyInRoom;
+    }
+    if (cleaned == 'You are not in this room') {
+      return l10n.backendNotInRoom;
+    }
+    if (cleaned == 'Only the host can rename the room.') {
+      return l10n.backendOnlyHostCanRenameRoom;
+    }
+    if (cleaned == 'Room not found.') {
+      return l10n.backendRoomNotFound;
+    }
+    if (cleaned == 'Insufficient coins') {
+      return l10n.backendInsufficientCoins;
+    }
+    if (cleaned == 'No retries remaining') {
+      return l10n.backendNoRetriesRemaining;
+    }
+    if (cleaned == 'Retry is only available after reaching the last snippet') {
+      return l10n.backendRetryAfterLastSnippetOnly;
+    }
+    if (cleaned == 'Game already completed' ||
+        cleaned == 'Game already completed.') {
+      return l10n.backendGameAlreadyCompleted;
+    }
+    if (cleaned ==
+            'No active game session. Start by calling GET /daily-game/' ||
+        cleaned == 'No active game session.') {
+      return l10n.backendNoActiveGameSession;
+    }
+    if (cleaned == 'No song available for today') {
+      return l10n.backendNoSongAvailableToday;
+    }
+    if (cleaned == 'This pack is not owned by the room') {
+      return l10n.backendPackNotOwnedByRoom;
+    }
+    if (cleaned == 'Pack has no tracks') {
+      return l10n.backendPackHasNoTracks;
+    }
+    if (cleaned == 'No active pack session. Start with GET bundle.' ||
+        cleaned == 'No active pack session.') {
+      return l10n.backendNoActivePackSession;
+    }
+    if (cleaned == 'Pack already completed' ||
+        cleaned == 'Pack session already completed.') {
+      return l10n.backendPackAlreadyCompleted;
+    }
+    if (cleaned == 'Track not found.' || cleaned == 'Pack track not found') {
+      return l10n.backendTrackNotFound;
+    }
+    if (cleaned == 'Already guessed for this stage') {
+      return l10n.backendAlreadyGuessedForStage;
+    }
+    if (cleaned == 'room_id is required') {
+      return l10n.backendRoomIdRequired;
+    }
+    if (cleaned == 'Invalid password.') {
+      return l10n.backendInvalidPassword;
+    }
+    if (cleaned == 'Invalid current password.') {
+      return l10n.backendInvalidCurrentPassword;
+    }
+    if (cleaned.startsWith('Invalid date format. Use YYYY-MM-DD.')) {
+      return l10n.backendInvalidDateFormat;
+    }
+    if (cleaned == 'This date is not yet in history.') {
+      return l10n.backendDateNotInHistory;
+    }
+    if (cleaned == 'No song found for this date.') {
+      return l10n.backendNoSongFoundForDate;
+    }
+    if (cleaned == 'No pack track found for this date.') {
+      return l10n.backendNoPackTrackForDate;
+    }
+    if (cleaned == 'No active account found with the given credentials') {
+      return l10n.backendInvalidCredentials;
+    }
+
+    return cleaned;
+  }
+
+  Future<dynamic> _handleResponse(http.Response response) async {
     final statusCode = response.statusCode;
 
     if (statusCode >= 200 && statusCode < 300) {
@@ -41,16 +184,15 @@ class ApiService {
     } else {
       String message = 'Request failed with status: $statusCode';
       Map<String, dynamic>? errors;
+      String? rawMessage;
 
       try {
         final body = jsonDecode(response.body);
         if (body is Map<String, dynamic>) {
-          if (body.containsKey('error')) {
-            message = body['error'] as String;
-          } else if (body.containsKey('message')) {
-            message = body['message'] as String;
-          } else if (body.containsKey('detail')) {
-            message = body['detail'] as String;
+          final extracted = _extractFirstErrorMessage(body);
+          if (extracted.isNotEmpty) {
+            rawMessage = extracted;
+            message = await _localizeBackendMessage(extracted);
           }
           errors = body;
         }
@@ -58,7 +200,12 @@ class ApiService {
         // Could not parse error response
       }
 
-      throw ApiException(message, statusCode: statusCode, errors: errors);
+      throw ApiException(
+        message,
+        statusCode: statusCode,
+        errors: errors,
+        rawMessage: rawMessage,
+      );
     }
   }
 
@@ -122,10 +269,11 @@ class ApiService {
         }
       }
 
-      return _handleResponse(response);
+      return await _handleResponse(response);
     } catch (e) {
       if (e is ApiException) rethrow;
-      throw ApiException('Network error: $e');
+      final l10n = await _resolveLocalizations();
+      throw ApiException('${l10n.backendNetworkError}: $e');
     }
   }
 
@@ -165,10 +313,11 @@ class ApiService {
         }
       }
 
-      return _handleResponse(response);
+      return await _handleResponse(response);
     } catch (e) {
       if (e is ApiException) rethrow;
-      throw ApiException('Network error: $e');
+      final l10n = await _resolveLocalizations();
+      throw ApiException('${l10n.backendNetworkError}: $e');
     }
   }
 
@@ -208,10 +357,11 @@ class ApiService {
         }
       }
 
-      return _handleResponse(response);
+      return await _handleResponse(response);
     } catch (e) {
       if (e is ApiException) rethrow;
-      throw ApiException('Network error: $e');
+      final l10n = await _resolveLocalizations();
+      throw ApiException('${l10n.backendNetworkError}: $e');
     }
   }
 
@@ -239,10 +389,11 @@ class ApiService {
         }
       }
 
-      return _handleResponse(response);
+      return await _handleResponse(response);
     } catch (e) {
       if (e is ApiException) rethrow;
-      throw ApiException('Network error: $e');
+      final l10n = await _resolveLocalizations();
+      throw ApiException('${l10n.backendNetworkError}: $e');
     }
   }
 
