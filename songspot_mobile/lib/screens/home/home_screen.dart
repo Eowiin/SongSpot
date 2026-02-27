@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../l10n/app_localizations.dart';
 import '../../models/room.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/room_provider.dart';
@@ -60,11 +61,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _handleJoinRoom() async {
+    final l10n = AppLocalizations.of(context);
     final roomCode = _roomCodeController.text.trim().toUpperCase();
     if (roomCode.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a room code'),
+        SnackBar(
+          content: Text(l10n.pleaseEnterRoomCode),
           backgroundColor: AppTheme.errorColor,
         ),
       );
@@ -100,10 +102,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<bool> _handleRoomDismiss(Room room) async {
+    final l10n = AppLocalizations.of(context);
     if (_pendingDeleteRoom != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Finish or undo the current room deletion first.'),
+        SnackBar(
+          content: Text(l10n.finishOrUndoCurrentRoomDeletion),
           backgroundColor: AppTheme.errorColor,
         ),
       );
@@ -115,8 +118,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final currentUserId = context.read<AuthProvider>().user?.id;
     final isHost = currentUserId != null && room.isHost(currentUserId);
     final message = isHost && room.userCount > 1
-        ? 'Left room. Host transferred.'
-        : 'Room removed.';
+        ? l10n.leftRoomHostTransferred
+        : l10n.roomRemoved;
 
     final messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
@@ -143,7 +146,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               action: SnackBarAction(
-                label: 'Undo',
+                label: l10n.undoAction,
                 textColor: AppTheme.accentColor,
                 onPressed: _undoPendingRoomDeletion,
               ),
@@ -164,6 +167,20 @@ class _HomeScreenState extends State<HomeScreen> {
   void _undoPendingRoomDeletion() {
     if (_pendingDeleteRoom == null || _isCommittingRoomDeletion) return;
     setState(() => _pendingDeleteRoom = null);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppTheme.surfaceColor,
+          content: Text(
+            AppLocalizations.of(context).roomDeletionCancelled,
+            style: const TextStyle(color: AppTheme.textPrimary),
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
   }
 
   Future<void> _commitPendingRoomDeletion(Room room) async {
@@ -182,7 +199,9 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     if (!success) {
-      final errorText = roomProvider.errorMessage ?? 'Could not delete room.';
+      final errorText =
+          roomProvider.errorMessage ??
+          AppLocalizations.of(context).couldNotDeleteRoom;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(errorText.replaceFirst('Exception: ', '')),
@@ -196,6 +215,10 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
+    final l10n = AppLocalizations.of(context);
+    final horizontalPadding = MediaQuery.of(context).size.width < 360
+        ? 16.0
+        : 24.0;
 
     return Scaffold(
       body: Container(
@@ -211,7 +234,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     CircleAvatar(
                       backgroundColor: AppTheme.primaryColor,
                       child: Text(
-                        user?.username[0].toUpperCase() ?? 'U',
+                        user?.username[0].toUpperCase() ??
+                            l10n.userFallback[0].toUpperCase(),
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
@@ -224,7 +248,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            user?.username ?? 'User',
+                            user?.username ?? l10n.userFallback,
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
                           Text(
@@ -236,12 +260,12 @@ class _HomeScreenState extends State<HomeScreen> {
                             children: [
                               _StatChip(
                                 label: '🔥 ${user?.currentStreak ?? 0}',
-                                tooltip: 'Daily streak',
+                                tooltip: l10n.dailyStreakTooltip,
                               ),
                               const SizedBox(width: 8),
                               _StatChip(
                                 label: '🪙 ${user?.coins ?? 0}',
-                                tooltip: 'Coins',
+                                tooltip: l10n.coinsTooltip,
                               ),
                             ],
                           ),
@@ -249,7 +273,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     Semantics(
-                      label: 'Settings',
+                      label: l10n.settingsTitle,
                       button: true,
                       child: IconButton(
                         icon: const Icon(Icons.settings_outlined),
@@ -264,7 +288,7 @@ class _HomeScreenState extends State<HomeScreen> {
               // Content
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -276,7 +300,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'SongSpot',
+                        l10n.appTitle,
                         style: Theme.of(context).textTheme.displayMedium,
                         textAlign: TextAlign.center,
                       ),
@@ -284,7 +308,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                       // Create Room Button
                       GradientButton(
-                        text: 'Create New Room',
+                        text: l10n.createRoom,
                         onPressed: _handleCreateRoom,
                         isLoading: context.watch<RoomProvider>().isLoading,
                       ),
@@ -292,7 +316,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                       // Join Room Section
                       Text(
-                        'Join a Room',
+                        l10n.joinRoom,
                         style: Theme.of(context).textTheme.headlineMedium,
                       ),
                       const SizedBox(height: 12),
@@ -302,7 +326,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: TextField(
                               controller: _roomCodeController,
                               decoration: InputDecoration(
-                                hintText: 'Enter room code',
+                                hintText: l10n.enterRoomCode,
                                 filled: true,
                                 fillColor: AppTheme.surfaceColor,
                                 border: OutlineInputBorder(
@@ -350,7 +374,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                       // My Rooms Section
                       Text(
-                        'My Rooms',
+                        l10n.myRooms,
                         style: Theme.of(context).textTheme.headlineMedium,
                       ),
                       const SizedBox(height: 16),
@@ -385,14 +409,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                   const SizedBox(height: 16),
                                   Text(
-                                    'No rooms yet',
+                                    l10n.noRoomsYet,
                                     style: Theme.of(
                                       context,
                                     ).textTheme.titleLarge,
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    'Create or join a room to start playing!',
+                                    l10n.noRoomsHint,
                                     style: Theme.of(
                                       context,
                                     ).textTheme.bodyMedium,
@@ -425,17 +449,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                     ),
                                   ),
                                   alignment: Alignment.centerRight,
-                                  child: const Row(
+                                  child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(
+                                      const Icon(
                                         Icons.delete_outline,
                                         color: Colors.white,
                                       ),
-                                      SizedBox(width: 8),
+                                      const SizedBox(width: 8),
                                       Text(
-                                        'Delete',
-                                        style: TextStyle(
+                                        l10n.deleteLabel,
+                                        style: const TextStyle(
                                           color: Colors.white,
                                           fontWeight: FontWeight.w600,
                                         ),
@@ -502,7 +526,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                                     ).textTheme.titleLarge,
                                                   ),
                                                   Text(
-                                                    '${room.userCount} member${room.userCount != 1 ? 's' : ''} • ${room.roomCode}',
+                                                    '${l10n.members(room.userCount)} • ${room.roomCode}',
                                                     style: Theme.of(
                                                       context,
                                                     ).textTheme.bodyMedium,

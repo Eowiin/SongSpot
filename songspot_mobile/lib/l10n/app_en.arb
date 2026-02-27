@@ -292,5 +292,121 @@
   "@passwordsDoNotMatch": { "description": "Passwords mismatch error" },
 
   "fieldRequired": "This field is required",
-  "@fieldRequired": { "description": "Required field error" }
+  "@fieldRequired": { "description": "Required field error" },
+
+  "undoAction": "Undo",
+  "@undoAction": { "description": "Undo button/action label" },
+
+  "userFallback": "User",
+  "@userFallback": { "description": "Fallback username label" },
+
+  "dailyStreakTooltip": "Daily streak",
+  "@dailyStreakTooltip": { "description": "Tooltip for daily streak chip" },
+
+  "coinsTooltip": "Coins",
+  "@coinsTooltip": { "description": "Tooltip for coins chip" },
+
+  "pleaseEnterRoomCode": "Please enter a room code",
+  "@pleaseEnterRoomCode": { "description": "Validation when room code is empty" },
+
+  "finishOrUndoCurrentRoomDeletion": "Finish or undo the current room deletion first.",
+  "@finishOrUndoCurrentRoomDeletion": { "description": "Warning shown when another room deletion is pending" },
+
+  "leftRoomHostTransferred": "Left room. Host transferred.",
+  "@leftRoomHostTransferred": { "description": "Swipe delete snackbar content when host transfer happens" },
+
+  "roomRemoved": "Room removed.",
+  "@roomRemoved": { "description": "Swipe delete snackbar content" },
+
+  "roomDeletionCancelled": "Deletion cancelled.",
+  "@roomDeletionCancelled": { "description": "Shown after tapping undo for room deletion" },
+
+  "deleteLabel": "Delete",
+  "@deleteLabel": { "description": "Delete label in swipe background" },
+
+  "couldNotDeleteRoom": "Could not delete room.",
+  "@couldNotDeleteRoom": { "description": "Fallback delete error message" },
+
+  "coinShopTitle": "Coin Shop",
+  "@coinShopTitle": { "description": "Coin shop screen title" },
+
+  "adNotReadyTryAgain": "Ad not ready yet. Please try again in a moment.",
+  "@adNotReadyTryAgain": { "description": "Shown when rewarded ad cannot be displayed" },
+
+  "storeNotAvailableOnDevice": "Store not available on this device.",
+  "@storeNotAvailableOnDevice": { "description": "Shown when IAP store is unavailable" },
+
+  "productsNotFoundStoreMessage": "Products not found in store. Make sure in-app products are created and set to Active in App Store Connect / Play Console.",
+  "@productsNotFoundStoreMessage": { "description": "Shown when store products are missing" },
+
+  "getMoreCoinsTitle": "Get more coins",
+  "@getMoreCoinsTitle": { "description": "Section title in coin shop" },
+
+  "useCoinsToUnlockHint": "Use coins to unlock song packs and hints.",
+  "@useCoinsToUnlockHint": { "description": "Coin shop helper text" },
+
+  "processingPayment": "Processing payment...",
+  "@processingPayment": { "description": "Payment overlay title" },
+
+  "pleaseDontCloseApp": "Please don't close the app",
+  "@pleaseDontCloseApp": { "description": "Payment overlay subtitle" },
+
+  "yourBalance": "Your balance",
+  "@yourBalance": { "description": "Coin balance header label" },
+
+  "coinsAmount": "{count} coins",
+  "@coinsAmount": {
+    "description": "Generic coins amount label",
+    "placeholders": {
+      "count": { "type": "num" }
+    }
+  },
+
+  "freeBonusCoinsTitle": "Free Bonus Coins",
+  "@freeBonusCoinsTitle": { "description": "Rewarded card title in coin shop" },
+
+  "watchRewardedAdClaimCoins": "Watch a rewarded ad to claim +{coins} coins.",
+  "@watchRewardedAdClaimCoins": {
+    "description": "Rewarded card helper text",
+    "placeholders": {
+      "coins": { "type": "num" }
+    }
+  },
+
+  "checkingDailyLimit": "Checking daily limit...",
+  "@checkingDailyLimit": { "description": "Reward status loading text" },
+
+  "dailyLimitUnavailable": "Daily limit unavailable right now.",
+  "@dailyLimitUnavailable": { "description": "Reward status unavailable text" },
+
+  "remainingTodayStatus": "Remaining today: {remaining} / {cap}",
+  "@remainingTodayStatus": {
+    "description": "Remaining rewarded claims status",
+    "placeholders": {
+      "remaining": { "type": "num" },
+      "cap": { "type": "num" }
+    }
+  },
+
+  "dailyLimitReached": "Daily Limit Reached",
+  "@dailyLimitReached": { "description": "Reward button label when cap reached" },
+
+  "watchAdLabel": "Watch Ad",
+  "@watchAdLabel": { "description": "Reward button label" },
+
+  "rewardCoinsAddedToBalance": "+{coins} coins added to your balance.",
+  "@rewardCoinsAddedToBalance": {
+    "description": "Inline rewarded ad success message in coin shop",
+    "placeholders": {
+      "coins": { "type": "num" }
+    }
+  },
+
+  "coinsAddedSuccess": "+{coins} coins added!",
+  "@coinsAddedSuccess": {
+    "description": "IAP success snackbar in coin shop",
+    "placeholders": {
+      "coins": { "type": "num" }
+    }
+  }
 }

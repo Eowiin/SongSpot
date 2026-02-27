@@ -5,6 +5,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../config/admob_config.dart';
+import '../../l10n/app_localizations.dart';
 import '../../models/coin_product.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/coin_shop_provider.dart';
@@ -135,9 +136,10 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
       );
 
       if (!rewarded && mounted) {
+        final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Ad not ready yet. Please try again in a moment.'),
+          SnackBar(
+            content: Text(l10n.adNotReadyTryAgain),
             backgroundColor: AppTheme.errorColor,
           ),
         );
@@ -163,6 +165,10 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
     final shopProvider = context.watch<CoinShopProvider>();
     final authProvider = context.watch<AuthProvider>();
     final coins = authProvider.user?.coins ?? 0;
+    final l10n = AppLocalizations.of(context);
+    final horizontalPadding = MediaQuery.of(context).size.width < 360
+        ? 16.0
+        : 24.0;
 
     // Show purchase error as snackbar
     if (shopProvider.purchaseError != null) {
@@ -186,7 +192,9 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('+${shopProvider.lastCoinsAdded} coins added!'),
+              content: Text(
+                l10n.coinsAddedSuccess(shopProvider.lastCoinsAdded!),
+              ),
               backgroundColor: AppTheme.successColor,
               behavior: SnackBarBehavior.floating,
             ),
@@ -199,7 +207,7 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Coin Shop')),
+      appBar: AppBar(title: Text(l10n.coinShopTitle)),
       bottomNavigationBar:
           (!(authProvider.user?.hasNoAds ?? false) &&
               _isBannerReady &&
@@ -221,7 +229,10 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
             child: shopProvider.isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : ListView(
-                    padding: AppTheme.pagePadding,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: horizontalPadding,
+                      vertical: 24,
+                    ),
                     children: [
                       // Coin balance header
                       _buildBalanceHeader(context, coins),
@@ -237,8 +248,8 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
                               AppTheme.borderRadius,
                             ),
                           ),
-                          child: const Text(
-                            'Store not available on this device.',
+                          child: Text(
+                            l10n.storeNotAvailableOnDevice,
                             style: TextStyle(color: AppTheme.errorColor),
                           ),
                         ),
@@ -253,19 +264,19 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
                               AppTheme.borderRadius,
                             ),
                           ),
-                          child: const Text(
-                            'Products not found in store. Make sure in-app products are created and set to Active in App Store Connect / Play Console.',
+                          child: Text(
+                            l10n.productsNotFoundStoreMessage,
                             style: TextStyle(color: Colors.orange),
                           ),
                         ),
 
                       Text(
-                        'Get more coins',
+                        l10n.getMoreCoinsTitle,
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Use coins to unlock song packs and hints.',
+                        l10n.useCoinsToUnlockHint,
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 20),
@@ -289,24 +300,24 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
           if (shopProvider.isPurchasing)
             const ModalBarrier(dismissible: false, color: Color(0x88000000)),
           if (shopProvider.isPurchasing)
-            const Center(
+            Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CircularProgressIndicator(color: Colors.white),
-                  SizedBox(height: 16),
+                  const CircularProgressIndicator(color: Colors.white),
+                  const SizedBox(height: 16),
                   Text(
-                    'Processing payment...',
-                    style: TextStyle(
+                    l10n.processingPayment,
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Text(
-                    "Please don't close the app",
-                    style: TextStyle(color: Colors.white70, fontSize: 13),
+                    l10n.pleaseDontCloseApp,
+                    style: const TextStyle(color: Colors.white70, fontSize: 13),
                   ),
                 ],
               ),
@@ -317,6 +328,7 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
   }
 
   Widget _buildBalanceHeader(BuildContext context, int coins) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -327,23 +339,27 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
         children: [
           const Icon(Icons.monetization_on, size: 40, color: Colors.white),
           const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Your balance',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(color: Colors.white70),
-              ),
-              Text(
-                '$coins coins',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.yourBalance,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: Colors.white70),
                 ),
-              ),
-            ],
+                Text(
+                  l10n.coinsAmount(coins),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -355,6 +371,7 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
     CoinProduct product,
     CoinShopProvider shopProvider,
   ) {
+    final l10n = AppLocalizations.of(context);
     final storePrice = shopProvider.getStorePrice(product);
     final hasStoreProduct = shopProvider.getStoreProduct(product) != null;
 
@@ -429,7 +446,7 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${product.coinsAmount} coins',
+                  l10n.coinsAmount(product.coinsAmount),
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ],
@@ -448,15 +465,16 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
   }
 
   Widget _buildRewardedCard(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final remaining = _rewardRemainingToday;
     final cap = _rewardDailyCap;
     final coinsPerClaim = _rewardCoinsPerClaim ?? 10;
     final limitReached = remaining != null && remaining <= 0;
     final buttonLabel = _rewardClaimInProgress
-        ? 'Loading...'
+        ? l10n.loading
         : limitReached
-        ? 'Daily Limit Reached'
-        : 'Watch Ad';
+        ? l10n.dailyLimitReached
+        : l10n.watchAdLabel;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -471,21 +489,21 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Free Bonus Coins',
+            l10n.freeBonusCoinsTitle,
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 6),
           Text(
-            'Watch a rewarded ad to claim +$coinsPerClaim coins.',
+            l10n.watchRewardedAdClaimCoins(coinsPerClaim),
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 4),
           Text(
             cap == null || remaining == null
                 ? (_rewardStatusLoading
-                      ? 'Checking daily limit...'
-                      : 'Daily limit unavailable right now.')
-                : 'Remaining today: $remaining / $cap',
+                      ? l10n.checkingDailyLimit
+                      : l10n.dailyLimitUnavailable)
+                : l10n.remainingTodayStatus(remaining, cap),
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
@@ -527,7 +545,9 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            '+$_lastRewardCoinsEarned coins added to your balance.',
+                            l10n.rewardCoinsAddedToBalance(
+                              _lastRewardCoinsEarned!,
+                            ),
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(
                                   color: AppTheme.successColor,

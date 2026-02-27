@@ -673,6 +673,186 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This field is required'**
   String get fieldRequired;
+
+  /// Undo button/action label
+  ///
+  /// In en, this message translates to:
+  /// **'Undo'**
+  String get undoAction;
+
+  /// Fallback username label
+  ///
+  /// In en, this message translates to:
+  /// **'User'**
+  String get userFallback;
+
+  /// Tooltip for daily streak chip
+  ///
+  /// In en, this message translates to:
+  /// **'Daily streak'**
+  String get dailyStreakTooltip;
+
+  /// Tooltip for coins chip
+  ///
+  /// In en, this message translates to:
+  /// **'Coins'**
+  String get coinsTooltip;
+
+  /// Validation when room code is empty
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter a room code'**
+  String get pleaseEnterRoomCode;
+
+  /// Warning shown when another room deletion is pending
+  ///
+  /// In en, this message translates to:
+  /// **'Finish or undo the current room deletion first.'**
+  String get finishOrUndoCurrentRoomDeletion;
+
+  /// Swipe delete snackbar content when host transfer happens
+  ///
+  /// In en, this message translates to:
+  /// **'Left room. Host transferred.'**
+  String get leftRoomHostTransferred;
+
+  /// Swipe delete snackbar content
+  ///
+  /// In en, this message translates to:
+  /// **'Room removed.'**
+  String get roomRemoved;
+
+  /// Shown after tapping undo for room deletion
+  ///
+  /// In en, this message translates to:
+  /// **'Deletion cancelled.'**
+  String get roomDeletionCancelled;
+
+  /// Delete label in swipe background
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get deleteLabel;
+
+  /// Fallback delete error message
+  ///
+  /// In en, this message translates to:
+  /// **'Could not delete room.'**
+  String get couldNotDeleteRoom;
+
+  /// Coin shop screen title
+  ///
+  /// In en, this message translates to:
+  /// **'Coin Shop'**
+  String get coinShopTitle;
+
+  /// Shown when rewarded ad cannot be displayed
+  ///
+  /// In en, this message translates to:
+  /// **'Ad not ready yet. Please try again in a moment.'**
+  String get adNotReadyTryAgain;
+
+  /// Shown when IAP store is unavailable
+  ///
+  /// In en, this message translates to:
+  /// **'Store not available on this device.'**
+  String get storeNotAvailableOnDevice;
+
+  /// Shown when store products are missing
+  ///
+  /// In en, this message translates to:
+  /// **'Products not found in store. Make sure in-app products are created and set to Active in App Store Connect / Play Console.'**
+  String get productsNotFoundStoreMessage;
+
+  /// Section title in coin shop
+  ///
+  /// In en, this message translates to:
+  /// **'Get more coins'**
+  String get getMoreCoinsTitle;
+
+  /// Coin shop helper text
+  ///
+  /// In en, this message translates to:
+  /// **'Use coins to unlock song packs and hints.'**
+  String get useCoinsToUnlockHint;
+
+  /// Payment overlay title
+  ///
+  /// In en, this message translates to:
+  /// **'Processing payment...'**
+  String get processingPayment;
+
+  /// Payment overlay subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Please don\'t close the app'**
+  String get pleaseDontCloseApp;
+
+  /// Coin balance header label
+  ///
+  /// In en, this message translates to:
+  /// **'Your balance'**
+  String get yourBalance;
+
+  /// Generic coins amount label
+  ///
+  /// In en, this message translates to:
+  /// **'{count} coins'**
+  String coinsAmount(num count);
+
+  /// Rewarded card title in coin shop
+  ///
+  /// In en, this message translates to:
+  /// **'Free Bonus Coins'**
+  String get freeBonusCoinsTitle;
+
+  /// Rewarded card helper text
+  ///
+  /// In en, this message translates to:
+  /// **'Watch a rewarded ad to claim +{coins} coins.'**
+  String watchRewardedAdClaimCoins(num coins);
+
+  /// Reward status loading text
+  ///
+  /// In en, this message translates to:
+  /// **'Checking daily limit...'**
+  String get checkingDailyLimit;
+
+  /// Reward status unavailable text
+  ///
+  /// In en, this message translates to:
+  /// **'Daily limit unavailable right now.'**
+  String get dailyLimitUnavailable;
+
+  /// Remaining rewarded claims status
+  ///
+  /// In en, this message translates to:
+  /// **'Remaining today: {remaining} / {cap}'**
+  String remainingTodayStatus(num remaining, num cap);
+
+  /// Reward button label when cap reached
+  ///
+  /// In en, this message translates to:
+  /// **'Daily Limit Reached'**
+  String get dailyLimitReached;
+
+  /// Reward button label
+  ///
+  /// In en, this message translates to:
+  /// **'Watch Ad'**
+  String get watchAdLabel;
+
+  /// Inline rewarded ad success message in coin shop
+  ///
+  /// In en, this message translates to:
+  /// **'+{coins} coins added to your balance.'**
+  String rewardCoinsAddedToBalance(num coins);
+
+  /// IAP success snackbar in coin shop
+  ///
+  /// In en, this message translates to:
+  /// **'+{coins} coins added!'**
+  String coinsAddedSuccess(num coins);
 }
 
 class _AppLocalizationsDelegate

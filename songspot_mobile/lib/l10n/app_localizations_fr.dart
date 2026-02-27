@@ -320,4 +320,110 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get fieldRequired => 'Ce champ est obligatoire';
+
+  @override
+  String get undoAction => 'Annuler';
+
+  @override
+  String get userFallback => 'Utilisateur';
+
+  @override
+  String get dailyStreakTooltip => 'Série quotidienne';
+
+  @override
+  String get coinsTooltip => 'Pièces';
+
+  @override
+  String get pleaseEnterRoomCode => 'Veuillez entrer un code de salle';
+
+  @override
+  String get finishOrUndoCurrentRoomDeletion =>
+      'Terminez ou annulez d\'abord la suppression en cours.';
+
+  @override
+  String get leftRoomHostTransferred => 'Salle quittée. Hôte transféré.';
+
+  @override
+  String get roomRemoved => 'Salle supprimée.';
+
+  @override
+  String get roomDeletionCancelled => 'Suppression annulée.';
+
+  @override
+  String get deleteLabel => 'Supprimer';
+
+  @override
+  String get couldNotDeleteRoom => 'Impossible de supprimer la salle.';
+
+  @override
+  String get coinShopTitle => 'Boutique de pièces';
+
+  @override
+  String get adNotReadyTryAgain =>
+      'La pub n\'est pas prête. Réessayez dans un instant.';
+
+  @override
+  String get storeNotAvailableOnDevice =>
+      'Boutique indisponible sur cet appareil.';
+
+  @override
+  String get productsNotFoundStoreMessage =>
+      'Produits introuvables dans la boutique. Vérifiez que vos achats intégrés sont créés et actifs dans App Store Connect / Play Console.';
+
+  @override
+  String get getMoreCoinsTitle => 'Obtenir plus de pièces';
+
+  @override
+  String get useCoinsToUnlockHint =>
+      'Utilisez les pièces pour débloquer des packs et des indices.';
+
+  @override
+  String get processingPayment => 'Paiement en cours...';
+
+  @override
+  String get pleaseDontCloseApp => 'Ne fermez pas l\'application';
+
+  @override
+  String get yourBalance => 'Votre solde';
+
+  @override
+  String coinsAmount(num count) {
+    return '$count pièces';
+  }
+
+  @override
+  String get freeBonusCoinsTitle => 'Pièces bonus gratuites';
+
+  @override
+  String watchRewardedAdClaimCoins(num coins) {
+    return 'Regardez une pub récompensée pour gagner +$coins pièces.';
+  }
+
+  @override
+  String get checkingDailyLimit => 'Vérification de la limite quotidienne...';
+
+  @override
+  String get dailyLimitUnavailable =>
+      'Limite quotidienne indisponible pour le moment.';
+
+  @override
+  String remainingTodayStatus(num remaining, num cap) {
+    return 'Restant aujourd\'hui : $remaining / $cap';
+  }
+
+  @override
+  String get dailyLimitReached => 'Limite quotidienne atteinte';
+
+  @override
+  String get watchAdLabel => 'Regarder la pub';
+
+  @override
+  String rewardCoinsAddedToBalance(num coins) {
+    return '+$coins pièces ajoutées à votre solde.';
+  }
+
+  @override
+  String coinsAddedSuccess(num coins) {
+    return '+$coins pièces ajoutées !';
+  }
 }
