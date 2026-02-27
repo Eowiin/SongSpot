@@ -33,6 +33,11 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     # Coin system
     coins = models.PositiveIntegerField(default=100, help_text="In-app currency for purchasing packs")
+    ad_free_until = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When set in the future, ads are disabled for this user"
+    )
 
     # Statistics
     games_played = models.PositiveIntegerField(default=0)
@@ -66,6 +71,11 @@ class User(AbstractBaseUser, PermissionsMixin):
         if self.games_played == 0:
             return 0.0
         return round(self.total_points / self.games_played, 1)
+
+    @property
+    def has_no_ads(self):
+        """Whether the user currently has an active ad-free pass."""
+        return bool(self.ad_free_until and self.ad_free_until > timezone.now())
 
     def add_coins(self, amount, reason="", transaction_type='earn'):
         """Add coins to user's balance."""
@@ -299,3 +309,32 @@ class IAPReceipt(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.store} - {self.status} ({self.coins_credited} coins)"
+
+
+class AdRewardClaim(models.Model):
+    """
+    Audit log for rewarded-ad coin grants.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='ad_reward_claims',
+    )
+    placement = models.CharField(
+        max_length=50,
+        default='game_result',
+        help_text="Where the rewarded ad was watched (e.g. game_result)"
+    )
+    coins_awarded = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'ad_reward_claims'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username}: +{self.coins_awarded} ({self.placement})"

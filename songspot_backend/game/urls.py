@@ -23,6 +23,7 @@ from .views import (
     DailyGameView,
     SkipSnippetView,
     SubmitGuessView,
+    DailyGameRetryView,
     LeaderboardView,
     RoomMessagesView,
     SearchTracksView,
@@ -49,6 +50,7 @@ urlpatterns = [
     path('rooms/<uuid:room_id>/daily-game/', DailyGameView.as_view(), name='daily_game'),
     path('rooms/<uuid:room_id>/daily-game/skip/', SkipSnippetView.as_view(), name='skip_snippet'),
     path('rooms/<uuid:room_id>/daily-game/guess/', SubmitGuessView.as_view(), name='submit_guess'),
+    path('rooms/<uuid:room_id>/daily-game/retry/', DailyGameRetryView.as_view(), name='daily_game_retry'),
     path('rooms/<uuid:room_id>/daily-game/leaderboard/', LeaderboardView.as_view(), name='leaderboard'),
     path('rooms/<uuid:room_id>/daily-game/hint/', DailyGameHintView.as_view(), name='daily_game_hint'),
 

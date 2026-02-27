@@ -1,148 +1,195 @@
-# AdMob + Daily Retry Setup
+# AdMob + No-Ads Pass Setup
 
-This guide explains how to set up the AdMob rewarded ad flow and the daily retry logic.
+This guide documents the in-app ad monetization currently wired in SongSpot.
 
-## Overview
+## What is implemented
 
-Daily challenge retries work like this:
+1. Rewarded ad as daily-game retry unlock on last-snippet failure (`Watch Ad for Retry`).
+2. Rewarded ad in Coin Shop (`Watch Ad`) to claim bonus coins.
+3. Interstitial ad before showing daily-game results (once per room/day).
+4. Banner ad on pack browsing (`PackListScreen`) only.
+5. Coin-based `No Ads (30 days)` purchase from Settings.
+6. Backend retry endpoint, reward claim endpoint, and ad-free pass endpoint.
 
-- The user gets 6 snippets.
-- If they fail after snippet 6, the answer is not shown yet.
-- Retry 1 requires watching a rewarded ad.
-- Retry 2 requires spending 25 coins.
-- If they fail again, the answer is revealed and the game is completed.
+## File map
 
-The backend enforces the retry requirements. The mobile app displays the prompt and triggers the ad or coin flow.
+### Mobile (Flutter)
 
-## Backend (Django)
+- Ad config: `songspot_mobile/lib/config/admob_config.dart`
+- Ad runtime service: `songspot_mobile/lib/services/admob_service.dart`
+- Game placements + retry CTA: `songspot_mobile/lib/screens/game/game_screen.dart`
+- Coin Shop rewarded bonus CTA: `songspot_mobile/lib/screens/shop/coin_shop_screen.dart`
+- Banner placement: `songspot_mobile/lib/screens/packs/pack_list_screen.dart`
+- No-ads purchase UI: `songspot_mobile/lib/screens/settings/settings_screen.dart`
+- API client hooks: `songspot_mobile/lib/services/api_service.dart`
+- User model (`has_no_ads` / `ad_free_until`): `songspot_mobile/lib/models/user.dart`
 
-No migrations are required for retries.
+### Backend (Django)
 
-Changes are already in:
+- User ad-free field: `songspot_backend/authentication/models.py` (`ad_free_until`)
+- Reward audit model: `songspot_backend/authentication/models.py` (`AdRewardClaim`)
+- Endpoints:
+  - `POST /api/auth/no-ads/activate/`
+  - `POST /api/auth/ads/reward/`
+  - `GET /api/auth/ads/reward/status/`
+  - `POST /api/game/rooms/<room_id>/daily-game/retry/`
+- Views: `songspot_backend/authentication/views.py`
+- URLs: `songspot_backend/authentication/urls.py`, `songspot_backend/game/urls.py`
+- Migrations:
+  - `0005_user_ad_free_until.py`
+  - `0006_adrewardclaim.py`
+  - `0023_dailygamesession_retry_fields.py`
 
-- `songspot_backend/game/views.py`
-- `songspot_backend/game/serializers.py`
-
-API behavior:
-
-- When snippet 6 is failed, the response includes:
-  - `retry_available`
-  - `retries_used`
-  - `retries_remaining`
-  - `next_retry_requirement` (`ad` or `coins`)
-  - `retry_cost_coins` (only for the coin retry)
-- The next guess must include `retry_action`:
-  - `retry_action: "ad"` for the first retry
-  - `retry_action: "coins"` for the second retry
-
-Example response after failing snippet 6:
-
-```json
-{
-  "is_correct": false,
-  "current_snippet": 6,
-  "message": "No more snippets. You can retry.",
-  "retry_available": true,
-  "retries_used": 0,
-  "retries_remaining": 2,
-  "next_retry_requirement": "ad",
-  "retry_cost_coins": null
-}
-```
-
-Example retry request:
-
-```json
-{
-  "track_id": "<track-uuid>",
-  "retry_action": "ad"
-}
-```
-
-## Mobile (Flutter)
-
-### Dependencies
+## Flutter dependency
 
 `songspot_mobile/pubspec.yaml` includes:
 
-```
+```yaml
 google_mobile_ads: ^7.0.0
 ```
 
 Run:
 
-```
+```bash
+cd songspot_mobile
 flutter pub get
 ```
 
-### SDK initialization
+## Platform app IDs
 
-`songspot_mobile/lib/main.dart` initializes the Mobile Ads SDK:
+### Android
 
-```
-await MobileAds.instance.initialize();
-```
+`songspot_mobile/android/app/src/main/AndroidManifest.xml` contains:
 
-### Rewarded ads
-
-Rewarded ad logic lives in:
-
-- `songspot_mobile/lib/services/admob_service.dart`
-- `songspot_mobile/lib/config/admob_config.dart`
-
-`GameScreen` preloads and shows the rewarded ad when `next_retry_requirement == "ad"`.
-
-## AdMob configuration
-
-### Android App ID
-
-`songspot_mobile/android/app/src/main/AndroidManifest.xml`:
-
-```
+```xml
 <meta-data
     android:name="com.google.android.gms.ads.APPLICATION_ID"
     android:value="ca-app-pub-3940256099942544~3347511713" />
 ```
 
-Replace with your real Android App ID for production.
+### iOS
 
-### iOS App ID
+`songspot_mobile/ios/Runner/Info.plist` contains:
 
-`songspot_mobile/ios/Runner/Info.plist`:
-
-```
+```xml
 <key>GADApplicationIdentifier</key>
 <string>ca-app-pub-3940256099942544~1458002511</string>
 ```
 
-Replace with your real iOS App ID for production.
+Both are Google test App IDs; replace with real ones for production.
 
-### Rewarded Ad Unit IDs
+## Environment variables
 
 `songspot_mobile/.env`:
 
-```
-ADMOB_REWARDED_AD_UNIT_ID_ANDROID=ca-app-pub-3940256099942544/5224354917
-ADMOB_REWARDED_AD_UNIT_ID_IOS=ca-app-pub-3940256099942544/1712485313
-```
+```env
+ADMOB_USE_TEST_IDS=true
 
-These are Google test IDs. Replace with your real rewarded unit IDs before release.
-
-## iOS pods
-
-If this is the first time using `google_mobile_ads`:
-
-```
-cd ios
-pod install
+ADMOB_REWARDED_AD_UNIT_ID_ANDROID=
+ADMOB_REWARDED_AD_UNIT_ID_IOS=
+ADMOB_INTERSTITIAL_AD_UNIT_ID_ANDROID=
+ADMOB_INTERSTITIAL_AD_UNIT_ID_IOS=
+ADMOB_BANNER_AD_UNIT_ID_ANDROID=
+ADMOB_BANNER_AD_UNIT_ID_IOS=
 ```
 
-## Quick checklist
+When `ADMOB_USE_TEST_IDS=true`, built-in Google test unit IDs are used.
 
-- [ ] Backend deployed with retry logic
-- [ ] `flutter pub get`
-- [ ] Android App ID updated
-- [ ] iOS App ID updated
-- [ ] Rewarded unit IDs updated in `.env`
-- [ ] Test on device with test IDs
-- [ ] Swap to production IDs before release
+## Backend monetization settings
+
+`songspot_backend/songspot/settings.py`:
+
+```python
+NO_ADS_PASS_COINS = int(os.environ.get('NO_ADS_PASS_COINS', '700'))
+NO_ADS_PASS_DAYS = int(os.environ.get('NO_ADS_PASS_DAYS', '30'))
+AD_REWARD_COINS = int(os.environ.get('AD_REWARD_COINS', '10'))
+AD_REWARD_DAILY_CAP = int(os.environ.get('AD_REWARD_DAILY_CAP', '2'))
+DAILY_GAME_MAX_RETRIES = int(os.environ.get('DAILY_GAME_MAX_RETRIES', '2'))
+DAILY_GAME_RETRY_COIN_COST = int(os.environ.get('DAILY_GAME_RETRY_COIN_COST', '120'))
+```
+
+## API behavior
+
+### Activate no-ads pass
+
+`POST /api/auth/no-ads/activate/`
+
+Success:
+
+```json
+{
+  "message": "Ad-free pass activated for 30 days",
+  "coins": 1234,
+  "cost_coins": 700,
+  "duration_days": 30,
+  "ad_free_until": "2026-03-28T12:34:56.000000+00:00",
+  "has_no_ads": true
+}
+```
+
+### Claim rewarded ad coins
+
+`POST /api/auth/ads/reward/`
+
+Body:
+
+```json
+{ "placement": "coin_shop_bonus" }
+```
+
+Success:
+
+```json
+{
+  "message": "Reward credited",
+  "coins": 950,
+  "coins_awarded": 10,
+  "daily_cap": 2,
+  "remaining_today": 1
+}
+```
+
+If cap reached: `429`.
+
+### Rewarded ad status
+
+`GET /api/auth/ads/reward/status/`
+
+Success:
+
+```json
+{
+  "reward_coins": 10,
+  "daily_cap": 2,
+  "claims_today": 1,
+  "remaining_today": 1
+}
+```
+
+### Unlock daily-game retry
+
+`POST /api/game/rooms/<room_id>/daily-game/retry/`
+
+Body:
+
+```json
+{ "action": "ad" }
+```
+
+or
+
+```json
+{ "action": "coins" }
+```
+
+or
+
+```json
+{ "action": "forfeit" }
+```
+
+## Notes
+
+- Ads are skipped when user has active ad-free pass (`has_no_ads=true`).
+- Retry order is enforced server-side: first ad, then coins.
+- Keep Google test IDs during development/testing.

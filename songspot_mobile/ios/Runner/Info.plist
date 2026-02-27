@@ -16,10 +16,13 @@
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 		<key>CFBundleInfoDictionaryVersion</key>
 		<string>6.0</string>
-		<key>CFBundleName</key>
-		<string>SongSpot</string>
-		<key>CFBundlePackageType</key>
-		<string>APPL</string>
+			<key>CFBundleName</key>
+			<string>SongSpot</string>
+			<!-- AdMob App ID (Google test ID by default; replace for production) -->
+			<key>GADApplicationIdentifier</key>
+			<string>ca-app-pub-3940256099942544~1458002511</string>
+			<key>CFBundlePackageType</key>
+			<string>APPL</string>
 		<key>CFBundleShortVersionString</key>
 		<string>$(FLUTTER_BUILD_NAME)</string>
 		<key>CFBundleSignature</key>

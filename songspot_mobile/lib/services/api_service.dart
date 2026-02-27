@@ -20,9 +20,7 @@ class ApiService {
   bool _isRefreshing = false;
 
   Future<Map<String, String>> _getHeaders({bool includeAuth = false}) async {
-    final headers = {
-      'Content-Type': 'application/json',
-    };
+    final headers = {'Content-Type': 'application/json'};
 
     if (includeAuth) {
       final token = await _storageService.getAccessToken();
@@ -99,8 +97,9 @@ class ApiService {
     bool includeAuth = false,
     Map<String, String>? queryParameters,
   }) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}$endpoint')
-        .replace(queryParameters: queryParameters);
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}$endpoint',
+    ).replace(queryParameters: queryParameters);
     final headers = await _getHeaders(includeAuth: includeAuth);
 
     try {
@@ -116,7 +115,10 @@ class ApiService {
               .get(uri, headers: newHeaders)
               .timeout(ApiConfig.timeout);
         } else {
-          throw ApiException('Session expired. Please login again.', statusCode: 401);
+          throw ApiException(
+            'Session expired. Please login again.',
+            statusCode: 401,
+          );
         }
       }
 
@@ -156,7 +158,10 @@ class ApiService {
               )
               .timeout(ApiConfig.timeout);
         } else {
-          throw ApiException('Session expired. Please login again.', statusCode: 401);
+          throw ApiException(
+            'Session expired. Please login again.',
+            statusCode: 401,
+          );
         }
       }
 
@@ -196,7 +201,10 @@ class ApiService {
               )
               .timeout(ApiConfig.timeout);
         } else {
-          throw ApiException('Session expired. Please login again.', statusCode: 401);
+          throw ApiException(
+            'Session expired. Please login again.',
+            statusCode: 401,
+          );
         }
       }
 
@@ -207,10 +215,7 @@ class ApiService {
     }
   }
 
-  Future<dynamic> delete(
-    String endpoint, {
-    bool includeAuth = false,
-  }) async {
+  Future<dynamic> delete(String endpoint, {bool includeAuth = false}) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}$endpoint');
     final headers = await _getHeaders(includeAuth: includeAuth);
 
@@ -227,7 +232,10 @@ class ApiService {
               .delete(uri, headers: newHeaders)
               .timeout(ApiConfig.timeout);
         } else {
-          throw ApiException('Session expired. Please login again.', statusCode: 401);
+          throw ApiException(
+            'Session expired. Please login again.',
+            statusCode: 401,
+          );
         }
       }
 
@@ -281,7 +289,9 @@ class ApiService {
     return response as List<dynamic>;
   }
 
-  Future<Map<String, dynamic>> refreshTrackPreview({required String trackId}) async {
+  Future<Map<String, dynamic>> refreshTrackPreview({
+    required String trackId,
+  }) async {
     final response = await post(
       ApiConfig.trackRefreshPreview(trackId),
       includeAuth: true,
@@ -343,10 +353,7 @@ class ApiService {
   }) async {
     final response = await get(
       ApiConfig.packBundleMessages(roomId, packId),
-      queryParameters: {
-        'limit': limit.toString(),
-        'offset': offset.toString(),
-      },
+      queryParameters: {'limit': limit.toString(), 'offset': offset.toString()},
       includeAuth: true,
     );
     return response as Map<String, dynamic>;
@@ -389,10 +396,7 @@ class ApiService {
   }) async {
     return await post(
       ApiConfig.authLogin,
-      body: {
-        'email': email,
-        'password': password,
-      },
+      body: {'email': email, 'password': password},
     );
   }
 
@@ -430,9 +434,7 @@ class ApiService {
     );
   }
 
-  Future<void> unregisterPushDevice({
-    required String token,
-  }) async {
+  Future<void> unregisterPushDevice({required String token}) async {
     await post(
       ApiConfig.pushDevicesUnregister,
       includeAuth: true,
@@ -442,11 +444,7 @@ class ApiService {
 
   // Room methods
   Future<Map<String, dynamic>> createRoom() async {
-    return await post(
-      ApiConfig.roomsCreate,
-      body: {},
-      includeAuth: true,
-    );
+    return await post(ApiConfig.roomsCreate, body: {}, includeAuth: true);
   }
 
   Future<Map<String, dynamic>> joinRoom(String roomCode) async {
@@ -496,9 +494,18 @@ class ApiService {
   }) async {
     return await post(
       ApiConfig.dailyGameGuess(roomId),
-      body: {
-        'track_id': trackId,
-      },
+      body: {'track_id': trackId},
+      includeAuth: true,
+    );
+  }
+
+  Future<Map<String, dynamic>> activateDailyRetry({
+    required String roomId,
+    required String action,
+  }) async {
+    return await post(
+      ApiConfig.dailyGameRetry(roomId),
+      body: {'action': action},
       includeAuth: true,
     );
   }
@@ -515,10 +522,7 @@ class ApiService {
   }) async {
     return await get(
       ApiConfig.roomMessages(roomId),
-      queryParameters: {
-        'limit': limit.toString(),
-        'offset': offset.toString(),
-      },
+      queryParameters: {'limit': limit.toString(), 'offset': offset.toString()},
       includeAuth: true,
     );
   }
@@ -566,6 +570,24 @@ class ApiService {
     );
   }
 
+  Future<Map<String, dynamic>> activateNoAdsPass() async {
+    return await post(ApiConfig.noAdsActivate, includeAuth: true);
+  }
+
+  Future<Map<String, dynamic>> claimRewardedAd({
+    String placement = 'game_result',
+  }) async {
+    return await post(
+      ApiConfig.adsRewardClaim,
+      body: {'placement': placement},
+      includeAuth: true,
+    );
+  }
+
+  Future<Map<String, dynamic>> getRewardedAdStatus() async {
+    return await get(ApiConfig.adsRewardStatus, includeAuth: true);
+  }
+
   // Hint methods
   Future<Map<String, dynamic>> purchaseDailyGameHint({
     required String roomId,
@@ -597,10 +619,7 @@ class ApiService {
   }) async {
     return await post(
       ApiConfig.changeEmail,
-      body: {
-        'current_password': currentPassword,
-        'new_email': newEmail,
-      },
+      body: {'current_password': currentPassword, 'new_email': newEmail},
       includeAuth: true,
     );
   }
@@ -631,11 +650,16 @@ class ApiService {
     };
 
     try {
-      final response = await http.get(uri, headers: headers).timeout(ApiConfig.timeout);
+      final response = await http
+          .get(uri, headers: headers)
+          .timeout(ApiConfig.timeout);
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return response.bodyBytes;
       } else {
-        throw ApiException('Export failed with status: ${response.statusCode}', statusCode: response.statusCode);
+        throw ApiException(
+          'Export failed with status: ${response.statusCode}',
+          statusCode: response.statusCode,
+        );
       }
     } catch (e) {
       if (e is ApiException) rethrow;
@@ -676,10 +700,7 @@ class ApiService {
     return await get(
       ApiConfig.roomHistory(roomId),
       includeAuth: true,
-      queryParameters: {
-        'limit': limit.toString(),
-        'offset': offset.toString(),
-      },
+      queryParameters: {'limit': limit.toString(), 'offset': offset.toString()},
     );
   }
 
@@ -702,10 +723,7 @@ class ApiService {
     return await get(
       ApiConfig.packBundleHistory(roomId, packId),
       includeAuth: true,
-      queryParameters: {
-        'limit': limit.toString(),
-        'offset': offset.toString(),
-      },
+      queryParameters: {'limit': limit.toString(), 'offset': offset.toString()},
     );
   }
 

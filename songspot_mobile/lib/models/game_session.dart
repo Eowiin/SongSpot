@@ -34,6 +34,12 @@ class GameSession extends Equatable {
   final DailySong dailySong;
   final int currentSnippet;
   final int guessesMade;
+  final int retriesUsed;
+  final int retryCredits;
+  final bool awaitingRetryUnlock;
+  final bool retryAvailable;
+  final String? nextRetryRequirement;
+  final int? retryCostCoins;
   final bool correctGuess;
   final int? pointsEarned;
   final DateTime? completedAt;
@@ -46,6 +52,12 @@ class GameSession extends Equatable {
     required this.dailySong,
     required this.currentSnippet,
     required this.guessesMade,
+    this.retriesUsed = 0,
+    this.retryCredits = 0,
+    this.awaitingRetryUnlock = false,
+    this.retryAvailable = false,
+    this.nextRetryRequirement,
+    this.retryCostCoins,
     required this.correctGuess,
     this.pointsEarned,
     this.completedAt,
@@ -60,6 +72,12 @@ class GameSession extends Equatable {
       dailySong: DailySong.fromJson(json['daily_song'] as Map<String, dynamic>),
       currentSnippet: json['current_snippet'] as int,
       guessesMade: json['guesses_made'] as int,
+      retriesUsed: json['retries_used'] as int? ?? 0,
+      retryCredits: json['retry_credits'] as int? ?? 0,
+      awaitingRetryUnlock: json['awaiting_retry_unlock'] as bool? ?? false,
+      retryAvailable: json['retry_available'] as bool? ?? false,
+      nextRetryRequirement: json['next_retry_requirement'] as String?,
+      retryCostCoins: json['retry_cost_coins'] as int?,
       correctGuess: json['correct_guess'] as bool,
       pointsEarned: json['points_earned'] as int?,
       completedAt: json['completed_at'] != null
@@ -67,6 +85,48 @@ class GameSession extends Equatable {
           : null,
       createdAt: DateTime.parse(json['created_at'] as String),
       hintsUsed: List<String>.from(json['hints_used'] as List? ?? []),
+    );
+  }
+
+  GameSession copyWith({
+    String? id,
+    User? user,
+    DailySong? dailySong,
+    int? currentSnippet,
+    int? guessesMade,
+    int? retriesUsed,
+    int? retryCredits,
+    bool? awaitingRetryUnlock,
+    bool? retryAvailable,
+    String? nextRetryRequirement,
+    bool clearNextRetryRequirement = false,
+    int? retryCostCoins,
+    bool? correctGuess,
+    int? pointsEarned,
+    DateTime? completedAt,
+    bool clearCompletedAt = false,
+    DateTime? createdAt,
+    List<String>? hintsUsed,
+  }) {
+    return GameSession(
+      id: id ?? this.id,
+      user: user ?? this.user,
+      dailySong: dailySong ?? this.dailySong,
+      currentSnippet: currentSnippet ?? this.currentSnippet,
+      guessesMade: guessesMade ?? this.guessesMade,
+      retriesUsed: retriesUsed ?? this.retriesUsed,
+      retryCredits: retryCredits ?? this.retryCredits,
+      awaitingRetryUnlock: awaitingRetryUnlock ?? this.awaitingRetryUnlock,
+      retryAvailable: retryAvailable ?? this.retryAvailable,
+      nextRetryRequirement: clearNextRetryRequirement
+          ? null
+          : (nextRetryRequirement ?? this.nextRetryRequirement),
+      retryCostCoins: retryCostCoins ?? this.retryCostCoins,
+      correctGuess: correctGuess ?? this.correctGuess,
+      pointsEarned: pointsEarned ?? this.pointsEarned,
+      completedAt: clearCompletedAt ? null : (completedAt ?? this.completedAt),
+      createdAt: createdAt ?? this.createdAt,
+      hintsUsed: hintsUsed ?? this.hintsUsed,
     );
   }
 
@@ -92,22 +152,29 @@ class GameSession extends Equatable {
   }
 
   int get possiblePoints {
-    return 7 - currentSnippet; // 6 points for snippet 1, down to 1 for snippet 6
+    return 7 -
+        currentSnippet; // 6 points for snippet 1, down to 1 for snippet 6
   }
 
   @override
   List<Object?> get props => [
-        id,
-        user,
-        dailySong,
-        currentSnippet,
-        guessesMade,
-        correctGuess,
-        pointsEarned,
-        completedAt,
-        createdAt,
-        hintsUsed,
-      ];
+    id,
+    user,
+    dailySong,
+    currentSnippet,
+    guessesMade,
+    retriesUsed,
+    retryCredits,
+    awaitingRetryUnlock,
+    retryAvailable,
+    nextRetryRequirement,
+    retryCostCoins,
+    correctGuess,
+    pointsEarned,
+    completedAt,
+    createdAt,
+    hintsUsed,
+  ];
 }
 
 class LeaderboardEntry extends Equatable {

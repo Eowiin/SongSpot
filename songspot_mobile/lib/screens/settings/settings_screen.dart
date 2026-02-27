@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -6,6 +7,7 @@ import '../../config/app_theme.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../services/api_service.dart';
 import '../auth/login_screen.dart';
 import 'accessibility_screen.dart';
 import 'change_email_screen.dart';
@@ -26,7 +28,12 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  static const _noAdsCostCoins = 700;
+  static const _noAdsDurationDays = 30;
+
+  final ApiService _apiService = ApiService();
   String _appVersion = '';
+  bool _isActivatingNoAds = false;
 
   @override
   void initState() {
@@ -82,9 +89,72 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open link')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Could not open link')));
+      }
+    }
+  }
+
+  String _formatAdFreeUntil(DateTime? value) {
+    if (value == null) return 'Not active';
+    return DateFormat('yyyy-MM-dd HH:mm').format(value.toLocal());
+  }
+
+  Future<void> _handleActivateNoAds() async {
+    if (_isActivatingNoAds || !mounted) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceColor,
+        title: const Text('No Ads Pass'),
+        content: Text(
+          'Spend $_noAdsCostCoins coins to disable ads for $_noAdsDurationDays days?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Activate'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    setState(() => _isActivatingNoAds = true);
+    try {
+      final response = await _apiService.activateNoAdsPass();
+      if (!mounted) return;
+
+      context.read<AuthProvider>().applyNoAdsPass(
+        coins: response['coins'] as int? ?? 0,
+        adFreeUntilIso: response['ad_free_until'] as String?,
+        hasNoAds: response['has_no_ads'] as bool?,
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No ads activated'),
+          backgroundColor: AppTheme.successColor,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isActivatingNoAds = false);
       }
     }
   }
@@ -93,6 +163,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final settings = context.watch<SettingsProvider>();
+    final user = context.watch<AuthProvider>().user;
+    final hasNoAds = user?.hasNoAds ?? false;
 
     return Scaffold(
       body: Container(
@@ -125,7 +197,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   children: [
                     // ── Account ──────────────────────────────────────────
                     _SectionHeader(l10n.settingsSectionAccount),
@@ -133,14 +208,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       icon: Icons.email_outlined,
                       title: l10n.settingsChangeEmail,
                       onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const ChangeEmailScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => const ChangeEmailScreen(),
+                        ),
                       ),
                     ),
                     _SettingsTile(
                       icon: Icons.lock_outline,
                       title: l10n.settingsChangePassword,
                       onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => const ChangePasswordScreen(),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -152,8 +231,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: 'Coin Shop',
                       subtitle: 'Buy coins to unlock packs and hints',
                       onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const CoinShopScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => const CoinShopScreen(),
+                        ),
                       ),
+                    ),
+                    _SettingsTile(
+                      icon: hasNoAds ? Icons.shield_moon : Icons.block,
+                      title: hasNoAds
+                          ? 'Extend No Ads (30 days)'
+                          : 'No Ads (30 days)',
+                      subtitle: hasNoAds
+                          ? 'Active until ${_formatAdFreeUntil(user?.adFreeUntil)}'
+                          : 'Spend $_noAdsCostCoins coins to disable ads for $_noAdsDurationDays days',
+                      onTap: _isActivatingNoAds ? null : _handleActivateNoAds,
+                      trailing: _isActivatingNoAds
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : null,
                     ),
                     const SizedBox(height: 8),
 
@@ -179,7 +277,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       icon: Icons.accessibility_new_outlined,
                       title: l10n.settingsAccessibility,
                       onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const AccessibilityScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => const AccessibilityScreen(),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -190,11 +290,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       icon: Icons.language_outlined,
                       title: l10n.settingsLanguage,
                       trailing: Text(
-                        settings.locale.languageCode == 'fr' ? 'Français' : 'English',
+                        settings.locale.languageCode == 'fr'
+                            ? 'Français'
+                            : 'English',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const LanguageScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => const LanguageScreen(),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -216,7 +320,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       iconColor: AppTheme.errorColor,
                       titleColor: AppTheme.errorColor,
                       onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const MyDataScreen(showDeleteSection: true)),
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              const MyDataScreen(showDeleteSection: true),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -249,7 +356,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: OutlinedButton.icon(
                         onPressed: _handleLogout,
-                        icon: const Icon(Icons.logout, color: AppTheme.errorColor),
+                        icon: const Icon(
+                          Icons.logout,
+                          color: AppTheme.errorColor,
+                        ),
                         label: Text(
                           l10n.logout,
                           style: const TextStyle(color: AppTheme.errorColor),
@@ -258,7 +368,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           side: const BorderSide(color: AppTheme.errorColor),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.borderRadius,
+                            ),
                           ),
                         ),
                       ),
@@ -288,10 +400,10 @@ class _SectionHeader extends StatelessWidget {
         child: Text(
           title.toUpperCase(),
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                letterSpacing: 1.2,
-                fontWeight: FontWeight.w600,
-                color: AppTheme.primaryColor,
-              ),
+            letterSpacing: 1.2,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.primaryColor,
+          ),
         ),
       ),
     );
@@ -329,19 +441,26 @@ class _SettingsTile extends StatelessWidget {
         leading: Icon(icon, color: iconColor ?? AppTheme.primaryColor),
         title: Text(
           title,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: titleColor,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyLarge?.copyWith(color: titleColor),
         ),
         subtitle: subtitle != null
             ? Text(subtitle!, style: Theme.of(context).textTheme.bodyMedium)
             : null,
-        trailing: trailing ??
+        trailing:
+            trailing ??
             (onTap != null
-                ? const Icon(Icons.arrow_forward_ios, size: 16, color: AppTheme.textSecondary)
+                ? const Icon(
+                    Icons.arrow_forward_ios,
+                    size: 16,
+                    color: AppTheme.textSecondary,
+                  )
                 : null),
         onTap: onTap,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.borderRadius)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+        ),
       ),
     );
   }
@@ -374,7 +493,9 @@ class _SettingsSwitch extends StatelessWidget {
         value: value,
         onChanged: onChanged,
         activeThumbColor: AppTheme.primaryColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.borderRadius)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+        ),
       ),
     );
   }

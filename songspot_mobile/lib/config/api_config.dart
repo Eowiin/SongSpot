@@ -4,8 +4,8 @@ class ApiConfig {
   // Base URL for the API
   static String get baseUrl =>
       dotenv.env['API_BASE_URL']?.trim().isNotEmpty == true
-          ? dotenv.env['API_BASE_URL']!.trim()
-          : 'http://localhost:8000/api';
+      ? dotenv.env['API_BASE_URL']!.trim()
+      : 'http://localhost:8000/api';
 
   // Auth endpoints
   static const String authRegister = '/auth/register/';
@@ -15,6 +15,9 @@ class ApiConfig {
   static const String authProfile = '/auth/profile/';
   static const String pushDevicesRegister = '/auth/push/devices/register/';
   static const String pushDevicesUnregister = '/auth/push/devices/unregister/';
+  static const String noAdsActivate = '/auth/no-ads/activate/';
+  static const String adsRewardClaim = '/auth/ads/reward/';
+  static const String adsRewardStatus = '/auth/ads/reward/status/';
 
   // Game endpoints
   static const String roomsCreate = '/game/rooms/create/';
@@ -23,13 +26,19 @@ class ApiConfig {
   static String roomsLeave(String roomId) => '/game/rooms/$roomId/leave/';
   static String roomsRename(String roomId) => '/game/rooms/$roomId/rename/';
   static const String roomsMyRooms = '/game/rooms/my-rooms/';
-  static String roomsDailySong(String roomId) => '/game/rooms/$roomId/daily-song/';
+  static String roomsDailySong(String roomId) =>
+      '/game/rooms/$roomId/daily-song/';
 
   // Game play endpoints
   static String dailyGame(String roomId) => '/game/rooms/$roomId/daily-game/';
-  static String dailyGameSkip(String roomId) => '/game/rooms/$roomId/daily-game/skip/';
-  static String dailyGameGuess(String roomId) => '/game/rooms/$roomId/daily-game/guess/';
-  static String dailyGameLeaderboard(String roomId) => '/game/rooms/$roomId/daily-game/leaderboard/';
+  static String dailyGameSkip(String roomId) =>
+      '/game/rooms/$roomId/daily-game/skip/';
+  static String dailyGameGuess(String roomId) =>
+      '/game/rooms/$roomId/daily-game/guess/';
+  static String dailyGameRetry(String roomId) =>
+      '/game/rooms/$roomId/daily-game/retry/';
+  static String dailyGameLeaderboard(String roomId) =>
+      '/game/rooms/$roomId/daily-game/leaderboard/';
 
   // Chat endpoints
   static String roomMessages(String roomId) => '/game/rooms/$roomId/messages/';
@@ -51,22 +60,28 @@ class ApiConfig {
       '/game/rooms/$roomId/packs/$packId/bundle/messages/';
   static const String tracks = '/game/tracks/';
   static const String searchTracks = '/game/tracks/search/';
-  static String trackRefreshPreview(String trackId) => '/game/tracks/$trackId/refresh-preview/';
+  static String trackRefreshPreview(String trackId) =>
+      '/game/tracks/$trackId/refresh-preview/';
 
   // History endpoints
   static String roomHistory(String roomId) => '/game/rooms/$roomId/history/';
-  static String roomHistoryDetail(String roomId, String date) => '/game/rooms/$roomId/history/$date/';
+  static String roomHistoryDetail(String roomId, String date) =>
+      '/game/rooms/$roomId/history/$date/';
   static String packBundleHistory(String roomId, String packId) =>
       '/game/rooms/$roomId/packs/$packId/history/';
-  static String packBundleHistoryDetail(String roomId, String packId, String date) =>
-      '/game/rooms/$roomId/packs/$packId/history/$date/';
+  static String packBundleHistoryDetail(
+    String roomId,
+    String packId,
+    String date,
+  ) => '/game/rooms/$roomId/packs/$packId/history/$date/';
 
   // IAP / Coin shop endpoints
   static const String coinProducts = '/auth/coin-products/';
   static const String iapVerify = '/auth/iap/verify/';
 
   // Hint endpoints
-  static String dailyGameHint(String roomId) => '/game/rooms/$roomId/daily-game/hint/';
+  static String dailyGameHint(String roomId) =>
+      '/game/rooms/$roomId/daily-game/hint/';
   static String packBundleHint(String roomId, String packId) =>
       '/game/rooms/$roomId/packs/$packId/bundle/hint/';
 

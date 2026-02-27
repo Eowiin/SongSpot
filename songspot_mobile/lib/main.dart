@@ -14,6 +14,7 @@ import 'providers/settings_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/game/game_screen.dart';
 import 'screens/home/home_screen.dart';
+import 'services/admob_service.dart';
 import 'services/push_notification_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -21,6 +22,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env');
+  await AdMobService().initialize();
   await PushNotificationService().initializeCore();
   runApp(const MyApp());
 }
@@ -133,11 +135,7 @@ class _SplashScreenState extends State<SplashScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.music_note,
-                size: 100,
-                color: AppTheme.primaryColor,
-              ),
+              Icon(Icons.music_note, size: 100, color: AppTheme.primaryColor),
               SizedBox(height: 24),
               Text(
                 'SongSpot',
@@ -149,7 +147,9 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
               SizedBox(height: 32),
               CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppTheme.primaryColor,
+                ),
               ),
             ],
           ),
