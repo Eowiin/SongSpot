@@ -432,8 +432,18 @@ class AppLocalizationsFr extends AppLocalizations {
       'Limite de salles atteinte. Supprimez ou quittez une salle avant d\'en créer une autre.';
 
   @override
+  String backendRoomLimitReachedWithLimit(num maxRooms) {
+    return 'Limite de salles atteinte ($maxRooms). Supprimez ou quittez une salle avant d\'en créer une autre.';
+  }
+
+  @override
   String get backendDailyRoomCreationLimitReached =>
       'Limite quotidienne de création de salles atteinte. Réessayez demain.';
+
+  @override
+  String backendDailyRoomCreationLimitReachedWithLimit(num dailyLimit) {
+    return 'Limite quotidienne de création de salles atteinte ($dailyLimit). Réessayez demain.';
+  }
 
   @override
   String get backendAlreadyInRoom => 'Vous êtes déjà dans cette salle.';
@@ -446,10 +456,19 @@ class AppLocalizationsFr extends AppLocalizations {
       'Seul l\'hôte peut renommer la salle.';
 
   @override
+  String get backendMustBeInRoomToPlayGame =>
+      'Vous devez être dans une salle pour jouer.';
+
+  @override
   String get backendRoomNotFound => 'Salle introuvable.';
 
   @override
   String get backendInsufficientCoins => 'Pièces insuffisantes.';
+
+  @override
+  String backendInsufficientCoinsWithCost(num requiredCoins) {
+    return 'Pièces insuffisantes. Il vous faut $requiredCoins pièces.';
+  }
 
   @override
   String get backendNoRetriesRemaining =>
@@ -458,6 +477,22 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get backendRetryAfterLastSnippetOnly =>
       'La nouvelle tentative est disponible uniquement après le dernier extrait.';
+
+  @override
+  String get backendRetryAlreadyActive => 'La seconde chance est déjà active.';
+
+  @override
+  String get backendRetryNotPendingUnlock =>
+      'La seconde chance n\'est pas disponible pour le moment.';
+
+  @override
+  String backendInvalidRetryAction(String expectedAction) {
+    return 'Action de seconde chance invalide. Attendu : $expectedAction.';
+  }
+
+  @override
+  String get backendInvalidRetryActionUnknown =>
+      'Action de seconde chance invalide.';
 
   @override
   String get backendGameAlreadyCompleted => 'Partie déjà terminée.';
@@ -516,6 +551,40 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get backendInvalidCredentials => 'Email ou mot de passe invalide.';
+
+  @override
+  String get backendRefreshTokenRequired =>
+      'Le jeton de rafraîchissement est requis.';
+
+  @override
+  String get backendInvalidOrExpiredRefreshToken =>
+      'Le jeton de rafraîchissement est invalide ou expiré.';
+
+  @override
+  String get backendInvalidToken => 'Jeton invalide.';
+
+  @override
+  String get backendMissingRequiredFields => 'Champs obligatoires manquants.';
+
+  @override
+  String get backendInvalidStore => 'Store invalide.';
+
+  @override
+  String get backendPurchaseProcessing =>
+      'L\'achat est en cours de traitement.';
+
+  @override
+  String backendUnknownOrInactiveProduct(String productId) {
+    return 'Produit inconnu ou inactif : $productId.';
+  }
+
+  @override
+  String get backendUnknownOrInactiveProductUnknown =>
+      'Produit inconnu ou inactif.';
+
+  @override
+  String get backendReceiptVerificationFailed =>
+      'La vérification du reçu a échoué.';
 
   @override
   String get backendNetworkError => 'Erreur réseau';

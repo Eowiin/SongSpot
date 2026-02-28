@@ -12,8 +12,17 @@ class ApiException implements Exception {
   final int? statusCode;
   final Map<String, dynamic>? errors;
   final String? rawMessage;
+  final String? errorCode;
+  final Map<String, dynamic>? errorParams;
 
-  ApiException(this.message, {this.statusCode, this.errors, this.rawMessage});
+  ApiException(
+    this.message, {
+    this.statusCode,
+    this.errors,
+    this.rawMessage,
+    this.errorCode,
+    this.errorParams,
+  });
 
   @override
   String toString() => message;
@@ -82,11 +91,101 @@ class ApiService {
     }
   }
 
-  Future<String> _localizeBackendMessage(String message) async {
+  num _numParam(Map<String, dynamic> params, String key, {num fallback = 0}) {
+    final value = params[key];
+    if (value is num) return value;
+    if (value is String) return num.tryParse(value) ?? fallback;
+    return fallback;
+  }
+
+  String? _localizeBackendCode({
+    required String code,
+    required Map<String, dynamic> params,
+    required AppLocalizations l10n,
+  }) {
+    switch (code) {
+      case 'ROOM_LIMIT_REACHED':
+        final maxRooms = _numParam(params, 'max_rooms', fallback: 0);
+        if (maxRooms > 0) {
+          return l10n.backendRoomLimitReachedWithLimit(maxRooms);
+        }
+        return l10n.backendRoomLimitReached;
+      case 'DAILY_ROOM_CREATION_LIMIT_REACHED':
+        final dailyLimit = _numParam(params, 'daily_limit', fallback: 0);
+        if (dailyLimit > 0) {
+          return l10n.backendDailyRoomCreationLimitReachedWithLimit(dailyLimit);
+        }
+        return l10n.backendDailyRoomCreationLimitReached;
+      case 'ALREADY_IN_ROOM':
+        return l10n.backendAlreadyInRoom;
+      case 'NOT_IN_ROOM':
+        return l10n.backendNotInRoom;
+      case 'ONLY_HOST_CAN_RENAME_ROOM':
+        return l10n.backendOnlyHostCanRenameRoom;
+      case 'MUST_BE_IN_ROOM_TO_PLAY_GAME':
+        return l10n.backendMustBeInRoomToPlayGame;
+      case 'NO_SONG_AVAILABLE_TODAY':
+        return l10n.backendNoSongAvailableToday;
+      case 'NO_ACTIVE_GAME_SESSION':
+        return l10n.backendNoActiveGameSession;
+      case 'GAME_ALREADY_COMPLETED':
+        return l10n.backendGameAlreadyCompleted;
+      case 'RETRY_AFTER_LAST_SNIPPET_ONLY':
+        return l10n.backendRetryAfterLastSnippetOnly;
+      case 'RETRY_ALREADY_ACTIVE':
+        return l10n.backendRetryAlreadyActive;
+      case 'RETRY_NOT_PENDING_UNLOCK':
+        return l10n.backendRetryNotPendingUnlock;
+      case 'NO_RETRIES_REMAINING':
+        return l10n.backendNoRetriesRemaining;
+      case 'INVALID_RETRY_ACTION':
+        final expected = params['expected_action']?.toString();
+        if (expected != null && expected.isNotEmpty) {
+          return l10n.backendInvalidRetryAction(expected);
+        }
+        return l10n.backendInvalidRetryActionUnknown;
+      case 'INSUFFICIENT_COINS':
+        final required = _numParam(params, 'required_coins', fallback: 0);
+        if (required > 0) {
+          return l10n.backendInsufficientCoinsWithCost(required);
+        }
+        return l10n.backendInsufficientCoins;
+      case 'INVALID_CREDENTIALS':
+        return l10n.backendInvalidCredentials;
+      case 'REFRESH_TOKEN_REQUIRED':
+        return l10n.backendRefreshTokenRequired;
+      case 'INVALID_OR_EXPIRED_REFRESH_TOKEN':
+        return l10n.backendInvalidOrExpiredRefreshToken;
+      case 'INVALID_TOKEN':
+        return l10n.backendInvalidToken;
+      case 'INVALID_PASSWORD':
+        return l10n.backendInvalidPassword;
+      case 'INVALID_CURRENT_PASSWORD':
+        return l10n.backendInvalidCurrentPassword;
+      case 'MISSING_REQUIRED_FIELDS':
+        return l10n.backendMissingRequiredFields;
+      case 'INVALID_STORE':
+        return l10n.backendInvalidStore;
+      case 'PURCHASE_PROCESSING':
+        return l10n.backendPurchaseProcessing;
+      case 'UNKNOWN_OR_INACTIVE_PRODUCT':
+        final productId = params['product_id']?.toString();
+        if (productId != null && productId.isNotEmpty) {
+          return l10n.backendUnknownOrInactiveProduct(productId);
+        }
+        return l10n.backendUnknownOrInactiveProductUnknown;
+      case 'RECEIPT_VERIFICATION_FAILED':
+        return l10n.backendReceiptVerificationFailed;
+    }
+    return null;
+  }
+
+  String _localizeBackendMessageFallback(
+    String message,
+    AppLocalizations l10n,
+  ) {
     final cleaned = message.replaceFirst(RegExp(r'^Exception:\s*'), '').trim();
     if (cleaned.isEmpty) return cleaned;
-
-    final l10n = await _resolveLocalizations();
 
     if (cleaned.startsWith('Room limit reached')) {
       return l10n.backendRoomLimitReached;
@@ -185,14 +284,39 @@ class ApiService {
       String message = 'Request failed with status: $statusCode';
       Map<String, dynamic>? errors;
       String? rawMessage;
+      String? errorCode;
+      Map<String, dynamic>? errorParams;
 
       try {
         final body = jsonDecode(response.body);
         if (body is Map<String, dynamic>) {
+          final extractedCode = body['error_code'];
+          if (extractedCode is String && extractedCode.trim().isNotEmpty) {
+            errorCode = extractedCode.trim();
+          }
+          final extractedParams = body['params'];
+          if (extractedParams is Map) {
+            errorParams = Map<String, dynamic>.from(extractedParams);
+          }
+
           final extracted = _extractFirstErrorMessage(body);
           if (extracted.isNotEmpty) {
             rawMessage = extracted;
-            message = await _localizeBackendMessage(extracted);
+            final l10n = await _resolveLocalizations();
+            if (errorCode != null) {
+              final localizedByCode = _localizeBackendCode(
+                code: errorCode,
+                params: errorParams ?? const {},
+                l10n: l10n,
+              );
+              if (localizedByCode != null && localizedByCode.isNotEmpty) {
+                message = localizedByCode;
+              } else {
+                message = _localizeBackendMessageFallback(extracted, l10n);
+              }
+            } else {
+              message = _localizeBackendMessageFallback(extracted, l10n);
+            }
           }
           errors = body;
         }
@@ -205,6 +329,8 @@ class ApiService {
         statusCode: statusCode,
         errors: errors,
         rawMessage: rawMessage,
+        errorCode: errorCode,
+        errorParams: errorParams,
       );
     }
   }

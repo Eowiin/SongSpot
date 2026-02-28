@@ -51,6 +51,7 @@ from .serializers import (
 )
 from .tasks import generate_pack_stems_task
 from songspot.throttling import GuessRateThrottle, MessageRateThrottle
+from songspot.api_errors import error_response, ErrorCode
 
 # Scoring constants
 SNIPPET_POINTS = {
@@ -231,10 +232,15 @@ class RoomCreateView(APIView):
         hosted_rooms_count = Room.objects.filter(host_user=request.user).count()
         max_hosted_rooms = _max_hosted_rooms_per_user()
         if hosted_rooms_count >= max_hosted_rooms:
-            return Response({
-                'error': f'Room limit reached ({max_hosted_rooms} hosted rooms). '
-                         f'Delete or leave one room before creating another.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return error_response(
+                code=ErrorCode.ROOM_LIMIT_REACHED,
+                message=(
+                    f'Room limit reached ({max_hosted_rooms} hosted rooms). '
+                    f'Delete or leave one room before creating another.'
+                ),
+                status_code=status.HTTP_400_BAD_REQUEST,
+                params={'max_rooms': max_hosted_rooms},
+            )
 
         today = timezone.now().date()
         created_today_count = Room.objects.filter(
@@ -243,10 +249,15 @@ class RoomCreateView(APIView):
         ).count()
         max_creations_per_day = _max_room_creations_per_day()
         if created_today_count >= max_creations_per_day:
-            return Response({
-                'error': f'Daily room creation limit reached ({max_creations_per_day}/day). '
-                         f'Try again tomorrow.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return error_response(
+                code=ErrorCode.DAILY_ROOM_CREATION_LIMIT_REACHED,
+                message=(
+                    f'Daily room creation limit reached ({max_creations_per_day}/day). '
+                    f'Try again tomorrow.'
+                ),
+                status_code=status.HTTP_400_BAD_REQUEST,
+                params={'daily_limit': max_creations_per_day},
+            )
 
         # Create new room with auto-generated code
         serializer = RoomCreateSerializer(data={})
@@ -296,9 +307,11 @@ class RoomJoinView(APIView):
 
         # Check if user is already in the room
         if RoomUser.objects.filter(room=room, user=request.user).exists():
-            return Response({
-                'error': 'You are already in this room'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return error_response(
+                code=ErrorCode.ALREADY_IN_ROOM,
+                message='You are already in this room',
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
 
         # Add user to room
         RoomUser.objects.create(room=room, user=request.user)
@@ -326,9 +339,11 @@ class RoomLeaveView(APIView):
         # Check if user is in the room
         room_user = RoomUser.objects.filter(room=room, user=request.user).first()
         if not room_user:
-            return Response({
-                'error': 'You are not in this room'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return error_response(
+                code=ErrorCode.NOT_IN_ROOM,
+                message='You are not in this room',
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
 
         # Remove user from room
         room_user.delete()
@@ -382,9 +397,10 @@ class RoomRenameView(APIView):
 
         # Check if user is the host
         if room.host_user != request.user:
-            return Response(
-                {'error': 'Only the host can rename the room.'},
-                status=status.HTTP_403_FORBIDDEN
+            return error_response(
+                code=ErrorCode.ONLY_HOST_CAN_RENAME_ROOM,
+                message='Only the host can rename the room.',
+                status_code=status.HTTP_403_FORBIDDEN,
             )
 
         serializer = RoomRenameSerializer(data=request.data)
@@ -1408,9 +1424,10 @@ class DailyGameRetryView(APIView):
         today = _active_game_date()
 
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
-            return Response(
-                {'error': 'You must be in the room to play the game'},
-                status=status.HTTP_403_FORBIDDEN,
+            return error_response(
+                code=ErrorCode.MUST_BE_IN_ROOM_TO_PLAY_GAME,
+                message='You must be in the room to play the game',
+                status_code=status.HTTP_403_FORBIDDEN,
             )
 
         serializer = DailyGameRetrySerializer(data=request.data)
@@ -1419,7 +1436,11 @@ class DailyGameRetryView(APIView):
 
         daily_song = DailySong.objects.filter(room=room, date=today).first()
         if not daily_song:
-            return Response({'error': 'No song available for today'}, status=status.HTTP_404_NOT_FOUND)
+            return error_response(
+                code=ErrorCode.NO_SONG_AVAILABLE_TODAY,
+                message='No song available for today',
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
 
         game_session = DailyGameSession.objects.filter(
             room=room,
@@ -1427,21 +1448,24 @@ class DailyGameRetryView(APIView):
             daily_song=daily_song,
         ).first()
         if not game_session:
-            return Response(
-                {'error': 'No active game session. Start by calling GET /daily-game/'},
-                status=status.HTTP_400_BAD_REQUEST,
+            return error_response(
+                code=ErrorCode.NO_ACTIVE_GAME_SESSION,
+                message='No active game session. Start by calling GET /daily-game/',
+                status_code=status.HTTP_400_BAD_REQUEST,
             )
 
         if game_session.completed_at:
-            return Response(
-                {'error': 'Game already completed'},
-                status=status.HTTP_400_BAD_REQUEST,
+            return error_response(
+                code=ErrorCode.GAME_ALREADY_COMPLETED,
+                message='Game already completed',
+                status_code=status.HTTP_400_BAD_REQUEST,
             )
 
         if game_session.current_snippet < MAX_DAILY_SNIPPET:
-            return Response(
-                {'error': 'Retry is only available after reaching the last snippet'},
-                status=status.HTTP_400_BAD_REQUEST,
+            return error_response(
+                code=ErrorCode.RETRY_AFTER_LAST_SNIPPET_ONLY,
+                message='Retry is only available after reaching the last snippet',
+                status_code=status.HTTP_400_BAD_REQUEST,
             )
 
         if action == 'forfeit':
@@ -1483,60 +1507,62 @@ class DailyGameRetryView(APIView):
             )
 
         if game_session.retry_credits > 0:
-            return Response(
-                {
-                    'error': 'A retry is already active',
-                    'current_snippet': game_session.current_snippet,
-                    **_retry_state_payload(game_session),
-                },
-                status=status.HTTP_400_BAD_REQUEST,
+            return error_response(
+                code=ErrorCode.RETRY_ALREADY_ACTIVE,
+                message='A retry is already active',
+                status_code=status.HTTP_400_BAD_REQUEST,
+                current_snippet=game_session.current_snippet,
+                **_retry_state_payload(game_session),
             )
 
         if not game_session.awaiting_retry_unlock:
-            return Response(
-                {
-                    'error': 'No retry is pending unlock yet',
-                    'current_snippet': game_session.current_snippet,
-                    **_retry_state_payload(game_session),
-                },
-                status=status.HTTP_400_BAD_REQUEST,
+            return error_response(
+                code=ErrorCode.RETRY_NOT_PENDING_UNLOCK,
+                message='No retry is pending unlock yet',
+                status_code=status.HTTP_400_BAD_REQUEST,
+                current_snippet=game_session.current_snippet,
+                **_retry_state_payload(game_session),
             )
 
         expected_action = _next_retry_requirement(game_session)
         if expected_action is None:
-            return Response(
-                {'error': 'No retries remaining', **_retry_state_payload(game_session)},
-                status=status.HTTP_400_BAD_REQUEST,
+            return error_response(
+                code=ErrorCode.NO_RETRIES_REMAINING,
+                message='No retries remaining',
+                status_code=status.HTTP_400_BAD_REQUEST,
+                **_retry_state_payload(game_session),
             )
 
         if action != expected_action:
-            return Response(
-                {
-                    'error': f'Invalid retry action. Expected "{expected_action}"',
-                    'expected_action': expected_action,
-                    **_retry_state_payload(game_session),
-                },
-                status=status.HTTP_400_BAD_REQUEST,
+            return error_response(
+                code=ErrorCode.INVALID_RETRY_ACTION,
+                message=f'Invalid retry action. Expected "{expected_action}"',
+                status_code=status.HTTP_400_BAD_REQUEST,
+                params={'expected_action': expected_action},
+                expected_action=expected_action,
+                **_retry_state_payload(game_session),
             )
 
         with transaction.atomic():
             if action == 'coins':
                 retry_cost = _daily_game_retry_coin_cost()
                 if request.user.coins < retry_cost:
-                    return Response(
-                        {
-                            'error': 'Insufficient coins',
-                            'coins': request.user.coins,
-                            'retry_cost_coins': retry_cost,
-                            **_retry_state_payload(game_session),
-                        },
-                        status=status.HTTP_400_BAD_REQUEST,
+                    return error_response(
+                        code=ErrorCode.INSUFFICIENT_COINS,
+                        message='Insufficient coins',
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        params={'required_coins': retry_cost},
+                        coins=request.user.coins,
+                        retry_cost_coins=retry_cost,
+                        **_retry_state_payload(game_session),
                     )
 
                 if not request.user.spend_coins(retry_cost, reason=f"Daily retry in room {room.room_code}"):
-                    return Response(
-                        {'error': 'Insufficient coins'},
-                        status=status.HTTP_400_BAD_REQUEST,
+                    return error_response(
+                        code=ErrorCode.INSUFFICIENT_COINS,
+                        message='Insufficient coins',
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        params={'required_coins': retry_cost},
                     )
 
             game_session.retry_credits += 1

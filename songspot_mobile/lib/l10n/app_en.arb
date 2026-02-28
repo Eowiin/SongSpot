@@ -413,8 +413,24 @@
   "backendRoomLimitReached": "Room limit reached. Delete or leave one room before creating another.",
   "@backendRoomLimitReached": { "description": "Backend room hosted limit error" },
 
+  "backendRoomLimitReachedWithLimit": "Room limit reached ({maxRooms}). Delete or leave one room before creating another.",
+  "@backendRoomLimitReachedWithLimit": {
+    "description": "Backend room hosted limit error with max rooms value",
+    "placeholders": {
+      "maxRooms": { "type": "num" }
+    }
+  },
+
   "backendDailyRoomCreationLimitReached": "Daily room creation limit reached. Try again tomorrow.",
   "@backendDailyRoomCreationLimitReached": { "description": "Backend daily room creation limit error" },
+
+  "backendDailyRoomCreationLimitReachedWithLimit": "Daily room creation limit reached ({dailyLimit}). Try again tomorrow.",
+  "@backendDailyRoomCreationLimitReachedWithLimit": {
+    "description": "Backend daily room creation limit with explicit limit value",
+    "placeholders": {
+      "dailyLimit": { "type": "num" }
+    }
+  },
 
   "backendAlreadyInRoom": "You are already in this room.",
   "@backendAlreadyInRoom": { "description": "Backend room join duplicate error" },
@@ -425,17 +441,45 @@
   "backendOnlyHostCanRenameRoom": "Only the host can rename the room.",
   "@backendOnlyHostCanRenameRoom": { "description": "Backend room rename permission error" },
 
+  "backendMustBeInRoomToPlayGame": "You must be in a room to play this game.",
+  "@backendMustBeInRoomToPlayGame": { "description": "Backend room membership required for game actions" },
+
   "backendRoomNotFound": "Room not found.",
   "@backendRoomNotFound": { "description": "Backend room not found error" },
 
   "backendInsufficientCoins": "Insufficient coins.",
   "@backendInsufficientCoins": { "description": "Backend insufficient coins error" },
 
+  "backendInsufficientCoinsWithCost": "Insufficient coins. You need {requiredCoins} coins.",
+  "@backendInsufficientCoinsWithCost": {
+    "description": "Backend insufficient coins error with required cost",
+    "placeholders": {
+      "requiredCoins": { "type": "num" }
+    }
+  },
+
   "backendNoRetriesRemaining": "No retries remaining.",
   "@backendNoRetriesRemaining": { "description": "Backend no retries remaining error" },
 
   "backendRetryAfterLastSnippetOnly": "Retry is only available after the last snippet.",
   "@backendRetryAfterLastSnippetOnly": { "description": "Backend retry requirement error" },
+
+  "backendRetryAlreadyActive": "Second chance is already active.",
+  "@backendRetryAlreadyActive": { "description": "Backend retry already active error" },
+
+  "backendRetryNotPendingUnlock": "Second chance is not available right now.",
+  "@backendRetryNotPendingUnlock": { "description": "Backend retry not pending unlock error" },
+
+  "backendInvalidRetryAction": "Invalid retry action. Expected: {expectedAction}.",
+  "@backendInvalidRetryAction": {
+    "description": "Backend invalid retry action with expected value",
+    "placeholders": {
+      "expectedAction": { "type": "String" }
+    }
+  },
+
+  "backendInvalidRetryActionUnknown": "Invalid retry action.",
+  "@backendInvalidRetryActionUnknown": { "description": "Backend invalid retry action without expected value" },
 
   "backendGameAlreadyCompleted": "Game already completed.",
   "@backendGameAlreadyCompleted": { "description": "Backend game already completed error" },
@@ -487,6 +531,38 @@
 
   "backendInvalidCredentials": "Invalid email or password.",
   "@backendInvalidCredentials": { "description": "Backend invalid credentials error" },
+
+  "backendRefreshTokenRequired": "Refresh token is required.",
+  "@backendRefreshTokenRequired": { "description": "Backend missing refresh token error" },
+
+  "backendInvalidOrExpiredRefreshToken": "Refresh token is invalid or expired.",
+  "@backendInvalidOrExpiredRefreshToken": { "description": "Backend invalid or expired refresh token error" },
+
+  "backendInvalidToken": "Token is invalid.",
+  "@backendInvalidToken": { "description": "Backend invalid access token error" },
+
+  "backendMissingRequiredFields": "Missing required fields.",
+  "@backendMissingRequiredFields": { "description": "Backend missing required fields error" },
+
+  "backendInvalidStore": "Invalid store.",
+  "@backendInvalidStore": { "description": "Backend invalid store identifier error" },
+
+  "backendPurchaseProcessing": "Purchase is being processed.",
+  "@backendPurchaseProcessing": { "description": "Backend purchase in progress or already processed response" },
+
+  "backendUnknownOrInactiveProduct": "Unknown or inactive product: {productId}.",
+  "@backendUnknownOrInactiveProduct": {
+    "description": "Backend unknown or inactive product with product id",
+    "placeholders": {
+      "productId": { "type": "String" }
+    }
+  },
+
+  "backendUnknownOrInactiveProductUnknown": "Unknown or inactive product.",
+  "@backendUnknownOrInactiveProductUnknown": { "description": "Backend unknown or inactive product without product id" },
+
+  "backendReceiptVerificationFailed": "Receipt verification failed.",
+  "@backendReceiptVerificationFailed": { "description": "Backend receipt verification failed error" },
 
   "backendNetworkError": "Network error",
   "@backendNetworkError": { "description": "Generic network error prefix" }

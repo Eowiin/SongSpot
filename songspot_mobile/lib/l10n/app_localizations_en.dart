@@ -428,8 +428,18 @@ class AppLocalizationsEn extends AppLocalizations {
       'Room limit reached. Delete or leave one room before creating another.';
 
   @override
+  String backendRoomLimitReachedWithLimit(num maxRooms) {
+    return 'Room limit reached ($maxRooms). Delete or leave one room before creating another.';
+  }
+
+  @override
   String get backendDailyRoomCreationLimitReached =>
       'Daily room creation limit reached. Try again tomorrow.';
+
+  @override
+  String backendDailyRoomCreationLimitReachedWithLimit(num dailyLimit) {
+    return 'Daily room creation limit reached ($dailyLimit). Try again tomorrow.';
+  }
 
   @override
   String get backendAlreadyInRoom => 'You are already in this room.';
@@ -442,10 +452,19 @@ class AppLocalizationsEn extends AppLocalizations {
       'Only the host can rename the room.';
 
   @override
+  String get backendMustBeInRoomToPlayGame =>
+      'You must be in a room to play this game.';
+
+  @override
   String get backendRoomNotFound => 'Room not found.';
 
   @override
   String get backendInsufficientCoins => 'Insufficient coins.';
+
+  @override
+  String backendInsufficientCoinsWithCost(num requiredCoins) {
+    return 'Insufficient coins. You need $requiredCoins coins.';
+  }
 
   @override
   String get backendNoRetriesRemaining => 'No retries remaining.';
@@ -453,6 +472,21 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get backendRetryAfterLastSnippetOnly =>
       'Retry is only available after the last snippet.';
+
+  @override
+  String get backendRetryAlreadyActive => 'Second chance is already active.';
+
+  @override
+  String get backendRetryNotPendingUnlock =>
+      'Second chance is not available right now.';
+
+  @override
+  String backendInvalidRetryAction(String expectedAction) {
+    return 'Invalid retry action. Expected: $expectedAction.';
+  }
+
+  @override
+  String get backendInvalidRetryActionUnknown => 'Invalid retry action.';
 
   @override
   String get backendGameAlreadyCompleted => 'Game already completed.';
@@ -505,6 +539,37 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get backendInvalidCredentials => 'Invalid email or password.';
+
+  @override
+  String get backendRefreshTokenRequired => 'Refresh token is required.';
+
+  @override
+  String get backendInvalidOrExpiredRefreshToken =>
+      'Refresh token is invalid or expired.';
+
+  @override
+  String get backendInvalidToken => 'Token is invalid.';
+
+  @override
+  String get backendMissingRequiredFields => 'Missing required fields.';
+
+  @override
+  String get backendInvalidStore => 'Invalid store.';
+
+  @override
+  String get backendPurchaseProcessing => 'Purchase is being processed.';
+
+  @override
+  String backendUnknownOrInactiveProduct(String productId) {
+    return 'Unknown or inactive product: $productId.';
+  }
+
+  @override
+  String get backendUnknownOrInactiveProductUnknown =>
+      'Unknown or inactive product.';
+
+  @override
+  String get backendReceiptVerificationFailed => 'Receipt verification failed.';
 
   @override
   String get backendNetworkError => 'Network error';

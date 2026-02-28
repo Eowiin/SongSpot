@@ -26,6 +26,7 @@ from .serializers import (
     DeleteAccountSerializer,
 )
 from songspot.throttling import AuthRateThrottle
+from songspot.api_errors import error_response, ErrorCode
 
 User = get_user_model()
 
@@ -112,9 +113,11 @@ class LoginView(APIView):
                 'message': 'Login successful'
             }, status=status.HTTP_200_OK)
 
-        return Response({
-            'error': 'Invalid credentials'
-        }, status=status.HTTP_401_UNAUTHORIZED)
+        return error_response(
+            code=ErrorCode.INVALID_CREDENTIALS,
+            message='Invalid credentials',
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
 
 
 class RefreshTokenView(APIView):
@@ -139,9 +142,11 @@ class RefreshTokenView(APIView):
         refresh_token = request.data.get('refresh')
 
         if not refresh_token:
-            return Response({
-                'error': 'Refresh token is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return error_response(
+                code=ErrorCode.REFRESH_TOKEN_REQUIRED,
+                message='Refresh token is required',
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             refresh = RefreshToken(refresh_token)
@@ -154,9 +159,11 @@ class RefreshTokenView(APIView):
             return Response(data, status=status.HTTP_200_OK)
 
         except TokenError:
-            return Response({
-                'error': 'Invalid or expired refresh token'
-            }, status=status.HTTP_401_UNAUTHORIZED)
+            return error_response(
+                code=ErrorCode.INVALID_OR_EXPIRED_REFRESH_TOKEN,
+                message='Invalid or expired refresh token',
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
 
 
 class LogoutView(APIView):
@@ -179,9 +186,11 @@ class LogoutView(APIView):
             refresh_token = request.data.get('refresh')
 
             if not refresh_token:
-                return Response({
-                    'error': 'Refresh token is required'
-                }, status=status.HTTP_400_BAD_REQUEST)
+                return error_response(
+                    code=ErrorCode.REFRESH_TOKEN_REQUIRED,
+                    message='Refresh token is required',
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
 
             token = RefreshToken(refresh_token)
             token.blacklist()
@@ -191,9 +200,11 @@ class LogoutView(APIView):
             }, status=status.HTTP_200_OK)
 
         except TokenError:
-            return Response({
-                'error': 'Invalid token'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return error_response(
+                code=ErrorCode.INVALID_TOKEN,
+                message='Invalid token',
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
 
 
 class UserProfileView(APIView):
@@ -471,9 +482,10 @@ class ChangeEmailView(APIView):
 
         user = request.user
         if not user.check_password(serializer.validated_data['current_password']):
-            return Response(
-                {'error': 'Invalid password.'},
-                status=status.HTTP_400_BAD_REQUEST,
+            return error_response(
+                code=ErrorCode.INVALID_PASSWORD,
+                message='Invalid password.',
+                status_code=status.HTTP_400_BAD_REQUEST,
             )
 
         user.email = serializer.validated_data['new_email']
@@ -506,9 +518,10 @@ class ChangePasswordView(APIView):
 
         user = request.user
         if not user.check_password(serializer.validated_data['current_password']):
-            return Response(
-                {'error': 'Invalid current password.'},
-                status=status.HTTP_400_BAD_REQUEST,
+            return error_response(
+                code=ErrorCode.INVALID_CURRENT_PASSWORD,
+                message='Invalid current password.',
+                status_code=status.HTTP_400_BAD_REQUEST,
             )
 
         with transaction.atomic():
@@ -675,9 +688,10 @@ class DeleteAccountView(APIView):
 
         user = request.user
         if not user.check_password(serializer.validated_data['password']):
-            return Response(
-                {'error': 'Invalid password.'},
-                status=status.HTTP_400_BAD_REQUEST,
+            return error_response(
+                code=ErrorCode.INVALID_PASSWORD,
+                message='Invalid password.',
+                status_code=status.HTTP_400_BAD_REQUEST,
             )
 
         with transaction.atomic():

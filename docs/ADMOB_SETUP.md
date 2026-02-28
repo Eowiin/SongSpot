@@ -193,3 +193,57 @@ or
 - Ads are skipped when user has active ad-free pass (`has_no_ads=true`).
 - Retry order is enforced server-side: first ad, then coins.
 - Keep Google test IDs during development/testing.
+
+## Production rollout checklist
+
+Use this list before publishing a production build.
+
+1. Create production AdMob assets
+
+- In AdMob, create your real app entries (Android package name + iOS bundle ID).
+- Create real ad units for each placement you use:
+  - Rewarded (retry unlock)
+  - Rewarded (coin shop bonus)
+  - Interstitial (before results)
+  - Banner (pack list)
+
+2. Replace all test IDs in app config
+
+- Android: replace test App ID in `songspot_mobile/android/app/src/main/AndroidManifest.xml`.
+- iOS: replace test App ID in `songspot_mobile/ios/Runner/Info.plist`.
+- Mobile env: in `songspot_mobile/.env`, set:
+  - `ADMOB_USE_TEST_IDS=false`
+  - real values for all `ADMOB_*_AD_UNIT_ID_*` keys.
+
+Important:
+- `AdMobConfig` currently falls back to Google test unit IDs when env values are empty.
+- Do not ship production with empty `ADMOB_*_AD_UNIT_ID_*` values.
+
+3. Implement privacy + consent requirements
+
+- Add Google UMP consent flow at app startup and request consent info update each launch.
+- Add a persistent privacy options entry point so users can change consent later.
+- If you request tracking on iOS, add ATT prompt flow and `NSUserTrackingUsageDescription`.
+
+4. Verify policy-safe ad behavior
+
+- Keep ads on natural breaks (already your chosen strategy).
+- Avoid interstitial surprises and avoid placing ads on purchase-critical UI.
+- Use test ads/test devices during QA to avoid invalid traffic from internal testing.
+
+5. Store/disclosure and inventory setup
+
+- Configure app-ads.txt for your app domain and set the same domain in store listing.
+- Complete Play Store / App Store privacy disclosures for ad usage.
+
+6. Release and monitor
+
+- Start with staged rollout (small percentage first).
+- Monitor AdMob dashboards: match rate, RPM, crashes, and policy/invalid traffic alerts.
+- Expect that new ad units/apps can take time before stable fill.
+
+## Current repo gaps before production
+
+- `AndroidManifest.xml` and `Info.plist` still contain Google test App IDs.
+- `.env` still has `ADMOB_USE_TEST_IDS=true` in local example.
+- No UMP consent flow is currently implemented in Flutter code.

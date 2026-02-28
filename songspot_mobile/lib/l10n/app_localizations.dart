@@ -860,11 +860,23 @@ abstract class AppLocalizations {
   /// **'Room limit reached. Delete or leave one room before creating another.'**
   String get backendRoomLimitReached;
 
+  /// Backend room hosted limit error with max rooms value
+  ///
+  /// In en, this message translates to:
+  /// **'Room limit reached ({maxRooms}). Delete or leave one room before creating another.'**
+  String backendRoomLimitReachedWithLimit(num maxRooms);
+
   /// Backend daily room creation limit error
   ///
   /// In en, this message translates to:
   /// **'Daily room creation limit reached. Try again tomorrow.'**
   String get backendDailyRoomCreationLimitReached;
+
+  /// Backend daily room creation limit with explicit limit value
+  ///
+  /// In en, this message translates to:
+  /// **'Daily room creation limit reached ({dailyLimit}). Try again tomorrow.'**
+  String backendDailyRoomCreationLimitReachedWithLimit(num dailyLimit);
 
   /// Backend room join duplicate error
   ///
@@ -884,6 +896,12 @@ abstract class AppLocalizations {
   /// **'Only the host can rename the room.'**
   String get backendOnlyHostCanRenameRoom;
 
+  /// Backend room membership required for game actions
+  ///
+  /// In en, this message translates to:
+  /// **'You must be in a room to play this game.'**
+  String get backendMustBeInRoomToPlayGame;
+
   /// Backend room not found error
   ///
   /// In en, this message translates to:
@@ -896,6 +914,12 @@ abstract class AppLocalizations {
   /// **'Insufficient coins.'**
   String get backendInsufficientCoins;
 
+  /// Backend insufficient coins error with required cost
+  ///
+  /// In en, this message translates to:
+  /// **'Insufficient coins. You need {requiredCoins} coins.'**
+  String backendInsufficientCoinsWithCost(num requiredCoins);
+
   /// Backend no retries remaining error
   ///
   /// In en, this message translates to:
@@ -907,6 +931,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Retry is only available after the last snippet.'**
   String get backendRetryAfterLastSnippetOnly;
+
+  /// Backend retry already active error
+  ///
+  /// In en, this message translates to:
+  /// **'Second chance is already active.'**
+  String get backendRetryAlreadyActive;
+
+  /// Backend retry not pending unlock error
+  ///
+  /// In en, this message translates to:
+  /// **'Second chance is not available right now.'**
+  String get backendRetryNotPendingUnlock;
+
+  /// Backend invalid retry action with expected value
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid retry action. Expected: {expectedAction}.'**
+  String backendInvalidRetryAction(String expectedAction);
+
+  /// Backend invalid retry action without expected value
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid retry action.'**
+  String get backendInvalidRetryActionUnknown;
 
   /// Backend game already completed error
   ///
@@ -1009,6 +1057,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Invalid email or password.'**
   String get backendInvalidCredentials;
+
+  /// Backend missing refresh token error
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh token is required.'**
+  String get backendRefreshTokenRequired;
+
+  /// Backend invalid or expired refresh token error
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh token is invalid or expired.'**
+  String get backendInvalidOrExpiredRefreshToken;
+
+  /// Backend invalid access token error
+  ///
+  /// In en, this message translates to:
+  /// **'Token is invalid.'**
+  String get backendInvalidToken;
+
+  /// Backend missing required fields error
+  ///
+  /// In en, this message translates to:
+  /// **'Missing required fields.'**
+  String get backendMissingRequiredFields;
+
+  /// Backend invalid store identifier error
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid store.'**
+  String get backendInvalidStore;
+
+  /// Backend purchase in progress or already processed response
+  ///
+  /// In en, this message translates to:
+  /// **'Purchase is being processed.'**
+  String get backendPurchaseProcessing;
+
+  /// Backend unknown or inactive product with product id
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown or inactive product: {productId}.'**
+  String backendUnknownOrInactiveProduct(String productId);
+
+  /// Backend unknown or inactive product without product id
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown or inactive product.'**
+  String get backendUnknownOrInactiveProductUnknown;
+
+  /// Backend receipt verification failed error
+  ///
+  /// In en, this message translates to:
+  /// **'Receipt verification failed.'**
+  String get backendReceiptVerificationFailed;
 
   /// Generic network error prefix
   ///
