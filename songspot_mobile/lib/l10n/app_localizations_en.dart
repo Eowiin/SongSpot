@@ -177,7 +177,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsPrivacyPolicy => 'Privacy Policy';
 
   @override
+  String get settingsManageAdConsent => 'Manage Ad Consent';
+
+  @override
+  String get settingsManageAdConsentSubtitle =>
+      'Update your ad privacy choices (GDPR)';
+
+  @override
   String get settingsTermsOfService => 'Terms of Service';
+
+  @override
+  String get adConsentUpdated => 'Ad consent preferences updated.';
+
+  @override
+  String get adConsentNotRequired =>
+      'Ad privacy options are not required in your region.';
+
+  @override
+  String get adConsentError => 'Could not open ad privacy options right now.';
 
   @override
   String get accessibilityTitle => 'Accessibility';
@@ -318,4 +335,259 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get fieldRequired => 'This field is required';
+
+  @override
+  String get undoAction => 'Undo';
+
+  @override
+  String get userFallback => 'User';
+
+  @override
+  String get dailyStreakTooltip => 'Daily streak';
+
+  @override
+  String get coinsTooltip => 'Coins';
+
+  @override
+  String get pleaseEnterRoomCode => 'Please enter a room code';
+
+  @override
+  String get finishOrUndoCurrentRoomDeletion =>
+      'Finish or undo the current room deletion first.';
+
+  @override
+  String get leftRoomHostTransferred => 'Left room. Host transferred.';
+
+  @override
+  String get roomRemoved => 'Room removed.';
+
+  @override
+  String get roomDeletionCancelled => 'Deletion cancelled.';
+
+  @override
+  String get deleteLabel => 'Delete';
+
+  @override
+  String get couldNotDeleteRoom => 'Could not delete room.';
+
+  @override
+  String get coinShopTitle => 'Coin Shop';
+
+  @override
+  String get adNotReadyTryAgain =>
+      'Ad not ready yet. Please try again in a moment.';
+
+  @override
+  String get storeNotAvailableOnDevice => 'Store not available on this device.';
+
+  @override
+  String get productsNotFoundStoreMessage =>
+      'Products not found in store. Make sure in-app products are created and set to Active in App Store Connect / Play Console.';
+
+  @override
+  String get getMoreCoinsTitle => 'Get more coins';
+
+  @override
+  String get useCoinsToUnlockHint =>
+      'Use coins to unlock song packs and hints.';
+
+  @override
+  String get processingPayment => 'Processing payment...';
+
+  @override
+  String get pleaseDontCloseApp => 'Please don\'t close the app';
+
+  @override
+  String get yourBalance => 'Your balance';
+
+  @override
+  String coinsAmount(num count) {
+    return '$count coins';
+  }
+
+  @override
+  String get freeBonusCoinsTitle => 'Free Bonus Coins';
+
+  @override
+  String watchRewardedAdClaimCoins(num coins) {
+    return 'Watch a rewarded ad to claim +$coins coins.';
+  }
+
+  @override
+  String get checkingDailyLimit => 'Checking daily limit...';
+
+  @override
+  String get dailyLimitUnavailable => 'Daily limit unavailable right now.';
+
+  @override
+  String remainingTodayStatus(num remaining, num cap) {
+    return 'Remaining today: $remaining / $cap';
+  }
+
+  @override
+  String get dailyLimitReached => 'Daily Limit Reached';
+
+  @override
+  String get watchAdLabel => 'Watch Ad';
+
+  @override
+  String rewardCoinsAddedToBalance(num coins) {
+    return '+$coins coins added to your balance.';
+  }
+
+  @override
+  String coinsAddedSuccess(num coins) {
+    return '+$coins coins added!';
+  }
+
+  @override
+  String get backendRoomLimitReached =>
+      'Room limit reached. Delete or leave one room before creating another.';
+
+  @override
+  String backendRoomLimitReachedWithLimit(num maxRooms) {
+    return 'Room limit reached ($maxRooms). Delete or leave one room before creating another.';
+  }
+
+  @override
+  String get backendDailyRoomCreationLimitReached =>
+      'Daily room creation limit reached. Try again tomorrow.';
+
+  @override
+  String backendDailyRoomCreationLimitReachedWithLimit(num dailyLimit) {
+    return 'Daily room creation limit reached ($dailyLimit). Try again tomorrow.';
+  }
+
+  @override
+  String get backendAlreadyInRoom => 'You are already in this room.';
+
+  @override
+  String get backendNotInRoom => 'You are not in this room.';
+
+  @override
+  String get backendOnlyHostCanRenameRoom =>
+      'Only the host can rename the room.';
+
+  @override
+  String get backendMustBeInRoomToPlayGame =>
+      'You must be in a room to play this game.';
+
+  @override
+  String get backendRoomNotFound => 'Room not found.';
+
+  @override
+  String get backendInsufficientCoins => 'Insufficient coins.';
+
+  @override
+  String backendInsufficientCoinsWithCost(num requiredCoins) {
+    return 'Insufficient coins. You need $requiredCoins coins.';
+  }
+
+  @override
+  String get backendNoRetriesRemaining => 'No retries remaining.';
+
+  @override
+  String get backendRetryAfterLastSnippetOnly =>
+      'Retry is only available after the last snippet.';
+
+  @override
+  String get backendRetryAlreadyActive => 'Second chance is already active.';
+
+  @override
+  String get backendRetryNotPendingUnlock =>
+      'Second chance is not available right now.';
+
+  @override
+  String backendInvalidRetryAction(String expectedAction) {
+    return 'Invalid retry action. Expected: $expectedAction.';
+  }
+
+  @override
+  String get backendInvalidRetryActionUnknown => 'Invalid retry action.';
+
+  @override
+  String get backendGameAlreadyCompleted => 'Game already completed.';
+
+  @override
+  String get backendNoActiveGameSession => 'No active game session.';
+
+  @override
+  String get backendNoSongAvailableToday => 'No song available for today.';
+
+  @override
+  String get backendPackNotOwnedByRoom => 'This pack is not owned by the room.';
+
+  @override
+  String get backendPackHasNoTracks => 'This pack has no tracks.';
+
+  @override
+  String get backendNoActivePackSession => 'No active pack session.';
+
+  @override
+  String get backendPackAlreadyCompleted => 'Pack already completed.';
+
+  @override
+  String get backendTrackNotFound => 'Track not found.';
+
+  @override
+  String get backendAlreadyGuessedForStage =>
+      'You already guessed for this stage.';
+
+  @override
+  String get backendRoomIdRequired => 'Room is required.';
+
+  @override
+  String get backendInvalidPassword => 'Invalid password.';
+
+  @override
+  String get backendInvalidCurrentPassword => 'Invalid current password.';
+
+  @override
+  String get backendInvalidDateFormat => 'Invalid date format. Use YYYY-MM-DD.';
+
+  @override
+  String get backendDateNotInHistory => 'This date is not yet in history.';
+
+  @override
+  String get backendNoSongFoundForDate => 'No song found for this date.';
+
+  @override
+  String get backendNoPackTrackForDate => 'No pack track found for this date.';
+
+  @override
+  String get backendInvalidCredentials => 'Invalid email or password.';
+
+  @override
+  String get backendRefreshTokenRequired => 'Refresh token is required.';
+
+  @override
+  String get backendInvalidOrExpiredRefreshToken =>
+      'Refresh token is invalid or expired.';
+
+  @override
+  String get backendInvalidToken => 'Token is invalid.';
+
+  @override
+  String get backendMissingRequiredFields => 'Missing required fields.';
+
+  @override
+  String get backendInvalidStore => 'Invalid store.';
+
+  @override
+  String get backendPurchaseProcessing => 'Purchase is being processed.';
+
+  @override
+  String backendUnknownOrInactiveProduct(String productId) {
+    return 'Unknown or inactive product: $productId.';
+  }
+
+  @override
+  String get backendUnknownOrInactiveProductUnknown =>
+      'Unknown or inactive product.';
+
+  @override
+  String get backendReceiptVerificationFailed => 'Receipt verification failed.';
+
+  @override
+  String get backendNetworkError => 'Network error';
 }

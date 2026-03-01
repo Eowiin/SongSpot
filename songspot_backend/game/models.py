@@ -113,12 +113,11 @@ class SongPack(models.Model):
         default=False,
         help_text="Automatically unlock for all new rooms on creation",
     )
-    is_featured = models.BooleanField(default=False, help_text="Featured packs shown prominently")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = 'song_packs'
-        ordering = ['-is_featured', 'name']
+        ordering = ['name']
 
     def __str__(self):
         return self.name
@@ -503,6 +502,9 @@ class DailyGameSession(models.Model):
     )
     current_snippet = models.PositiveSmallIntegerField(default=1)
     guesses_made = models.PositiveSmallIntegerField(default=0)
+    retries_used = models.PositiveSmallIntegerField(default=0)
+    retry_credits = models.PositiveSmallIntegerField(default=0)
+    awaiting_retry_unlock = models.BooleanField(default=False)
     correct_guess = models.BooleanField(default=False)
     points_earned = models.PositiveSmallIntegerField(null=True, blank=True)
     hints_used = models.JSONField(default=list, blank=True, help_text="List of hint types purchased, e.g. ['genre', 'artist_letter']")

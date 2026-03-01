@@ -110,7 +110,6 @@ class Command(BaseCommand):
             price_coins=0,
             is_free=True,
             auto_unlock=False,
-            is_featured=True,
         )
         for order, track in enumerate(selected, start=1):
             PackTrack.objects.create(pack=pack, track=track, order_in_pack=order)

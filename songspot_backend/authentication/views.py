@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -7,10 +9,11 @@ from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth import authenticate, get_user_model
 from django.db import transaction
+from django.conf import settings
 from django.utils import timezone
 from django.http import HttpResponse
 import json
-from .models import UserDevicePushToken, CoinTransaction
+from .models import UserDevicePushToken, CoinTransaction, AdRewardClaim
 from .serializers import (
     UserRegistrationSerializer,
     UserSerializer,
@@ -23,6 +26,7 @@ from .serializers import (
     DeleteAccountSerializer,
 )
 from songspot.throttling import AuthRateThrottle
+from songspot.api_errors import error_response, ErrorCode
 
 User = get_user_model()
 
@@ -109,9 +113,11 @@ class LoginView(APIView):
                 'message': 'Login successful'
             }, status=status.HTTP_200_OK)
 
-        return Response({
-            'error': 'Invalid credentials'
-        }, status=status.HTTP_401_UNAUTHORIZED)
+        return error_response(
+            code=ErrorCode.INVALID_CREDENTIALS,
+            message='Invalid credentials',
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
 
 
 class RefreshTokenView(APIView):
@@ -136,9 +142,11 @@ class RefreshTokenView(APIView):
         refresh_token = request.data.get('refresh')
 
         if not refresh_token:
-            return Response({
-                'error': 'Refresh token is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return error_response(
+                code=ErrorCode.REFRESH_TOKEN_REQUIRED,
+                message='Refresh token is required',
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             refresh = RefreshToken(refresh_token)
@@ -151,9 +159,11 @@ class RefreshTokenView(APIView):
             return Response(data, status=status.HTTP_200_OK)
 
         except TokenError:
-            return Response({
-                'error': 'Invalid or expired refresh token'
-            }, status=status.HTTP_401_UNAUTHORIZED)
+            return error_response(
+                code=ErrorCode.INVALID_OR_EXPIRED_REFRESH_TOKEN,
+                message='Invalid or expired refresh token',
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
 
 
 class LogoutView(APIView):
@@ -176,9 +186,11 @@ class LogoutView(APIView):
             refresh_token = request.data.get('refresh')
 
             if not refresh_token:
-                return Response({
-                    'error': 'Refresh token is required'
-                }, status=status.HTTP_400_BAD_REQUEST)
+                return error_response(
+                    code=ErrorCode.REFRESH_TOKEN_REQUIRED,
+                    message='Refresh token is required',
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
 
             token = RefreshToken(refresh_token)
             token.blacklist()
@@ -188,9 +200,11 @@ class LogoutView(APIView):
             }, status=status.HTTP_200_OK)
 
         except TokenError:
-            return Response({
-                'error': 'Invalid token'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return error_response(
+                code=ErrorCode.INVALID_TOKEN,
+                message='Invalid token',
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
 
 
 class UserProfileView(APIView):
@@ -207,6 +221,158 @@ class UserProfileView(APIView):
     def get(self, request):
         serializer = UserProfileSerializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class NoAdsPassActivateView(APIView):
+    """
+    Activate or extend an ad-free pass by spending coins.
+
+    POST /api/auth/no-ads/activate/
+    Headers: Authorization: Bearer <access_token>
+
+    Server-side pricing is controlled by settings:
+    - NO_ADS_PASS_COINS (default: 700)
+    - NO_ADS_PASS_DAYS (default: 30)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        cost_coins = int(getattr(settings, 'NO_ADS_PASS_COINS', 700))
+        duration_days = int(getattr(settings, 'NO_ADS_PASS_DAYS', 30))
+
+        if user.coins < cost_coins:
+            return Response(
+                {
+                    'error': 'Insufficient coins',
+                    'coins': user.coins,
+                    'cost_coins': cost_coins,
+                    'duration_days': duration_days,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        now = timezone.now()
+        with transaction.atomic():
+            if not user.spend_coins(cost_coins, reason=f"No ads pass ({duration_days} days)"):
+                return Response(
+                    {
+                        'error': 'Insufficient coins',
+                        'coins': user.coins,
+                        'cost_coins': cost_coins,
+                        'duration_days': duration_days,
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            starts_at = user.ad_free_until if user.ad_free_until and user.ad_free_until > now else now
+            user.ad_free_until = starts_at + timedelta(days=duration_days)
+            user.save(update_fields=['ad_free_until'])
+
+        return Response(
+            {
+                'message': f'Ad-free pass activated for {duration_days} days',
+                'coins': user.coins,
+                'cost_coins': cost_coins,
+                'duration_days': duration_days,
+                'ad_free_until': user.ad_free_until.isoformat() if user.ad_free_until else None,
+                'has_no_ads': user.has_no_ads,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class RewardedAdClaimView(APIView):
+    """
+    Credit bonus coins after a rewarded ad is completed.
+
+    POST /api/auth/ads/reward/
+    Headers: Authorization: Bearer <access_token>
+    Body: {"placement": "game_result"}
+
+    Server-side controls:
+    - AD_REWARD_COINS (default: 10)
+    - AD_REWARD_DAILY_CAP (default: 2)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        placement = (request.data.get('placement') or 'game_result').strip()[:50] or 'game_result'
+        reward_coins = int(getattr(settings, 'AD_REWARD_COINS', 10))
+        daily_cap = int(getattr(settings, 'AD_REWARD_DAILY_CAP', 2))
+        today = timezone.now().date()
+
+        claims_today = AdRewardClaim.objects.filter(
+            user=user,
+            created_at__date=today,
+        ).count()
+
+        if claims_today >= daily_cap:
+            return Response(
+                {
+                    'error': 'Daily rewarded-ad limit reached',
+                    'daily_cap': daily_cap,
+                    'remaining_today': 0,
+                    'coins': user.coins,
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        with transaction.atomic():
+            user.add_coins(
+                reward_coins,
+                reason=f"Rewarded ad ({placement})",
+                transaction_type='bonus',
+            )
+            AdRewardClaim.objects.create(
+                user=user,
+                placement=placement,
+                coins_awarded=reward_coins,
+            )
+
+        return Response(
+            {
+                'message': 'Reward credited',
+                'coins': user.coins,
+                'coins_awarded': reward_coins,
+                'daily_cap': daily_cap,
+                'remaining_today': max(daily_cap - claims_today - 1, 0),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class RewardedAdStatusView(APIView):
+    """
+    Return current rewarded-ad limits and remaining claims for today.
+
+    GET /api/auth/ads/reward/status/
+    Headers: Authorization: Bearer <access_token>
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        reward_coins = int(getattr(settings, 'AD_REWARD_COINS', 10))
+        daily_cap = int(getattr(settings, 'AD_REWARD_DAILY_CAP', 2))
+        today = timezone.now().date()
+
+        claims_today = AdRewardClaim.objects.filter(
+            user=user,
+            created_at__date=today,
+        ).count()
+        remaining_today = max(daily_cap - claims_today, 0)
+
+        return Response(
+            {
+                'reward_coins': reward_coins,
+                'daily_cap': daily_cap,
+                'claims_today': claims_today,
+                'remaining_today': remaining_today,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class PushDeviceRegisterView(APIView):
@@ -316,9 +482,10 @@ class ChangeEmailView(APIView):
 
         user = request.user
         if not user.check_password(serializer.validated_data['current_password']):
-            return Response(
-                {'error': 'Invalid password.'},
-                status=status.HTTP_400_BAD_REQUEST,
+            return error_response(
+                code=ErrorCode.INVALID_PASSWORD,
+                message='Invalid password.',
+                status_code=status.HTTP_400_BAD_REQUEST,
             )
 
         user.email = serializer.validated_data['new_email']
@@ -351,9 +518,10 @@ class ChangePasswordView(APIView):
 
         user = request.user
         if not user.check_password(serializer.validated_data['current_password']):
-            return Response(
-                {'error': 'Invalid current password.'},
-                status=status.HTTP_400_BAD_REQUEST,
+            return error_response(
+                code=ErrorCode.INVALID_CURRENT_PASSWORD,
+                message='Invalid current password.',
+                status_code=status.HTTP_400_BAD_REQUEST,
             )
 
         with transaction.atomic():
@@ -394,7 +562,9 @@ class DataExportView(APIView):
         game_sessions = list(
             DailyGameSession.objects.filter(user=user).values(
                 'id', 'room_id', 'correct_guess', 'guesses_made',
-                'current_snippet', 'points_earned', 'completed_at', 'created_at',
+                'current_snippet', 'retries_used', 'retry_credits',
+                'awaiting_retry_unlock',
+                'points_earned', 'completed_at', 'created_at',
             )
         )
 
@@ -435,6 +605,12 @@ class DataExportView(APIView):
             )
         )
 
+        ad_reward_claims = list(
+            AdRewardClaim.objects.filter(user=user).values(
+                'id', 'placement', 'coins_awarded', 'created_at',
+            )
+        )
+
         payload = {
             'exported_at': timezone.now().isoformat(),
             'profile': {
@@ -442,6 +618,8 @@ class DataExportView(APIView):
                 'username': user.username,
                 'email': user.email,
                 'coins': user.coins,
+                'ad_free_until': user.ad_free_until.isoformat() if user.ad_free_until else None,
+                'has_no_ads': user.has_no_ads,
                 'games_played': user.games_played,
                 'games_won': user.games_won,
                 'total_points': user.total_points,
@@ -478,6 +656,10 @@ class DataExportView(APIView):
                 {**c, 'id': str(c['id']), 'created_at': c['created_at'].isoformat() if c['created_at'] else None}
                 for c in coin_history
             ],
+            'ad_reward_claims': [
+                {**c, 'id': str(c['id']), 'created_at': c['created_at'].isoformat() if c['created_at'] else None}
+                for c in ad_reward_claims
+            ],
         }
 
         json_bytes = json.dumps(payload, indent=2, default=str).encode('utf-8')
@@ -506,9 +688,10 @@ class DeleteAccountView(APIView):
 
         user = request.user
         if not user.check_password(serializer.validated_data['password']):
-            return Response(
-                {'error': 'Invalid password.'},
-                status=status.HTTP_400_BAD_REQUEST,
+            return error_response(
+                code=ErrorCode.INVALID_PASSWORD,
+                message='Invalid password.',
+                status_code=status.HTTP_400_BAD_REQUEST,
             )
 
         with transaction.atomic():

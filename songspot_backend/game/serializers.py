@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import (
@@ -59,7 +60,7 @@ class SongPackListSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'name', 'description', 'icon_url', 'track_count',
             'category', 'price_coins', 'is_free', 'auto_unlock',
-            'is_featured', 'is_owned', 'created_at',
+            'is_owned', 'created_at',
         )
         read_only_fields = ('id', 'created_at')
 
@@ -83,7 +84,7 @@ class SongPackDetailSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'name', 'description', 'icon_url', 'track_count',
             'category', 'price_coins', 'is_free', 'auto_unlock',
-            'is_featured', 'is_owned', 'created_at',
+            'is_owned', 'created_at',
         )
         read_only_fields = ('id', 'created_at')
 
@@ -168,19 +169,57 @@ class DailySongSerializer(serializers.ModelSerializer):
 class GameSessionSerializer(serializers.ModelSerializer):
     daily_song = DailySongSerializer(read_only=True)
     user = UserBasicSerializer(read_only=True)
+    retry_available = serializers.SerializerMethodField()
+    next_retry_requirement = serializers.SerializerMethodField()
+    retry_cost_coins = serializers.SerializerMethodField()
 
     class Meta:
         model = DailyGameSession
         fields = (
             'id', 'user', 'daily_song', 'current_snippet',
-            'guesses_made', 'correct_guess', 'points_earned',
-            'completed_at', 'created_at', 'hints_used'
-        )
-        read_only_fields = (
-            'id', 'user', 'daily_song', 'guesses_made',
+            'guesses_made', 'retries_used', 'retry_credits',
+            'awaiting_retry_unlock',
+            'retry_available', 'next_retry_requirement', 'retry_cost_coins',
             'correct_guess', 'points_earned', 'completed_at', 'created_at',
             'hints_used'
         )
+        read_only_fields = (
+            'id', 'user', 'daily_song', 'guesses_made',
+            'retries_used', 'retry_credits',
+            'awaiting_retry_unlock',
+            'retry_available', 'next_retry_requirement', 'retry_cost_coins',
+            'correct_guess', 'points_earned', 'completed_at', 'created_at',
+            'hints_used'
+        )
+
+    def get_retry_available(self, obj):
+        if obj.completed_at or obj.correct_guess:
+            return False
+        if obj.current_snippet < 6:
+            return False
+        if obj.retry_credits > 0:
+            return True
+        if not obj.awaiting_retry_unlock:
+            return False
+        max_retries = int(getattr(settings, 'DAILY_GAME_MAX_RETRIES', 2))
+        return obj.retries_used < max_retries
+
+    def get_next_retry_requirement(self, obj):
+        if obj.completed_at or obj.correct_guess:
+            return None
+        if obj.current_snippet < 6:
+            return None
+        if obj.retry_credits > 0:
+            return None
+        if not obj.awaiting_retry_unlock:
+            return None
+        max_retries = int(getattr(settings, 'DAILY_GAME_MAX_RETRIES', 2))
+        if obj.retries_used >= max_retries:
+            return None
+        return 'ad' if obj.retries_used == 0 else 'coins'
+
+    def get_retry_cost_coins(self, obj):
+        return int(getattr(settings, 'DAILY_GAME_RETRY_COIN_COST', 120))
 
 
 class GuessAttemptSerializer(serializers.ModelSerializer):
@@ -200,6 +239,10 @@ class SubmitGuessSerializer(serializers.Serializer):
         if not Track.objects.filter(id=value).exists():
             raise serializers.ValidationError("Track not found.")
         return value
+
+
+class DailyGameRetrySerializer(serializers.Serializer):
+    action = serializers.ChoiceField(choices=['ad', 'coins', 'forfeit'])
 
 
 class PackBundleSessionSerializer(serializers.ModelSerializer):

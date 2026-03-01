@@ -1,12 +1,13 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, UserDevicePushToken, CoinProduct, IAPReceipt
+from .models import User, UserDevicePushToken, CoinProduct, IAPReceipt, AdRewardClaim
 
 class UserAdmin(BaseUserAdmin):
-    list_display = ('email', 'username', 'is_staff', 'is_active')
+    list_display = ('email', 'username', 'coins', 'ad_free_until', 'is_staff', 'is_active')
     list_filter = ('is_staff', 'is_active')
     fieldsets = (
         (None, {'fields': ('email', 'username', 'password')}),
+        ('Monetization', {'fields': ('coins', 'ad_free_until')}),
         ('Permissions', {'fields': ('is_staff', 'is_active')}),
     )
 
@@ -44,3 +45,12 @@ class IAPReceiptAdmin(admin.ModelAdmin):
     search_fields = ('user__email', 'user__username', 'transaction_id')
     readonly_fields = ('created_at', 'verified_at')
     raw_id_fields = ('user', 'coin_product')
+
+
+@admin.register(AdRewardClaim)
+class AdRewardClaimAdmin(admin.ModelAdmin):
+    list_display = ('user', 'placement', 'coins_awarded', 'created_at')
+    list_filter = ('placement',)
+    search_fields = ('user__email', 'user__username', 'placement')
+    readonly_fields = ('created_at',)
+    raw_id_fields = ('user',)

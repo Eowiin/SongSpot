@@ -4,6 +4,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
@@ -39,6 +40,7 @@ from .serializers import (
     JoinRoomSerializer,
     GameSessionSerializer,
     SubmitGuessSerializer,
+    DailyGameRetrySerializer,
     LeaderboardEntrySerializer,
     RoomMessageSerializer,
     PackBundleMessageSerializer,
@@ -49,6 +51,7 @@ from .serializers import (
 )
 from .tasks import generate_pack_stems_task
 from songspot.throttling import GuessRateThrottle, MessageRateThrottle
+from songspot.api_errors import error_response, ErrorCode
 
 # Scoring constants
 SNIPPET_POINTS = {
@@ -63,11 +66,53 @@ COIN_REWARD_MIN = 5
 COIN_REWARD_MAX = 8
 STREAK_BONUS_INTERVAL = 7
 STREAK_BONUS_COINS = 50
+MAX_DAILY_SNIPPET = 6
 
 
 def _coins_for_correct_guess(snippet_number):
     # Reward 8 coins for first try, taper to a 5-coin floor.
     return max(COIN_REWARD_MIN, COIN_REWARD_MAX + 1 - int(snippet_number))
+
+
+def _daily_game_max_retries():
+    return max(0, int(getattr(settings, 'DAILY_GAME_MAX_RETRIES', 2)))
+
+
+def _daily_game_retry_coin_cost():
+    return max(0, int(getattr(settings, 'DAILY_GAME_RETRY_COIN_COST', 120)))
+
+
+def _max_hosted_rooms_per_user():
+    return max(1, int(getattr(settings, 'MAX_HOSTED_ROOMS_PER_USER', 5)))
+
+
+def _max_room_creations_per_day():
+    return max(1, int(getattr(settings, 'MAX_ROOM_CREATIONS_PER_DAY', 5)))
+
+
+def _next_retry_requirement(game_session):
+    if game_session.retry_credits > 0:
+        return None
+    max_retries = _daily_game_max_retries()
+    if game_session.retries_used >= max_retries:
+        return None
+    return 'ad' if game_session.retries_used == 0 else 'coins'
+
+
+def _retry_state_payload(game_session):
+    next_requirement = None
+    retry_available = game_session.retry_credits > 0
+    if game_session.awaiting_retry_unlock and game_session.retry_credits == 0:
+        next_requirement = _next_retry_requirement(game_session)
+        retry_available = bool(next_requirement)
+    return {
+        'retry_available': retry_available,
+        'next_retry_requirement': next_requirement,
+        'retry_cost_coins': _daily_game_retry_coin_cost(),
+        'retry_credits': game_session.retry_credits,
+        'retries_used': game_session.retries_used,
+        'awaiting_retry_unlock': game_session.awaiting_retry_unlock,
+    }
 
 # Pack bundle constants
 PACK_BUNDLE_STAGE_POINTS = {
@@ -184,6 +229,36 @@ class RoomCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        hosted_rooms_count = Room.objects.filter(host_user=request.user).count()
+        max_hosted_rooms = _max_hosted_rooms_per_user()
+        if hosted_rooms_count >= max_hosted_rooms:
+            return error_response(
+                code=ErrorCode.ROOM_LIMIT_REACHED,
+                message=(
+                    f'Room limit reached ({max_hosted_rooms} hosted rooms). '
+                    f'Delete or leave one room before creating another.'
+                ),
+                status_code=status.HTTP_400_BAD_REQUEST,
+                params={'max_rooms': max_hosted_rooms},
+            )
+
+        today = timezone.now().date()
+        created_today_count = Room.objects.filter(
+            host_user=request.user,
+            created_at__date=today,
+        ).count()
+        max_creations_per_day = _max_room_creations_per_day()
+        if created_today_count >= max_creations_per_day:
+            return error_response(
+                code=ErrorCode.DAILY_ROOM_CREATION_LIMIT_REACHED,
+                message=(
+                    f'Daily room creation limit reached ({max_creations_per_day}/day). '
+                    f'Try again tomorrow.'
+                ),
+                status_code=status.HTTP_400_BAD_REQUEST,
+                params={'daily_limit': max_creations_per_day},
+            )
+
         # Create new room with auto-generated code
         serializer = RoomCreateSerializer(data={})
         if serializer.is_valid():
@@ -232,9 +307,11 @@ class RoomJoinView(APIView):
 
         # Check if user is already in the room
         if RoomUser.objects.filter(room=room, user=request.user).exists():
-            return Response({
-                'error': 'You are already in this room'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return error_response(
+                code=ErrorCode.ALREADY_IN_ROOM,
+                message='You are already in this room',
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
 
         # Add user to room
         RoomUser.objects.create(room=room, user=request.user)
@@ -262,9 +339,11 @@ class RoomLeaveView(APIView):
         # Check if user is in the room
         room_user = RoomUser.objects.filter(room=room, user=request.user).first()
         if not room_user:
-            return Response({
-                'error': 'You are not in this room'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return error_response(
+                code=ErrorCode.NOT_IN_ROOM,
+                message='You are not in this room',
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
 
         # Remove user from room
         room_user.delete()
@@ -318,9 +397,10 @@ class RoomRenameView(APIView):
 
         # Check if user is the host
         if room.host_user != request.user:
-            return Response(
-                {'error': 'Only the host can rename the room.'},
-                status=status.HTTP_403_FORBIDDEN
+            return error_response(
+                code=ErrorCode.ONLY_HOST_CAN_RENAME_ROOM,
+                message='Only the host can rename the room.',
+                status_code=status.HTTP_403_FORBIDDEN,
             )
 
         serializer = RoomRenameSerializer(data=request.data)
@@ -1016,17 +1096,17 @@ class SkipSnippetView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if already completed
-        if game_session.correct_guess:
+        if game_session.completed_at:
             return Response({
-                'error': 'You already guessed correctly',
+                'error': 'Game already completed',
                 'current_snippet': game_session.current_snippet
             }, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if already at max snippets
-        if game_session.current_snippet >= 6:
+        if game_session.current_snippet >= MAX_DAILY_SNIPPET:
             return Response({
                 'error': 'Already at maximum snippet level',
-                'current_snippet': 6
+                'current_snippet': MAX_DAILY_SNIPPET
             }, status=status.HTTP_400_BAD_REQUEST)
 
         # Increment snippet
@@ -1088,14 +1168,39 @@ class SubmitGuessView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if already completed
-        if game_session.correct_guess:
+        if game_session.completed_at:
             return Response({
-                'error': 'You already guessed correctly',
+                'error': 'Game already completed',
                 'correct_answer': {
                     'title': daily_song.track.title,
                     'artist': daily_song.track.artist
                 }
             }, status=status.HTTP_400_BAD_REQUEST)
+
+        # User must unlock retry before additional guesses at snippet 6.
+        if (
+            game_session.current_snippet >= MAX_DAILY_SNIPPET
+            and game_session.awaiting_retry_unlock
+            and game_session.retry_credits == 0
+        ):
+            next_requirement = _next_retry_requirement(game_session)
+            if next_requirement == 'ad':
+                retry_message = 'Watch an ad to unlock your next chance.'
+            elif next_requirement == 'coins':
+                retry_message = (
+                    f'Spend {_daily_game_retry_coin_cost()} coins to unlock your final chance.'
+                )
+            else:
+                retry_message = 'No retries remaining.'
+
+            return Response({
+                'is_correct': False,
+                'current_snippet': game_session.current_snippet,
+                'game_over': False,
+                'guess_counted': False,
+                'message': retry_message,
+                **_retry_state_payload(game_session),
+            }, status=status.HTTP_200_OK)
 
         # Get the guessed track for recording
         guessed_track = Track.objects.get(id=guessed_track_id)
@@ -1120,7 +1225,14 @@ class SubmitGuessView(APIView):
             game_session.correct_guess = True
             game_session.points_earned = points
             game_session.completed_at = timezone.now()
-            game_session.save()
+            game_session.awaiting_retry_unlock = False
+            game_session.save(update_fields=[
+                'guesses_made',
+                'correct_guess',
+                'points_earned',
+                'completed_at',
+                'awaiting_retry_unlock',
+            ])
 
             coins_awarded = _coins_for_correct_guess(game_session.current_snippet)
             streak_bonus = 0
@@ -1155,52 +1267,317 @@ class SubmitGuessView(APIView):
                 'points_earned': points,
                 'coins_awarded': coins_awarded,
                 'snippet_number': game_session.current_snippet,
+                'game_over': True,
                 'message': f'Correct! You earned {points} points!',
                 'correct_answer': {
                     'title': daily_song.track.title,
                     'artist': daily_song.track.artist
-                }
+                },
+                **_retry_state_payload(game_session),
             }
             if streak_bonus:
                 response_data['streak_bonus'] = streak_bonus
                 response_data['streak_days'] = request.user.current_streak
 
             return Response(response_data, status=status.HTTP_200_OK)
-        else:
-            # Incorrect guess - move to next snippet if not at max
-            if game_session.current_snippet < 6:
-                game_session.current_snippet += 1
-                game_session.save()
 
+        # Incorrect guess - move to next snippet if not at max
+        if game_session.current_snippet < MAX_DAILY_SNIPPET:
+            game_session.current_snippet += 1
+            game_session.awaiting_retry_unlock = False
+            game_session.save(update_fields=['guesses_made', 'current_snippet', 'awaiting_retry_unlock'])
+
+            return Response({
+                'is_correct': False,
+                'current_snippet': game_session.current_snippet,
+                'game_over': False,
+                'message': f'Incorrect. Try again with snippet {game_session.current_snippet}',
+                **_retry_state_payload(game_session),
+            }, status=status.HTTP_200_OK)
+
+        # At max snippet: consume available retry credit first.
+        if game_session.retry_credits > 0:
+            game_session.retry_credits -= 1
+            game_session.retries_used += 1
+            next_requirement = _next_retry_requirement(game_session)
+            if next_requirement is not None:
+                game_session.awaiting_retry_unlock = True
+                game_session.save(update_fields=[
+                    'guesses_made',
+                    'retry_credits',
+                    'retries_used',
+                    'awaiting_retry_unlock',
+                ])
+                if next_requirement == 'ad':
+                    retry_message = 'Incorrect. Watch an ad to unlock your next chance.'
+                else:
+                    retry_message = (
+                        f'Incorrect. Spend {_daily_game_retry_coin_cost()} coins to unlock one final chance.'
+                    )
                 return Response({
                     'is_correct': False,
                     'current_snippet': game_session.current_snippet,
-                    'message': f'Incorrect. Try again with snippet {game_session.current_snippet}'
+                    'game_over': False,
+                    'message': retry_message,
+                    **_retry_state_payload(game_session),
                 }, status=status.HTTP_200_OK)
-            else:
-                # Used all snippets - reveal answer with 0 points
-                game_session.correct_guess = False
-                game_session.points_earned = 0
-                game_session.completed_at = timezone.now()
-                game_session.save()
 
-                update_user_stats(
-                    request.user,
-                    points=0,
-                    won=False,
-                    played_date=today,
-                    perfect_game=False
+            # Retry attempt failed and no retries remain.
+            game_session.awaiting_retry_unlock = False
+            game_session.correct_guess = False
+            game_session.points_earned = 0
+            game_session.completed_at = timezone.now()
+            game_session.save(update_fields=[
+                'guesses_made',
+                'retry_credits',
+                'retries_used',
+                'awaiting_retry_unlock',
+                'correct_guess',
+                'points_earned',
+                'completed_at',
+            ])
+            update_user_stats(
+                request.user,
+                points=0,
+                won=False,
+                played_date=today,
+                perfect_game=False
+            )
+            return Response({
+                'is_correct': False,
+                'points_earned': 0,
+                'current_snippet': game_session.current_snippet,
+                'game_over': True,
+                'message': 'No more chances. Better luck next time!',
+                'correct_answer': {
+                    'title': daily_song.track.title,
+                    'artist': daily_song.track.artist
+                },
+                **_retry_state_payload(game_session),
+            }, status=status.HTTP_200_OK)
+
+        next_requirement = _next_retry_requirement(game_session)
+        if next_requirement is not None:
+            game_session.awaiting_retry_unlock = True
+            game_session.save(update_fields=['guesses_made', 'awaiting_retry_unlock'])
+            if next_requirement == 'ad':
+                retry_message = 'Incorrect. Watch an ad to unlock a second chance.'
+            else:
+                retry_message = (
+                    f'Incorrect. Spend {_daily_game_retry_coin_cost()} coins to unlock one final chance.'
                 )
 
-                return Response({
+            return Response({
+                'is_correct': False,
+                'current_snippet': game_session.current_snippet,
+                'game_over': False,
+                'message': retry_message,
+                **_retry_state_payload(game_session),
+            }, status=status.HTTP_200_OK)
+
+        # No retries left - complete with 0 points and reveal answer.
+        game_session.correct_guess = False
+        game_session.points_earned = 0
+        game_session.completed_at = timezone.now()
+        game_session.awaiting_retry_unlock = False
+        game_session.save(update_fields=[
+            'guesses_made',
+            'correct_guess',
+            'points_earned',
+            'completed_at',
+            'awaiting_retry_unlock',
+        ])
+
+        update_user_stats(
+            request.user,
+            points=0,
+            won=False,
+            played_date=today,
+            perfect_game=False
+        )
+
+        return Response({
+            'is_correct': False,
+            'points_earned': 0,
+            'game_over': True,
+            'message': 'No more chances. Better luck next time!',
+            'correct_answer': {
+                'title': daily_song.track.title,
+                'artist': daily_song.track.artist
+            },
+            **_retry_state_payload(game_session),
+        }, status=status.HTTP_200_OK)
+
+
+class DailyGameRetryView(APIView):
+    """
+    Activate an extra guess after failing at the last snippet.
+
+    POST /api/game/rooms/<room_id>/daily-game/retry/
+    Headers: Authorization: Bearer <access_token>
+    Body: {"action": "ad" | "coins" | "forfeit"}
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, room_id):
+        room = get_object_or_404(Room, id=room_id)
+        today = _active_game_date()
+
+        if not RoomUser.objects.filter(room=room, user=request.user).exists():
+            return error_response(
+                code=ErrorCode.MUST_BE_IN_ROOM_TO_PLAY_GAME,
+                message='You must be in the room to play the game',
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = DailyGameRetrySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        action = serializer.validated_data['action']
+
+        daily_song = DailySong.objects.filter(room=room, date=today).first()
+        if not daily_song:
+            return error_response(
+                code=ErrorCode.NO_SONG_AVAILABLE_TODAY,
+                message='No song available for today',
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        game_session = DailyGameSession.objects.filter(
+            room=room,
+            user=request.user,
+            daily_song=daily_song,
+        ).first()
+        if not game_session:
+            return error_response(
+                code=ErrorCode.NO_ACTIVE_GAME_SESSION,
+                message='No active game session. Start by calling GET /daily-game/',
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if game_session.completed_at:
+            return error_response(
+                code=ErrorCode.GAME_ALREADY_COMPLETED,
+                message='Game already completed',
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if game_session.current_snippet < MAX_DAILY_SNIPPET:
+            return error_response(
+                code=ErrorCode.RETRY_AFTER_LAST_SNIPPET_ONLY,
+                message='Retry is only available after reaching the last snippet',
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if action == 'forfeit':
+            game_session.correct_guess = False
+            game_session.points_earned = 0
+            game_session.retry_credits = 0
+            game_session.awaiting_retry_unlock = False
+            game_session.completed_at = timezone.now()
+            game_session.save(update_fields=[
+                'correct_guess',
+                'points_earned',
+                'retry_credits',
+                'awaiting_retry_unlock',
+                'completed_at',
+            ])
+
+            update_user_stats(
+                request.user,
+                points=0,
+                won=False,
+                played_date=today,
+                perfect_game=False,
+            )
+
+            return Response(
+                {
                     'is_correct': False,
+                    'game_over': True,
+                    'guess_counted': False,
                     'points_earned': 0,
-                    'message': 'No more snippets. Better luck next time!',
+                    'message': 'Game ended. Better luck next time!',
                     'correct_answer': {
                         'title': daily_song.track.title,
-                        'artist': daily_song.track.artist
-                    }
-                }, status=status.HTTP_200_OK)
+                        'artist': daily_song.track.artist,
+                    },
+                    **_retry_state_payload(game_session),
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        if game_session.retry_credits > 0:
+            return error_response(
+                code=ErrorCode.RETRY_ALREADY_ACTIVE,
+                message='A retry is already active',
+                status_code=status.HTTP_400_BAD_REQUEST,
+                current_snippet=game_session.current_snippet,
+                **_retry_state_payload(game_session),
+            )
+
+        if not game_session.awaiting_retry_unlock:
+            return error_response(
+                code=ErrorCode.RETRY_NOT_PENDING_UNLOCK,
+                message='No retry is pending unlock yet',
+                status_code=status.HTTP_400_BAD_REQUEST,
+                current_snippet=game_session.current_snippet,
+                **_retry_state_payload(game_session),
+            )
+
+        expected_action = _next_retry_requirement(game_session)
+        if expected_action is None:
+            return error_response(
+                code=ErrorCode.NO_RETRIES_REMAINING,
+                message='No retries remaining',
+                status_code=status.HTTP_400_BAD_REQUEST,
+                **_retry_state_payload(game_session),
+            )
+
+        if action != expected_action:
+            return error_response(
+                code=ErrorCode.INVALID_RETRY_ACTION,
+                message=f'Invalid retry action. Expected "{expected_action}"',
+                status_code=status.HTTP_400_BAD_REQUEST,
+                params={'expected_action': expected_action},
+                expected_action=expected_action,
+                **_retry_state_payload(game_session),
+            )
+
+        with transaction.atomic():
+            if action == 'coins':
+                retry_cost = _daily_game_retry_coin_cost()
+                if request.user.coins < retry_cost:
+                    return error_response(
+                        code=ErrorCode.INSUFFICIENT_COINS,
+                        message='Insufficient coins',
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        params={'required_coins': retry_cost},
+                        coins=request.user.coins,
+                        retry_cost_coins=retry_cost,
+                        **_retry_state_payload(game_session),
+                    )
+
+                if not request.user.spend_coins(retry_cost, reason=f"Daily retry in room {room.room_code}"):
+                    return error_response(
+                        code=ErrorCode.INSUFFICIENT_COINS,
+                        message='Insufficient coins',
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        params={'required_coins': retry_cost},
+                    )
+
+            game_session.retry_credits += 1
+            game_session.awaiting_retry_unlock = False
+            game_session.save(update_fields=['retry_credits', 'awaiting_retry_unlock'])
+
+        return Response(
+            {
+                'message': 'Retry unlocked. Make another guess.',
+                'current_snippet': game_session.current_snippet,
+                'coins': request.user.coins,
+                **_retry_state_payload(game_session),
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class LeaderboardView(APIView):

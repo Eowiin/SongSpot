@@ -226,20 +226,21 @@ class DeezerService:
             print(f"Error fetching genres: {e}")
             return []
 
-    def get_genre_chart_tracks(self, genre_id: int, limit: int = 100) -> List[Dict]:
+    def get_genre_chart_tracks(self, genre_id: int, limit: int = 100, index: int = 0) -> List[Dict]:
         """
         Get chart tracks for a specific genre from Deezer's editorial charts.
         More geographically stable than fetching via genre artists.
 
         Args:
             genre_id: Deezer genre ID (use list_genres() to verify IDs)
-            limit: Maximum number of tracks
+            limit: Maximum number of tracks per page
+            index: Offset for pagination (0, 100, 200, …)
 
         Returns:
             List of track dicts with 'rank' field included
         """
         url = f"{self.BASE_URL}/chart/{genre_id}/tracks"
-        params = {'limit': limit}
+        params = {'limit': limit, 'index': index}
         try:
             response = requests.get(url, params=params, timeout=10)
             response.raise_for_status()

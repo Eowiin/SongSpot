@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../config/app_theme.dart';
+import '../../config/admob_config.dart';
 import '../../providers/game_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/room_provider.dart';
@@ -13,6 +14,7 @@ import '../../models/pack.dart';
 import '../../widgets/track_autocomplete.dart';
 import '../../widgets/gradient_button.dart';
 import '../../services/api_service.dart';
+import '../../services/admob_service.dart';
 import '../../models/history_day.dart';
 import '../packs/pack_list_screen.dart';
 import '../packs/pack_bundle_screen.dart';
@@ -46,6 +48,10 @@ class _GameScreenState extends State<GameScreen> {
   // Pack bundle history (populated when _activePackId != null)
   Map<String, PackHistoryDay> _packHistoryMap = {};
   PackHistoryDayDetail? _packHistoryDetail;
+  bool _completionRecorded = false;
+  bool _completionAdInProgress = false;
+  int _completionAdAttempts = 0;
+  bool _retryActivationInProgress = false;
 
   @override
   void initState() {
@@ -59,6 +65,8 @@ class _GameScreenState extends State<GameScreen> {
       context.read<RoomProvider>().loadRoomDetails(widget.roomId);
       context.read<PackProvider>().loadMyPacks(widget.roomId);
       _loadHistoryList();
+      final adsDisabled = context.read<AuthProvider>().user?.hasNoAds ?? false;
+      unawaited(AdMobService().preloadInterstitial(adsDisabled: adsDisabled));
     });
   }
 
@@ -106,6 +114,7 @@ class _GameScreenState extends State<GameScreen> {
     }
 
     final gameProvider = context.read<GameProvider>();
+    final previousGuesses = gameProvider.currentSession?.guessesMade ?? 0;
 
     final isCorrect = await gameProvider.submitGuess(
       roomId: widget.roomId,
@@ -113,19 +122,164 @@ class _GameScreenState extends State<GameScreen> {
     );
 
     if (mounted) {
-      _titleController.clear();
-      _selectedTrack = null;
-      if (isCorrect || gameProvider.currentSession!.isCompleted) {
-        _onGameCompleted();
+      final updatedSession = gameProvider.currentSession;
+      final guessWasCounted =
+          (updatedSession?.guessesMade ?? previousGuesses) > previousGuesses;
+      if (guessWasCounted) {
+        _titleController.clear();
+        _selectedTrack = null;
+      }
+      if (updatedSession != null && (isCorrect || updatedSession.isCompleted)) {
+        await _onGameCompleted();
+      }
+      if (!mounted) return;
+      if (updatedSession != null &&
+          !updatedSession.isCompleted &&
+          updatedSession.awaitingRetryUnlock &&
+          updatedSession.nextRetryRequirement == 'ad') {
+        final adsDisabled =
+            context.read<AuthProvider>().user?.hasNoAds ?? false;
+        unawaited(
+          AdMobService().preloadRewarded(
+            adsDisabled: adsDisabled,
+            placement: RewardedPlacement.retryUnlock,
+          ),
+        );
       }
     }
   }
 
-  void _onGameCompleted() {
-    // Refresh leaderboard and load messages when game is completed
+  Future<void> _onGameCompleted() async {
+    if (_completionRecorded || _completionAdInProgress) return;
+
     final gameProvider = context.read<GameProvider>();
-    gameProvider.loadLeaderboard(widget.roomId);
-    gameProvider.loadMessages(widget.roomId);
+    if (_completionAdAttempts == 0) {
+      // Refresh leaderboard and load messages once when game is completed
+      gameProvider.loadLeaderboard(widget.roomId);
+      gameProvider.loadMessages(widget.roomId);
+    }
+
+    _completionAdAttempts += 1;
+    if (mounted) {
+      setState(() => _completionAdInProgress = true);
+    }
+
+    final session = gameProvider.currentSession;
+    if (session == null) {
+      if (mounted) {
+        setState(() => _completionAdInProgress = false);
+      }
+      return;
+    }
+
+    final adsDisabled = context.read<AuthProvider>().user?.hasNoAds ?? false;
+    final shown = await AdMobService().tryShowInterstitialForRoomCompletion(
+      adsDisabled: adsDisabled,
+      roomId: widget.roomId,
+      gameDate: session.dailySong.date,
+    );
+    if (!shown && !adsDisabled) {
+      await AdMobService().preloadInterstitial(adsDisabled: false);
+    }
+    if (shown || adsDisabled || _completionAdAttempts >= 2) {
+      _completionRecorded = true;
+    }
+    unawaited(
+      AdMobService().preloadRewarded(
+        adsDisabled: adsDisabled,
+        placement: RewardedPlacement.retryUnlock,
+      ),
+    );
+    if (mounted) {
+      setState(() => _completionAdInProgress = false);
+    }
+  }
+
+  Future<bool> _onWillPop() async {
+    return true;
+  }
+
+  Future<void> _handleActivateRetry(String action) async {
+    if (_retryActivationInProgress) return;
+
+    setState(() => _retryActivationInProgress = true);
+    final gameProvider = context.read<GameProvider>();
+
+    try {
+      Map<String, dynamic>? response;
+      if (action == 'ad') {
+        final adsDisabled =
+            context.read<AuthProvider>().user?.hasNoAds ?? false;
+        if (adsDisabled) {
+          response = await gameProvider.activateRetry(
+            roomId: widget.roomId,
+            action: 'ad',
+          );
+        } else {
+          final rewarded = await AdMobService().showRewarded(
+            adsDisabled: false,
+            placement: RewardedPlacement.retryUnlock,
+            onRewardEarned: () async {
+              response = await gameProvider.activateRetry(
+                roomId: widget.roomId,
+                action: 'ad',
+              );
+            },
+          );
+          if (!rewarded) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Ad not ready yet. Please retry in a moment.'),
+                  backgroundColor: AppTheme.errorColor,
+                ),
+              );
+            }
+            return;
+          }
+        }
+      } else {
+        response = await gameProvider.activateRetry(
+          roomId: widget.roomId,
+          action: action,
+        );
+      }
+
+      if (!mounted) return;
+      final resolvedResponse = response;
+      if (resolvedResponse == null) {
+        final error =
+            gameProvider.errorMessage ??
+            'Unable to unlock retry. Please try again.';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.replaceFirst('Exception: ', '')),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+        return;
+      }
+      final updatedCoins = resolvedResponse['coins'] as int?;
+      if (updatedCoins != null) {
+        context.read<AuthProvider>().updateCoinsBalance(updatedCoins);
+      }
+      if (gameProvider.currentSession?.isCompleted ?? false) {
+        await _onGameCompleted();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _retryActivationInProgress = false);
+      }
+    }
   }
 
   DateTime _activeGameDate() {
@@ -174,7 +328,10 @@ class _GameScreenState extends State<GameScreen> {
       });
       try {
         final data = await _apiService.getPackBundleHistoryDetail(
-            widget.roomId, _activePackId!, dateStr);
+          widget.roomId,
+          _activePackId!,
+          dateStr,
+        );
         if (mounted) {
           setState(() {
             _packHistoryDetail = PackHistoryDayDetail.fromJson(data);
@@ -193,7 +350,10 @@ class _GameScreenState extends State<GameScreen> {
       _historyDetailLoading = true;
     });
     try {
-      final data = await _apiService.getRoomHistoryDetail(widget.roomId, dateStr);
+      final data = await _apiService.getRoomHistoryDetail(
+        widget.roomId,
+        dateStr,
+      );
       if (mounted) {
         setState(() {
           _historyDetail = HistoryDayDetail.fromJson(data);
@@ -208,7 +368,10 @@ class _GameScreenState extends State<GameScreen> {
   Future<void> _loadPackHistoryList(String packId) async {
     try {
       final data = await _apiService.getPackBundleHistory(
-          widget.roomId, packId, limit: 31);
+        widget.roomId,
+        packId,
+        limit: 31,
+      );
       if (!mounted) return;
       final days = (data['results'] as List)
           .map((j) => PackHistoryDay.fromJson(j as Map<String, dynamic>))
@@ -335,7 +498,8 @@ class _GameScreenState extends State<GameScreen> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, nameController.text.trim()),
+            onPressed: () =>
+                Navigator.pop(dialogContext, nameController.text.trim()),
             child: const Text('Save'),
           ),
         ],
@@ -514,7 +678,10 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  Widget _buildResultContent(GameSession session, List<LeaderboardEntry> leaderboard) {
+  Widget _buildResultContent(
+    GameSession session,
+    List<LeaderboardEntry> leaderboard,
+  ) {
     final track = session.dailySong.track;
     final isCorrect = session.correctGuess;
 
@@ -567,23 +734,26 @@ class _GameScreenState extends State<GameScreen> {
               Text(
                 track.title,
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  fontWeight: FontWeight.bold,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 4),
               Text(
                 track.artist,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppTheme.textSecondary,
-                    ),
+                  color: AppTheme.textSecondary,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
 
               // Result Badge
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: isCorrect
                       ? AppTheme.successColor.withValues(alpha: 0.2)
@@ -595,7 +765,9 @@ class _GameScreenState extends State<GameScreen> {
                   children: [
                     Icon(
                       isCorrect ? Icons.check_circle : Icons.cancel,
-                      color: isCorrect ? AppTheme.successColor : AppTheme.errorColor,
+                      color: isCorrect
+                          ? AppTheme.successColor
+                          : AppTheme.errorColor,
                     ),
                     const SizedBox(width: 8),
                     Text(
@@ -603,7 +775,9 @@ class _GameScreenState extends State<GameScreen> {
                           ? '+${session.pointsEarned} points (Snippet ${session.currentSnippet})'
                           : 'Not guessed',
                       style: TextStyle(
-                        color: isCorrect ? AppTheme.successColor : AppTheme.errorColor,
+                        color: isCorrect
+                            ? AppTheme.successColor
+                            : AppTheme.errorColor,
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
                       ),
@@ -694,9 +868,8 @@ class _GameScreenState extends State<GameScreen> {
                         ),
                         Text(
                           'Snippet ${leaderboardEntry.snippetNumber} - ${DateFormat.Hm().format(leaderboardEntry.completedAt.toLocal())}',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: AppTheme.textSecondary,
-                              ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppTheme.textSecondary),
                         ),
                       ],
                     ),
@@ -704,7 +877,10 @@ class _GameScreenState extends State<GameScreen> {
 
                   // Points
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       gradient: AppTheme.primaryGradient,
                       borderRadius: BorderRadius.circular(16),
@@ -724,10 +900,7 @@ class _GameScreenState extends State<GameScreen> {
         const SizedBox(height: 32),
 
         // Chat Section
-        Text(
-          'Chat',
-          style: Theme.of(context).textTheme.headlineMedium,
-        ),
+        Text('Chat', style: Theme.of(context).textTheme.headlineMedium),
         const SizedBox(height: 16),
         _buildInlineChat(),
         const SizedBox(height: 24),
@@ -792,7 +965,9 @@ class _GameScreenState extends State<GameScreen> {
                           ),
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            gradient: isCurrentUser ? AppTheme.primaryGradient : null,
+                            gradient: isCurrentUser
+                                ? AppTheme.primaryGradient
+                                : null,
                             color: isCurrentUser ? null : AppTheme.surfaceColor,
                             borderRadius: BorderRadius.circular(16),
                           ),
@@ -806,7 +981,9 @@ class _GameScreenState extends State<GameScreen> {
                                 isCurrentUser ? 'You' : message.user.username,
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  color: isCurrentUser ? Colors.white70 : AppTheme.primaryColor,
+                                  color: isCurrentUser
+                                      ? Colors.white70
+                                      : AppTheme.primaryColor,
                                   fontSize: 12,
                                 ),
                               ),
@@ -814,15 +991,21 @@ class _GameScreenState extends State<GameScreen> {
                               Text(
                                 message.message,
                                 style: TextStyle(
-                                  color: isCurrentUser ? Colors.white : AppTheme.textPrimary,
+                                  color: isCurrentUser
+                                      ? Colors.white
+                                      : AppTheme.textPrimary,
                                 ),
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                DateFormat.Hm().format(message.createdAt.toLocal()),
+                                DateFormat.Hm().format(
+                                  message.createdAt.toLocal(),
+                                ),
                                 style: TextStyle(
                                   fontSize: 10,
-                                  color: isCurrentUser ? Colors.white70 : AppTheme.textSecondary,
+                                  color: isCurrentUser
+                                      ? Colors.white70
+                                      : AppTheme.textSecondary,
                                 ),
                               ),
                             ],
@@ -884,258 +1067,394 @@ class _GameScreenState extends State<GameScreen> {
     final roomProvider = context.watch<RoomProvider>();
     final room = roomProvider.currentRoom;
     final currentUserId = context.watch<AuthProvider>().user?.id;
-    final isHost = room != null && currentUserId != null && room.isHost(currentUserId);
+    final isHost =
+        room != null && currentUserId != null && room.isHost(currentUserId);
     final packProvider = context.watch<PackProvider>();
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF0F0F1E),
-      appBar: AppBar(
-        title: Text(room?.displayName ?? 'Daily Challenge'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.album),
-            onPressed: room == null
-                ? null
-                : () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => PackListScreen(roomId: room.id),
-                      ),
-                    );
-                  },
-            tooltip: 'Packs',
-          ),
-          if (isHost)
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final allow = await _onWillPop();
+        if (allow && context.mounted) {
+          Navigator.of(context).pop(result);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF0F0F1E),
+        appBar: AppBar(
+          title: Text(room?.displayName ?? 'Daily Challenge'),
+          actions: [
             IconButton(
-              icon: const Icon(Icons.edit),
-              onPressed: _showRenameDialog,
-              tooltip: 'Rename room',
+              icon: const Icon(Icons.album),
+              onPressed: room == null
+                  ? null
+                  : () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => PackListScreen(roomId: room.id),
+                        ),
+                      );
+                    },
+              tooltip: 'Packs',
             ),
-        ],
-      ),
-      body: Container(
-        decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
-        child: Consumer<GameProvider>(
-          builder: (context, gameProvider, _) {
-            return Column(
-              children: [
-                _buildDateRow(gameProvider),
-                Expanded(
-                  child: _selectedHistoryDate != null
-                      ? _buildHistoryView()
-                      : _buildActiveGameContent(context, gameProvider, packProvider),
-                ),
-              ],
-            );
-          },
+            if (isHost)
+              IconButton(
+                icon: const Icon(Icons.edit),
+                onPressed: _showRenameDialog,
+                tooltip: 'Rename room',
+              ),
+          ],
+        ),
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: AppTheme.backgroundGradient,
+          ),
+          child: Consumer<GameProvider>(
+            builder: (context, gameProvider, _) {
+              return Column(
+                children: [
+                  _buildDateRow(gameProvider),
+                  Expanded(
+                    child: _selectedHistoryDate != null
+                        ? _buildHistoryView()
+                        : _buildActiveGameContent(
+                            context,
+                            gameProvider,
+                            packProvider,
+                          ),
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
   }
 
   Widget _buildActiveGameContent(
-      BuildContext context, GameProvider gameProvider, PackProvider packProvider) {
-    if (gameProvider.isLoading || gameProvider.currentSession == null) {
+    BuildContext context,
+    GameProvider gameProvider,
+    PackProvider packProvider,
+  ) {
+    if (gameProvider.currentSession == null) {
       return _buildLoadingSkeleton();
     }
 
     final session = gameProvider.currentSession!;
+    final retryUnlockPending =
+        session.awaitingRetryUnlock && session.retryCredits == 0;
+    final interactionLocked =
+        gameProvider.isLoading ||
+        _retryActivationInProgress ||
+        _completionAdInProgress;
 
-            if (session.isCompleted) {
-              return SingleChildScrollView(
-                padding: AppTheme.pagePadding,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const _NextSongCountdown(),
-                    const SizedBox(height: 16),
-                    _buildPackSwitcher(context, packProvider.ownedPacks),
-                    if (_activePackId == null)
-                      _buildResultContent(session, gameProvider.leaderboard)
-                    else
-                      PackBundleContent(
-                        key: ValueKey(_activePackId),
-                        roomId: widget.roomId,
-                        packId: _activePackId!,
-                        packName: _activePackName ?? 'Pack',
-                        embedInScroll: true,
+    if (session.isCompleted) {
+      if (!_completionRecorded && !_completionAdInProgress) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _onGameCompleted();
+          }
+        });
+      }
+      if (_completionAdInProgress) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      return SingleChildScrollView(
+        padding: AppTheme.pagePadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _NextSongCountdown(),
+            const SizedBox(height: 16),
+            _buildPackSwitcher(context, packProvider.ownedPacks),
+            if (_activePackId == null)
+              _buildResultContent(session, gameProvider.leaderboard)
+            else
+              PackBundleContent(
+                key: ValueKey(_activePackId),
+                roomId: widget.roomId,
+                packId: _activePackId!,
+                packName: _activePackName ?? 'Pack',
+                embedInScroll: true,
+              ),
+          ],
+        ),
+      );
+    }
+
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    return SingleChildScrollView(
+      padding: AppTheme.pagePadding.copyWith(
+        bottom: AppTheme.pagePadding.bottom + bottomInset,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const _NextSongCountdown(),
+          const SizedBox(height: 16),
+          _buildPackSwitcher(context, packProvider.ownedPacks),
+          if (_activePackId == null) ...[
+            // Progress Indicators
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(6, (index) {
+                final snippetNumber = index + 1;
+                final isActive = snippetNumber == session.currentSnippet;
+                final isPassed = snippetNumber < session.currentSnippet;
+
+                return Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isPassed
+                        ? AppTheme.textSecondary
+                        : isActive
+                        ? AppTheme.primaryColor
+                        : AppTheme.surfaceColor,
+                    border: Border.all(
+                      color: isActive
+                          ? AppTheme.primaryColor
+                          : AppTheme.textSecondary,
+                      width: 2,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '$snippetNumber',
+                      style: TextStyle(
+                        color: isPassed || isActive
+                            ? Colors.white
+                            : AppTheme.textSecondary,
+                        fontWeight: FontWeight.bold,
                       ),
-                  ],
-                ),
-              );
-            }
+                    ),
+                  ),
+                );
+              }),
+            ),
+            const SizedBox(height: 32),
 
-            final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-            return SingleChildScrollView(
-              padding: AppTheme.pagePadding.copyWith(
-                bottom: AppTheme.pagePadding.bottom + bottomInset,
+            // Audio Player Card
+            Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                gradient: AppTheme.cardGradient,
+                borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
               ),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const _NextSongCountdown(),
-                  const SizedBox(height: 16),
-                  _buildPackSwitcher(context, packProvider.ownedPacks),
-                  if (_activePackId == null)
-                    ...[
-                      // Progress Indicators
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: List.generate(6, (index) {
-                          final snippetNumber = index + 1;
-                          final isActive = snippetNumber == session.currentSnippet;
-                          final isPassed = snippetNumber < session.currentSnippet;
-
-                          return Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 4),
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: isPassed
-                                  ? AppTheme.textSecondary
-                                  : isActive
-                                      ? AppTheme.primaryColor
-                                      : AppTheme.surfaceColor,
-                              border: Border.all(
-                                color: isActive ? AppTheme.primaryColor : AppTheme.textSecondary,
-                                width: 2,
-                              ),
-                            ),
-                            child: Center(
-                              child: Text(
-                                '$snippetNumber',
-                                style: TextStyle(
-                                  color: isPassed || isActive ? Colors.white : AppTheme.textSecondary,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          );
-                        }),
-                      ),
-                      const SizedBox(height: 32),
-
-                      // Audio Player Card
-                      Container(
-                        padding: const EdgeInsets.all(32),
-                        decoration: BoxDecoration(
-                          gradient: AppTheme.cardGradient,
-                          borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-                        ),
-                        child: Column(
-                          children: [
-                            const Icon(
-                              Icons.music_note,
-                              size: 80,
-                              color: AppTheme.primaryColor,
-                            ),
-                            const SizedBox(height: 24),
-                            Text(
-                              'Snippet ${session.currentSnippet}',
-                              style: Theme.of(context).textTheme.displaySmall,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              '${session.snippetDuration}s',
-                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    color: AppTheme.primaryColor,
-                                  ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              '${session.possiblePoints} points',
-                              style: Theme.of(context).textTheme.bodyLarge,
-                            ),
-                            const SizedBox(height: 24),
-                            GradientButton(
-                              text: gameProvider.audioService.isPlaying ? '🔊 Playing...' : 'Play Snippet',
-                              onPressed: gameProvider.audioService.isPlaying ? null : _handlePlaySnippet,
-                              isLoading: false,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Hints
-                      _buildHintsSection(context, gameProvider),
-                      const SizedBox(height: 24),
-
-                      // Guess Form
-                      Text(
-                        'Make Your Guess',
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: 16),
-                      TrackAutocomplete(
-                        controller: _titleController,
-                        hintText: 'Start typing song title...',
-                        labelText: 'Song Title',
-                        onTrackSelected: (track) {
-                          setState(() {
-                            _selectedTrack = track;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Action Buttons
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: session.currentSnippet >= 6 ? null : _handleSkip,
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppTheme.textPrimary,
-                                side: const BorderSide(color: AppTheme.textSecondary),
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(AppTheme.borderRadius),
-                                ),
-                              ),
-                              child: const Text('Skip'),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            flex: 2,
-                            child: GradientButton(
-                              text: 'Submit Guess',
-                              onPressed: _handleGuess,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Guesses Made
-                      Text(
-                        'Guesses made: ${session.guessesMade}',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                        textAlign: TextAlign.center,
-                      ),
-                    ]
-                  else
-                    PackBundleContent(
-                      key: ValueKey(_activePackId),
-                      roomId: widget.roomId,
-                      packId: _activePackId!,
-                      packName: _activePackName ?? 'Pack',
-                      embedInScroll: true,
+                  const Icon(
+                    Icons.music_note,
+                    size: 80,
+                    color: AppTheme.primaryColor,
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Snippet ${session.currentSnippet}',
+                    style: Theme.of(context).textTheme.displaySmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${session.snippetDuration}s',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: AppTheme.primaryColor,
                     ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${session.possiblePoints} points',
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  const SizedBox(height: 24),
+                  GradientButton(
+                    text: gameProvider.audioService.isPlaying
+                        ? '🔊 Playing...'
+                        : 'Play Snippet',
+                    onPressed: gameProvider.audioService.isPlaying
+                        ? null
+                        : _handlePlaySnippet,
+                    isLoading: false,
+                  ),
                 ],
               ),
-            );
+            ),
+            const SizedBox(height: 24),
+
+            // Hints
+            _buildHintsSection(context, gameProvider),
+            const SizedBox(height: 24),
+
+            if (session.currentSnippet >= 6 && !session.isCompleted) ...[
+              _buildRetryCard(session),
+              const SizedBox(height: 24),
+            ],
+
+            if (!retryUnlockPending) ...[
+              // Guess Form
+              Text(
+                'Make Your Guess',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              const SizedBox(height: 16),
+              TrackAutocomplete(
+                controller: _titleController,
+                hintText: 'Start typing song title...',
+                labelText: 'Song Title',
+                onTrackSelected: (track) {
+                  setState(() {
+                    _selectedTrack = track;
+                  });
+                },
+              ),
+              const SizedBox(height: 24),
+
+              // Action Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: session.currentSnippet >= 6
+                          ? null
+                          : interactionLocked
+                          ? null
+                          : _handleSkip,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.textPrimary,
+                        side: const BorderSide(color: AppTheme.textSecondary),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.borderRadius,
+                          ),
+                        ),
+                      ),
+                      child: const Text('Skip'),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    flex: 2,
+                    child: GradientButton(
+                      text: 'Submit Guess',
+                      onPressed: interactionLocked ? null : _handleGuess,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Guesses Made
+              Text(
+                'Guesses made: ${session.guessesMade}',
+                style: Theme.of(context).textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ] else
+            PackBundleContent(
+              key: ValueKey(_activePackId),
+              roomId: widget.roomId,
+              packId: _activePackId!,
+              packName: _activePackName ?? 'Pack',
+              embedInScroll: true,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRetryCard(GameSession session) {
+    if (session.retryCredits > 0) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.successColor.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+          border: Border.all(
+            color: AppTheme.successColor.withValues(alpha: 0.35),
+          ),
+        ),
+        child: Text(
+          'Second chance unlocked. Submit another guess.',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppTheme.successColor,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
+
+    if (!session.retryAvailable) {
+      return const SizedBox.shrink();
+    }
+
+    final nextAction = session.nextRetryRequirement;
+    final isAdAction = nextAction == 'ad';
+    final retryCost = session.retryCostCoins ?? 120;
+    final buttonLabel = isAdAction
+        ? 'Watch Ad for Retry'
+        : 'Spend $retryCost Coins for Final Chance';
+    final subtitle = isAdAction
+        ? 'You reached the last snippet. Watch one rewarded ad to unlock a second chance.'
+        : 'Use coins to unlock one final guess before results.';
+    final hasNoAds = context.watch<AuthProvider>().user?.hasNoAds ?? false;
+    final ctaLabel = isAdAction
+        ? (hasNoAds ? 'Use Reward for Second Chance' : buttonLabel)
+        : buttonLabel;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceColor.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+        border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Extra Chance', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 6),
+          Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
+          const SizedBox(height: 12),
+          ElevatedButton(
+            onPressed: _retryActivationInProgress
+                ? null
+                : () => _handleActivateRetry(isAdAction ? 'ad' : 'coins'),
+            child: Text(_retryActivationInProgress ? 'Loading...' : ctaLabel),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: _retryActivationInProgress
+                ? null
+                : () => _handleActivateRetry('forfeit'),
+            child: const Text('Skip Extra Chance and Show Results'),
+          ),
+        ],
+      ),
+    );
   }
 
   // ── Hints ───────────────────────────────────────────────────────────────
 
   // Hints are sequential: Genre (30🪙) → Decade (60🪙) → Artist (100🪙)
   static const _hintOrder = [
-    {'type': 'genre',       'label': 'Genre',   'revealedLabel': 'Genre',  'cost': 30},
-    {'type': 'decade',      'label': 'Decade',  'revealedLabel': 'Decade', 'cost': 60},
-    {'type': 'artist_name', 'label': 'Artist',  'revealedLabel': 'Artist', 'cost': 100},
+    {'type': 'genre', 'label': 'Genre', 'revealedLabel': 'Genre', 'cost': 30},
+    {
+      'type': 'decade',
+      'label': 'Decade',
+      'revealedLabel': 'Decade',
+      'cost': 60,
+    },
+    {
+      'type': 'artist_name',
+      'label': 'Artist',
+      'revealedLabel': 'Artist',
+      'cost': 100,
+    },
   ];
 
   Widget _buildHintsSection(BuildContext context, GameProvider gameProvider) {
@@ -1162,7 +1481,10 @@ class _GameScreenState extends State<GameScreen> {
 
             return Expanded(
               child: Padding(
-                padding: EdgeInsets.only(left: i == 0 ? 0 : 6, right: i == _hintOrder.length - 1 ? 0 : 6),
+                padding: EdgeInsets.only(
+                  left: i == 0 ? 0 : 6,
+                  right: i == _hintOrder.length - 1 ? 0 : 6,
+                ),
                 child: _buildHintButton(
                   context: context,
                   gameProvider: gameProvider,
@@ -1204,16 +1526,16 @@ class _GameScreenState extends State<GameScreen> {
           children: [
             Text(
               revealedLabel,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.primaryColor,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppTheme.primaryColor),
             ),
             const SizedBox(height: 4),
             Text(
               revealedValue,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
           ],
@@ -1228,17 +1550,24 @@ class _GameScreenState extends State<GameScreen> {
         decoration: BoxDecoration(
           color: AppTheme.surfaceColor.withOpacity(0.4),
           borderRadius: BorderRadius.circular(AppTheme.borderRadius),
-          border: Border.all(color: AppTheme.textSecondary.withOpacity(0.3), width: 1),
+          border: Border.all(
+            color: AppTheme.textSecondary.withOpacity(0.3),
+            width: 1,
+          ),
         ),
         child: Column(
           children: [
-            const Icon(Icons.lock_outline, size: 16, color: AppTheme.textSecondary),
+            const Icon(
+              Icons.lock_outline,
+              size: 16,
+              color: AppTheme.textSecondary,
+            ),
             const SizedBox(height: 4),
             Text(
               label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.textSecondary,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
               textAlign: TextAlign.center,
             ),
           ],
@@ -1263,9 +1592,9 @@ class _GameScreenState extends State<GameScreen> {
           const SizedBox(height: 2),
           Text(
             '🪙 $cost',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.primaryColor,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppTheme.primaryColor),
           ),
         ],
       ),
@@ -1303,7 +1632,10 @@ class _GameScreenState extends State<GameScreen> {
 
   Widget _buildDateRow(GameProvider gameProvider) {
     final activeDate = _activeGameDate();
-    final dates = List.generate(31, (i) => activeDate.subtract(Duration(days: 30 - i)));
+    final dates = List.generate(
+      31,
+      (i) => activeDate.subtract(Duration(days: 30 - i)),
+    );
 
     return SizedBox(
       height: 76,
@@ -1335,7 +1667,9 @@ class _GameScreenState extends State<GameScreen> {
           } else if (isToday) {
             final session = gameProvider.currentSession;
             if (session != null && session.isCompleted) {
-              dotColor = session.correctGuess ? AppTheme.successColor : AppTheme.errorColor;
+              dotColor = session.correctGuess
+                  ? AppTheme.successColor
+                  : AppTheme.errorColor;
             }
           } else {
             final histDay = _historyMap[dateStr];
@@ -1372,7 +1706,9 @@ class _GameScreenState extends State<GameScreen> {
                     DateFormat('MMM').format(date),
                     style: TextStyle(
                       fontSize: 10,
-                      color: isSelected ? Colors.white70 : AppTheme.textSecondary,
+                      color: isSelected
+                          ? Colors.white70
+                          : AppTheme.textSecondary,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -1397,14 +1733,18 @@ class _GameScreenState extends State<GameScreen> {
 
   Widget _buildHistoryView() {
     if (_historyDetailLoading) {
-      return const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor));
+      return const Center(
+        child: CircularProgressIndicator(color: AppTheme.primaryColor),
+      );
     }
     if (_activePackId != null) {
       if (_packHistoryDetail == null) {
         return Center(
           child: Text(
             'Could not load data',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
           ),
         );
       }
@@ -1414,7 +1754,9 @@ class _GameScreenState extends State<GameScreen> {
       return Center(
         child: Text(
           'Could not load data',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
         ),
       );
     }
@@ -1447,32 +1789,34 @@ class _GameScreenState extends State<GameScreen> {
                           width: 160,
                           height: 160,
                           fit: BoxFit.cover,
-                          errorBuilder: (context2, e, s) => _historyAlbumPlaceholder(),
+                          errorBuilder: (context2, e, s) =>
+                              _historyAlbumPlaceholder(),
                         )
                       : _historyAlbumPlaceholder(),
                 ),
                 const SizedBox(height: 16),
                 Text(
                   detail.track.title,
-                  style: Theme.of(context)
-                      .textTheme
-                      .headlineMedium
-                      ?.copyWith(fontWeight: FontWeight.bold),
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   detail.track.artist,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(color: AppTheme.textSecondary),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppTheme.textSecondary,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
                 if (session != null)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: session.correctGuess
                           ? AppTheme.successColor.withValues(alpha: 0.2)
@@ -1483,7 +1827,9 @@ class _GameScreenState extends State<GameScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          session.correctGuess ? Icons.check_circle : Icons.cancel,
+                          session.correctGuess
+                              ? Icons.check_circle
+                              : Icons.cancel,
                           color: session.correctGuess
                               ? AppTheme.successColor
                               : AppTheme.errorColor,
@@ -1506,17 +1852,19 @@ class _GameScreenState extends State<GameScreen> {
                   )
                 else
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: AppTheme.surfaceColor,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
                       'You didn\'t play this day',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(color: AppTheme.textSecondary),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.textSecondary,
+                      ),
                     ),
                   ),
               ],
@@ -1548,16 +1896,18 @@ class _GameScreenState extends State<GameScreen> {
               final rankColor = rank == 1
                   ? const Color(0xFFFFD700)
                   : rank == 2
-                      ? const Color(0xFFC0C0C0)
-                      : rank == 3
-                          ? const Color(0xFFCD7F32)
-                          : AppTheme.textSecondary;
+                  ? const Color(0xFFC0C0C0)
+                  : rank == 3
+                  ? const Color(0xFFCD7F32)
+                  : AppTheme.textSecondary;
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: AppTheme.surfaceColor,
-                  borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+                  borderRadius: BorderRadius.circular(
+                    AppTheme.cardBorderRadius,
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -1572,9 +1922,10 @@ class _GameScreenState extends State<GameScreen> {
                         child: Text(
                           '$rank',
                           style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: rankColor),
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: rankColor,
+                          ),
                         ),
                       ),
                     ),
@@ -1583,21 +1934,23 @@ class _GameScreenState extends State<GameScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(e.username,
-                              style: Theme.of(context).textTheme.titleMedium),
+                          Text(
+                            e.username,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
                           Text(
                             'Snippet ${e.snippetNumber}${e.completedAt != null ? ' · ${DateFormat.Hm().format(e.completedAt!.toLocal())}' : ''}',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
+                            style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(color: AppTheme.textSecondary),
                           ),
                         ],
                       ),
                     ),
                     Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         gradient: AppTheme.primaryGradient,
                         borderRadius: BorderRadius.circular(12),
@@ -1605,7 +1958,9 @@ class _GameScreenState extends State<GameScreen> {
                       child: Text(
                         '${e.pointsEarned}',
                         style: const TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.bold),
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ],
@@ -1623,14 +1978,18 @@ class _GameScreenState extends State<GameScreen> {
               padding: const EdgeInsets.symmetric(vertical: 16),
               child: Column(
                 children: [
-                  const Icon(Icons.chat_bubble_outline,
-                      size: 36, color: AppTheme.textSecondary),
+                  const Icon(
+                    Icons.chat_bubble_outline,
+                    size: 36,
+                    color: AppTheme.textSecondary,
+                  ),
                   const SizedBox(height: 8),
-                  Text('No messages that day',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(color: AppTheme.textSecondary)),
+                  Text(
+                    'No messages that day',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
                 ],
               ),
             )
@@ -1640,12 +1999,17 @@ class _GameScreenState extends State<GameScreen> {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Align(
-                  alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                  alignment: isMe
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
                   child: Container(
                     constraints: BoxConstraints(
-                        maxWidth: MediaQuery.of(context).size.width * 0.75),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      maxWidth: MediaQuery.of(context).size.width * 0.75,
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: isMe
                           ? AppTheme.primaryColor.withValues(alpha: 0.2)
@@ -1660,19 +2024,20 @@ class _GameScreenState extends State<GameScreen> {
                         if (!isMe)
                           Text(
                             msg.username,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
                                   color: AppTheme.primaryColor,
                                   fontWeight: FontWeight.w600,
                                 ),
                           ),
-                        Text(msg.message,
-                            style: Theme.of(context).textTheme.bodyMedium),
+                        Text(
+                          msg.message,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
                         const SizedBox(height: 2),
                         Text(
                           DateFormat.Hm().format(msg.createdAt.toLocal()),
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
+                          style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: AppTheme.textSecondary),
                         ),
                       ],
@@ -1720,25 +2085,26 @@ class _GameScreenState extends State<GameScreen> {
                 const SizedBox(height: 16),
                 Text(
                   detail.track.title,
-                  style: Theme.of(context)
-                      .textTheme
-                      .headlineMedium
-                      ?.copyWith(fontWeight: FontWeight.bold),
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   detail.track.artist,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(color: AppTheme.textSecondary),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppTheme.textSecondary,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
                 if (session != null)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: session.completed
                           ? AppTheme.successColor.withValues(alpha: 0.2)
@@ -1772,17 +2138,19 @@ class _GameScreenState extends State<GameScreen> {
                   )
                 else
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: AppTheme.surfaceColor,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
                       "You didn't play this pack that day",
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(color: AppTheme.textSecondary),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.textSecondary,
+                      ),
                     ),
                   ),
               ],
@@ -1814,16 +2182,18 @@ class _GameScreenState extends State<GameScreen> {
               final rankColor = rank == 1
                   ? const Color(0xFFFFD700)
                   : rank == 2
-                      ? const Color(0xFFC0C0C0)
-                      : rank == 3
-                          ? const Color(0xFFCD7F32)
-                          : AppTheme.textSecondary;
+                  ? const Color(0xFFC0C0C0)
+                  : rank == 3
+                  ? const Color(0xFFCD7F32)
+                  : AppTheme.textSecondary;
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: AppTheme.surfaceColor,
-                  borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+                  borderRadius: BorderRadius.circular(
+                    AppTheme.cardBorderRadius,
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -1838,9 +2208,10 @@ class _GameScreenState extends State<GameScreen> {
                         child: Text(
                           '$rank',
                           style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: rankColor),
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: rankColor,
+                          ),
                         ),
                       ),
                     ),
@@ -1849,20 +2220,23 @@ class _GameScreenState extends State<GameScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(e.username,
-                              style: Theme.of(context).textTheme.titleMedium),
+                          Text(
+                            e.username,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
                           Text(
                             'Stage ${e.stageNumber} · ${DateFormat.Hm().format(e.completedAt.toLocal())}',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
+                            style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(color: AppTheme.textSecondary),
                           ),
                         ],
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         gradient: AppTheme.primaryGradient,
                         borderRadius: BorderRadius.circular(12),
@@ -1870,7 +2244,9 @@ class _GameScreenState extends State<GameScreen> {
                       child: Text(
                         '${e.pointsEarned}',
                         style: const TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.bold),
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ],
@@ -1888,14 +2264,18 @@ class _GameScreenState extends State<GameScreen> {
               padding: const EdgeInsets.symmetric(vertical: 16),
               child: Column(
                 children: [
-                  const Icon(Icons.chat_bubble_outline,
-                      size: 36, color: AppTheme.textSecondary),
+                  const Icon(
+                    Icons.chat_bubble_outline,
+                    size: 36,
+                    color: AppTheme.textSecondary,
+                  ),
                   const SizedBox(height: 8),
-                  Text('No messages that day',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(color: AppTheme.textSecondary)),
+                  Text(
+                    'No messages that day',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
                 ],
               ),
             )
@@ -1905,12 +2285,17 @@ class _GameScreenState extends State<GameScreen> {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Align(
-                  alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                  alignment: isMe
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
                   child: Container(
                     constraints: BoxConstraints(
-                        maxWidth: MediaQuery.of(context).size.width * 0.75),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      maxWidth: MediaQuery.of(context).size.width * 0.75,
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: isMe
                           ? AppTheme.primaryColor.withValues(alpha: 0.2)
@@ -1925,19 +2310,20 @@ class _GameScreenState extends State<GameScreen> {
                         if (!isMe)
                           Text(
                             msg.username,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
                                   color: AppTheme.primaryColor,
                                   fontWeight: FontWeight.w600,
                                 ),
                           ),
-                        Text(msg.message,
-                            style: Theme.of(context).textTheme.bodyMedium),
+                        Text(
+                          msg.message,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
                         const SizedBox(height: 2),
                         Text(
                           DateFormat.Hm().format(msg.createdAt.toLocal()),
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
+                          style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: AppTheme.textSecondary),
                         ),
                       ],
@@ -2008,7 +2394,9 @@ class _NextSongCountdownState extends State<_NextSongCountdown> {
 
     return Text.rich(
       TextSpan(
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
+        style: Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
         children: [
           const TextSpan(text: 'Next song in '),
           TextSpan(
