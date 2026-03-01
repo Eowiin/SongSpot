@@ -113,8 +113,18 @@ class GuessAttemptInline(admin.TabularInline):
 
 @admin.register(DailyGameSession)
 class DailyGameSessionAdmin(admin.ModelAdmin):
-    list_display = ('user', 'room', 'current_snippet', 'correct_guess', 'points_earned', 'created_at')
-    list_filter = ('correct_guess', 'current_snippet', 'created_at')
+    list_display = (
+        'user',
+        'room',
+        'current_snippet',
+        'retries_used',
+        'retry_credits',
+        'awaiting_retry_unlock',
+        'correct_guess',
+        'points_earned',
+        'created_at',
+    )
+    list_filter = ('correct_guess', 'current_snippet', 'retries_used', 'awaiting_retry_unlock', 'created_at')
     search_fields = ('user__username', 'user__email', 'room__room_code')
     readonly_fields = ('id', 'created_at', 'completed_at')
     inlines = [GuessAttemptInline]

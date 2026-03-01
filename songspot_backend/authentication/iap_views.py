@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from .models import CoinProduct, IAPReceipt
 from .iap_service import verify_apple_receipt, verify_google_receipt
+from songspot.api_errors import error_response, ErrorCode
 
 logger = logging.getLogger(__name__)
 
@@ -72,15 +73,17 @@ class IAPVerifyView(APIView):
 
         # Validate required fields
         if not all([store, product_id, transaction_id, receipt_data]):
-            return Response(
-                {'error': 'Missing required fields: store, product_id, transaction_id, receipt_data'},
-                status=status.HTTP_400_BAD_REQUEST,
+            return error_response(
+                code=ErrorCode.MISSING_REQUIRED_FIELDS,
+                message='Missing required fields: store, product_id, transaction_id, receipt_data',
+                status_code=status.HTTP_400_BAD_REQUEST,
             )
 
         if store not in ('apple', 'google'):
-            return Response(
-                {'error': 'Invalid store. Must be "apple" or "google".'},
-                status=status.HTTP_400_BAD_REQUEST,
+            return error_response(
+                code=ErrorCode.INVALID_STORE,
+                message='Invalid store. Must be "apple" or "google".',
+                status_code=status.HTTP_400_BAD_REQUEST,
             )
 
         # Idempotency: check if this transaction was already processed
@@ -93,18 +96,21 @@ class IAPVerifyView(APIView):
                     'coins_credited': existing.coins_credited,
                 }, status=status.HTTP_200_OK)
             elif existing.status == IAPReceipt.STATUS_PENDING:
-                return Response(
-                    {'error': 'Purchase is still being processed. Please wait.'},
-                    status=status.HTTP_409_CONFLICT,
+                return error_response(
+                    code=ErrorCode.PURCHASE_PROCESSING,
+                    message='Purchase is still being processed. Please wait.',
+                    status_code=status.HTTP_409_CONFLICT,
                 )
 
         # Look up the coin product
         try:
             coin_product = CoinProduct.objects.get(product_id=product_id, is_active=True)
         except CoinProduct.DoesNotExist:
-            return Response(
-                {'error': f'Unknown or inactive product: {product_id}'},
-                status=status.HTTP_400_BAD_REQUEST,
+            return error_response(
+                code=ErrorCode.UNKNOWN_OR_INACTIVE_PRODUCT,
+                message=f'Unknown or inactive product: {product_id}',
+                status_code=status.HTTP_400_BAD_REQUEST,
+                params={'product_id': product_id},
             )
 
         # Create pending receipt record.
@@ -128,9 +134,10 @@ class IAPVerifyView(APIView):
                     'coins': request.user.coins,
                     'coins_credited': existing.coins_credited,
                 }, status=status.HTTP_200_OK)
-            return Response(
-                {'error': 'Purchase is being processed. Please wait a moment.'},
-                status=status.HTTP_409_CONFLICT,
+            return error_response(
+                code=ErrorCode.PURCHASE_PROCESSING,
+                message='Purchase is being processed. Please wait a moment.',
+                status_code=status.HTTP_409_CONFLICT,
             )
 
         # Verify with the appropriate store
@@ -147,9 +154,10 @@ class IAPVerifyView(APIView):
                 "IAP verification failed for user %s, transaction %s: %s",
                 request.user.id, transaction_id, result.get('error')
             )
-            return Response(
-                {'error': 'Receipt verification failed. Please contact support if you were charged.'},
-                status=status.HTTP_400_BAD_REQUEST,
+            return error_response(
+                code=ErrorCode.RECEIPT_VERIFICATION_FAILED,
+                message='Receipt verification failed. Please contact support if you were charged.',
+                status_code=status.HTTP_400_BAD_REQUEST,
             )
 
         # Credit coins atomically

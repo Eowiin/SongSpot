@@ -35,10 +35,8 @@ class GameProvider with ChangeNotifier {
   bool get isWebSocketConnected => _isWebSocketConnected;
   Map<String, String> get hintValues => _hintValues;
   Stream<WebSocketEvent> get webSocketEvents => _webSocketService.events;
-  List<String> get typingUsernames => _typingUsers.entries
-      .where((e) => e.value)
-      .map((e) => e.key)
-      .toList();
+  List<String> get typingUsernames =>
+      _typingUsers.entries.where((e) => e.value).map((e) => e.key).toList();
 
   /// Start or get current game session
   Future<void> startGameSession(String roomId) async {
@@ -110,18 +108,7 @@ class GameProvider with ChangeNotifier {
       createdAt: session.dailySong.createdAt,
     );
 
-    return GameSession(
-      id: session.id,
-      user: session.user,
-      dailySong: updatedDailySong,
-      currentSnippet: session.currentSnippet,
-      guessesMade: session.guessesMade,
-      correctGuess: session.correctGuess,
-      pointsEarned: session.pointsEarned,
-      completedAt: session.completedAt,
-      createdAt: session.createdAt,
-      hintsUsed: session.hintsUsed,
-    );
+    return session.copyWith(dailySong: updatedDailySong);
   }
 
   /// Skip to next snippet
@@ -138,18 +125,7 @@ class GameProvider with ChangeNotifier {
 
       // Update current snippet
       final newSnippet = response['current_snippet'] as int;
-      _currentSession = GameSession(
-        id: _currentSession!.id,
-        user: _currentSession!.user,
-        dailySong: _currentSession!.dailySong,
-        currentSnippet: newSnippet,
-        guessesMade: _currentSession!.guessesMade,
-        correctGuess: _currentSession!.correctGuess,
-        pointsEarned: _currentSession!.pointsEarned,
-        completedAt: _currentSession!.completedAt,
-        createdAt: _currentSession!.createdAt,
-        hintsUsed: _currentSession!.hintsUsed,
-      );
+      _currentSession = _currentSession!.copyWith(currentSnippet: newSnippet);
 
       _isLoading = false;
       notifyListeners();
@@ -180,52 +156,55 @@ class GameProvider with ChangeNotifier {
 
       final isCorrect = response['is_correct'] as bool;
       _guessResult = response['message'] as String;
+      final current = _currentSession!;
+      final nextSnippet =
+          response['current_snippet'] as int? ?? current.currentSnippet;
+      final retriesUsed =
+          response['retries_used'] as int? ?? current.retriesUsed;
+      final retryCredits =
+          response['retry_credits'] as int? ?? current.retryCredits;
+      final awaitingRetryUnlock =
+          response['awaiting_retry_unlock'] as bool? ??
+          current.awaitingRetryUnlock;
+      final retryAvailable =
+          response['retry_available'] as bool? ?? current.retryAvailable;
+      final retryCostCoins =
+          response['retry_cost_coins'] as int? ?? current.retryCostCoins;
+      final gameOver = response['game_over'] as bool? ?? false;
+      final guessCounted = response['guess_counted'] as bool? ?? true;
+      final nextGuessesMade = current.guessesMade + (guessCounted ? 1 : 0);
 
       if (isCorrect) {
-        // Update session with correct guess
-        _currentSession = GameSession(
-          id: _currentSession!.id,
-          user: _currentSession!.user,
-          dailySong: _currentSession!.dailySong,
-          currentSnippet: _currentSession!.currentSnippet,
-          guessesMade: _currentSession!.guessesMade + 1,
+        _currentSession = current.copyWith(
+          guessesMade: nextGuessesMade,
           correctGuess: true,
           pointsEarned: response['points_earned'] as int?,
           completedAt: DateTime.now(),
-          createdAt: _currentSession!.createdAt,
-          hintsUsed: _currentSession!.hintsUsed,
+          retriesUsed: retriesUsed,
+          retryCredits: retryCredits,
+          awaitingRetryUnlock: awaitingRetryUnlock,
+          retryAvailable: retryAvailable,
+          nextRetryRequirement: response['next_retry_requirement'] as String?,
+          clearNextRetryRequirement: response['next_retry_requirement'] == null,
+          retryCostCoins: retryCostCoins,
         );
       } else {
-        // Update snippet if incorrect
-        final newSnippet = response['current_snippet'] as int?;
-        if (newSnippet != null) {
-          _currentSession = GameSession(
-            id: _currentSession!.id,
-            user: _currentSession!.user,
-            dailySong: _currentSession!.dailySong,
-            currentSnippet: newSnippet,
-            guessesMade: _currentSession!.guessesMade + 1,
-            correctGuess: false,
-            pointsEarned: _currentSession!.pointsEarned,
-            completedAt: _currentSession!.completedAt,
-            createdAt: _currentSession!.createdAt,
-            hintsUsed: _currentSession!.hintsUsed,
-          );
-        } else {
-          // All snippets used
-          _currentSession = GameSession(
-            id: _currentSession!.id,
-            user: _currentSession!.user,
-            dailySong: _currentSession!.dailySong,
-            currentSnippet: 6,
-            guessesMade: _currentSession!.guessesMade + 1,
-            correctGuess: false,
-            pointsEarned: 0,
-            completedAt: DateTime.now(),
-            createdAt: _currentSession!.createdAt,
-            hintsUsed: _currentSession!.hintsUsed,
-          );
-        }
+        _currentSession = current.copyWith(
+          currentSnippet: nextSnippet,
+          guessesMade: nextGuessesMade,
+          correctGuess: false,
+          pointsEarned:
+              response['points_earned'] as int? ?? current.pointsEarned,
+          completedAt: gameOver ? DateTime.now() : null,
+          clearCompletedAt: !gameOver,
+          retriesUsed: retriesUsed,
+          retryCredits: retryCredits,
+          awaitingRetryUnlock: awaitingRetryUnlock,
+          retryAvailable: retryAvailable,
+          nextRetryRequirement: response['next_retry_requirement'] as String?,
+          clearNextRetryRequirement: response['next_retry_requirement'] == null,
+          retryCostCoins: retryCostCoins,
+        );
       }
 
       _isLoading = false;
@@ -236,6 +215,58 @@ class GameProvider with ChangeNotifier {
       _isLoading = false;
       notifyListeners();
       return false;
+    }
+  }
+
+  /// Activate a retry after failing on the last snippet.
+  Future<Map<String, dynamic>?> activateRetry({
+    required String roomId,
+    required String action,
+  }) async {
+    if (_currentSession == null) return null;
+
+    try {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+
+      final response = await _apiService.activateDailyRetry(
+        roomId: roomId,
+        action: action,
+      );
+
+      final current = _currentSession!;
+      final gameOver = response['game_over'] as bool? ?? false;
+      _currentSession = current.copyWith(
+        retryCredits: response['retry_credits'] as int? ?? current.retryCredits,
+        retriesUsed: response['retries_used'] as int? ?? current.retriesUsed,
+        awaitingRetryUnlock:
+            response['awaiting_retry_unlock'] as bool? ??
+            current.awaitingRetryUnlock,
+        retryAvailable:
+            response['retry_available'] as bool? ?? current.retryAvailable,
+        nextRetryRequirement: response['next_retry_requirement'] as String?,
+        clearNextRetryRequirement: response['next_retry_requirement'] == null,
+        retryCostCoins:
+            response['retry_cost_coins'] as int? ?? current.retryCostCoins,
+        correctGuess: gameOver
+            ? (response['is_correct'] as bool? ?? false)
+            : current.correctGuess,
+        pointsEarned: gameOver
+            ? (response['points_earned'] as int? ?? 0)
+            : current.pointsEarned,
+        completedAt: gameOver ? DateTime.now() : current.completedAt,
+      );
+
+      _guessResult = response['message'] as String?;
+      _isLoading = false;
+      notifyListeners();
+      return response;
+    } catch (e) {
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return null;
     }
   }
 
@@ -255,20 +286,11 @@ class GameProvider with ChangeNotifier {
     _hintValues[hintType] = hintValue;
 
     // Update hintsUsed on the session if not already present
-    if (_currentSession != null && !_currentSession!.hintsUsed.contains(hintType)) {
-      final updatedHints = List<String>.from(_currentSession!.hintsUsed)..add(hintType);
-      _currentSession = GameSession(
-        id: _currentSession!.id,
-        user: _currentSession!.user,
-        dailySong: _currentSession!.dailySong,
-        currentSnippet: _currentSession!.currentSnippet,
-        guessesMade: _currentSession!.guessesMade,
-        correctGuess: _currentSession!.correctGuess,
-        pointsEarned: _currentSession!.pointsEarned,
-        completedAt: _currentSession!.completedAt,
-        createdAt: _currentSession!.createdAt,
-        hintsUsed: updatedHints,
-      );
+    if (_currentSession != null &&
+        !_currentSession!.hintsUsed.contains(hintType)) {
+      final updatedHints = List<String>.from(_currentSession!.hintsUsed)
+        ..add(hintType);
+      _currentSession = _currentSession!.copyWith(hintsUsed: updatedHints);
     }
 
     notifyListeners();
@@ -284,7 +306,9 @@ class GameProvider with ChangeNotifier {
 
       final response = await _apiService.getLeaderboard(roomId);
       _leaderboard = (response['leaderboard'] as List)
-          .map((entry) => LeaderboardEntry.fromJson(entry as Map<String, dynamic>))
+          .map(
+            (entry) => LeaderboardEntry.fromJson(entry as Map<String, dynamic>),
+          )
           .toList();
 
       _isLoading = false;
@@ -378,7 +402,11 @@ class GameProvider with ChangeNotifier {
   }
 
   /// Load messages (initial load via REST API)
-  Future<void> loadMessages(String roomId, {int limit = 50, int offset = 0}) async {
+  Future<void> loadMessages(
+    String roomId, {
+    int limit = 50,
+    int offset = 0,
+  }) async {
     try {
       final response = await _apiService.getMessages(
         roomId: roomId,
@@ -438,7 +466,9 @@ class GameProvider with ChangeNotifier {
         // Notify UI that playback is starting
         notifyListeners();
 
-        await _audioService.playSnippetByNumber(_currentSession!.currentSnippet);
+        await _audioService.playSnippetByNumber(
+          _currentSession!.currentSnippet,
+        );
 
         // Notify UI that playback has finished
         notifyListeners();

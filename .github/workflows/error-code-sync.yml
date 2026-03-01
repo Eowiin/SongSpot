@@ -1,0 +1,47 @@
+name: Error Code Sync Check
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - "songspot_backend/songspot/api_errors.py"
+      - "songspot_backend/game/views.py"
+      - "songspot_backend/authentication/views.py"
+      - "songspot_backend/authentication/iap_views.py"
+      - "songspot_mobile/lib/services/api_service.dart"
+      - "songspot_mobile/lib/l10n/**"
+      - "scripts/ci/check_error_code_sync.py"
+      - ".github/workflows/error-code-sync.yml"
+  pull_request:
+    branches:
+      - dev
+      - main
+    paths:
+      - "songspot_backend/songspot/api_errors.py"
+      - "songspot_backend/game/views.py"
+      - "songspot_backend/authentication/views.py"
+      - "songspot_backend/authentication/iap_views.py"
+      - "songspot_mobile/lib/services/api_service.dart"
+      - "songspot_mobile/lib/l10n/**"
+      - "scripts/ci/check_error_code_sync.py"
+      - ".github/workflows/error-code-sync.yml"
+  workflow_dispatch:
+
+jobs:
+  validate-error-code-sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate backend/frontend error-code sync
+        run: python3 scripts/ci/check_error_code_sync.py

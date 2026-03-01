@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/admob_config.dart';
 import '../../models/pack.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/pack_provider.dart';
+import '../../services/admob_service.dart';
 import '../shop/coin_shop_screen.dart';
 
 // Display labels for each category key returned by the backend
@@ -36,13 +39,71 @@ class PackListScreen extends StatefulWidget {
 class _PackListScreenState extends State<PackListScreen> {
   final Set<String> _purchasingPackIds = {};
   String? _selectedCategory;
+  BannerAd? _bannerAd;
+  bool _isBannerLoaded = false;
+  bool? _lastHasNoAds;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<PackProvider>().loadPacks(widget.roomId);
+      _maybeLoadBanner();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final hasNoAds = context.watch<AuthProvider>().user?.hasNoAds ?? false;
+    if (_lastHasNoAds == hasNoAds) return;
+    _lastHasNoAds = hasNoAds;
+
+    if (hasNoAds) {
+      _bannerAd?.dispose();
+      _bannerAd = null;
+      _isBannerLoaded = false;
+    } else {
+      _maybeLoadBanner();
+    }
+  }
+
+  @override
+  void dispose() {
+    _bannerAd?.dispose();
+    super.dispose();
+  }
+
+  void _maybeLoadBanner() {
+    if (_bannerAd != null) return;
+    final hasNoAds = context.read<AuthProvider>().user?.hasNoAds ?? false;
+    if (!AdMobService().canServeAds(adsDisabled: hasNoAds)) return;
+
+    final banner = BannerAd(
+      adUnitId: AdMobConfig.bannerPackListAdUnitId,
+      request: const AdRequest(),
+      size: AdSize.banner,
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          if (!mounted) {
+            ad.dispose();
+            return;
+          }
+          setState(() => _isBannerLoaded = true);
+        },
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+          if (!mounted) return;
+          setState(() {
+            _bannerAd = null;
+            _isBannerLoaded = false;
+          });
+        },
+      ),
+    );
+
+    banner.load();
+    _bannerAd = banner;
   }
 
   List<SongPack> _filteredPacks(List<SongPack> packs) {
@@ -57,19 +118,22 @@ class _PackListScreenState extends State<PackListScreen> {
         .whereType<String>()
         .toSet()
         .toList();
-    keys.sort((a, b) => (_categoryLabels[a] ?? a).compareTo(_categoryLabels[b] ?? b));
+    keys.sort(
+      (a, b) => (_categoryLabels[a] ?? a).compareTo(_categoryLabels[b] ?? b),
+    );
     return keys;
   }
 
   @override
   Widget build(BuildContext context) {
     final packProvider = context.watch<PackProvider>();
-    final showLoadingState = packProvider.isLoading && packProvider.packs.isEmpty;
+    final showLoadingState =
+        packProvider.isLoading && packProvider.packs.isEmpty;
+    final hasNoAds = context.watch<AuthProvider>().user?.hasNoAds ?? false;
+    final canServeAds = AdMobService().canServeAds(adsDisabled: hasNoAds);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Song Packs'),
-      ),
+      appBar: AppBar(title: const Text('Song Packs')),
       body: Container(
         decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
         child: showLoadingState
@@ -91,7 +155,9 @@ class _PackListScreenState extends State<PackListScreen> {
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: AppTheme.errorColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.borderRadius,
+                          ),
                         ),
                         child: Text(
                           packProvider.errorMessage!,
@@ -107,6 +173,8 @@ class _PackListScreenState extends State<PackListScreen> {
                       padding: AppTheme.pagePadding.copyWith(top: 12),
                       children: [
                         _buildGetMoreCoinsBanner(context),
+                        if (canServeAds && _bannerAd != null && _isBannerLoaded)
+                          _buildBannerSlot(),
                         ..._filteredPacks(packProvider.packs).map((pack) {
                           return _buildPackCard(context, pack);
                         }),
@@ -115,6 +183,25 @@ class _PackListScreenState extends State<PackListScreen> {
                   ),
                 ],
               ),
+      ),
+    );
+  }
+
+  Widget _buildBannerSlot() {
+    final banner = _bannerAd;
+    if (banner == null || !_isBannerLoaded) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceColor.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+      ),
+      child: SizedBox(
+        width: banner.size.width.toDouble(),
+        height: banner.size.height.toDouble(),
+        child: AdWidget(ad: banner),
       ),
     );
   }
@@ -175,20 +262,24 @@ class _PackListScreenState extends State<PackListScreen> {
               children: [
                 Text(
                   '$coins coins',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(color: Colors.white),
                 ),
                 Text(
                   'Need more coins?',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: Colors.white70),
                 ),
               ],
             ),
           ),
           TextButton(
             onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const CoinShopScreen()),
-              );
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const CoinShopScreen()));
             },
             style: TextButton.styleFrom(
               backgroundColor: Colors.white.withValues(alpha: 0.2),
@@ -203,8 +294,12 @@ class _PackListScreenState extends State<PackListScreen> {
   }
 
   Widget _buildPackCard(BuildContext context, SongPack pack) {
-    final priceLabel = pack.isFree || pack.priceCoins == 0 ? 'Free' : '${pack.priceCoins} coins';
-    final description = pack.description.isEmpty ? 'Stem Pack' : pack.description;
+    final priceLabel = pack.isFree || pack.priceCoins == 0
+        ? 'Free'
+        : '${pack.priceCoins} coins';
+    final description = pack.description.isEmpty
+        ? 'Stem Pack'
+        : pack.description;
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -263,7 +358,8 @@ class _PackListScreenState extends State<PackListScreen> {
                   _categoryLabels[pack.category!] ?? pack.category!,
                   AppTheme.primaryColor,
                 ),
-              if (pack.isOwned) _buildTag(context, 'Owned', AppTheme.successColor),
+              if (pack.isOwned)
+                _buildTag(context, 'Owned', AppTheme.successColor),
               if (pack.isFree || pack.priceCoins == 0)
                 _buildTag(context, 'Free', AppTheme.secondaryColor),
             ],
@@ -278,10 +374,9 @@ class _PackListScreenState extends State<PackListScreen> {
                       setState(() {
                         _purchasingPackIds.add(pack.id);
                       });
-                      final success = await context.read<PackProvider>().purchasePack(
-                            roomId: widget.roomId,
-                            packId: pack.id,
-                          );
+                      final success = await context
+                          .read<PackProvider>()
+                          .purchasePack(roomId: widget.roomId, packId: pack.id);
                       if (success && mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
@@ -300,8 +395,8 @@ class _PackListScreenState extends State<PackListScreen> {
                 pack.isOwned
                     ? 'Owned'
                     : _purchasingPackIds.contains(pack.id)
-                        ? 'Buying...'
-                        : 'Buy',
+                    ? 'Buying...'
+                    : 'Buy',
               ),
             ),
           ),
@@ -341,10 +436,8 @@ class _PackListScreenState extends State<PackListScreen> {
         child: Image.network(
           iconUrl,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => const Icon(
-            Icons.album,
-            color: AppTheme.primaryColor,
-          ),
+          errorBuilder: (_, __, ___) =>
+              const Icon(Icons.album, color: AppTheme.primaryColor),
         ),
       ),
     );

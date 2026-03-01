@@ -18,8 +18,10 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from . import views
 
 urlpatterns = [
+    path('app-ads.txt', views.app_ads_txt, name='app_ads_txt'),
     path('admin/', admin.site.urls),
     path('api/auth/', include('authentication.urls')),
     path('api/game/', include('game.urls')),

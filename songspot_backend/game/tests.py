@@ -1,4 +1,4 @@
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 from rest_framework import status
@@ -97,6 +97,22 @@ class RoomCreateViewTests(APITestCase):
         self.client.credentials()
         response = self.client.post(self.create_url, {}, format='json')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @override_settings(MAX_HOSTED_ROOMS_PER_USER=1, MAX_ROOM_CREATIONS_PER_DAY=5)
+    def test_create_room_fails_when_hosted_room_limit_reached(self):
+        """Test room creation fails when hosted room cap is reached."""
+        Room.objects.create(host_user=self.user)
+        response = self.client.post(self.create_url, {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('Room limit reached', response.data.get('error', ''))
+
+    @override_settings(MAX_HOSTED_ROOMS_PER_USER=50, MAX_ROOM_CREATIONS_PER_DAY=1)
+    def test_create_room_fails_when_daily_creation_limit_reached(self):
+        """Test room creation fails when daily creation cap is reached."""
+        Room.objects.create(host_user=self.user)
+        response = self.client.post(self.create_url, {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('Daily room creation limit reached', response.data.get('error', ''))
 
 
 class RoomJoinViewTests(APITestCase):
@@ -481,6 +497,7 @@ class SubmitGuessViewTests(APITestCase):
         )
 
         self.guess_url = f'/api/game/rooms/{self.room.id}/daily-game/guess/'
+        self.retry_url = f'/api/game/rooms/{self.room.id}/daily-game/retry/'
         self.refresh = RefreshToken.for_user(self.user)
         self.access_token = str(self.refresh.access_token)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
@@ -512,13 +529,49 @@ class SubmitGuessViewTests(APITestCase):
         self.assertEqual(response.data['current_snippet'], 2)
 
     def test_wrong_guess_at_max_snippet(self):
-        """Test wrong guess at max snippet ends game with 0 points."""
+        """Test wrong guess at max snippet prompts retry flow first."""
         self.game_session.current_snippet = 6
         self.game_session.save()
         data = {'track_id': str(self.wrong_track.id)}
         response = self.client.post(self.guess_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(response.data['is_correct'])
+        self.assertFalse(response.data['game_over'])
+        self.assertTrue(response.data['retry_available'])
+        self.assertEqual(response.data['next_retry_requirement'], 'ad')
+
+    def test_retry_ad_then_wrong_guess_requests_coin_retry(self):
+        """First retry is ad-gated, then next retry becomes coin-gated."""
+        self.game_session.current_snippet = 6
+        self.game_session.save(update_fields=['current_snippet'])
+
+        self.client.post(self.guess_url, {'track_id': str(self.wrong_track.id)}, format='json')
+        retry_response = self.client.post(self.retry_url, {'action': 'ad'}, format='json')
+        self.assertEqual(retry_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(retry_response.data['retry_credits'], 1)
+
+        wrong_again = self.client.post(self.guess_url, {'track_id': str(self.wrong_track.id)}, format='json')
+        self.assertEqual(wrong_again.status_code, status.HTTP_200_OK)
+        self.assertFalse(wrong_again.data['game_over'])
+        self.assertEqual(wrong_again.data['next_retry_requirement'], 'coins')
+
+    def test_retry_unlock_before_failure_fails(self):
+        """Retry unlock cannot be used until a failed guess requests it."""
+        self.game_session.current_snippet = 6
+        self.game_session.save(update_fields=['current_snippet'])
+
+        response = self.client.post(self.retry_url, {'action': 'ad'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_forfeit_ends_game_immediately(self):
+        """Player can skip extra chance and go directly to results."""
+        self.game_session.current_snippet = 6
+        self.game_session.awaiting_retry_unlock = True
+        self.game_session.save(update_fields=['current_snippet', 'awaiting_retry_unlock'])
+
+        response = self.client.post(self.retry_url, {'action': 'forfeit'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['game_over'])
         self.assertEqual(response.data['points_earned'], 0)
         self.assertIn('correct_answer', response.data)
 

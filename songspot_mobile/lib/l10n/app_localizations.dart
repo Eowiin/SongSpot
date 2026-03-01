@@ -404,11 +404,41 @@ abstract class AppLocalizations {
   /// **'Privacy Policy'**
   String get settingsPrivacyPolicy;
 
+  /// Settings tile to open UMP privacy options form
+  ///
+  /// In en, this message translates to:
+  /// **'Manage Ad Consent'**
+  String get settingsManageAdConsent;
+
+  /// Subtitle for ad consent settings tile
+  ///
+  /// In en, this message translates to:
+  /// **'Update your ad privacy choices (GDPR)'**
+  String get settingsManageAdConsentSubtitle;
+
   /// Terms of service tile
   ///
   /// In en, this message translates to:
   /// **'Terms of Service'**
   String get settingsTermsOfService;
+
+  /// Shown after user updates ad consent options
+  ///
+  /// In en, this message translates to:
+  /// **'Ad consent preferences updated.'**
+  String get adConsentUpdated;
+
+  /// Shown when privacy options entry is not required by UMP
+  ///
+  /// In en, this message translates to:
+  /// **'Ad privacy options are not required in your region.'**
+  String get adConsentNotRequired;
+
+  /// Shown when UMP privacy options form cannot be opened
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open ad privacy options right now.'**
+  String get adConsentError;
 
   /// Accessibility screen title
   ///
@@ -673,6 +703,450 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This field is required'**
   String get fieldRequired;
+
+  /// Undo button/action label
+  ///
+  /// In en, this message translates to:
+  /// **'Undo'**
+  String get undoAction;
+
+  /// Fallback username label
+  ///
+  /// In en, this message translates to:
+  /// **'User'**
+  String get userFallback;
+
+  /// Tooltip for daily streak chip
+  ///
+  /// In en, this message translates to:
+  /// **'Daily streak'**
+  String get dailyStreakTooltip;
+
+  /// Tooltip for coins chip
+  ///
+  /// In en, this message translates to:
+  /// **'Coins'**
+  String get coinsTooltip;
+
+  /// Validation when room code is empty
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter a room code'**
+  String get pleaseEnterRoomCode;
+
+  /// Warning shown when another room deletion is pending
+  ///
+  /// In en, this message translates to:
+  /// **'Finish or undo the current room deletion first.'**
+  String get finishOrUndoCurrentRoomDeletion;
+
+  /// Swipe delete snackbar content when host transfer happens
+  ///
+  /// In en, this message translates to:
+  /// **'Left room. Host transferred.'**
+  String get leftRoomHostTransferred;
+
+  /// Swipe delete snackbar content
+  ///
+  /// In en, this message translates to:
+  /// **'Room removed.'**
+  String get roomRemoved;
+
+  /// Shown after tapping undo for room deletion
+  ///
+  /// In en, this message translates to:
+  /// **'Deletion cancelled.'**
+  String get roomDeletionCancelled;
+
+  /// Delete label in swipe background
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get deleteLabel;
+
+  /// Fallback delete error message
+  ///
+  /// In en, this message translates to:
+  /// **'Could not delete room.'**
+  String get couldNotDeleteRoom;
+
+  /// Coin shop screen title
+  ///
+  /// In en, this message translates to:
+  /// **'Coin Shop'**
+  String get coinShopTitle;
+
+  /// Shown when rewarded ad cannot be displayed
+  ///
+  /// In en, this message translates to:
+  /// **'Ad not ready yet. Please try again in a moment.'**
+  String get adNotReadyTryAgain;
+
+  /// Shown when IAP store is unavailable
+  ///
+  /// In en, this message translates to:
+  /// **'Store not available on this device.'**
+  String get storeNotAvailableOnDevice;
+
+  /// Shown when store products are missing
+  ///
+  /// In en, this message translates to:
+  /// **'Products not found in store. Make sure in-app products are created and set to Active in App Store Connect / Play Console.'**
+  String get productsNotFoundStoreMessage;
+
+  /// Section title in coin shop
+  ///
+  /// In en, this message translates to:
+  /// **'Get more coins'**
+  String get getMoreCoinsTitle;
+
+  /// Coin shop helper text
+  ///
+  /// In en, this message translates to:
+  /// **'Use coins to unlock song packs and hints.'**
+  String get useCoinsToUnlockHint;
+
+  /// Payment overlay title
+  ///
+  /// In en, this message translates to:
+  /// **'Processing payment...'**
+  String get processingPayment;
+
+  /// Payment overlay subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Please don\'t close the app'**
+  String get pleaseDontCloseApp;
+
+  /// Coin balance header label
+  ///
+  /// In en, this message translates to:
+  /// **'Your balance'**
+  String get yourBalance;
+
+  /// Generic coins amount label
+  ///
+  /// In en, this message translates to:
+  /// **'{count} coins'**
+  String coinsAmount(num count);
+
+  /// Rewarded card title in coin shop
+  ///
+  /// In en, this message translates to:
+  /// **'Free Bonus Coins'**
+  String get freeBonusCoinsTitle;
+
+  /// Rewarded card helper text
+  ///
+  /// In en, this message translates to:
+  /// **'Watch a rewarded ad to claim +{coins} coins.'**
+  String watchRewardedAdClaimCoins(num coins);
+
+  /// Reward status loading text
+  ///
+  /// In en, this message translates to:
+  /// **'Checking daily limit...'**
+  String get checkingDailyLimit;
+
+  /// Reward status unavailable text
+  ///
+  /// In en, this message translates to:
+  /// **'Daily limit unavailable right now.'**
+  String get dailyLimitUnavailable;
+
+  /// Remaining rewarded claims status
+  ///
+  /// In en, this message translates to:
+  /// **'Remaining today: {remaining} / {cap}'**
+  String remainingTodayStatus(num remaining, num cap);
+
+  /// Reward button label when cap reached
+  ///
+  /// In en, this message translates to:
+  /// **'Daily Limit Reached'**
+  String get dailyLimitReached;
+
+  /// Reward button label
+  ///
+  /// In en, this message translates to:
+  /// **'Watch Ad'**
+  String get watchAdLabel;
+
+  /// Inline rewarded ad success message in coin shop
+  ///
+  /// In en, this message translates to:
+  /// **'+{coins} coins added to your balance.'**
+  String rewardCoinsAddedToBalance(num coins);
+
+  /// IAP success snackbar in coin shop
+  ///
+  /// In en, this message translates to:
+  /// **'+{coins} coins added!'**
+  String coinsAddedSuccess(num coins);
+
+  /// Backend room hosted limit error
+  ///
+  /// In en, this message translates to:
+  /// **'Room limit reached. Delete or leave one room before creating another.'**
+  String get backendRoomLimitReached;
+
+  /// Backend room hosted limit error with max rooms value
+  ///
+  /// In en, this message translates to:
+  /// **'Room limit reached ({maxRooms}). Delete or leave one room before creating another.'**
+  String backendRoomLimitReachedWithLimit(num maxRooms);
+
+  /// Backend daily room creation limit error
+  ///
+  /// In en, this message translates to:
+  /// **'Daily room creation limit reached. Try again tomorrow.'**
+  String get backendDailyRoomCreationLimitReached;
+
+  /// Backend daily room creation limit with explicit limit value
+  ///
+  /// In en, this message translates to:
+  /// **'Daily room creation limit reached ({dailyLimit}). Try again tomorrow.'**
+  String backendDailyRoomCreationLimitReachedWithLimit(num dailyLimit);
+
+  /// Backend room join duplicate error
+  ///
+  /// In en, this message translates to:
+  /// **'You are already in this room.'**
+  String get backendAlreadyInRoom;
+
+  /// Backend room membership error
+  ///
+  /// In en, this message translates to:
+  /// **'You are not in this room.'**
+  String get backendNotInRoom;
+
+  /// Backend room rename permission error
+  ///
+  /// In en, this message translates to:
+  /// **'Only the host can rename the room.'**
+  String get backendOnlyHostCanRenameRoom;
+
+  /// Backend room membership required for game actions
+  ///
+  /// In en, this message translates to:
+  /// **'You must be in a room to play this game.'**
+  String get backendMustBeInRoomToPlayGame;
+
+  /// Backend room not found error
+  ///
+  /// In en, this message translates to:
+  /// **'Room not found.'**
+  String get backendRoomNotFound;
+
+  /// Backend insufficient coins error
+  ///
+  /// In en, this message translates to:
+  /// **'Insufficient coins.'**
+  String get backendInsufficientCoins;
+
+  /// Backend insufficient coins error with required cost
+  ///
+  /// In en, this message translates to:
+  /// **'Insufficient coins. You need {requiredCoins} coins.'**
+  String backendInsufficientCoinsWithCost(num requiredCoins);
+
+  /// Backend no retries remaining error
+  ///
+  /// In en, this message translates to:
+  /// **'No retries remaining.'**
+  String get backendNoRetriesRemaining;
+
+  /// Backend retry requirement error
+  ///
+  /// In en, this message translates to:
+  /// **'Retry is only available after the last snippet.'**
+  String get backendRetryAfterLastSnippetOnly;
+
+  /// Backend retry already active error
+  ///
+  /// In en, this message translates to:
+  /// **'Second chance is already active.'**
+  String get backendRetryAlreadyActive;
+
+  /// Backend retry not pending unlock error
+  ///
+  /// In en, this message translates to:
+  /// **'Second chance is not available right now.'**
+  String get backendRetryNotPendingUnlock;
+
+  /// Backend invalid retry action with expected value
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid retry action. Expected: {expectedAction}.'**
+  String backendInvalidRetryAction(String expectedAction);
+
+  /// Backend invalid retry action without expected value
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid retry action.'**
+  String get backendInvalidRetryActionUnknown;
+
+  /// Backend game already completed error
+  ///
+  /// In en, this message translates to:
+  /// **'Game already completed.'**
+  String get backendGameAlreadyCompleted;
+
+  /// Backend missing active game session error
+  ///
+  /// In en, this message translates to:
+  /// **'No active game session.'**
+  String get backendNoActiveGameSession;
+
+  /// Backend no daily song error
+  ///
+  /// In en, this message translates to:
+  /// **'No song available for today.'**
+  String get backendNoSongAvailableToday;
+
+  /// Backend room pack ownership error
+  ///
+  /// In en, this message translates to:
+  /// **'This pack is not owned by the room.'**
+  String get backendPackNotOwnedByRoom;
+
+  /// Backend empty pack error
+  ///
+  /// In en, this message translates to:
+  /// **'This pack has no tracks.'**
+  String get backendPackHasNoTracks;
+
+  /// Backend missing active pack session error
+  ///
+  /// In en, this message translates to:
+  /// **'No active pack session.'**
+  String get backendNoActivePackSession;
+
+  /// Backend completed pack session error
+  ///
+  /// In en, this message translates to:
+  /// **'Pack already completed.'**
+  String get backendPackAlreadyCompleted;
+
+  /// Backend track not found error
+  ///
+  /// In en, this message translates to:
+  /// **'Track not found.'**
+  String get backendTrackNotFound;
+
+  /// Backend duplicate stage guess error
+  ///
+  /// In en, this message translates to:
+  /// **'You already guessed for this stage.'**
+  String get backendAlreadyGuessedForStage;
+
+  /// Backend missing room id error
+  ///
+  /// In en, this message translates to:
+  /// **'Room is required.'**
+  String get backendRoomIdRequired;
+
+  /// Backend invalid password error
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid password.'**
+  String get backendInvalidPassword;
+
+  /// Backend invalid current password error
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid current password.'**
+  String get backendInvalidCurrentPassword;
+
+  /// Backend invalid date format error
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid date format. Use YYYY-MM-DD.'**
+  String get backendInvalidDateFormat;
+
+  /// Backend date not in history error
+  ///
+  /// In en, this message translates to:
+  /// **'This date is not yet in history.'**
+  String get backendDateNotInHistory;
+
+  /// Backend no song for history date error
+  ///
+  /// In en, this message translates to:
+  /// **'No song found for this date.'**
+  String get backendNoSongFoundForDate;
+
+  /// Backend no pack track for date error
+  ///
+  /// In en, this message translates to:
+  /// **'No pack track found for this date.'**
+  String get backendNoPackTrackForDate;
+
+  /// Backend invalid credentials error
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid email or password.'**
+  String get backendInvalidCredentials;
+
+  /// Backend missing refresh token error
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh token is required.'**
+  String get backendRefreshTokenRequired;
+
+  /// Backend invalid or expired refresh token error
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh token is invalid or expired.'**
+  String get backendInvalidOrExpiredRefreshToken;
+
+  /// Backend invalid access token error
+  ///
+  /// In en, this message translates to:
+  /// **'Token is invalid.'**
+  String get backendInvalidToken;
+
+  /// Backend missing required fields error
+  ///
+  /// In en, this message translates to:
+  /// **'Missing required fields.'**
+  String get backendMissingRequiredFields;
+
+  /// Backend invalid store identifier error
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid store.'**
+  String get backendInvalidStore;
+
+  /// Backend purchase in progress or already processed response
+  ///
+  /// In en, this message translates to:
+  /// **'Purchase is being processed.'**
+  String get backendPurchaseProcessing;
+
+  /// Backend unknown or inactive product with product id
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown or inactive product: {productId}.'**
+  String backendUnknownOrInactiveProduct(String productId);
+
+  /// Backend unknown or inactive product without product id
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown or inactive product.'**
+  String get backendUnknownOrInactiveProductUnknown;
+
+  /// Backend receipt verification failed error
+  ///
+  /// In en, this message translates to:
+  /// **'Receipt verification failed.'**
+  String get backendReceiptVerificationFailed;
+
+  /// Generic network error prefix
+  ///
+  /// In en, this message translates to:
+  /// **'Network error'**
+  String get backendNetworkError;
 }
 
 class _AppLocalizationsDelegate

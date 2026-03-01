@@ -179,7 +179,26 @@ class AppLocalizationsFr extends AppLocalizations {
   String get settingsPrivacyPolicy => 'Politique de confidentialité';
 
   @override
+  String get settingsManageAdConsent => 'Gérer le consentement pub';
+
+  @override
+  String get settingsManageAdConsentSubtitle =>
+      'Mettre à jour vos choix de confidentialité pub (RGPD)';
+
+  @override
   String get settingsTermsOfService => 'Conditions d\'utilisation';
+
+  @override
+  String get adConsentUpdated =>
+      'Préférences de consentement pub mises à jour.';
+
+  @override
+  String get adConsentNotRequired =>
+      'Les options de confidentialité pub ne sont pas requises dans votre région.';
+
+  @override
+  String get adConsentError =>
+      'Impossible d\'ouvrir les options de confidentialité pub pour le moment.';
 
   @override
   String get accessibilityTitle => 'Accessibilité';
@@ -320,4 +339,272 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get fieldRequired => 'Ce champ est obligatoire';
+
+  @override
+  String get undoAction => 'Annuler';
+
+  @override
+  String get userFallback => 'Utilisateur';
+
+  @override
+  String get dailyStreakTooltip => 'Série quotidienne';
+
+  @override
+  String get coinsTooltip => 'Pièces';
+
+  @override
+  String get pleaseEnterRoomCode => 'Veuillez entrer un code de salle';
+
+  @override
+  String get finishOrUndoCurrentRoomDeletion =>
+      'Terminez ou annulez d\'abord la suppression en cours.';
+
+  @override
+  String get leftRoomHostTransferred => 'Salle quittée. Hôte transféré.';
+
+  @override
+  String get roomRemoved => 'Salle supprimée.';
+
+  @override
+  String get roomDeletionCancelled => 'Suppression annulée.';
+
+  @override
+  String get deleteLabel => 'Supprimer';
+
+  @override
+  String get couldNotDeleteRoom => 'Impossible de supprimer la salle.';
+
+  @override
+  String get coinShopTitle => 'Boutique de pièces';
+
+  @override
+  String get adNotReadyTryAgain =>
+      'La pub n\'est pas prête. Réessayez dans un instant.';
+
+  @override
+  String get storeNotAvailableOnDevice =>
+      'Boutique indisponible sur cet appareil.';
+
+  @override
+  String get productsNotFoundStoreMessage =>
+      'Produits introuvables dans la boutique. Vérifiez que vos achats intégrés sont créés et actifs dans App Store Connect / Play Console.';
+
+  @override
+  String get getMoreCoinsTitle => 'Obtenir plus de pièces';
+
+  @override
+  String get useCoinsToUnlockHint =>
+      'Utilisez les pièces pour débloquer des packs et des indices.';
+
+  @override
+  String get processingPayment => 'Paiement en cours...';
+
+  @override
+  String get pleaseDontCloseApp => 'Ne fermez pas l\'application';
+
+  @override
+  String get yourBalance => 'Votre solde';
+
+  @override
+  String coinsAmount(num count) {
+    return '$count pièces';
+  }
+
+  @override
+  String get freeBonusCoinsTitle => 'Pièces bonus gratuites';
+
+  @override
+  String watchRewardedAdClaimCoins(num coins) {
+    return 'Regardez une pub récompensée pour gagner +$coins pièces.';
+  }
+
+  @override
+  String get checkingDailyLimit => 'Vérification de la limite quotidienne...';
+
+  @override
+  String get dailyLimitUnavailable =>
+      'Limite quotidienne indisponible pour le moment.';
+
+  @override
+  String remainingTodayStatus(num remaining, num cap) {
+    return 'Restant aujourd\'hui : $remaining / $cap';
+  }
+
+  @override
+  String get dailyLimitReached => 'Limite quotidienne atteinte';
+
+  @override
+  String get watchAdLabel => 'Regarder la pub';
+
+  @override
+  String rewardCoinsAddedToBalance(num coins) {
+    return '+$coins pièces ajoutées à votre solde.';
+  }
+
+  @override
+  String coinsAddedSuccess(num coins) {
+    return '+$coins pièces ajoutées !';
+  }
+
+  @override
+  String get backendRoomLimitReached =>
+      'Limite de salles atteinte. Supprimez ou quittez une salle avant d\'en créer une autre.';
+
+  @override
+  String backendRoomLimitReachedWithLimit(num maxRooms) {
+    return 'Limite de salles atteinte ($maxRooms). Supprimez ou quittez une salle avant d\'en créer une autre.';
+  }
+
+  @override
+  String get backendDailyRoomCreationLimitReached =>
+      'Limite quotidienne de création de salles atteinte. Réessayez demain.';
+
+  @override
+  String backendDailyRoomCreationLimitReachedWithLimit(num dailyLimit) {
+    return 'Limite quotidienne de création de salles atteinte ($dailyLimit). Réessayez demain.';
+  }
+
+  @override
+  String get backendAlreadyInRoom => 'Vous êtes déjà dans cette salle.';
+
+  @override
+  String get backendNotInRoom => 'Vous n\'êtes pas dans cette salle.';
+
+  @override
+  String get backendOnlyHostCanRenameRoom =>
+      'Seul l\'hôte peut renommer la salle.';
+
+  @override
+  String get backendMustBeInRoomToPlayGame =>
+      'Vous devez être dans une salle pour jouer.';
+
+  @override
+  String get backendRoomNotFound => 'Salle introuvable.';
+
+  @override
+  String get backendInsufficientCoins => 'Pièces insuffisantes.';
+
+  @override
+  String backendInsufficientCoinsWithCost(num requiredCoins) {
+    return 'Pièces insuffisantes. Il vous faut $requiredCoins pièces.';
+  }
+
+  @override
+  String get backendNoRetriesRemaining =>
+      'Plus aucune nouvelle tentative disponible.';
+
+  @override
+  String get backendRetryAfterLastSnippetOnly =>
+      'La nouvelle tentative est disponible uniquement après le dernier extrait.';
+
+  @override
+  String get backendRetryAlreadyActive => 'La seconde chance est déjà active.';
+
+  @override
+  String get backendRetryNotPendingUnlock =>
+      'La seconde chance n\'est pas disponible pour le moment.';
+
+  @override
+  String backendInvalidRetryAction(String expectedAction) {
+    return 'Action de seconde chance invalide. Attendu : $expectedAction.';
+  }
+
+  @override
+  String get backendInvalidRetryActionUnknown =>
+      'Action de seconde chance invalide.';
+
+  @override
+  String get backendGameAlreadyCompleted => 'Partie déjà terminée.';
+
+  @override
+  String get backendNoActiveGameSession => 'Aucune partie active.';
+
+  @override
+  String get backendNoSongAvailableToday =>
+      'Aucune chanson disponible aujourd\'hui.';
+
+  @override
+  String get backendPackNotOwnedByRoom =>
+      'Ce pack n\'est pas possédé par la salle.';
+
+  @override
+  String get backendPackHasNoTracks => 'Ce pack ne contient aucune piste.';
+
+  @override
+  String get backendNoActivePackSession => 'Aucune session de pack active.';
+
+  @override
+  String get backendPackAlreadyCompleted => 'Pack déjà terminé.';
+
+  @override
+  String get backendTrackNotFound => 'Piste introuvable.';
+
+  @override
+  String get backendAlreadyGuessedForStage =>
+      'Vous avez déjà proposé une réponse pour cette étape.';
+
+  @override
+  String get backendRoomIdRequired => 'Salle requise.';
+
+  @override
+  String get backendInvalidPassword => 'Mot de passe invalide.';
+
+  @override
+  String get backendInvalidCurrentPassword => 'Mot de passe actuel invalide.';
+
+  @override
+  String get backendInvalidDateFormat =>
+      'Format de date invalide. Utilisez AAAA-MM-JJ.';
+
+  @override
+  String get backendDateNotInHistory =>
+      'Cette date n\'est pas encore dans l\'historique.';
+
+  @override
+  String get backendNoSongFoundForDate =>
+      'Aucune chanson trouvée pour cette date.';
+
+  @override
+  String get backendNoPackTrackForDate =>
+      'Aucune piste de pack trouvée pour cette date.';
+
+  @override
+  String get backendInvalidCredentials => 'Email ou mot de passe invalide.';
+
+  @override
+  String get backendRefreshTokenRequired =>
+      'Le jeton de rafraîchissement est requis.';
+
+  @override
+  String get backendInvalidOrExpiredRefreshToken =>
+      'Le jeton de rafraîchissement est invalide ou expiré.';
+
+  @override
+  String get backendInvalidToken => 'Jeton invalide.';
+
+  @override
+  String get backendMissingRequiredFields => 'Champs obligatoires manquants.';
+
+  @override
+  String get backendInvalidStore => 'Store invalide.';
+
+  @override
+  String get backendPurchaseProcessing =>
+      'L\'achat est en cours de traitement.';
+
+  @override
+  String backendUnknownOrInactiveProduct(String productId) {
+    return 'Produit inconnu ou inactif : $productId.';
+  }
+
+  @override
+  String get backendUnknownOrInactiveProductUnknown =>
+      'Produit inconnu ou inactif.';
+
+  @override
+  String get backendReceiptVerificationFailed =>
+      'La vérification du reçu a échoué.';
+
+  @override
+  String get backendNetworkError => 'Erreur réseau';
 }

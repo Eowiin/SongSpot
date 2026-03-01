@@ -9,7 +9,8 @@ enum AuthStatus { initial, authenticated, unauthenticated, loading }
 class AuthProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
   final StorageService _storageService = StorageService();
-  final PushNotificationService _pushNotificationService = PushNotificationService();
+  final PushNotificationService _pushNotificationService =
+      PushNotificationService();
 
   AuthStatus _status = AuthStatus.initial;
   User? _user;
@@ -113,10 +114,7 @@ class AuthProvider with ChangeNotifier {
   }
 
   /// Login user
-  Future<bool> login({
-    required String email,
-    required String password,
-  }) async {
+  Future<bool> login({required String email, required String password}) async {
     try {
       _status = AuthStatus.loading;
       _errorMessage = null;
@@ -195,6 +193,29 @@ class AuthProvider with ChangeNotifier {
       username: _user!.username,
       coins: newBalance,
       currentStreak: _user!.currentStreak,
+      adFreeUntil: _user!.adFreeUntil,
+      hasNoAds: _user!.hasNoAds,
+    );
+    notifyListeners();
+  }
+
+  /// Apply ad-free fields returned by backend after purchasing/extending pass.
+  void applyNoAdsPass({
+    required int coins,
+    String? adFreeUntilIso,
+    bool? hasNoAds,
+  }) {
+    if (_user == null) return;
+    _user = User(
+      id: _user!.id,
+      email: _user!.email,
+      username: _user!.username,
+      coins: coins,
+      currentStreak: _user!.currentStreak,
+      adFreeUntil: adFreeUntilIso != null
+          ? DateTime.tryParse(adFreeUntilIso)
+          : _user!.adFreeUntil,
+      hasNoAds: hasNoAds ?? _user!.hasNoAds,
     );
     notifyListeners();
   }

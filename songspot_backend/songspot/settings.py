@@ -203,6 +203,26 @@ FCM_SERVICE_ACCOUNT_JSON = os.environ.get('FCM_SERVICE_ACCOUNT_JSON')
 # Set to False in production once Apple/Google receipt verification is implemented
 IAP_SANDBOX_MODE = os.environ.get('IAP_SANDBOX_MODE', 'True') == 'True'
 
+# Coin-based ad-free pass
+NO_ADS_PASS_COINS = int(os.environ.get('NO_ADS_PASS_COINS', '700'))
+NO_ADS_PASS_DAYS = int(os.environ.get('NO_ADS_PASS_DAYS', '30'))
+
+# Rewarded ads
+AD_REWARD_COINS = int(os.environ.get('AD_REWARD_COINS', '10'))
+AD_REWARD_DAILY_CAP = int(os.environ.get('AD_REWARD_DAILY_CAP', '2'))
+APP_ADS_TXT = os.environ.get(
+    'APP_ADS_TXT',
+    'google.com, pub-2260442058102246, DIRECT, f08c47fec0942fa0',
+)
+
+# Daily game retry progression
+DAILY_GAME_MAX_RETRIES = int(os.environ.get('DAILY_GAME_MAX_RETRIES', '2'))
+DAILY_GAME_RETRY_COIN_COST = int(os.environ.get('DAILY_GAME_RETRY_COIN_COST', '120'))
+
+# Room creation safeguards (anti-abuse)
+MAX_HOSTED_ROOMS_PER_USER = int(os.environ.get('MAX_HOSTED_ROOMS_PER_USER', '5'))
+MAX_ROOM_CREATIONS_PER_DAY = int(os.environ.get('MAX_ROOM_CREATIONS_PER_DAY', '5'))
+
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=90),
