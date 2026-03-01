@@ -179,7 +179,26 @@ class AppLocalizationsFr extends AppLocalizations {
   String get settingsPrivacyPolicy => 'Politique de confidentialité';
 
   @override
+  String get settingsManageAdConsent => 'Gérer le consentement pub';
+
+  @override
+  String get settingsManageAdConsentSubtitle =>
+      'Mettre à jour vos choix de confidentialité pub (RGPD)';
+
+  @override
   String get settingsTermsOfService => 'Conditions d\'utilisation';
+
+  @override
+  String get adConsentUpdated =>
+      'Préférences de consentement pub mises à jour.';
+
+  @override
+  String get adConsentNotRequired =>
+      'Les options de confidentialité pub ne sont pas requises dans votre région.';
+
+  @override
+  String get adConsentError =>
+      'Impossible d\'ouvrir les options de confidentialité pub pour le moment.';
 
   @override
   String get accessibilityTitle => 'Accessibilité';

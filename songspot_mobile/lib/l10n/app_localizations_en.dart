@@ -177,7 +177,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsPrivacyPolicy => 'Privacy Policy';
 
   @override
+  String get settingsManageAdConsent => 'Manage Ad Consent';
+
+  @override
+  String get settingsManageAdConsentSubtitle =>
+      'Update your ad privacy choices (GDPR)';
+
+  @override
   String get settingsTermsOfService => 'Terms of Service';
+
+  @override
+  String get adConsentUpdated => 'Ad consent preferences updated.';
+
+  @override
+  String get adConsentNotRequired =>
+      'Ad privacy options are not required in your region.';
+
+  @override
+  String get adConsentError => 'Could not open ad privacy options right now.';
 
   @override
   String get accessibilityTitle => 'Accessibility';

@@ -7,7 +7,9 @@ import '../../config/app_theme.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../services/admob_service.dart';
 import '../../services/api_service.dart';
+import '../../services/consent_service.dart';
 import '../auth/login_screen.dart';
 import 'accessibility_screen.dart';
 import 'change_email_screen.dart';
@@ -16,8 +18,9 @@ import 'language_screen.dart';
 import 'my_data_screen.dart';
 import '../shop/coin_shop_screen.dart';
 
-// TODO: Replace with your actual URLs
-const _kPrivacyPolicyUrl = 'https://songspot.app/privacy';
+// Keep this in sync with AdMob + store listing privacy policy URL.
+const _kPrivacyPolicyUrl =
+    'https://gist.github.com/Eowiin/e028212497a1654d6a73785694eebb90';
 const _kTermsOfServiceUrl = 'https://songspot.app/terms';
 
 class SettingsScreen extends StatefulWidget {
@@ -34,6 +37,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final ApiService _apiService = ApiService();
   String _appVersion = '';
   bool _isActivatingNoAds = false;
+  bool _isOpeningAdConsent = false;
 
   @override
   void initState() {
@@ -155,6 +159,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } finally {
       if (mounted) {
         setState(() => _isActivatingNoAds = false);
+      }
+    }
+  }
+
+  Future<void> _handleManageAdConsent() async {
+    if (_isOpeningAdConsent || !mounted) return;
+
+    final l10n = AppLocalizations.of(context);
+    setState(() => _isOpeningAdConsent = true);
+    try {
+      final result = await ConsentService().showPrivacyOptionsForm();
+      if (!mounted) return;
+      switch (result) {
+        case PrivacyOptionsResult.shown:
+          await AdMobService().initialize();
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(l10n.adConsentUpdated),
+              backgroundColor: AppTheme.successColor,
+            ),
+          );
+          break;
+        case PrivacyOptionsResult.notRequired:
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(l10n.adConsentNotRequired)));
+          break;
+        case PrivacyOptionsResult.failed:
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(l10n.adConsentError),
+              backgroundColor: AppTheme.errorColor,
+            ),
+          );
+          break;
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.adConsentError),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isOpeningAdConsent = false);
       }
     }
   }
@@ -343,6 +395,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       icon: Icons.privacy_tip_outlined,
                       title: l10n.settingsPrivacyPolicy,
                       onTap: () => _openUrl(_kPrivacyPolicyUrl),
+                    ),
+                    _SettingsTile(
+                      icon: Icons.gpp_maybe_outlined,
+                      title: l10n.settingsManageAdConsent,
+                      subtitle: l10n.settingsManageAdConsentSubtitle,
+                      onTap: _isOpeningAdConsent
+                          ? null
+                          : _handleManageAdConsent,
+                      trailing: _isOpeningAdConsent
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : null,
                     ),
                     _SettingsTile(
                       icon: Icons.article_outlined,

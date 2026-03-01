@@ -404,11 +404,41 @@ abstract class AppLocalizations {
   /// **'Privacy Policy'**
   String get settingsPrivacyPolicy;
 
+  /// Settings tile to open UMP privacy options form
+  ///
+  /// In en, this message translates to:
+  /// **'Manage Ad Consent'**
+  String get settingsManageAdConsent;
+
+  /// Subtitle for ad consent settings tile
+  ///
+  /// In en, this message translates to:
+  /// **'Update your ad privacy choices (GDPR)'**
+  String get settingsManageAdConsentSubtitle;
+
   /// Terms of service tile
   ///
   /// In en, this message translates to:
   /// **'Terms of Service'**
   String get settingsTermsOfService;
+
+  /// Shown after user updates ad consent options
+  ///
+  /// In en, this message translates to:
+  /// **'Ad consent preferences updated.'**
+  String get adConsentUpdated;
+
+  /// Shown when privacy options entry is not required by UMP
+  ///
+  /// In en, this message translates to:
+  /// **'Ad privacy options are not required in your region.'**
+  String get adConsentNotRequired;
+
+  /// Shown when UMP privacy options form cannot be opened
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open ad privacy options right now.'**
+  String get adConsentError;
 
   /// Accessibility screen title
   ///

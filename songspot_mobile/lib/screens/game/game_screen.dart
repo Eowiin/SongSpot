@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../config/app_theme.dart';
+import '../../config/admob_config.dart';
 import '../../providers/game_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/room_provider.dart';
@@ -138,7 +139,12 @@ class _GameScreenState extends State<GameScreen> {
           updatedSession.nextRetryRequirement == 'ad') {
         final adsDisabled =
             context.read<AuthProvider>().user?.hasNoAds ?? false;
-        unawaited(AdMobService().preloadRewarded(adsDisabled: adsDisabled));
+        unawaited(
+          AdMobService().preloadRewarded(
+            adsDisabled: adsDisabled,
+            placement: RewardedPlacement.retryUnlock,
+          ),
+        );
       }
     }
   }
@@ -178,7 +184,12 @@ class _GameScreenState extends State<GameScreen> {
     if (shown || adsDisabled || _completionAdAttempts >= 2) {
       _completionRecorded = true;
     }
-    unawaited(AdMobService().preloadRewarded(adsDisabled: adsDisabled));
+    unawaited(
+      AdMobService().preloadRewarded(
+        adsDisabled: adsDisabled,
+        placement: RewardedPlacement.retryUnlock,
+      ),
+    );
     if (mounted) {
       setState(() => _completionAdInProgress = false);
     }
@@ -207,6 +218,7 @@ class _GameScreenState extends State<GameScreen> {
         } else {
           final rewarded = await AdMobService().showRewarded(
             adsDisabled: false,
+            placement: RewardedPlacement.retryUnlock,
             onRewardEarned: () async {
               response = await gameProvider.activateRetry(
                 roomId: widget.roomId,

@@ -39,8 +39,13 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
       shopProvider.initialize();
       shopProvider.loadProducts();
       final adsDisabled = context.read<AuthProvider>().user?.hasNoAds ?? false;
-      unawaited(AdMobService().preloadRewarded(adsDisabled: adsDisabled));
-      if (!adsDisabled) {
+      unawaited(
+        AdMobService().preloadRewarded(
+          adsDisabled: adsDisabled,
+          placement: RewardedPlacement.coinShopBonus,
+        ),
+      );
+      if (AdMobService().canServeAds(adsDisabled: adsDisabled)) {
         _loadBannerAd();
       }
       unawaited(_loadRewardStatus());
@@ -55,9 +60,11 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
   }
 
   void _loadBannerAd() {
+    final adsDisabled = context.read<AuthProvider>().user?.hasNoAds ?? false;
+    if (!AdMobService().canServeAds(adsDisabled: adsDisabled)) return;
     _bannerAd?.dispose();
     _bannerAd = BannerAd(
-      adUnitId: AdMobConfig.bannerAdUnitId,
+      adUnitId: AdMobConfig.bannerPackListAdUnitId,
       size: AdSize.banner,
       request: const AdRequest(),
       listener: BannerAdListener(
@@ -104,10 +111,15 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
     setState(() => _rewardClaimInProgress = true);
     final authProvider = context.read<AuthProvider>();
     final adsDisabled = authProvider.user?.hasNoAds ?? false;
+    if (!AdMobService().canServeAds(adsDisabled: adsDisabled)) {
+      setState(() => _rewardClaimInProgress = false);
+      return;
+    }
 
     try {
       final rewarded = await AdMobService().showRewarded(
         adsDisabled: adsDisabled,
+        placement: RewardedPlacement.coinShopBonus,
         onRewardEarned: () async {
           final response = await _apiService.claimRewardedAd(
             placement: 'coin_shop_bonus',
@@ -166,6 +178,8 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
     final authProvider = context.watch<AuthProvider>();
     final coins = authProvider.user?.coins ?? 0;
     final l10n = AppLocalizations.of(context);
+    final adsDisabled = authProvider.user?.hasNoAds ?? false;
+    final canServeAds = AdMobService().canServeAds(adsDisabled: adsDisabled);
     final horizontalPadding = MediaQuery.of(context).size.width < 360
         ? 16.0
         : 24.0;
@@ -208,10 +222,7 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.coinShopTitle)),
-      bottomNavigationBar:
-          (!(authProvider.user?.hasNoAds ?? false) &&
-              _isBannerReady &&
-              _bannerAd != null)
+      bottomNavigationBar: (canServeAds && _isBannerReady && _bannerAd != null)
           ? SafeArea(
               top: false,
               child: SizedBox(
@@ -281,7 +292,7 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
                       ),
                       const SizedBox(height: 20),
 
-                      if (!(authProvider.user?.hasNoAds ?? false)) ...[
+                      if (canServeAds) ...[
                         _buildRewardedCard(context),
                         const SizedBox(height: 20),
                       ],

@@ -5,6 +5,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/admob_config.dart';
+import 'consent_service.dart';
 
 class AdMobService {
   AdMobService._();
@@ -12,33 +13,50 @@ class AdMobService {
   factory AdMobService() => _instance;
 
   bool _initialized = false;
-  bool _loadingRewarded = false;
+  final Set<RewardedPlacement> _loadingRewarded = <RewardedPlacement>{};
   bool _loadingInterstitial = false;
-  RewardedAd? _rewardedAd;
+  final Map<RewardedPlacement, RewardedAd> _rewardedAds = {};
   InterstitialAd? _interstitialAd;
+
+  bool canServeAds({required bool adsDisabled}) {
+    if (adsDisabled) return false;
+    return ConsentService().canRequestAds;
+  }
 
   Future<void> initialize() async {
     if (_initialized) return;
+    await ConsentService().gatherConsent();
+    if (!ConsentService().canRequestAds) {
+      debugPrint('AdMob initialization skipped: consent not available yet.');
+      return;
+    }
     await MobileAds.instance.initialize();
     _initialized = true;
   }
 
-  Future<void> preloadRewarded({required bool adsDisabled}) async {
-    if (adsDisabled) return;
+  Future<void> preloadRewarded({
+    required bool adsDisabled,
+    required RewardedPlacement placement,
+  }) async {
+    if (!canServeAds(adsDisabled: adsDisabled)) return;
     await initialize();
-    if (_rewardedAd != null || _loadingRewarded) return;
+    if (!_initialized) return;
+    if (_rewardedAds[placement] != null ||
+        _loadingRewarded.contains(placement)) {
+      return;
+    }
 
-    _loadingRewarded = true;
+    _loadingRewarded.add(placement);
     RewardedAd.load(
-      adUnitId: AdMobConfig.rewardedAdUnitId,
+      adUnitId: AdMobConfig.rewardedAdUnitIdFor(placement),
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (ad) {
-          _loadingRewarded = false;
-          _rewardedAd = ad;
+          _loadingRewarded.remove(placement);
+          _rewardedAds[placement] = ad;
         },
         onAdFailedToLoad: (error) {
-          _loadingRewarded = false;
+          _loadingRewarded.remove(placement);
           debugPrint('AdMob rewarded load failed: $error');
         },
       ),
@@ -47,20 +65,21 @@ class AdMobService {
 
   Future<bool> showRewarded({
     required bool adsDisabled,
+    required RewardedPlacement placement,
     required Future<void> Function() onRewardEarned,
   }) async {
-    if (adsDisabled) return false;
+    if (!canServeAds(adsDisabled: adsDisabled)) return false;
     await initialize();
+    if (!_initialized) return false;
 
-    var ad = _rewardedAd;
+    var ad = _rewardedAds.remove(placement);
     if (ad == null) {
-      await preloadRewarded(adsDisabled: false);
+      await preloadRewarded(adsDisabled: false, placement: placement);
       await Future<void>.delayed(const Duration(milliseconds: 400));
-      ad = _rewardedAd;
+      ad = _rewardedAds.remove(placement);
       if (ad == null) return false;
     }
 
-    _rewardedAd = null;
     var rewardGranted = false;
     final completer = Completer<void>();
     final rewardCompleter = Completer<void>();
@@ -98,13 +117,14 @@ class AdMobService {
     if (rewardGranted) {
       await rewardCompleter.future;
     }
-    unawaited(preloadRewarded(adsDisabled: false));
+    unawaited(preloadRewarded(adsDisabled: false, placement: placement));
     return rewardGranted;
   }
 
   Future<void> preloadInterstitial({required bool adsDisabled}) async {
-    if (adsDisabled) return;
+    if (!canServeAds(adsDisabled: adsDisabled)) return;
     await initialize();
+    if (!_initialized) return;
     if (_interstitialAd != null || _loadingInterstitial) return;
     await _loadInterstitial();
   }
@@ -114,8 +134,9 @@ class AdMobService {
     required String roomId,
     required String gameDate,
   }) async {
-    if (adsDisabled) return false;
+    if (!canServeAds(adsDisabled: adsDisabled)) return false;
     await initialize();
+    if (!_initialized) return false;
     final prefs = await SharedPreferences.getInstance();
     final shownKey = _completionInterstitialShownKey(
       roomId: roomId,
@@ -164,7 +185,7 @@ class AdMobService {
     final completer = Completer<InterstitialAd?>();
 
     InterstitialAd.load(
-      adUnitId: AdMobConfig.interstitialAdUnitId,
+      adUnitId: AdMobConfig.interstitialBeforeResultsAdUnitId,
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {

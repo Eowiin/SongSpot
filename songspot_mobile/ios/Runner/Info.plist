@@ -20,7 +20,7 @@
 			<string>SongSpot</string>
 			<!-- AdMob App ID (Google test ID by default; replace for production) -->
 			<key>GADApplicationIdentifier</key>
-			<string>ca-app-pub-3940256099942544~1458002511</string>
+			<string>ca-app-pub-2260442058102246~7067480229</string>
 			<key>CFBundlePackageType</key>
 			<string>APPL</string>
 		<key>CFBundleShortVersionString</key>
@@ -61,6 +61,8 @@
 		<string>Allow access to the local network for the backend.</string>
 		<key>NSMicrophoneUsageDescription</key>
 		<string>This app needs access to play audio</string>
+		<key>NSUserTrackingUsageDescription</key>
+		<string>We use your device identifier to show more relevant ads and measure ad performance.</string>
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true/>
 		<key>UIBackgroundModes</key>

@@ -6,6 +6,7 @@ import '../../config/admob_config.dart';
 import '../../models/pack.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/pack_provider.dart';
+import '../../services/admob_service.dart';
 import '../shop/coin_shop_screen.dart';
 
 // Display labels for each category key returned by the backend
@@ -76,10 +77,10 @@ class _PackListScreenState extends State<PackListScreen> {
   void _maybeLoadBanner() {
     if (_bannerAd != null) return;
     final hasNoAds = context.read<AuthProvider>().user?.hasNoAds ?? false;
-    if (hasNoAds) return;
+    if (!AdMobService().canServeAds(adsDisabled: hasNoAds)) return;
 
     final banner = BannerAd(
-      adUnitId: AdMobConfig.bannerAdUnitId,
+      adUnitId: AdMobConfig.bannerPackListAdUnitId,
       request: const AdRequest(),
       size: AdSize.banner,
       listener: BannerAdListener(
@@ -129,6 +130,7 @@ class _PackListScreenState extends State<PackListScreen> {
     final showLoadingState =
         packProvider.isLoading && packProvider.packs.isEmpty;
     final hasNoAds = context.watch<AuthProvider>().user?.hasNoAds ?? false;
+    final canServeAds = AdMobService().canServeAds(adsDisabled: hasNoAds);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Song Packs')),
@@ -171,7 +173,7 @@ class _PackListScreenState extends State<PackListScreen> {
                       padding: AppTheme.pagePadding.copyWith(top: 12),
                       children: [
                         _buildGetMoreCoinsBanner(context),
-                        if (!hasNoAds && _bannerAd != null && _isBannerLoaded)
+                        if (canServeAds && _bannerAd != null && _isBannerLoaded)
                           _buildBannerSlot(),
                         ..._filteredPacks(packProvider.packs).map((pack) {
                           return _buildPackCard(context, pack);

@@ -15,6 +15,7 @@ import 'screens/auth/login_screen.dart';
 import 'screens/game/game_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'services/admob_service.dart';
+import 'services/consent_service.dart';
 import 'services/push_notification_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -22,6 +23,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env');
+  await ConsentService().gatherConsent();
   await AdMobService().initialize();
   await PushNotificationService().initializeCore();
   runApp(const MyApp());

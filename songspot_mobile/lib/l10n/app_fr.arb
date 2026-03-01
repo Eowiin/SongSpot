@@ -56,7 +56,13 @@
   "settingsDeleteAccountSubtitle": "Supprimez définitivement votre compte et toutes vos données",
   "settingsAppVersion": "Version de l'application",
   "settingsPrivacyPolicy": "Politique de confidentialité",
+  "settingsManageAdConsent": "Gérer le consentement pub",
+  "settingsManageAdConsentSubtitle": "Mettre à jour vos choix de confidentialité pub (RGPD)",
   "settingsTermsOfService": "Conditions d'utilisation",
+
+  "adConsentUpdated": "Préférences de consentement pub mises à jour.",
+  "adConsentNotRequired": "Les options de confidentialité pub ne sont pas requises dans votre région.",
+  "adConsentError": "Impossible d'ouvrir les options de confidentialité pub pour le moment.",
 
   "accessibilityTitle": "Accessibilité",
   "accessibilityTextSize": "Taille du texte",
