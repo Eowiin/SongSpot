@@ -207,6 +207,10 @@ server {
     location /media/ {
         alias /var/www/songspot/songspot_backend/media/;
     }
+
+    # AdMob verification file:
+    # /app-ads.txt is served by Django (songspot.urls -> app_ads_txt)
+    # Keep this route publicly reachable over HTTPS.
 }
 ```
 
@@ -368,6 +372,9 @@ STEM_TTL_HOURS=72
 # Security
 CSRF_TRUSTED_ORIGINS=https://your-domain.com
 
+# AdMob app-ads.txt (required for AdMob app verification)
+APP_ADS_TXT=google.com, pub-2260442058102246, DIRECT, f08c47fec0942fa0
+
 # Firebase Cloud Messaging (pick one)
 # FCM_SERVICE_ACCOUNT_PATH=/var/www/songspot/secrets/firebase-service-account.json
 # FCM_SERVICE_ACCOUNT_JSON={"type":"service_account", ...}
@@ -424,6 +431,31 @@ WS_BASE_URL=wss://your-domain.com/ws
 
 ---
 
+## 15. AdMob app-ads.txt Verification
+
+SongSpot backend exposes:
+
+- `GET https://your-domain.com/app-ads.txt`
+
+This value is controlled by `APP_ADS_TXT` in backend `.env`.
+
+Verify after deploy:
+
+```bash
+curl -I https://your-domain.com/app-ads.txt
+curl https://your-domain.com/app-ads.txt
+```
+
+Expected body:
+
+```txt
+google.com, pub-2260442058102246, DIRECT, f08c47fec0942fa0
+```
+
+For AdMob, make sure your app store listing website domain matches the same domain hosting `app-ads.txt`.
+
+---
+
 ## Useful Commands
 
 ```bash
@@ -463,3 +495,4 @@ python manage.py createsuperuser
 - [ ] Cron jobs set up (daily content + stem cleanup)
 - [ ] GitHub secrets configured for CI/CD
 - [ ] Mobile app `.env` updated with production URL
+- [ ] `https://your-domain.com/app-ads.txt` is reachable and returns the expected publisher line

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../config/app_theme.dart';
 import '../../config/admob_config.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/game_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/room_provider.dart';
@@ -1138,6 +1139,7 @@ class _GameScreenState extends State<GameScreen> {
     GameProvider gameProvider,
     PackProvider packProvider,
   ) {
+    final l10n = AppLocalizations.of(context);
     if (gameProvider.currentSession == null) {
       return _buildLoadingSkeleton();
     }
@@ -1254,7 +1256,7 @@ class _GameScreenState extends State<GameScreen> {
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    'Snippet ${session.currentSnippet}',
+                    l10n.gameSnippetLabel(session.currentSnippet),
                     style: Theme.of(context).textTheme.displaySmall,
                   ),
                   const SizedBox(height: 8),
@@ -1266,14 +1268,14 @@ class _GameScreenState extends State<GameScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '${session.possiblePoints} points',
+                    l10n.gamePointsLabel(session.possiblePoints),
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
                   const SizedBox(height: 24),
                   GradientButton(
                     text: gameProvider.audioService.isPlaying
-                        ? '🔊 Playing...'
-                        : 'Play Snippet',
+                        ? l10n.gamePlayingSnippet
+                        : l10n.gamePlaySnippet,
                     onPressed: gameProvider.audioService.isPlaying
                         ? null
                         : _handlePlaySnippet,
@@ -1296,14 +1298,14 @@ class _GameScreenState extends State<GameScreen> {
             if (!retryUnlockPending) ...[
               // Guess Form
               Text(
-                'Make Your Guess',
+                l10n.gameMakeYourGuess,
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               const SizedBox(height: 16),
               TrackAutocomplete(
                 controller: _titleController,
-                hintText: 'Start typing song title...',
-                labelText: 'Song Title',
+                hintText: l10n.gameSongTitleHint,
+                labelText: l10n.gameSongTitleLabel,
                 onTrackSelected: (track) {
                   setState(() {
                     _selectedTrack = track;
@@ -1332,14 +1334,14 @@ class _GameScreenState extends State<GameScreen> {
                           ),
                         ),
                       ),
-                      child: const Text('Skip'),
+                      child: Text(l10n.gameSkip),
                     ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     flex: 2,
                     child: GradientButton(
-                      text: 'Submit Guess',
+                      text: l10n.gameSubmitGuess,
                       onPressed: interactionLocked ? null : _handleGuess,
                     ),
                   ),
@@ -1349,7 +1351,7 @@ class _GameScreenState extends State<GameScreen> {
 
               // Guesses Made
               Text(
-                'Guesses made: ${session.guessesMade}',
+                l10n.gameGuessesMade(session.guessesMade),
                 style: Theme.of(context).textTheme.bodyMedium,
                 textAlign: TextAlign.center,
               ),
@@ -1368,6 +1370,7 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Widget _buildRetryCard(GameSession session) {
+    final l10n = AppLocalizations.of(context);
     if (session.retryCredits > 0) {
       return Container(
         padding: const EdgeInsets.all(16),
@@ -1379,7 +1382,7 @@ class _GameScreenState extends State<GameScreen> {
           ),
         ),
         child: Text(
-          'Second chance unlocked. Submit another guess.',
+          l10n.gameRetryUnlocked,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: AppTheme.successColor,
             fontWeight: FontWeight.w600,
@@ -1396,14 +1399,14 @@ class _GameScreenState extends State<GameScreen> {
     final isAdAction = nextAction == 'ad';
     final retryCost = session.retryCostCoins ?? 120;
     final buttonLabel = isAdAction
-        ? 'Watch Ad for Retry'
-        : 'Spend $retryCost Coins for Final Chance';
+        ? l10n.gameWatchAdForRetry
+        : l10n.gameSpendCoinsForFinalChance(retryCost);
     final subtitle = isAdAction
-        ? 'You reached the last snippet. Watch one rewarded ad to unlock a second chance.'
-        : 'Use coins to unlock one final guess before results.';
+        ? l10n.gameRetryWatchAdSubtitle
+        : l10n.gameRetryUseCoinsSubtitle;
     final hasNoAds = context.watch<AuthProvider>().user?.hasNoAds ?? false;
     final ctaLabel = isAdAction
-        ? (hasNoAds ? 'Use Reward for Second Chance' : buttonLabel)
+        ? (hasNoAds ? l10n.gameUseRewardForSecondChance : buttonLabel)
         : buttonLabel;
 
     return Container(
@@ -1416,7 +1419,10 @@ class _GameScreenState extends State<GameScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Extra Chance', style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            l10n.gameExtraChanceTitle,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: 6),
           Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: 12),
@@ -1424,14 +1430,14 @@ class _GameScreenState extends State<GameScreen> {
             onPressed: _retryActivationInProgress
                 ? null
                 : () => _handleActivateRetry(isAdAction ? 'ad' : 'coins'),
-            child: Text(_retryActivationInProgress ? 'Loading...' : ctaLabel),
+            child: Text(_retryActivationInProgress ? l10n.loading : ctaLabel),
           ),
           const SizedBox(height: 8),
           TextButton(
             onPressed: _retryActivationInProgress
                 ? null
                 : () => _handleActivateRetry('forfeit'),
-            child: const Text('Skip Extra Chance and Show Results'),
+            child: Text(l10n.gameSkipExtraChanceShowResults),
           ),
         ],
       ),
@@ -1440,24 +1446,28 @@ class _GameScreenState extends State<GameScreen> {
 
   // ── Hints ───────────────────────────────────────────────────────────────
 
-  // Hints are sequential: Genre (30🪙) → Decade (60🪙) → Artist (100🪙)
+  // Hints are sequential: Genre (30) -> Decade (60) -> Artist (100)
   static const _hintOrder = [
-    {'type': 'genre', 'label': 'Genre', 'revealedLabel': 'Genre', 'cost': 30},
-    {
-      'type': 'decade',
-      'label': 'Decade',
-      'revealedLabel': 'Decade',
-      'cost': 60,
-    },
-    {
-      'type': 'artist_name',
-      'label': 'Artist',
-      'revealedLabel': 'Artist',
-      'cost': 100,
-    },
+    {'type': 'genre', 'cost': 30},
+    {'type': 'decade', 'cost': 60},
+    {'type': 'artist_name', 'cost': 100},
   ];
 
+  String _hintLabel(AppLocalizations l10n, String hintType) {
+    switch (hintType) {
+      case 'genre':
+        return l10n.gameHintGenre;
+      case 'decade':
+        return l10n.gameHintDecade;
+      case 'artist_name':
+        return l10n.gameHintArtist;
+      default:
+        return hintType;
+    }
+  }
+
   Widget _buildHintsSection(BuildContext context, GameProvider gameProvider) {
+    final l10n = AppLocalizations.of(context);
     final hintValues = gameProvider.hintValues;
 
     // Find the index of the next unlockable hint (first one not yet purchased)
@@ -1468,7 +1478,7 @@ class _GameScreenState extends State<GameScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Hints', style: Theme.of(context).textTheme.headlineSmall),
+        Text(l10n.gameHintsTitle, style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 12),
         Row(
           children: _hintOrder.asMap().entries.map((entry) {
@@ -1478,6 +1488,7 @@ class _GameScreenState extends State<GameScreen> {
             final revealedValue = hintValues[hintType];
             final isNextToBuy = i == nextIndex;
             final isLocked = revealedValue == null && !isNextToBuy;
+            final label = _hintLabel(l10n, hintType);
 
             return Expanded(
               child: Padding(
@@ -1489,10 +1500,10 @@ class _GameScreenState extends State<GameScreen> {
                   context: context,
                   gameProvider: gameProvider,
                   hintType: hintType,
-                  label: hint['label'] as String,
+                  label: label,
                   cost: hint['cost'] as int,
                   revealedValue: revealedValue,
-                  revealedLabel: hint['revealedLabel'] as String,
+                  revealedLabel: label,
                   isLocked: isLocked,
                 ),
               ),

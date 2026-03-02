@@ -422,6 +422,78 @@ abstract class AppLocalizations {
   /// **'Terms of Service'**
   String get settingsTermsOfService;
 
+  /// Shop section header in settings
+  ///
+  /// In en, this message translates to:
+  /// **'Shop'**
+  String get settingsSectionShop;
+
+  /// Shown when external URL cannot be opened
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open link'**
+  String get settingsCouldNotOpenLink;
+
+  /// Semantic label for back button
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get settingsBackLabel;
+
+  /// No-ads activation dialog title
+  ///
+  /// In en, this message translates to:
+  /// **'No Ads Pass'**
+  String get settingsNoAdsPassTitle;
+
+  /// No-ads activation dialog message
+  ///
+  /// In en, this message translates to:
+  /// **'Spend {coins} coins to disable ads for {days} days?'**
+  String settingsNoAdsActivationPrompt(num coins, num days);
+
+  /// Activate action label
+  ///
+  /// In en, this message translates to:
+  /// **'Activate'**
+  String get settingsActivate;
+
+  /// No-ads activation success snackbar
+  ///
+  /// In en, this message translates to:
+  /// **'No ads activated'**
+  String get settingsNoAdsActivated;
+
+  /// No-ads tile title when not active
+  ///
+  /// In en, this message translates to:
+  /// **'No Ads ({days} days)'**
+  String settingsNoAdsTitle(num days);
+
+  /// No-ads tile title when already active
+  ///
+  /// In en, this message translates to:
+  /// **'Extend No Ads ({days} days)'**
+  String settingsExtendNoAdsTitle(num days);
+
+  /// No-ads subtitle when active
+  ///
+  /// In en, this message translates to:
+  /// **'Active until {date}'**
+  String settingsNoAdsActiveUntil(String date);
+
+  /// No-ads subtitle when inactive
+  ///
+  /// In en, this message translates to:
+  /// **'Spend {coins} coins to disable ads for {days} days'**
+  String settingsNoAdsSpendHint(num coins, num days);
+
+  /// Fallback no-ads state label
+  ///
+  /// In en, this message translates to:
+  /// **'Not active'**
+  String get settingsNotActive;
+
   /// Shown after user updates ad consent options
   ///
   /// In en, this message translates to:
@@ -883,6 +955,294 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'+{coins} coins added!'**
   String coinsAddedSuccess(num coins);
+
+  /// Game CTA while snippet audio is currently playing
+  ///
+  /// In en, this message translates to:
+  /// **'🔊 Playing...'**
+  String get gamePlayingSnippet;
+
+  /// Game CTA to play current snippet
+  ///
+  /// In en, this message translates to:
+  /// **'Play Snippet'**
+  String get gamePlaySnippet;
+
+  /// Current snippet indicator label
+  ///
+  /// In en, this message translates to:
+  /// **'Snippet {number}'**
+  String gameSnippetLabel(num number);
+
+  /// Possible points label
+  ///
+  /// In en, this message translates to:
+  /// **'{points} points'**
+  String gamePointsLabel(num points);
+
+  /// Heading above guess form
+  ///
+  /// In en, this message translates to:
+  /// **'Make Your Guess'**
+  String get gameMakeYourGuess;
+
+  /// Song autocomplete hint text
+  ///
+  /// In en, this message translates to:
+  /// **'Start typing song title...'**
+  String get gameSongTitleHint;
+
+  /// Song autocomplete label text
+  ///
+  /// In en, this message translates to:
+  /// **'Song Title'**
+  String get gameSongTitleLabel;
+
+  /// Skip snippet button label
+  ///
+  /// In en, this message translates to:
+  /// **'Skip'**
+  String get gameSkip;
+
+  /// Submit guess button label
+  ///
+  /// In en, this message translates to:
+  /// **'Submit Guess'**
+  String get gameSubmitGuess;
+
+  /// Guesses made counter label
+  ///
+  /// In en, this message translates to:
+  /// **'Guesses made: {count}'**
+  String gameGuessesMade(num count);
+
+  /// Banner shown when retry is already unlocked
+  ///
+  /// In en, this message translates to:
+  /// **'Second chance unlocked. Submit another guess.'**
+  String get gameRetryUnlocked;
+
+  /// Retry CTA for ad-based unlock
+  ///
+  /// In en, this message translates to:
+  /// **'Watch Ad for Retry'**
+  String get gameWatchAdForRetry;
+
+  /// Retry CTA for coin-based unlock
+  ///
+  /// In en, this message translates to:
+  /// **'Spend {coins} Coins for Final Chance'**
+  String gameSpendCoinsForFinalChance(num coins);
+
+  /// Retry subtitle when next action is ad
+  ///
+  /// In en, this message translates to:
+  /// **'You reached the last snippet. Watch one rewarded ad to unlock a second chance.'**
+  String get gameRetryWatchAdSubtitle;
+
+  /// Retry subtitle when next action is coins
+  ///
+  /// In en, this message translates to:
+  /// **'Use coins to unlock one final guess before results.'**
+  String get gameRetryUseCoinsSubtitle;
+
+  /// Retry CTA when user has ad-free pass and ad action is required
+  ///
+  /// In en, this message translates to:
+  /// **'Use Reward for Second Chance'**
+  String get gameUseRewardForSecondChance;
+
+  /// Retry card title
+  ///
+  /// In en, this message translates to:
+  /// **'Extra Chance'**
+  String get gameExtraChanceTitle;
+
+  /// Retry card secondary action label
+  ///
+  /// In en, this message translates to:
+  /// **'Skip Extra Chance and Show Results'**
+  String get gameSkipExtraChanceShowResults;
+
+  /// Hints section title
+  ///
+  /// In en, this message translates to:
+  /// **'Hints'**
+  String get gameHintsTitle;
+
+  /// Hint chip label for genre
+  ///
+  /// In en, this message translates to:
+  /// **'Genre'**
+  String get gameHintGenre;
+
+  /// Hint chip label for decade
+  ///
+  /// In en, this message translates to:
+  /// **'Decade'**
+  String get gameHintDecade;
+
+  /// Hint chip label for artist
+  ///
+  /// In en, this message translates to:
+  /// **'Artist'**
+  String get gameHintArtist;
+
+  /// Error when submitting without selecting an autocomplete result
+  ///
+  /// In en, this message translates to:
+  /// **'Please select a song from the search results'**
+  String get gameSelectSongFromResults;
+
+  /// Chat section title
+  ///
+  /// In en, this message translates to:
+  /// **'Chat'**
+  String get chatTitle;
+
+  /// Empty chat title message
+  ///
+  /// In en, this message translates to:
+  /// **'No messages yet'**
+  String get chatNoMessagesYet;
+
+  /// Empty chat subtitle message
+  ///
+  /// In en, this message translates to:
+  /// **'Start the conversation!'**
+  String get chatStartConversation;
+
+  /// Current user label in chat bubbles
+  ///
+  /// In en, this message translates to:
+  /// **'You'**
+  String get chatYou;
+
+  /// Chat input hint text
+  ///
+  /// In en, this message translates to:
+  /// **'Type a message...'**
+  String get chatTypeMessageHint;
+
+  /// Pack mode autocomplete hint text
+  ///
+  /// In en, this message translates to:
+  /// **'Search song title or artist'**
+  String get packSearchSongTitleOrArtist;
+
+  /// Pack mode skip stage button label
+  ///
+  /// In en, this message translates to:
+  /// **'Skip Instrument'**
+  String get packSkipInstrument;
+
+  /// Pack mode play stems button label
+  ///
+  /// In en, this message translates to:
+  /// **'Play Stems'**
+  String get packPlayStems;
+
+  /// Pack mode stage label
+  ///
+  /// In en, this message translates to:
+  /// **'Stage {number}'**
+  String packStageLabel(num number);
+
+  /// Pack mode points summary
+  ///
+  /// In en, this message translates to:
+  /// **'{points} points so far'**
+  String packPointsSoFar(num points);
+
+  /// Pack stems generation status title
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing your challenge...'**
+  String get packPreparingChallenge;
+
+  /// Pack stems generation status subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'This may take a moment'**
+  String get packPreparingChallengeSubtitle;
+
+  /// Pack stage name for drums stem
+  ///
+  /// In en, this message translates to:
+  /// **'Drums'**
+  String get packStageDrums;
+
+  /// Pack stage name for bass stem
+  ///
+  /// In en, this message translates to:
+  /// **'Bass'**
+  String get packStageBass;
+
+  /// Pack stage name for other stems
+  ///
+  /// In en, this message translates to:
+  /// **'Other'**
+  String get packStageOther;
+
+  /// Pack stage name for vocals stem
+  ///
+  /// In en, this message translates to:
+  /// **'Vocals'**
+  String get packStageVocals;
+
+  /// Snack when attempting to play stems while generation is still in progress
+  ///
+  /// In en, this message translates to:
+  /// **'Stems are being generated. Try again in a moment.'**
+  String get packStemsGeneratingTryAgain;
+
+  /// Snack when no stems were returned for current pack stage
+  ///
+  /// In en, this message translates to:
+  /// **'No stems available for this stage'**
+  String get packNoStemsAvailableForStage;
+
+  /// Snack shown when local stem playback fails
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to play stems: {error}'**
+  String packFailedToPlayStems(String error);
+
+  /// Pack completion headline
+  ///
+  /// In en, this message translates to:
+  /// **'Pack completed!'**
+  String get packCompleted;
+
+  /// Pack completion total points
+  ///
+  /// In en, this message translates to:
+  /// **'Total points: {points}'**
+  String packTotalPoints(num points);
+
+  /// Pack completion badge summary
+  ///
+  /// In en, this message translates to:
+  /// **'Pack completed · {points} points'**
+  String packCompletedSummary(num points);
+
+  /// Pack completion results section title
+  ///
+  /// In en, this message translates to:
+  /// **'Today\'s Results'**
+  String get packResultsTitle;
+
+  /// Empty state for pack leaderboard
+  ///
+  /// In en, this message translates to:
+  /// **'No other players have completed this pack yet'**
+  String get packNoOtherPlayersCompleted;
+
+  /// Pack leaderboard row subtitle with stage and completion time
+  ///
+  /// In en, this message translates to:
+  /// **'Stage {stage} - {time}'**
+  String packStageCompletedAt(num stage, String time);
 
   /// Backend room hosted limit error
   ///

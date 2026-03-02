@@ -93,37 +93,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (mounted) {
+        final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Could not open link')));
+        ).showSnackBar(SnackBar(content: Text(l10n.settingsCouldNotOpenLink)));
       }
     }
   }
 
-  String _formatAdFreeUntil(DateTime? value) {
-    if (value == null) return 'Not active';
+  String _formatAdFreeUntil(
+    DateTime? value,
+    AppLocalizations l10n,
+  ) {
+    if (value == null) return l10n.settingsNotActive;
     return DateFormat('yyyy-MM-dd HH:mm').format(value.toLocal());
   }
 
   Future<void> _handleActivateNoAds() async {
     if (_isActivatingNoAds || !mounted) return;
+    final l10n = AppLocalizations.of(context);
 
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceColor,
-        title: const Text('No Ads Pass'),
+        title: Text(l10n.settingsNoAdsPassTitle),
         content: Text(
-          'Spend $_noAdsCostCoins coins to disable ads for $_noAdsDurationDays days?',
+          l10n.settingsNoAdsActivationPrompt(
+            _noAdsCostCoins,
+            _noAdsDurationDays,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Activate'),
+            child: Text(l10n.settingsActivate),
           ),
         ],
       ),
@@ -143,8 +151,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No ads activated'),
+        SnackBar(
+          content: Text(l10n.settingsNoAdsActivated),
           backgroundColor: AppTheme.successColor,
         ),
       );
@@ -230,7 +238,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Row(
                   children: [
                     Semantics(
-                      label: 'Back',
+                      label: l10n.settingsBackLabel,
                       button: true,
                       child: IconButton(
                         icon: const Icon(Icons.arrow_back_ios_new),
@@ -277,11 +285,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const SizedBox(height: 8),
 
                     // ── Shop ───────────────────────────────────────────────
-                    _SectionHeader('SHOP'),
+                    _SectionHeader(l10n.settingsSectionShop),
                     _SettingsTile(
                       icon: Icons.monetization_on_outlined,
-                      title: 'Coin Shop',
-                      subtitle: 'Buy coins to unlock packs and hints',
+                      title: l10n.coinShopTitle,
+                      subtitle: l10n.useCoinsToUnlockHint,
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => const CoinShopScreen(),
@@ -291,11 +299,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _SettingsTile(
                       icon: hasNoAds ? Icons.shield_moon : Icons.block,
                       title: hasNoAds
-                          ? 'Extend No Ads (30 days)'
-                          : 'No Ads (30 days)',
+                          ? l10n.settingsExtendNoAdsTitle(_noAdsDurationDays)
+                          : l10n.settingsNoAdsTitle(_noAdsDurationDays),
                       subtitle: hasNoAds
-                          ? 'Active until ${_formatAdFreeUntil(user?.adFreeUntil)}'
-                          : 'Spend $_noAdsCostCoins coins to disable ads for $_noAdsDurationDays days',
+                          ? l10n.settingsNoAdsActiveUntil(
+                              _formatAdFreeUntil(user?.adFreeUntil, l10n),
+                            )
+                          : l10n.settingsNoAdsSpendHint(
+                              _noAdsCostCoins,
+                              _noAdsDurationDays,
+                            ),
                       onTap: _isActivatingNoAds ? null : _handleActivateNoAds,
                       trailing: _isActivatingNoAds
                           ? const SizedBox(

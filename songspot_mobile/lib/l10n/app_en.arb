@@ -168,6 +168,69 @@
   "settingsTermsOfService": "Terms of Service",
   "@settingsTermsOfService": { "description": "Terms of service tile" },
 
+  "settingsSectionShop": "Shop",
+  "@settingsSectionShop": { "description": "Shop section header in settings" },
+
+  "settingsCouldNotOpenLink": "Could not open link",
+  "@settingsCouldNotOpenLink": { "description": "Shown when external URL cannot be opened" },
+
+  "settingsBackLabel": "Back",
+  "@settingsBackLabel": { "description": "Semantic label for back button" },
+
+  "settingsNoAdsPassTitle": "No Ads Pass",
+  "@settingsNoAdsPassTitle": { "description": "No-ads activation dialog title" },
+
+  "settingsNoAdsActivationPrompt": "Spend {coins} coins to disable ads for {days} days?",
+  "@settingsNoAdsActivationPrompt": {
+    "description": "No-ads activation dialog message",
+    "placeholders": {
+      "coins": { "type": "num" },
+      "days": { "type": "num" }
+    }
+  },
+
+  "settingsActivate": "Activate",
+  "@settingsActivate": { "description": "Activate action label" },
+
+  "settingsNoAdsActivated": "No ads activated",
+  "@settingsNoAdsActivated": { "description": "No-ads activation success snackbar" },
+
+  "settingsNoAdsTitle": "No Ads ({days} days)",
+  "@settingsNoAdsTitle": {
+    "description": "No-ads tile title when not active",
+    "placeholders": {
+      "days": { "type": "num" }
+    }
+  },
+
+  "settingsExtendNoAdsTitle": "Extend No Ads ({days} days)",
+  "@settingsExtendNoAdsTitle": {
+    "description": "No-ads tile title when already active",
+    "placeholders": {
+      "days": { "type": "num" }
+    }
+  },
+
+  "settingsNoAdsActiveUntil": "Active until {date}",
+  "@settingsNoAdsActiveUntil": {
+    "description": "No-ads subtitle when active",
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+
+  "settingsNoAdsSpendHint": "Spend {coins} coins to disable ads for {days} days",
+  "@settingsNoAdsSpendHint": {
+    "description": "No-ads subtitle when inactive",
+    "placeholders": {
+      "coins": { "type": "num" },
+      "days": { "type": "num" }
+    }
+  },
+
+  "settingsNotActive": "Not active",
+  "@settingsNotActive": { "description": "Fallback no-ads state label" },
+
   "adConsentUpdated": "Ad consent preferences updated.",
   "@adConsentUpdated": { "description": "Shown after user updates ad consent options" },
 
@@ -422,6 +485,201 @@
     "description": "IAP success snackbar in coin shop",
     "placeholders": {
       "coins": { "type": "num" }
+    }
+  },
+
+  "gamePlayingSnippet": "🔊 Playing...",
+  "@gamePlayingSnippet": { "description": "Game CTA while snippet audio is currently playing" },
+
+  "gamePlaySnippet": "Play Snippet",
+  "@gamePlaySnippet": { "description": "Game CTA to play current snippet" },
+
+  "gameSnippetLabel": "Snippet {number}",
+  "@gameSnippetLabel": {
+    "description": "Current snippet indicator label",
+    "placeholders": {
+      "number": { "type": "num" }
+    }
+  },
+
+  "gamePointsLabel": "{points} points",
+  "@gamePointsLabel": {
+    "description": "Possible points label",
+    "placeholders": {
+      "points": { "type": "num" }
+    }
+  },
+
+  "gameMakeYourGuess": "Make Your Guess",
+  "@gameMakeYourGuess": { "description": "Heading above guess form" },
+
+  "gameSongTitleHint": "Start typing song title...",
+  "@gameSongTitleHint": { "description": "Song autocomplete hint text" },
+
+  "gameSongTitleLabel": "Song Title",
+  "@gameSongTitleLabel": { "description": "Song autocomplete label text" },
+
+  "gameSkip": "Skip",
+  "@gameSkip": { "description": "Skip snippet button label" },
+
+  "gameSubmitGuess": "Submit Guess",
+  "@gameSubmitGuess": { "description": "Submit guess button label" },
+
+  "gameGuessesMade": "Guesses made: {count}",
+  "@gameGuessesMade": {
+    "description": "Guesses made counter label",
+    "placeholders": {
+      "count": { "type": "num" }
+    }
+  },
+
+  "gameRetryUnlocked": "Second chance unlocked. Submit another guess.",
+  "@gameRetryUnlocked": { "description": "Banner shown when retry is already unlocked" },
+
+  "gameWatchAdForRetry": "Watch Ad for Retry",
+  "@gameWatchAdForRetry": { "description": "Retry CTA for ad-based unlock" },
+
+  "gameSpendCoinsForFinalChance": "Spend {coins} Coins for Final Chance",
+  "@gameSpendCoinsForFinalChance": {
+    "description": "Retry CTA for coin-based unlock",
+    "placeholders": {
+      "coins": { "type": "num" }
+    }
+  },
+
+  "gameRetryWatchAdSubtitle": "You reached the last snippet. Watch one rewarded ad to unlock a second chance.",
+  "@gameRetryWatchAdSubtitle": { "description": "Retry subtitle when next action is ad" },
+
+  "gameRetryUseCoinsSubtitle": "Use coins to unlock one final guess before results.",
+  "@gameRetryUseCoinsSubtitle": { "description": "Retry subtitle when next action is coins" },
+
+  "gameUseRewardForSecondChance": "Use Reward for Second Chance",
+  "@gameUseRewardForSecondChance": { "description": "Retry CTA when user has ad-free pass and ad action is required" },
+
+  "gameExtraChanceTitle": "Extra Chance",
+  "@gameExtraChanceTitle": { "description": "Retry card title" },
+
+  "gameSkipExtraChanceShowResults": "Skip Extra Chance and Show Results",
+  "@gameSkipExtraChanceShowResults": { "description": "Retry card secondary action label" },
+
+  "gameHintsTitle": "Hints",
+  "@gameHintsTitle": { "description": "Hints section title" },
+
+  "gameHintGenre": "Genre",
+  "@gameHintGenre": { "description": "Hint chip label for genre" },
+
+  "gameHintDecade": "Decade",
+  "@gameHintDecade": { "description": "Hint chip label for decade" },
+
+  "gameHintArtist": "Artist",
+  "@gameHintArtist": { "description": "Hint chip label for artist" },
+
+  "gameSelectSongFromResults": "Please select a song from the search results",
+  "@gameSelectSongFromResults": { "description": "Error when submitting without selecting an autocomplete result" },
+
+  "chatTitle": "Chat",
+  "@chatTitle": { "description": "Chat section title" },
+
+  "chatNoMessagesYet": "No messages yet",
+  "@chatNoMessagesYet": { "description": "Empty chat title message" },
+
+  "chatStartConversation": "Start the conversation!",
+  "@chatStartConversation": { "description": "Empty chat subtitle message" },
+
+  "chatYou": "You",
+  "@chatYou": { "description": "Current user label in chat bubbles" },
+
+  "chatTypeMessageHint": "Type a message...",
+  "@chatTypeMessageHint": { "description": "Chat input hint text" },
+
+  "packSearchSongTitleOrArtist": "Search song title or artist",
+  "@packSearchSongTitleOrArtist": { "description": "Pack mode autocomplete hint text" },
+
+  "packSkipInstrument": "Skip Instrument",
+  "@packSkipInstrument": { "description": "Pack mode skip stage button label" },
+
+  "packPlayStems": "Play Stems",
+  "@packPlayStems": { "description": "Pack mode play stems button label" },
+
+  "packStageLabel": "Stage {number}",
+  "@packStageLabel": {
+    "description": "Pack mode stage label",
+    "placeholders": {
+      "number": { "type": "num" }
+    }
+  },
+
+  "packPointsSoFar": "{points} points so far",
+  "@packPointsSoFar": {
+    "description": "Pack mode points summary",
+    "placeholders": {
+      "points": { "type": "num" }
+    }
+  },
+
+  "packPreparingChallenge": "Preparing your challenge...",
+  "@packPreparingChallenge": { "description": "Pack stems generation status title" },
+
+  "packPreparingChallengeSubtitle": "This may take a moment",
+  "@packPreparingChallengeSubtitle": { "description": "Pack stems generation status subtitle" },
+
+  "packStageDrums": "Drums",
+  "@packStageDrums": { "description": "Pack stage name for drums stem" },
+
+  "packStageBass": "Bass",
+  "@packStageBass": { "description": "Pack stage name for bass stem" },
+
+  "packStageOther": "Other",
+  "@packStageOther": { "description": "Pack stage name for other stems" },
+
+  "packStageVocals": "Vocals",
+  "@packStageVocals": { "description": "Pack stage name for vocals stem" },
+
+  "packStemsGeneratingTryAgain": "Stems are being generated. Try again in a moment.",
+  "@packStemsGeneratingTryAgain": { "description": "Snack when attempting to play stems while generation is still in progress" },
+
+  "packNoStemsAvailableForStage": "No stems available for this stage",
+  "@packNoStemsAvailableForStage": { "description": "Snack when no stems were returned for current pack stage" },
+
+  "packFailedToPlayStems": "Failed to play stems: {error}",
+  "@packFailedToPlayStems": {
+    "description": "Snack shown when local stem playback fails",
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+
+  "packCompleted": "Pack completed!",
+  "@packCompleted": { "description": "Pack completion headline" },
+
+  "packTotalPoints": "Total points: {points}",
+  "@packTotalPoints": {
+    "description": "Pack completion total points",
+    "placeholders": {
+      "points": { "type": "num" }
+    }
+  },
+
+  "packCompletedSummary": "Pack completed · {points} points",
+  "@packCompletedSummary": {
+    "description": "Pack completion badge summary",
+    "placeholders": {
+      "points": { "type": "num" }
+    }
+  },
+
+  "packResultsTitle": "Today's Results",
+  "@packResultsTitle": { "description": "Pack completion results section title" },
+
+  "packNoOtherPlayersCompleted": "No other players have completed this pack yet",
+  "@packNoOtherPlayersCompleted": { "description": "Empty state for pack leaderboard" },
+
+  "packStageCompletedAt": "Stage {stage} - {time}",
+  "@packStageCompletedAt": {
+    "description": "Pack leaderboard row subtitle with stage and completion time",
+    "placeholders": {
+      "stage": { "type": "num" },
+      "time": { "type": "String" }
     }
   },
 

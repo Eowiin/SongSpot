@@ -28,7 +28,7 @@
 		<key>CFBundleSignature</key>
 		<string>????</string>
 		<key>CFBundleVersion</key>
-		<string>7</string>
+		<string>11</string>
 		<key>LSRequiresIPhoneOS</key>
 		<true/>
 		<key>UIApplicationSceneManifest</key>
@@ -61,8 +61,6 @@
 		<string>Allow access to the local network for the backend.</string>
 		<key>NSMicrophoneUsageDescription</key>
 		<string>This app needs access to play audio</string>
-		<key>NSUserTrackingUsageDescription</key>
-		<string>We use your device identifier to show more relevant ads and measure ad performance.</string>
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true/>
 		<key>UIBackgroundModes</key>
