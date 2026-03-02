@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:intl/intl.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
@@ -18,9 +19,8 @@ import 'language_screen.dart';
 import 'my_data_screen.dart';
 import '../shop/coin_shop_screen.dart';
 
-// Keep this in sync with AdMob + store listing privacy policy URL.
-const _kPrivacyPolicyUrl = 'https://your-domain.example/privacy';
-const _kTermsOfServiceUrl = 'https://your-domain.example/terms';
+const _kPrivacyPath = '/privacy';
+const _kTermsPath = '/terms';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -37,6 +37,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _appVersion = '';
   bool _isActivatingNoAds = false;
   bool _isOpeningAdConsent = false;
+
+  String _buildLegalUrl(String path) {
+    final baseUrl = dotenv.get('SERVER_URL').trim();
+    final normalizedBase = baseUrl.replaceAll(RegExp(r'/+$'), '');
+    return '$normalizedBase$path';
+  }
 
   @override
   void initState() {
@@ -406,7 +412,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _SettingsTile(
                       icon: Icons.privacy_tip_outlined,
                       title: l10n.settingsPrivacyPolicy,
-                      onTap: () => _openUrl(_kPrivacyPolicyUrl),
+                      onTap: () => _openUrl(_buildLegalUrl(_kPrivacyPath)),
                     ),
                     _SettingsTile(
                       icon: Icons.gpp_maybe_outlined,
@@ -426,7 +432,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _SettingsTile(
                       icon: Icons.article_outlined,
                       title: l10n.settingsTermsOfService,
-                      onTap: () => _openUrl(_kTermsOfServiceUrl),
+                      onTap: () => _openUrl(_buildLegalUrl(_kTermsPath)),
                     ),
                     const SizedBox(height: 24),
 
