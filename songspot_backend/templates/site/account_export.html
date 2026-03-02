@@ -1,0 +1,50 @@
+{% extends "site/base.html" %}
+
+{% block title %}SongSpot | Request Data Export{% endblock %}
+
+{% block content %}
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-copy">
+        <p class="eyebrow">Data Export</p>
+        <h1>Request your SongSpot data export</h1>
+        <p>
+          You can export your personal data directly in-app, or request support help by email.
+        </p>
+        <div class="actions">
+          <a class="btn btn-primary" href="mailto:eowin.dev@gmail.com?subject=SongSpot%20Data%20Export%20Request">Email Export Request</a>
+          <a class="btn btn-secondary" href="/account">Back to Account</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="grid">
+      <article class="tile">
+        <h3>In-app export</h3>
+        <ul>
+          <li>Open SongSpot.</li>
+          <li>Go to Settings -> My Data.</li>
+          <li>Tap "Export data".</li>
+        </ul>
+      </article>
+      <article class="tile">
+        <h3>API export</h3>
+        <ul>
+          <li>Endpoint: <code>GET /api/auth/data/export/</code></li>
+          <li>Requires authenticated user token.</li>
+          <li>Returns a JSON file attachment.</li>
+        </ul>
+      </article>
+      <article class="tile">
+        <h3>Email request details</h3>
+        <ul>
+          <li>Send from your account email if possible.</li>
+          <li>Include username and app version.</li>
+          <li>Contact: <a href="mailto:eowin.dev@gmail.com">eowin.dev@gmail.com</a></li>
+        </ul>
+      </article>
+    </div>
+  </section>
+{% endblock %}

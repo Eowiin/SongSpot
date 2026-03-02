@@ -1,0 +1,47 @@
+{% extends "site/base.html" %}
+
+{% block title %}SongSpot | Account Management{% endblock %}
+
+{% block content %}
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-copy">
+        <p class="eyebrow">Account</p>
+        <h1>Manage your SongSpot account data</h1>
+        <p>
+          This page provides public GET links for data export and account deletion requests,
+          suitable for store compliance pages.
+        </p>
+        <div class="actions">
+          <a class="btn btn-primary" href="/account/export">Data Export Page</a>
+          <a class="btn btn-secondary" href="/account/delete">Account Deletion Page</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="grid">
+      <article class="tile">
+        <h3>Data export</h3>
+        <p>
+          Public URL: <a href="/account/export">/account/export</a><br>
+          API (authenticated): <code>GET /api/auth/data/export/</code>
+        </p>
+      </article>
+      <article class="tile">
+        <h3>Account deletion</h3>
+        <p>
+          Public URL: <a href="/account/delete">/account/delete</a><br>
+          API (authenticated): <code>DELETE /api/auth/account/</code>
+        </p>
+      </article>
+      <article class="tile">
+        <h3>Support contact</h3>
+        <p>
+          Email: <a href="mailto:eowin.dev@gmail.com">eowin.dev@gmail.com</a>
+        </p>
+      </article>
+    </div>
+  </section>
+{% endblock %}

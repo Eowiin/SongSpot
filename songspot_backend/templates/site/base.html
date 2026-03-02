@@ -344,6 +344,16 @@
       color: #8cbeff;
     }
 
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.83rem;
+      padding: 0.14rem 0.34rem;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+    }
+
     .footer {
       width: 100%;
       margin-top: auto;
@@ -445,6 +455,7 @@
           <a class="nav-link{% if active_page == 'privacy' %} active{% endif %}" href="/privacy">Privacy</a>
           <a class="nav-link{% if active_page == 'support' %} active{% endif %}" href="/support">Support</a>
           <a class="nav-link{% if active_page == 'terms' %} active{% endif %}" href="/terms">Terms</a>
+          <a class="nav-link{% if active_page == 'account' %} active{% endif %}" href="/account">Account</a>
         </nav>
       </header>
     </div>
@@ -460,6 +471,7 @@
           <a href="/privacy">Privacy</a>
           <a href="/support">Support</a>
           <a href="/terms">Terms</a>
+          <a href="/account">Account</a>
         </span>
       </div>
     </footer>

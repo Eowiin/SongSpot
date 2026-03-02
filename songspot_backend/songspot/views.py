@@ -29,6 +29,26 @@ def terms_page(request):
     return render(request, "site/terms.html", {"active_page": "terms"})
 
 
+def account_page(request):
+    return render(request, "site/account.html", {"active_page": "account"})
+
+
+def account_delete_page(request):
+    return render(
+        request,
+        "site/account_delete.html",
+        {"active_page": "account"},
+    )
+
+
+def account_export_page(request):
+    return render(
+        request,
+        "site/account_export.html",
+        {"active_page": "account"},
+    )
+
+
 def site_logo(request):
     logo_path = Path(__file__).resolve().parent / "static" / "site" / "songspot-logo.png"
     if not logo_path.exists():
