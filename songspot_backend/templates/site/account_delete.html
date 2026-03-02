@@ -1,0 +1,51 @@
+{% extends "site/base.html" %}
+
+{% block title %}SongSpot | Request Account Deletion{% endblock %}
+
+{% block content %}
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-copy">
+        <p class="eyebrow">Account Deletion</p>
+        <h1>Request permanent account deletion</h1>
+        <p>
+          You can delete your account directly in-app, or request support help by email.
+          Deletion is permanent.
+        </p>
+        <div class="actions">
+          <a class="btn btn-primary" href="mailto:eowin.dev@gmail.com?subject=SongSpot%20Account%20Deletion%20Request">Email Deletion Request</a>
+          <a class="btn btn-secondary" href="/account">Back to Account</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="grid">
+      <article class="tile">
+        <h3>In-app deletion</h3>
+        <ul>
+          <li>Open SongSpot.</li>
+          <li>Go to Settings -> My Data.</li>
+          <li>Tap "Delete account" and confirm password.</li>
+        </ul>
+      </article>
+      <article class="tile">
+        <h3>API deletion</h3>
+        <ul>
+          <li>Endpoint: <code>DELETE /api/auth/account/</code></li>
+          <li>Requires authenticated user token.</li>
+          <li>Requires account password in request body.</li>
+        </ul>
+      </article>
+      <article class="tile">
+        <h3>Important</h3>
+        <ul>
+          <li>Deletion is irreversible.</li>
+          <li>Associated account data is removed.</li>
+          <li>Contact: <a href="mailto:eowin.dev@gmail.com">eowin.dev@gmail.com</a></li>
+        </ul>
+      </article>
+    </div>
+  </section>
+{% endblock %}

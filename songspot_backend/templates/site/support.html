@@ -1,0 +1,56 @@
+{% extends "site/base.html" %}
+
+{% block title %}SongSpot | Support{% endblock %}
+
+{% block content %}
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-copy">
+        <p class="eyebrow">Support</p>
+        <h1>Need help with SongSpot?</h1>
+        <p>
+          For account, purchase, room sync, or bug issues, contact support and include the technical
+          details below so we can resolve it quickly.
+        </p>
+        <div class="actions">
+          <a class="btn btn-primary" href="mailto:eowin.dev@gmail.com">eowin.dev@gmail.com</a>
+          <a class="btn btn-secondary" href="/privacy">Privacy policy</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <h2>Include this in your message</h2>
+      <p>These details usually cut troubleshooting time significantly:</p>
+    </div>
+    <div class="grid">
+      <article class="tile">
+        <h3>Technical context</h3>
+        <ul>
+          <li>App version from Settings.</li>
+          <li>Device model and OS version.</li>
+          <li>Rough time when issue happened.</li>
+        </ul>
+      </article>
+      <article class="tile">
+        <h3>Issue details</h3>
+        <ul>
+          <li>Exact error message or screenshot text.</li>
+          <li>Steps that trigger the issue.</li>
+          <li>Expected behavior vs actual behavior.</li>
+        </ul>
+      </article>
+      <article class="tile">
+        <h3>Common request types</h3>
+        <ul>
+          <li>Account recovery and login issues.</li>
+          <li>Purchase or coin credit discrepancies.</li>
+          <li>Room sync, leaderboard, or session bugs.</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+{% endblock %}

@@ -19,9 +19,8 @@ import 'my_data_screen.dart';
 import '../shop/coin_shop_screen.dart';
 
 // Keep this in sync with AdMob + store listing privacy policy URL.
-const _kPrivacyPolicyUrl =
-    'https://gist.github.com/Eowiin/e028212497a1654d6a73785694eebb90';
-const _kTermsOfServiceUrl = 'https://songspot.app/terms';
+const _kPrivacyPolicyUrl = 'https://your-domain.example/privacy';
+const _kTermsOfServiceUrl = 'https://your-domain.example/terms';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
