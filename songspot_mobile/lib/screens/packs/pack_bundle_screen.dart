@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../config/app_theme.dart';
+import '../../l10n/app_localizations.dart';
 import '../../models/track.dart';
 import '../../models/pack_bundle.dart';
 import '../../providers/auth_provider.dart';
@@ -15,9 +16,9 @@ import '../../widgets/track_autocomplete.dart';
 
 // Hint order: sequential unlocking, same as daily game
 const _packHintOrder = [
-  {'type': 'genre',       'label': 'Genre',  'revealedLabel': 'Genre',  'cost': 30},
-  {'type': 'decade',      'label': 'Decade', 'revealedLabel': 'Decade', 'cost': 60},
-  {'type': 'artist_name', 'label': 'Artist', 'revealedLabel': 'Artist', 'cost': 100},
+  {'type': 'genre', 'cost': 30},
+  {'type': 'decade', 'cost': 60},
+  {'type': 'artist_name', 'cost': 100},
 ];
 
 class PackBundleScreen extends StatelessWidget {
@@ -35,9 +36,7 @@ class PackBundleScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(packName),
-      ),
+      appBar: AppBar(title: Text(packName)),
       body: Container(
         decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
         child: PackBundleContent(
@@ -86,7 +85,8 @@ class _PackBundleContentState extends State<PackBundleContent> {
 
         // If this pack is already loaded in the provider, skip the reload to
         // avoid a flash of stale hint state. Just wire up the WebSocket.
-        if (provider.loadedPackId == widget.packId && provider.session != null) {
+        if (provider.loadedPackId == widget.packId &&
+            provider.session != null) {
           _listenForStemsReady();
           return;
         }
@@ -97,8 +97,14 @@ class _PackBundleContentState extends State<PackBundleContent> {
         );
         _listenForStemsReady();
         if (provider.session?.isCompleted == true) {
-          await provider.loadLeaderboard(roomId: widget.roomId, packId: widget.packId);
-          await provider.loadMessages(roomId: widget.roomId, packId: widget.packId);
+          await provider.loadLeaderboard(
+            roomId: widget.roomId,
+            packId: widget.packId,
+          );
+          await provider.loadMessages(
+            roomId: widget.roomId,
+            packId: widget.packId,
+          );
           if (mounted) {
             setState(() {
               _requestedCompletionData = true;
@@ -137,11 +143,12 @@ class _PackBundleContentState extends State<PackBundleContent> {
   }
 
   Future<void> _playStems() async {
+    final l10n = AppLocalizations.of(context);
     final provider = context.read<PackBundleProvider>();
     if (provider.stemsStatus == 'generating') {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Stems are being generated. Try again in a moment.'),
+        SnackBar(
+          content: Text(l10n.packStemsGeneratingTryAgain),
           backgroundColor: AppTheme.primaryColor,
         ),
       );
@@ -150,8 +157,8 @@ class _PackBundleContentState extends State<PackBundleContent> {
     final stems = provider.stems.map((stem) => stem.url).toList();
     if (stems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No stems available for this stage'),
+        SnackBar(
+          content: Text(l10n.packNoStemsAvailableForStage),
           backgroundColor: AppTheme.errorColor,
         ),
       );
@@ -163,7 +170,7 @@ class _PackBundleContentState extends State<PackBundleContent> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to play stems: $e'),
+          content: Text(l10n.packFailedToPlayStems(e.toString())),
           backgroundColor: AppTheme.errorColor,
         ),
       );
@@ -173,16 +180,17 @@ class _PackBundleContentState extends State<PackBundleContent> {
   Future<void> _skipStage() async {
     await _stemAudioService.stop();
     await context.read<PackBundleProvider>().skipStage(
-          roomId: widget.roomId,
-          packId: widget.packId,
-        );
+      roomId: widget.roomId,
+      packId: widget.packId,
+    );
   }
 
   Future<void> _submitGuess() async {
+    final l10n = AppLocalizations.of(context);
     if (_selectedTrack == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a song from the search results'),
+        SnackBar(
+          content: Text(l10n.gameSelectSongFromResults),
           backgroundColor: AppTheme.errorColor,
         ),
       );
@@ -233,65 +241,68 @@ class _PackBundleContentState extends State<PackBundleContent> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final provider = context.watch<PackBundleProvider>();
     final session = provider.session;
 
     final content = provider.isLoading && session == null
         ? _buildLoadingSkeleton()
         : session == null
-            ? _buildLoadingSkeleton()
-            : session.isCompleted
-                ? _buildCompletedView(session, provider)
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildStageIndicators(session),
-                      const SizedBox(height: 32),
-                      _buildProgressCard(session, onPlay: _playStems),
-                      const SizedBox(height: 24),
-                      _buildHintsSection(context, provider),
-                      const SizedBox(height: 24),
-                      Text(
-                        'Make Your Guess',
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: 16),
-                      TrackAutocomplete(
-                        controller: _titleController,
-                        onTrackSelected: (track) {
-                          _selectedTrack = track;
-                        },
-                        hintText: 'Search song title or artist',
-                        labelText: 'Song Title',
-                      ),
-                      const SizedBox(height: 24),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: _skipStage,
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppTheme.textPrimary,
-                                side: const BorderSide(color: AppTheme.textSecondary),
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(AppTheme.borderRadius),
-                                ),
-                              ),
-                              child: const Text('Skip Instrument'),
-                            ),
+        ? _buildLoadingSkeleton()
+        : session.isCompleted
+        ? _buildCompletedView(session, provider)
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildStageIndicators(session),
+              const SizedBox(height: 32),
+              _buildProgressCard(session, onPlay: _playStems),
+              const SizedBox(height: 24),
+              _buildHintsSection(context, provider),
+              const SizedBox(height: 24),
+              Text(
+                l10n.gameMakeYourGuess,
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              const SizedBox(height: 16),
+              TrackAutocomplete(
+                controller: _titleController,
+                onTrackSelected: (track) {
+                  _selectedTrack = track;
+                },
+                hintText: l10n.packSearchSongTitleOrArtist,
+                labelText: l10n.gameSongTitleLabel,
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _skipStage,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.textPrimary,
+                        side: const BorderSide(color: AppTheme.textSecondary),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.borderRadius,
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: GradientButton(
-                              text: 'Submit Guess',
-                              onPressed: _submitGuess,
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-                    ],
-                  );
+                      child: Text(l10n.packSkipInstrument),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: GradientButton(
+                      text: l10n.gameSubmitGuess,
+                      onPressed: _submitGuess,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
 
     if (session?.isCompleted == true && !_requestedCompletionData) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -319,7 +330,21 @@ class _PackBundleContentState extends State<PackBundleContent> {
 
   // ── Hints ───────────────────────────────────────────────────────────────
 
+  String _hintLabel(AppLocalizations l10n, String hintType) {
+    switch (hintType) {
+      case 'genre':
+        return l10n.gameHintGenre;
+      case 'decade':
+        return l10n.gameHintDecade;
+      case 'artist_name':
+        return l10n.gameHintArtist;
+      default:
+        return hintType;
+    }
+  }
+
   Widget _buildHintsSection(BuildContext context, PackBundleProvider provider) {
+    final l10n = AppLocalizations.of(context);
     final hintValues = provider.hintValues;
     final nextIndex = _packHintOrder.indexWhere(
       (h) => !hintValues.containsKey(h['type']),
@@ -328,7 +353,10 @@ class _PackBundleContentState extends State<PackBundleContent> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Hints', style: Theme.of(context).textTheme.headlineSmall),
+        Text(
+          l10n.gameHintsTitle,
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
         const SizedBox(height: 12),
         Row(
           children: _packHintOrder.asMap().entries.map((entry) {
@@ -338,6 +366,7 @@ class _PackBundleContentState extends State<PackBundleContent> {
             final revealedValue = hintValues[hintType];
             final isNextToBuy = i == nextIndex;
             final isLocked = revealedValue == null && !isNextToBuy;
+            final label = _hintLabel(l10n, hintType);
 
             return Expanded(
               child: Padding(
@@ -349,10 +378,10 @@ class _PackBundleContentState extends State<PackBundleContent> {
                   context: context,
                   provider: provider,
                   hintType: hintType,
-                  label: hint['label'] as String,
+                  label: label,
                   cost: hint['cost'] as int,
                   revealedValue: revealedValue,
-                  revealedLabel: hint['revealedLabel'] as String,
+                  revealedLabel: label,
                   isLocked: isLocked,
                 ),
               ),
@@ -385,16 +414,16 @@ class _PackBundleContentState extends State<PackBundleContent> {
           children: [
             Text(
               revealedLabel,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.primaryColor,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppTheme.primaryColor),
             ),
             const SizedBox(height: 4),
             Text(
               revealedValue,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
           ],
@@ -409,18 +438,23 @@ class _PackBundleContentState extends State<PackBundleContent> {
           color: AppTheme.surfaceColor.withOpacity(0.4),
           borderRadius: BorderRadius.circular(AppTheme.borderRadius),
           border: Border.all(
-              color: AppTheme.textSecondary.withOpacity(0.3), width: 1),
+            color: AppTheme.textSecondary.withOpacity(0.3),
+            width: 1,
+          ),
         ),
         child: Column(
           children: [
-            const Icon(Icons.lock_outline,
-                size: 16, color: AppTheme.textSecondary),
+            const Icon(
+              Icons.lock_outline,
+              size: 16,
+              color: AppTheme.textSecondary,
+            ),
             const SizedBox(height: 4),
             Text(
               label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.textSecondary,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
               textAlign: TextAlign.center,
             ),
           ],
@@ -444,9 +478,9 @@ class _PackBundleContentState extends State<PackBundleContent> {
           const SizedBox(height: 2),
           Text(
             '🪙 $cost',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.primaryColor,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppTheme.primaryColor),
           ),
         ],
       ),
@@ -597,14 +631,23 @@ class _PackBundleContentState extends State<PackBundleContent> {
     );
   }
 
-  Widget _buildProgressCard(PackBundleSession session, {required VoidCallback onPlay}) {
+  Widget _buildProgressCard(
+    PackBundleSession session, {
+    required VoidCallback onPlay,
+  }) {
+    final l10n = AppLocalizations.of(context);
     final stemsStatus = context.watch<PackBundleProvider>().stemsStatus;
-    final stageNames = ['Drums', 'Bass', 'Other', 'Vocals'];
-    final stageIndex = (session.currentStage as int) - 1;
+    final stageNames = [
+      l10n.packStageDrums,
+      l10n.packStageBass,
+      l10n.packStageOther,
+      l10n.packStageVocals,
+    ];
+    final stageIndex = session.currentStage - 1;
     final clampedIndex = stageIndex.clamp(0, stageNames.length - 1);
     final activeStages = stageNames.take(clampedIndex + 1).toList();
     final stageLabel = activeStages.isEmpty
-        ? 'Stage ${session.currentStage}'
+        ? l10n.packStageLabel(session.currentStage)
         : activeStages.join(' + ');
 
     return Container(
@@ -616,26 +659,22 @@ class _PackBundleContentState extends State<PackBundleContent> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const Icon(
-            Icons.graphic_eq,
-            size: 80,
-            color: AppTheme.primaryColor,
-          ),
+          const Icon(Icons.graphic_eq, size: 80, color: AppTheme.primaryColor),
           const SizedBox(height: 24),
           Text(
-            'Stage ${session.currentStage}',
+            l10n.packStageLabel(session.currentStage),
             style: Theme.of(context).textTheme.displaySmall,
           ),
           const SizedBox(height: 8),
           Text(
             stageLabel,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: AppTheme.primaryColor,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(color: AppTheme.primaryColor),
           ),
           const SizedBox(height: 8),
           Text(
-            '${session.pointsEarned} points so far',
+            l10n.packPointsSoFar(session.pointsEarned),
             style: Theme.of(context).textTheme.bodyLarge,
           ),
           if (stemsStatus == 'generating') ...[
@@ -645,29 +684,28 @@ class _PackBundleContentState extends State<PackBundleContent> {
               height: 24,
               child: CircularProgressIndicator(
                 strokeWidth: 2.5,
-                valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppTheme.primaryColor,
+                ),
               ),
             ),
             const SizedBox(height: 12),
             Text(
-              'Preparing your challenge...',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppTheme.primaryColor,
-                  ),
+              l10n.packPreparingChallenge,
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(color: AppTheme.primaryColor),
             ),
             const SizedBox(height: 4),
             Text(
-              'This may take a moment',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.textSecondary,
-                  ),
+              l10n.packPreparingChallengeSubtitle,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
             ),
           ] else ...[
             const SizedBox(height: 24),
-            GradientButton(
-              text: 'Play Stems',
-              onPressed: onPlay,
-            ),
+            GradientButton(text: l10n.packPlayStems, onPressed: onPlay),
           ],
         ],
       ),
@@ -692,8 +730,8 @@ class _PackBundleContentState extends State<PackBundleContent> {
             color: isPassed
                 ? AppTheme.textSecondary
                 : isActive
-                    ? AppTheme.primaryColor
-                    : AppTheme.surfaceColor,
+                ? AppTheme.primaryColor
+                : AppTheme.surfaceColor,
             border: Border.all(
               color: isActive ? AppTheme.primaryColor : AppTheme.textSecondary,
               width: 2,
@@ -703,7 +741,9 @@ class _PackBundleContentState extends State<PackBundleContent> {
             child: Text(
               '$stageNumber',
               style: TextStyle(
-                color: isPassed || isActive ? Colors.white : AppTheme.textSecondary,
+                color: isPassed || isActive
+                    ? Colors.white
+                    : AppTheme.textSecondary,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -713,22 +753,30 @@ class _PackBundleContentState extends State<PackBundleContent> {
     );
   }
 
-  Widget _buildCompletedView(PackBundleSession session, PackBundleProvider provider) {
+  Widget _buildCompletedView(
+    PackBundleSession session,
+    PackBundleProvider provider,
+  ) {
+    final l10n = AppLocalizations.of(context);
     final track = session.packTrack?.track;
     if (track == null) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.check_circle, size: 60, color: AppTheme.successColor),
+            const Icon(
+              Icons.check_circle,
+              size: 60,
+              color: AppTheme.successColor,
+            ),
             const SizedBox(height: 16),
             Text(
-              'Pack completed!',
+              l10n.packCompleted,
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
             Text(
-              'Total points: ${session.pointsEarned}',
+              l10n.packTotalPoints(session.pointsEarned),
               style: Theme.of(context).textTheme.bodyMedium,
             ),
           ],
@@ -781,21 +829,24 @@ class _PackBundleContentState extends State<PackBundleContent> {
               Text(
                 track.title,
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  fontWeight: FontWeight.bold,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 4),
               Text(
                 track.artist,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppTheme.textSecondary,
-                    ),
+                  color: AppTheme.textSecondary,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: AppTheme.successColor.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(20),
@@ -809,7 +860,7 @@ class _PackBundleContentState extends State<PackBundleContent> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'Pack completed · ${session.pointsEarned} points',
+                      l10n.packCompletedSummary(session.pointsEarned),
                       style: const TextStyle(
                         color: AppTheme.successColor,
                         fontWeight: FontWeight.bold,
@@ -832,12 +883,13 @@ class _PackBundleContentState extends State<PackBundleContent> {
   }
 
   Widget _buildResultsSection(PackBundleProvider provider) {
+    final l10n = AppLocalizations.of(context);
     final leaderboard = provider.leaderboard;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Today\'s Results',
+          l10n.packResultsTitle,
           style: Theme.of(context).textTheme.headlineMedium,
         ),
         const SizedBox(height: 16),
@@ -849,7 +901,7 @@ class _PackBundleContentState extends State<PackBundleContent> {
               borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
             ),
             child: Text(
-              'No other players have completed this pack yet',
+              l10n.packNoOtherPlayersCompleted,
               style: Theme.of(context).textTheme.bodyMedium,
               textAlign: TextAlign.center,
             ),
@@ -908,16 +960,23 @@ class _PackBundleContentState extends State<PackBundleContent> {
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         Text(
-                          'Stage ${leaderboardEntry.stageNumber} - ${DateFormat.Hm().format(leaderboardEntry.completedAt.toLocal())}',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: AppTheme.textSecondary,
-                              ),
+                          l10n.packStageCompletedAt(
+                            leaderboardEntry.stageNumber,
+                            DateFormat.Hm().format(
+                              leaderboardEntry.completedAt.toLocal(),
+                            ),
+                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppTheme.textSecondary),
                         ),
                       ],
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       gradient: AppTheme.primaryGradient,
                       borderRadius: BorderRadius.circular(16),
@@ -939,6 +998,7 @@ class _PackBundleContentState extends State<PackBundleContent> {
   }
 
   Widget _buildChatSection(PackBundleProvider provider) {
+    final l10n = AppLocalizations.of(context);
     final currentUserId = context.watch<AuthProvider>().user?.id;
     final messages = provider.messages;
     final displayMessages = messages.take(10).toList().reversed.toList();
@@ -946,10 +1006,7 @@ class _PackBundleContentState extends State<PackBundleContent> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'Chat',
-          style: Theme.of(context).textTheme.headlineMedium,
-        ),
+        Text(l10n.chatTitle, style: Theme.of(context).textTheme.headlineMedium),
         const SizedBox(height: 16),
         Container(
           constraints: const BoxConstraints(maxHeight: 300),
@@ -966,12 +1023,12 @@ class _PackBundleContentState extends State<PackBundleContent> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'No messages yet',
+                        l10n.chatNoMessagesYet,
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Start the conversation!',
+                        l10n.chatStartConversation,
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
@@ -997,7 +1054,9 @@ class _PackBundleContentState extends State<PackBundleContent> {
                           ),
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            gradient: isCurrentUser ? AppTheme.primaryGradient : null,
+                            gradient: isCurrentUser
+                                ? AppTheme.primaryGradient
+                                : null,
                             color: isCurrentUser ? null : AppTheme.surfaceColor,
                             borderRadius: BorderRadius.circular(16),
                           ),
@@ -1007,10 +1066,14 @@ class _PackBundleContentState extends State<PackBundleContent> {
                                 : CrossAxisAlignment.start,
                             children: [
                               Text(
-                                isCurrentUser ? 'You' : message.user.username,
+                                isCurrentUser
+                                    ? l10n.chatYou
+                                    : message.user.username,
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  color: isCurrentUser ? Colors.white70 : AppTheme.primaryColor,
+                                  color: isCurrentUser
+                                      ? Colors.white70
+                                      : AppTheme.primaryColor,
                                   fontSize: 12,
                                 ),
                               ),
@@ -1018,15 +1081,21 @@ class _PackBundleContentState extends State<PackBundleContent> {
                               Text(
                                 message.message,
                                 style: TextStyle(
-                                  color: isCurrentUser ? Colors.white : AppTheme.textPrimary,
+                                  color: isCurrentUser
+                                      ? Colors.white
+                                      : AppTheme.textPrimary,
                                 ),
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                DateFormat.Hm().format(message.createdAt.toLocal()),
+                                DateFormat.Hm().format(
+                                  message.createdAt.toLocal(),
+                                ),
                                 style: TextStyle(
                                   fontSize: 10,
-                                  color: isCurrentUser ? Colors.white70 : AppTheme.textSecondary,
+                                  color: isCurrentUser
+                                      ? Colors.white70
+                                      : AppTheme.textSecondary,
                                 ),
                               ),
                             ],
@@ -1044,7 +1113,7 @@ class _PackBundleContentState extends State<PackBundleContent> {
               child: TextField(
                 controller: _messageController,
                 decoration: InputDecoration(
-                  hintText: 'Type a message...',
+                  hintText: l10n.chatTypeMessageHint,
                   filled: true,
                   fillColor: AppTheme.surfaceColor,
                   border: OutlineInputBorder(

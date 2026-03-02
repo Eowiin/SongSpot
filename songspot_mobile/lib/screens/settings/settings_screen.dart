@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:intl/intl.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
@@ -18,10 +19,8 @@ import 'language_screen.dart';
 import 'my_data_screen.dart';
 import '../shop/coin_shop_screen.dart';
 
-// Keep this in sync with AdMob + store listing privacy policy URL.
-const _kPrivacyPolicyUrl =
-    'https://gist.github.com/Eowiin/e028212497a1654d6a73785694eebb90';
-const _kTermsOfServiceUrl = 'https://songspot.app/terms';
+const _kPrivacyPath = '/privacy';
+const _kTermsPath = '/terms';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -38,6 +37,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _appVersion = '';
   bool _isActivatingNoAds = false;
   bool _isOpeningAdConsent = false;
+
+  String _buildLegalUrl(String path) {
+    final baseUrl = dotenv.get('SERVER_URL').trim();
+    final normalizedBase = baseUrl.replaceAll(RegExp(r'/+$'), '');
+    return '$normalizedBase$path';
+  }
 
   @override
   void initState() {
@@ -93,37 +98,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (mounted) {
+        final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Could not open link')));
+        ).showSnackBar(SnackBar(content: Text(l10n.settingsCouldNotOpenLink)));
       }
     }
   }
 
-  String _formatAdFreeUntil(DateTime? value) {
-    if (value == null) return 'Not active';
+  String _formatAdFreeUntil(
+    DateTime? value,
+    AppLocalizations l10n,
+  ) {
+    if (value == null) return l10n.settingsNotActive;
     return DateFormat('yyyy-MM-dd HH:mm').format(value.toLocal());
   }
 
   Future<void> _handleActivateNoAds() async {
     if (_isActivatingNoAds || !mounted) return;
+    final l10n = AppLocalizations.of(context);
 
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceColor,
-        title: const Text('No Ads Pass'),
+        title: Text(l10n.settingsNoAdsPassTitle),
         content: Text(
-          'Spend $_noAdsCostCoins coins to disable ads for $_noAdsDurationDays days?',
+          l10n.settingsNoAdsActivationPrompt(
+            _noAdsCostCoins,
+            _noAdsDurationDays,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Activate'),
+            child: Text(l10n.settingsActivate),
           ),
         ],
       ),
@@ -143,8 +156,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No ads activated'),
+        SnackBar(
+          content: Text(l10n.settingsNoAdsActivated),
           backgroundColor: AppTheme.successColor,
         ),
       );
@@ -230,7 +243,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Row(
                   children: [
                     Semantics(
-                      label: 'Back',
+                      label: l10n.settingsBackLabel,
                       button: true,
                       child: IconButton(
                         icon: const Icon(Icons.arrow_back_ios_new),
@@ -277,11 +290,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const SizedBox(height: 8),
 
                     // ── Shop ───────────────────────────────────────────────
-                    _SectionHeader('SHOP'),
+                    _SectionHeader(l10n.settingsSectionShop),
                     _SettingsTile(
                       icon: Icons.monetization_on_outlined,
-                      title: 'Coin Shop',
-                      subtitle: 'Buy coins to unlock packs and hints',
+                      title: l10n.coinShopTitle,
+                      subtitle: l10n.useCoinsToUnlockHint,
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => const CoinShopScreen(),
@@ -291,11 +304,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _SettingsTile(
                       icon: hasNoAds ? Icons.shield_moon : Icons.block,
                       title: hasNoAds
-                          ? 'Extend No Ads (30 days)'
-                          : 'No Ads (30 days)',
+                          ? l10n.settingsExtendNoAdsTitle(_noAdsDurationDays)
+                          : l10n.settingsNoAdsTitle(_noAdsDurationDays),
                       subtitle: hasNoAds
-                          ? 'Active until ${_formatAdFreeUntil(user?.adFreeUntil)}'
-                          : 'Spend $_noAdsCostCoins coins to disable ads for $_noAdsDurationDays days',
+                          ? l10n.settingsNoAdsActiveUntil(
+                              _formatAdFreeUntil(user?.adFreeUntil, l10n),
+                            )
+                          : l10n.settingsNoAdsSpendHint(
+                              _noAdsCostCoins,
+                              _noAdsDurationDays,
+                            ),
                       onTap: _isActivatingNoAds ? null : _handleActivateNoAds,
                       trailing: _isActivatingNoAds
                           ? const SizedBox(
@@ -394,7 +412,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _SettingsTile(
                       icon: Icons.privacy_tip_outlined,
                       title: l10n.settingsPrivacyPolicy,
-                      onTap: () => _openUrl(_kPrivacyPolicyUrl),
+                      onTap: () => _openUrl(_buildLegalUrl(_kPrivacyPath)),
                     ),
                     _SettingsTile(
                       icon: Icons.gpp_maybe_outlined,
@@ -414,7 +432,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _SettingsTile(
                       icon: Icons.article_outlined,
                       title: l10n.settingsTermsOfService,
-                      onTap: () => _openUrl(_kTermsOfServiceUrl),
+                      onTap: () => _openUrl(_buildLegalUrl(_kTermsPath)),
                     ),
                     const SizedBox(height: 24),
 
