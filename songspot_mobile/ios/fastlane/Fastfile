@@ -42,9 +42,17 @@ platform :ios do
 
     setup_asc_key
 
-    # Build Flutter before Xcode archive (generates Generated.xcconfig + framework)
+    # Build Flutter before Xcode archive (generates Generated.xcconfig + framework).
+    # Running in unbundled env avoids Bundler intercepting `pod` when fastlane is
+    # invoked with `bundle exec`.
     Dir.chdir("..") do
-      sh("flutter", "build", "ios", "--release", "--no-codesign")
+      if defined?(Bundler)
+        Bundler.with_unbundled_env do
+          sh("flutter", "build", "ios", "--release", "--no-codesign")
+        end
+      else
+        sh("flutter", "build", "ios", "--release", "--no-codesign")
+      end
     end
 
     # Build number is managed from TestFlight (independent of pubspec build number)

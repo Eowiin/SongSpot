@@ -187,6 +187,52 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsTermsOfService => 'Terms of Service';
 
   @override
+  String get settingsSectionShop => 'Shop';
+
+  @override
+  String get settingsCouldNotOpenLink => 'Could not open link';
+
+  @override
+  String get settingsBackLabel => 'Back';
+
+  @override
+  String get settingsNoAdsPassTitle => 'No Ads Pass';
+
+  @override
+  String settingsNoAdsActivationPrompt(num coins, num days) {
+    return 'Spend $coins coins to disable ads for $days days?';
+  }
+
+  @override
+  String get settingsActivate => 'Activate';
+
+  @override
+  String get settingsNoAdsActivated => 'No ads activated';
+
+  @override
+  String settingsNoAdsTitle(num days) {
+    return 'No Ads ($days days)';
+  }
+
+  @override
+  String settingsExtendNoAdsTitle(num days) {
+    return 'Extend No Ads ($days days)';
+  }
+
+  @override
+  String settingsNoAdsActiveUntil(String date) {
+    return 'Active until $date';
+  }
+
+  @override
+  String settingsNoAdsSpendHint(num coins, num days) {
+    return 'Spend $coins coins to disable ads for $days days';
+  }
+
+  @override
+  String get settingsNotActive => 'Not active';
+
+  @override
   String get adConsentUpdated => 'Ad consent preferences updated.';
 
   @override
@@ -438,6 +484,178 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String coinsAddedSuccess(num coins) {
     return '+$coins coins added!';
+  }
+
+  @override
+  String get gamePlayingSnippet => '🔊 Playing...';
+
+  @override
+  String get gamePlaySnippet => 'Play Snippet';
+
+  @override
+  String gameSnippetLabel(num number) {
+    return 'Snippet $number';
+  }
+
+  @override
+  String gamePointsLabel(num points) {
+    return '$points points';
+  }
+
+  @override
+  String get gameMakeYourGuess => 'Make Your Guess';
+
+  @override
+  String get gameSongTitleHint => 'Start typing song title...';
+
+  @override
+  String get gameSongTitleLabel => 'Song Title';
+
+  @override
+  String get gameSkip => 'Skip';
+
+  @override
+  String get gameSubmitGuess => 'Submit Guess';
+
+  @override
+  String gameGuessesMade(num count) {
+    return 'Guesses made: $count';
+  }
+
+  @override
+  String get gameRetryUnlocked =>
+      'Second chance unlocked. Submit another guess.';
+
+  @override
+  String get gameWatchAdForRetry => 'Watch Ad for Retry';
+
+  @override
+  String gameSpendCoinsForFinalChance(num coins) {
+    return 'Spend $coins Coins for Final Chance';
+  }
+
+  @override
+  String get gameRetryWatchAdSubtitle =>
+      'You reached the last snippet. Watch one rewarded ad to unlock a second chance.';
+
+  @override
+  String get gameRetryUseCoinsSubtitle =>
+      'Use coins to unlock one final guess before results.';
+
+  @override
+  String get gameUseRewardForSecondChance => 'Use Reward for Second Chance';
+
+  @override
+  String get gameExtraChanceTitle => 'Extra Chance';
+
+  @override
+  String get gameSkipExtraChanceShowResults =>
+      'Skip Extra Chance and Show Results';
+
+  @override
+  String get gameHintsTitle => 'Hints';
+
+  @override
+  String get gameHintGenre => 'Genre';
+
+  @override
+  String get gameHintDecade => 'Decade';
+
+  @override
+  String get gameHintArtist => 'Artist';
+
+  @override
+  String get gameSelectSongFromResults =>
+      'Please select a song from the search results';
+
+  @override
+  String get chatTitle => 'Chat';
+
+  @override
+  String get chatNoMessagesYet => 'No messages yet';
+
+  @override
+  String get chatStartConversation => 'Start the conversation!';
+
+  @override
+  String get chatYou => 'You';
+
+  @override
+  String get chatTypeMessageHint => 'Type a message...';
+
+  @override
+  String get packSearchSongTitleOrArtist => 'Search song title or artist';
+
+  @override
+  String get packSkipInstrument => 'Skip Instrument';
+
+  @override
+  String get packPlayStems => 'Play Stems';
+
+  @override
+  String packStageLabel(num number) {
+    return 'Stage $number';
+  }
+
+  @override
+  String packPointsSoFar(num points) {
+    return '$points points so far';
+  }
+
+  @override
+  String get packPreparingChallenge => 'Preparing your challenge...';
+
+  @override
+  String get packPreparingChallengeSubtitle => 'This may take a moment';
+
+  @override
+  String get packStageDrums => 'Drums';
+
+  @override
+  String get packStageBass => 'Bass';
+
+  @override
+  String get packStageOther => 'Other';
+
+  @override
+  String get packStageVocals => 'Vocals';
+
+  @override
+  String get packStemsGeneratingTryAgain =>
+      'Stems are being generated. Try again in a moment.';
+
+  @override
+  String get packNoStemsAvailableForStage =>
+      'No stems available for this stage';
+
+  @override
+  String packFailedToPlayStems(String error) {
+    return 'Failed to play stems: $error';
+  }
+
+  @override
+  String get packCompleted => 'Pack completed!';
+
+  @override
+  String packTotalPoints(num points) {
+    return 'Total points: $points';
+  }
+
+  @override
+  String packCompletedSummary(num points) {
+    return 'Pack completed · $points points';
+  }
+
+  @override
+  String get packResultsTitle => 'Today\'s Results';
+
+  @override
+  String get packNoOtherPlayersCompleted =>
+      'No other players have completed this pack yet';
+
+  @override
+  String packStageCompletedAt(num stage, String time) {
+    return 'Stage $stage - $time';
   }
 
   @override

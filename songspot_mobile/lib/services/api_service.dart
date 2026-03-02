@@ -32,6 +32,7 @@ class ApiService {
   final StorageService _storageService = StorageService();
   bool _isRefreshing = false;
   static const String _settingsLocaleKey = 'settings_locale';
+  static const String _settingsLocaleManualKey = 'settings_locale_manual';
 
   Future<Map<String, String>> _getHeaders({bool includeAuth = false}) async {
     final headers = {'Content-Type': 'application/json'};
@@ -77,9 +78,13 @@ class ApiService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final savedLanguageCode = prefs.getString(_settingsLocaleKey);
+      final localeManuallySelected =
+          prefs.getBool(_settingsLocaleManualKey) ?? false;
       final platformLanguageCode =
           WidgetsBinding.instance.platformDispatcher.locale.languageCode;
-      final languageCode = savedLanguageCode ?? platformLanguageCode;
+      final languageCode = localeManuallySelected && savedLanguageCode != null
+          ? savedLanguageCode
+          : platformLanguageCode;
 
       final supported = AppLocalizations.supportedLocales
           .map((l) => l.languageCode)

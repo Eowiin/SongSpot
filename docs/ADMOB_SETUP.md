@@ -231,7 +231,7 @@ This section is an implementation checklist, not legal advice. You should still 
 
 - EEA + UK + Switzerland: follow Google EU User Consent Policy and gather valid consent for ads-related processing.
 - Regulated US states: provide required privacy choices (US state regulations message).
-- iOS IDFA/ATT: if you want tracking permission for personalized ads measurement, configure the IDFA message and ATT prompt flow.
+- iOS IDFA/ATT: optional. If you choose a no-ATT setup, do not request tracking permission and do not configure IDFA messaging.
 
 Important policy milestone:
 - Since January 16, 2024, Google requires a Google-certified CMP for EEA/UK traffic under the EU user consent policy flow.
@@ -263,20 +263,20 @@ Notes:
 Note:
 - For apps, this message is typically surfaced via your privacy options entry point.
 
-#### C) iOS IDFA message (optional but recommended if you use ATT)
+#### C) iOS IDFA message (only if you enable ATT)
 
 1. `Privacy & messaging` -> `IDFA explainer` -> `Create`.
 2. Select iOS app(s).
 3. Configure text + languages.
 4. Publish.
 
-If you enable this:
+If you enable ATT/IDFA:
 - Add `NSUserTrackingUsageDescription` to `songspot_mobile/ios/Runner/Info.plist`.
 - Ensure ATT flow is correctly configured in your iOS app build.
 
 Current repo status:
-- `NSUserTrackingUsageDescription` is present in `Info.plist`.
-- Review and finalize the wording to match your exact ATT and ad-use disclosures.
+- `NSUserTrackingUsageDescription` is removed from `Info.plist` (no ATT prompt path).
+- Keep IDFA explainer disabled/unpublished in AdMob unless you later decide to enable ATT.
 
 ### 3. App-side requirements (SongSpot status)
 
@@ -296,7 +296,7 @@ Environment toggles for QA:
 - In AdMob, ensure app privacy policy URL is filled for each app.
 - Google Play: complete `Data safety` disclosures for ads/SDK data handling.
 - Apple App Store: complete App Privacy nutrition labels.
-- If using iOS ATT, make sure wording in `NSUserTrackingUsageDescription` matches your real usage.
+- If you later enable iOS ATT, add `NSUserTrackingUsageDescription` with final legal wording.
 - Set up `app-ads.txt` on your domain and register the domain consistently in Play/App Store.
 - Repo support: SongSpot backend exposes `/app-ads.txt` from `APP_ADS_TXT` setting, and a root `app-ads.txt` file is included for deployment convenience.
 
@@ -376,5 +376,5 @@ Important:
 
 - Confirm iOS and Android App IDs are platform-correct in `AndroidManifest.xml` and `Info.plist`.
 - Confirm each placement ad unit ID in `.env` is platform-correct (Android vs iOS) before release.
-- Finalize `NSUserTrackingUsageDescription` wording in `Info.plist` with final legal copy.
+- No ATT path is configured (no `NSUserTrackingUsageDescription`). Keep AdMob IDFA message disabled unless you decide to enable ATT later.
 - UMP consent flow is implemented in Flutter; configure messages in AdMob Privacy & messaging and validate behavior on a test device.

@@ -189,6 +189,52 @@ class AppLocalizationsFr extends AppLocalizations {
   String get settingsTermsOfService => 'Conditions d\'utilisation';
 
   @override
+  String get settingsSectionShop => 'Boutique';
+
+  @override
+  String get settingsCouldNotOpenLink => 'Impossible d\'ouvrir le lien';
+
+  @override
+  String get settingsBackLabel => 'Retour';
+
+  @override
+  String get settingsNoAdsPassTitle => 'Pass sans pub';
+
+  @override
+  String settingsNoAdsActivationPrompt(num coins, num days) {
+    return 'Dépenser $coins pièces pour désactiver les pubs pendant $days jours ?';
+  }
+
+  @override
+  String get settingsActivate => 'Activer';
+
+  @override
+  String get settingsNoAdsActivated => 'Pubs désactivées';
+
+  @override
+  String settingsNoAdsTitle(num days) {
+    return 'Sans pub ($days jours)';
+  }
+
+  @override
+  String settingsExtendNoAdsTitle(num days) {
+    return 'Prolonger Sans pub ($days jours)';
+  }
+
+  @override
+  String settingsNoAdsActiveUntil(String date) {
+    return 'Actif jusqu\'au $date';
+  }
+
+  @override
+  String settingsNoAdsSpendHint(num coins, num days) {
+    return 'Dépensez $coins pièces pour désactiver les pubs pendant $days jours';
+  }
+
+  @override
+  String get settingsNotActive => 'Non actif';
+
+  @override
   String get adConsentUpdated =>
       'Préférences de consentement pub mises à jour.';
 
@@ -444,6 +490,179 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String coinsAddedSuccess(num coins) {
     return '+$coins pièces ajoutées !';
+  }
+
+  @override
+  String get gamePlayingSnippet => '🔊 Lecture...';
+
+  @override
+  String get gamePlaySnippet => 'Écouter l\'extrait';
+
+  @override
+  String gameSnippetLabel(num number) {
+    return 'Extrait $number';
+  }
+
+  @override
+  String gamePointsLabel(num points) {
+    return '$points points';
+  }
+
+  @override
+  String get gameMakeYourGuess => 'Faites votre proposition';
+
+  @override
+  String get gameSongTitleHint => 'Commencez à taper le titre...';
+
+  @override
+  String get gameSongTitleLabel => 'Titre de la chanson';
+
+  @override
+  String get gameSkip => 'Passer';
+
+  @override
+  String get gameSubmitGuess => 'Valider la proposition';
+
+  @override
+  String gameGuessesMade(num count) {
+    return 'Propositions faites : $count';
+  }
+
+  @override
+  String get gameRetryUnlocked =>
+      'Seconde chance débloquée. Envoyez une nouvelle proposition.';
+
+  @override
+  String get gameWatchAdForRetry => 'Regarder une pub pour rejouer';
+
+  @override
+  String gameSpendCoinsForFinalChance(num coins) {
+    return 'Dépenser $coins pièces pour une dernière chance';
+  }
+
+  @override
+  String get gameRetryWatchAdSubtitle =>
+      'Vous avez atteint le dernier extrait. Regardez une pub récompensée pour débloquer une seconde chance.';
+
+  @override
+  String get gameRetryUseCoinsSubtitle =>
+      'Utilisez des pièces pour débloquer une dernière proposition avant les résultats.';
+
+  @override
+  String get gameUseRewardForSecondChance =>
+      'Utiliser la récompense pour une seconde chance';
+
+  @override
+  String get gameExtraChanceTitle => 'Chance supplémentaire';
+
+  @override
+  String get gameSkipExtraChanceShowResults =>
+      'Passer la chance supplémentaire et afficher les résultats';
+
+  @override
+  String get gameHintsTitle => 'Indices';
+
+  @override
+  String get gameHintGenre => 'Genre';
+
+  @override
+  String get gameHintDecade => 'Décennie';
+
+  @override
+  String get gameHintArtist => 'Artiste';
+
+  @override
+  String get gameSelectSongFromResults =>
+      'Veuillez sélectionner une chanson dans les résultats de recherche';
+
+  @override
+  String get chatTitle => 'Chat';
+
+  @override
+  String get chatNoMessagesYet => 'Aucun message pour le moment';
+
+  @override
+  String get chatStartConversation => 'Lancez la conversation !';
+
+  @override
+  String get chatYou => 'Vous';
+
+  @override
+  String get chatTypeMessageHint => 'Écrivez un message...';
+
+  @override
+  String get packSearchSongTitleOrArtist => 'Rechercher un titre ou un artiste';
+
+  @override
+  String get packSkipInstrument => 'Passer l\'instrument';
+
+  @override
+  String get packPlayStems => 'Lire les pistes';
+
+  @override
+  String packStageLabel(num number) {
+    return 'Étape $number';
+  }
+
+  @override
+  String packPointsSoFar(num points) {
+    return '$points points pour l\'instant';
+  }
+
+  @override
+  String get packPreparingChallenge => 'Préparation de votre défi...';
+
+  @override
+  String get packPreparingChallengeSubtitle => 'Cela peut prendre un instant';
+
+  @override
+  String get packStageDrums => 'Batterie';
+
+  @override
+  String get packStageBass => 'Basse';
+
+  @override
+  String get packStageOther => 'Autres';
+
+  @override
+  String get packStageVocals => 'Voix';
+
+  @override
+  String get packStemsGeneratingTryAgain =>
+      'Les pistes sont en cours de génération. Réessayez dans un instant.';
+
+  @override
+  String get packNoStemsAvailableForStage =>
+      'Aucune piste disponible pour cette étape';
+
+  @override
+  String packFailedToPlayStems(String error) {
+    return 'Impossible de lire les pistes : $error';
+  }
+
+  @override
+  String get packCompleted => 'Pack terminé !';
+
+  @override
+  String packTotalPoints(num points) {
+    return 'Points totaux : $points';
+  }
+
+  @override
+  String packCompletedSummary(num points) {
+    return 'Pack terminé · $points points';
+  }
+
+  @override
+  String get packResultsTitle => 'Résultats du jour';
+
+  @override
+  String get packNoOtherPlayersCompleted =>
+      'Aucun autre joueur n\'a encore terminé ce pack';
+
+  @override
+  String packStageCompletedAt(num stage, String time) {
+    return 'Étape $stage - $time';
   }
 
   @override
