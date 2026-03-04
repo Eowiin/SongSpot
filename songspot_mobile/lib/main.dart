@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -23,10 +25,23 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env');
-  await ConsentService().gatherConsent();
-  await AdMobService().initialize();
-  await PushNotificationService().initializeCore();
+  // runApp first so the Flutter Activity is fully rendered before the UMP
+  // consent form Activity is launched. On older Android, showing a new Activity
+  // before runApp() causes it to appear behind the main Activity (grey screen).
   runApp(const MyApp());
+  unawaited(_initializeServices());
+}
+
+Future<void> _initializeServices() async {
+  await _run(ConsentService().gatherConsent);
+  await _run(AdMobService().initialize);
+  await _run(PushNotificationService().initializeCore);
+}
+
+Future<void> _run(Future<void> Function() task) async {
+  try {
+    await task();
+  } catch (_) {}
 }
 
 class MyApp extends StatelessWidget {
@@ -98,7 +113,14 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _checkAuthStatus() async {
     final authProvider = context.read<AuthProvider>();
-    await authProvider.checkAuthStatus();
+    // Run auth check and consent in parallel; consent attaches to the
+    // in-flight singleton future so no second form is ever shown.
+    // Waiting here ensures we don't navigate while the consent form is visible,
+    // which would cause it to flicker/refresh on Android.
+    await Future.wait([
+      authProvider.checkAuthStatus(),
+      ConsentService().gatherConsent(),
+    ]);
 
     if (mounted) {
       // Set up push notification tap handler

@@ -21,7 +21,7 @@ For _fastlane_ installation instructions, see [Installing _fastlane_](https://do
 [bundle exec] fastlane ios testflight
 ```
 
-Bump version, build, and distribute to TestFlight. Options: bump:patch|minor|major
+Build and distribute to TestFlight.
 
 ### ios app_store
 
@@ -29,7 +29,7 @@ Bump version, build, and distribute to TestFlight. Options: bump:patch|minor|maj
 [bundle exec] fastlane ios app_store
 ```
 
-Bump version, build, and release directly to App Store. Options: bump:patch|minor|major
+Build and release directly to App Store.
 
 ----
 

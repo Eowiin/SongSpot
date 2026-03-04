@@ -28,39 +28,45 @@ class ConsentService {
 
     final completer = Completer<void>();
     _gatherInFlight = completer.future;
+    var finished = false;
+
+    Future<void> finishFlow() async {
+      if (finished) return;
+      finished = true;
+      await _refreshConsentState();
+      _consentFlowCompleted = true;
+      if (!completer.isCompleted) completer.complete();
+      _gatherInFlight = null;
+    }
 
     final params = ConsentRequestParameters(
       consentDebugSettings: _buildDebugSettings(),
     );
 
+    // Safety net: if requestConsentInfoUpdate never calls either callback
+    // (e.g. network timeout on older Android), don't hang forever.
+    final timeoutTimer = Timer(const Duration(seconds: 15), () {
+      if (finished) return;
+      try {
+        ConsentInformation.instance.reset();
+      } catch (_) {}
+      unawaited(finishFlow());
+    });
+
     ConsentInformation.instance.requestConsentInfoUpdate(
       params,
       () async {
+        timeoutTimer.cancel();
         try {
-          FormError? loadAndShowError;
-          await ConsentForm.loadAndShowConsentFormIfRequired((formError) {
-            loadAndShowError = formError;
-          });
-          if (loadAndShowError != null) {
-            debugPrint(
-              'Consent form load/show failed: ${loadAndShowError!.message}',
-            );
-          }
-        } catch (e) {
-          debugPrint('Consent form flow threw: $e');
+          await ConsentForm.loadAndShowConsentFormIfRequired((_) {});
+        } catch (_) {
         } finally {
-          await _refreshConsentState();
-          _consentFlowCompleted = true;
-          if (!completer.isCompleted) completer.complete();
-          _gatherInFlight = null;
+          await finishFlow();
         }
       },
-      (formError) async {
-        debugPrint('Consent info update failed: ${formError.message}');
-        await _refreshConsentState();
-        _consentFlowCompleted = true;
-        if (!completer.isCompleted) completer.complete();
-        _gatherInFlight = null;
+      (_) async {
+        timeoutTimer.cancel();
+        await finishFlow();
       },
     );
 
@@ -85,12 +91,10 @@ class ConsentService {
       });
       await _refreshConsentState();
       if (formError != null) {
-        debugPrint('Privacy options form failed: ${formError!.message}');
         return PrivacyOptionsResult.failed;
       }
       return PrivacyOptionsResult.shown;
-    } catch (e) {
-      debugPrint('Privacy options form threw: $e');
+    } catch (_) {
       await _refreshConsentState();
       return PrivacyOptionsResult.failed;
     }
