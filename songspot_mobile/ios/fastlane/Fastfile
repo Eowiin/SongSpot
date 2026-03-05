@@ -18,12 +18,16 @@ platform :ios do
     # Running in unbundled env avoids Bundler intercepting `pod` when fastlane is
     # invoked with `bundle exec`.
     Dir.chdir("..") do
+      sentry_defines = [
+        "--dart-define=SENTRY_DSN=#{ENV['SENTRY_DSN'] || ''}",
+        "--dart-define=SENTRY_ENVIRONMENT=#{ENV['SENTRY_ENVIRONMENT'] || 'production'}"
+      ]
       if defined?(Bundler)
         Bundler.with_unbundled_env do
-          sh("flutter", "build", "ios", "--release", "--no-codesign")
+          sh("flutter", "build", "ios", "--release", "--no-codesign", *sentry_defines)
         end
       else
-        sh("flutter", "build", "ios", "--release", "--no-codesign")
+        sh("flutter", "build", "ios", "--release", "--no-codesign", *sentry_defines)
       end
     end
 

@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 import dj_database_url
+import sentry_sdk
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -44,6 +45,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'axes',
     'channels',
     'rest_framework',
     'rest_framework_simplejwt',
@@ -58,6 +60,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'axes.middleware.AxesMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -222,6 +225,28 @@ DAILY_GAME_RETRY_COIN_COST = int(os.environ.get('DAILY_GAME_RETRY_COIN_COST', '1
 # Room creation safeguards (anti-abuse)
 MAX_HOSTED_ROOMS_PER_USER = int(os.environ.get('MAX_HOSTED_ROOMS_PER_USER', '5'))
 MAX_ROOM_CREATIONS_PER_DAY = int(os.environ.get('MAX_ROOM_CREATIONS_PER_DAY', '5'))
+
+# Sentry error monitoring (only active in production, when DEBUG=False)
+if not DEBUG and os.environ.get('SENTRY_DSN'):
+    sentry_sdk.init(
+        dsn=os.environ.get('SENTRY_DSN'),
+        traces_sample_rate=0.1,
+        profiles_sample_rate=0.1,
+        send_default_pii=False,
+        environment=os.environ.get('SENTRY_ENVIRONMENT', 'production'),
+        release=os.environ.get('APP_VERSION', '1.0.0'),
+    )
+
+# django-axes: brute force protection for admin login
+AUTHENTICATION_BACKENDS = [
+    'axes.backends.AxesStandaloneBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+AXES_FAILURE_LIMIT = 5          # lock after 5 failed attempts
+AXES_COOLOFF_TIME = 1           # lockout duration in hours
+AXES_LOCKOUT_CALLABLE = None    # use default 403 response
+AXES_RESET_ON_SUCCESS = True    # reset failure count on successful login
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),

@@ -272,7 +272,25 @@ python manage.py collectstatic
 
 ---
 
-## 7. Security Settings
+## 7. Admin Brute Force Protection (django-axes)
+
+django-axes is already configured in `settings.py`. After deploying, run migrations to create the axes tables:
+
+```bash
+python manage.py migrate
+```
+
+**Behavior:** 5 failed login attempts → 1-hour lockout. Resets automatically on successful login.
+
+**If you lock yourself out:**
+```bash
+python manage.py axes_reset                    # reset all lockouts
+python manage.py axes_reset --username yourname  # reset specific user
+```
+
+---
+
+## 9. Security Settings
 
 Add to `settings.py`:
 ```python
@@ -291,7 +309,7 @@ CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',')
 
 ---
 
-## 8. Firewall
+## 10. Firewall
 
 ```bash
 sudo ufw allow 'Nginx Full'
@@ -301,7 +319,7 @@ sudo ufw enable
 
 ---
 
-## 9. Seed Data
+## 11. Seed Data
 
 ```bash
 cd /var/www/songspot/songspot_backend
@@ -312,7 +330,7 @@ python manage.py seed_genre_packs --count-per-pack 30 --genres pop,rock,hiphop
 
 ---
 
-## 10. Stems Pipeline (Demucs)
+## 12. Stems Pipeline (Demucs)
 
 ### Generate Stems (Batch)
 ```bash
@@ -326,7 +344,7 @@ python manage.py cleanup_stems --max-age-hours 72
 
 ---
 
-## 11. Daily Cron Jobs (Required)
+## 13. Daily Cron Jobs (Required)
 
 **These cron jobs are required for the app to function properly.** Add them with `crontab -e`:
 
@@ -347,7 +365,33 @@ Stems are generated on-demand when users start playing (not pre-generated).
 
 ---
 
-## 12. Production `.env` Reference
+## 14. Monitoring
+
+### UptimeRobot (server uptime)
+
+1. Create a free account at [uptimerobot.com](https://uptimerobot.com)
+2. Click **Add New Monitor**:
+   - Type: `HTTP(s)`
+   - Friendly Name: `SongSpot API`
+   - URL: `https://your-domain.com/health/` (or any always-available endpoint)
+   - Monitoring Interval: `5 minutes`
+3. Add alert contact (email) — you'll be notified within 5 minutes of downtime
+
+No code changes needed. Fully external.
+
+### Sentry (error tracking)
+
+See full setup guide: [docs/SENTRY_SETUP.md](SENTRY_SETUP.md)
+
+**Quick summary:**
+- Create a free account at [sentry.io](https://sentry.io)
+- Create two projects: `songspot-backend` (Django) and `songspot-mobile` (Flutter)
+- Add `SENTRY_DSN` to your `.env` — Sentry only activates when `DEBUG=False`
+- Set up alert rules in the Sentry dashboard for new issues and high-frequency errors
+
+---
+
+## 15. Production `.env` Reference
 
 ```env
 # Django
@@ -378,6 +422,11 @@ APP_ADS_TXT=google.com, pub-2260442058102246, DIRECT, f08c47fec0942fa0
 # Firebase Cloud Messaging (pick one)
 # FCM_SERVICE_ACCOUNT_PATH=/var/www/songspot/secrets/firebase-service-account.json
 # FCM_SERVICE_ACCOUNT_JSON={"type":"service_account", ...}
+
+# Sentry (error monitoring) — only active when DEBUG=False
+SENTRY_DSN=https://your-key@sentry.io/project-id
+SENTRY_ENVIRONMENT=production
+APP_VERSION=1.0.0
 ```
 
 Generate a secret key:
@@ -387,7 +436,7 @@ python -c "from django.core.management.utils import get_random_secret_key; print
 
 ---
 
-## 13. Automatic Deploy from GitHub
+## 16. Automatic Deploy from GitHub
 
 The repo includes `.github/workflows/backend-deploy.yml` which deploys automatically when `main` is pushed with changes to `songspot_backend/**`, `docker-compose.yml`, or `scripts/deploy_backend.sh`.
 
@@ -421,7 +470,7 @@ The deploy script (`scripts/deploy_backend.sh`) runs:
 
 ---
 
-## 14. Mobile App Configuration
+## 17. Mobile App Configuration
 
 Update `songspot_mobile/.env`:
 ```env
@@ -431,7 +480,7 @@ WS_BASE_URL=wss://your-domain.com/ws
 
 ---
 
-## 15. AdMob app-ads.txt Verification
+## 18. AdMob app-ads.txt Verification
 
 SongSpot backend exposes:
 
@@ -496,3 +545,6 @@ python manage.py createsuperuser
 - [ ] GitHub secrets configured for CI/CD
 - [ ] Mobile app `.env` updated with production URL
 - [ ] `https://your-domain.com/app-ads.txt` is reachable and returns the expected publisher line
+- [ ] UptimeRobot monitor created for the domain
+- [ ] Sentry DSN configured in `.env` (backend + mobile)
+- [ ] django-axes migrations run (admin brute force protection active)

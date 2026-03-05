@@ -1,265 +1,118 @@
 # Sentry Error Monitoring Setup
 
-Guide for adding Sentry error tracking to SongSpot (backend + mobile).
+Sentry is already integrated in the codebase. This guide covers what you need to do on sentry.io and how to connect it.
 
 ---
 
 ## 1. Create Sentry Account & Projects
 
-1. Go to [sentry.io](https://sentry.io) and create an account
+1. Go to [sentry.io](https://sentry.io) and create a free account
 2. Create an organization (e.g., "songspot")
-3. Create two projects:
-   - **songspot-backend** (Platform: Django)
-   - **songspot-mobile** (Platform: Flutter)
-4. Copy the DSN (Data Source Name) for each project
+3. Create **two projects**:
+   - **songspot-backend** → Platform: `Django`
+   - **songspot-mobile** → Platform: `Flutter`
+4. Copy the **DSN** (Data Source Name) for each project — you'll need both
 
 ---
 
-## 2. Backend Setup (Django)
+## 2. Backend Configuration
 
-### Install Package
+The Sentry SDK is already integrated in `settings.py`. You just need to set the environment variable.
 
-```bash
-pip install sentry-sdk[django]
-```
-
-Add to `requirements.txt`:
-```
-sentry-sdk[django]>=1.39.0
-```
-
-### Configure in settings.py
-
-```python
-import sentry_sdk
-from sentry_sdk.integrations.django import DjangoIntegration
-
-# Only enable Sentry in production
-if not DEBUG:
-    sentry_sdk.init(
-        dsn=os.environ.get('SENTRY_DSN'),
-        integrations=[
-            DjangoIntegration(
-                transaction_style='url',
-                middleware_spans=True,
-            ),
-        ],
-        # Set traces_sample_rate to 1.0 to capture 100% of transactions
-        # Lower this in production for high-traffic apps
-        traces_sample_rate=0.1,  # 10% of requests
-        # Set profiles_sample_rate to profile transactions
-        profiles_sample_rate=0.1,
-        # Send user info (id, email) with errors
-        send_default_pii=True,
-        # Environment tag
-        environment=os.environ.get('SENTRY_ENVIRONMENT', 'production'),
-        # Release version
-        release=os.environ.get('APP_VERSION', '1.0.0'),
-    )
-```
-
-### Add to .env
-
+Add to your production `.env`:
 ```env
-SENTRY_DSN=https://your-key@sentry.io/project-id
+SENTRY_DSN=https://your-key@sentry.io/project-id   # from songspot-backend project
 SENTRY_ENVIRONMENT=production
 APP_VERSION=1.0.0
 ```
 
-### Test Integration
+Sentry only activates when `DEBUG=False` **and** `SENTRY_DSN` is set. It does nothing in local dev.
 
-```python
-# In Django shell or a test view
-from sentry_sdk import capture_message, capture_exception
-
-# Test message
-capture_message("Sentry is working!")
-
-# Test exception
-try:
-    1 / 0
-except Exception as e:
-    capture_exception(e)
-```
-
----
-
-## 3. Mobile Setup (Flutter)
-
-### Install Package
-
-Add to `pubspec.yaml`:
-```yaml
-dependencies:
-  sentry_flutter: ^8.0.0
-```
-
-### Initialize in main.dart
-
-```dart
-import 'package:sentry_flutter/sentry_flutter.dart';
-
-Future<void> main() async {
-  await SentryFlutter.init(
-    (options) {
-      options.dsn = const String.fromEnvironment(
-        'SENTRY_DSN',
-        defaultValue: '', // Empty in dev, set in production build
-      );
-      options.environment = const String.fromEnvironment(
-        'SENTRY_ENVIRONMENT',
-        defaultValue: 'development',
-      );
-      // Performance monitoring
-      options.tracesSampleRate = 0.1;
-      // Only send in release mode
-      options.beforeSend = (event, hint) {
-        if (kDebugMode) return null; // Don't send in debug
-        return event;
-      };
-    },
-    appRunner: () => runApp(const MyApp()),
-  );
-}
-```
-
-### Wrap Your App
-
-```dart
-// In main.dart, wrap the root widget
-runApp(
-  SentryWidget(
-    child: const MyApp(),
-  ),
-);
-```
-
-### Capture Errors Manually
-
-```dart
-import 'package:sentry_flutter/sentry_flutter.dart';
-
-// Capture exception
-try {
-  // risky code
-} catch (exception, stackTrace) {
-  await Sentry.captureException(
-    exception,
-    stackTrace: stackTrace,
-  );
-}
-
-// Capture message
-await Sentry.captureMessage('Something happened');
-
-// Add breadcrumb for context
-Sentry.addBreadcrumb(Breadcrumb(
-  message: 'User joined room',
-  category: 'navigation',
-  data: {'room_id': roomId},
-));
-```
-
-### Build with DSN
+### Test it (on the server)
 
 ```bash
-# For release builds, pass the DSN
-flutter build apk --dart-define=SENTRY_DSN=https://your-key@sentry.io/project-id --dart-define=SENTRY_ENVIRONMENT=production
+cd /var/www/songspot/songspot_backend
+source .venv/bin/activate
+python manage.py shell
 
-flutter build ios --dart-define=SENTRY_DSN=https://your-key@sentry.io/project-id --dart-define=SENTRY_ENVIRONMENT=production
+>>> import sentry_sdk
+>>> sentry_sdk.capture_message("Sentry backend is working!")
 ```
+
+Then check your Sentry dashboard — the message should appear within seconds.
 
 ---
 
-## 4. Useful Sentry Features
+## 3. Mobile Configuration
 
-### User Context
+The SDK is already integrated in `main.dart`. The DSN is injected at **build time** via `--dart-define`, not from `.env`.
 
-```python
-# Django - in middleware or view
-from sentry_sdk import set_user
+### Configure DSN for Fastlane builds
 
-set_user({
-    "id": str(request.user.id),
-    "email": request.user.email,
-    "username": request.user.username,
-})
+The Fastlane lanes already pass `--dart-define=SENTRY_DSN` automatically. You just need to set the value in each platform's `fastlane/.env`:
+
+**`android/fastlane/.env`**
+```env
+SENTRY_DSN="https://your-key@sentry.io/project-id"
+SENTRY_ENVIRONMENT="production"
 ```
 
-```dart
-// Flutter - after login
-Sentry.configureScope((scope) {
-  scope.setUser(SentryUser(
-    id: user.id,
-    email: user.email,
-    username: user.username,
-  ));
-});
+**`ios/fastlane/.env`**
+```env
+SENTRY_DSN="https://your-key@sentry.io/project-id"
+SENTRY_ENVIRONMENT="production"
 ```
 
-### Tags for Filtering
+Then run your normal Fastlane lanes — no extra steps needed:
 
-```python
-# Django
-from sentry_sdk import set_tag
-set_tag("room_id", room.id)
+```bash
+# Android (builds .aab)
+cd android && bundle exec fastlane internal
+
+# iOS
+cd ios && bundle exec fastlane testflight
 ```
 
-```dart
-// Flutter
-Sentry.configureScope((scope) {
-  scope.setTag('room_id', roomId);
-});
-```
+If `SENTRY_DSN` is empty or not set, Sentry silently does nothing — the app works normally.
 
-### Performance Transactions
-
-```python
-# Django - automatic for views, manual for custom operations
-from sentry_sdk import start_transaction
-
-with start_transaction(op="task", name="fetch_deezer_tracks"):
-    # long-running task
-    pass
-```
+Errors are **never sent in debug mode** (`flutter run`) — only release builds report to Sentry.
 
 ---
 
-## 5. Alert Configuration (Sentry Dashboard)
+## 4. Alert Configuration (Sentry Dashboard)
 
-1. Go to **Alerts** in Sentry
+Set up alerts so you're notified automatically:
+
+1. Go to **Alerts** in your Sentry project
 2. Create rules for:
-   - **First occurrence** of new issues
-   - **High frequency** errors (> 10 in 1 hour)
-   - **Specific errors** (e.g., 500 errors, auth failures)
-3. Set up notifications:
-   - Email for critical issues
-   - Slack/Discord webhooks (optional)
+   - **First occurrence** of a new issue → email immediately
+   - **High frequency** (e.g., > 10 occurrences in 1 hour) → email
+3. Do this for **both** projects (backend + mobile)
 
 ---
 
-## 6. Source Maps (Optional but Recommended)
+## 5. Source Maps for Flutter (Optional)
 
-### Flutter
+Better stack traces for obfuscated release builds:
 
 ```bash
-# Upload debug symbols for better stack traces
-sentry-cli upload-dif --org your-org --project songspot-mobile ./build/app/outputs/
+# Upload debug symbols after building
+sentry-cli upload-dif \
+  --org your-org \
+  --project songspot-mobile \
+  ./build/app/outputs/
 ```
 
-### Django
-
-Source maps not needed for Python (stack traces are already readable).
+Django does not need source maps — Python stack traces are already readable.
 
 ---
 
 ## Quick Checklist
 
-- [ ] Create Sentry account and projects
-- [ ] Add `sentry-sdk[django]` to backend requirements
-- [ ] Add `sentry_flutter` to mobile pubspec.yaml
-- [ ] Configure DSN in environment variables
-- [ ] Test error capture in staging
-- [ ] Set up alert rules
-- [ ] Verify user context is captured
-- [ ] Configure release tracking
+- [ ] Create Sentry account and organization
+- [ ] Create `songspot-backend` project (Django) → copy DSN
+- [ ] Create `songspot-mobile` project (Flutter) → copy DSN
+- [ ] Add `SENTRY_DSN` + `SENTRY_ENVIRONMENT` + `APP_VERSION` to server `.env`
+- [ ] Test backend with `capture_message` in Django shell
+- [ ] Pass `--dart-define=SENTRY_DSN=...` in mobile release builds
+- [ ] Set up alert rules in Sentry dashboard (both projects)

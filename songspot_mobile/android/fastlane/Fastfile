@@ -3,7 +3,9 @@ default_platform(:android)
 platform :android do
   private_lane :build_aab do
     Dir.chdir("../..") do
-      sh("flutter", "build", "appbundle", "--release")
+      sh("flutter", "build", "appbundle", "--release",
+         "--dart-define=SENTRY_DSN=#{ENV['SENTRY_DSN'] || ''}",
+         "--dart-define=SENTRY_ENVIRONMENT=#{ENV['SENTRY_ENVIRONMENT'] || 'production'}")
     end
     File.expand_path("../../build/app/outputs/bundle/release/app-release.aab", __dir__)
   end

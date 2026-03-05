@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'config/app_theme.dart';
@@ -23,13 +25,26 @@ import 'services/push_notification_service.dart';
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: '.env');
-  // runApp first so the Flutter Activity is fully rendered before the UMP
-  // consent form Activity is launched. On older Android, showing a new Activity
-  // before runApp() causes it to appear behind the main Activity (grey screen).
-  runApp(const MyApp());
-  unawaited(_initializeServices());
+  await SentryFlutter.init(
+    (options) {
+      options.dsn = const String.fromEnvironment('SENTRY_DSN', defaultValue: '');
+      options.environment = const String.fromEnvironment(
+        'SENTRY_ENVIRONMENT',
+        defaultValue: 'development',
+      );
+      options.tracesSampleRate = 0.1;
+      // Never send errors in debug mode
+      options.beforeSend = (event, hint) => kDebugMode ? null : event;
+    },
+    appRunner: () async {
+      await dotenv.load(fileName: '.env');
+      // runApp first so the Flutter Activity is fully rendered before the UMP
+      // consent form Activity is launched. On older Android, showing a new Activity
+      // before runApp() causes it to appear behind the main Activity (grey screen).
+      runApp(const MyApp());
+      unawaited(_initializeServices());
+    },
+  );
 }
 
 Future<void> _initializeServices() async {
