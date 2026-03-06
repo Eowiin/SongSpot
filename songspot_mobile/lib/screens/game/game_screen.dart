@@ -19,6 +19,7 @@ import '../../services/admob_service.dart';
 import '../../models/history_day.dart';
 import '../packs/pack_list_screen.dart';
 import '../packs/pack_bundle_screen.dart';
+import '../room/room_detail_screen.dart';
 
 class GameScreen extends StatefulWidget {
   final String roomId;
@@ -53,6 +54,7 @@ class _GameScreenState extends State<GameScreen> {
   bool _completionAdInProgress = false;
   int _completionAdAttempts = 0;
   bool _retryActivationInProgress = false;
+  bool _showHistorySelector = false;
   Timer? _resultRefreshTimer;
 
   @override
@@ -233,6 +235,29 @@ class _GameScreenState extends State<GameScreen> {
 
   Future<bool> _onWillPop() async {
     return true;
+  }
+
+  void _toggleHistorySelector() {
+    setState(() {
+      _showHistorySelector = !_showHistorySelector;
+      if (!_showHistorySelector) {
+        _selectedHistoryDate = null;
+      }
+    });
+  }
+
+  Future<void> _openRoomDetails() async {
+    final room = context.read<RoomProvider>().currentRoom;
+    if (room == null) return;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RoomDetailScreen(room: room, showPlayButton: false),
+      ),
+    );
+
+    if (!mounted) return;
+    await context.read<RoomProvider>().loadRoomDetails(widget.roomId);
   }
 
   Future<void> _handleActivateRetry(String action) async {
@@ -499,73 +524,6 @@ class _GameScreenState extends State<GameScreen> {
           );
         }
       });
-    }
-  }
-
-  Future<void> _showRenameDialog() async {
-    final roomProvider = context.read<RoomProvider>();
-    final room = roomProvider.currentRoom;
-    if (room == null) return;
-
-    final nameController = TextEditingController(text: room.name ?? '');
-
-    final newName = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppTheme.surfaceColor,
-        title: const Text('Rename Room'),
-        content: TextField(
-          controller: nameController,
-          decoration: InputDecoration(
-            hintText: 'Enter room name',
-            filled: true,
-            fillColor: AppTheme.backgroundColor,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-          ),
-          autofocus: true,
-          maxLength: 50,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, nameController.text.trim()),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-
-    // Don't manually dispose nameController - it will be garbage collected
-    // Disposing it here causes errors as the dialog may still be referencing it during teardown
-
-    if (newName != null && mounted) {
-      final result = await roomProvider.renameRoom(
-        widget.roomId,
-        newName.isEmpty ? null : newName,
-      );
-
-      if (result != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Room renamed successfully'),
-            backgroundColor: AppTheme.successColor,
-          ),
-        );
-      } else if (roomProvider.errorMessage != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(roomProvider.errorMessage!),
-            backgroundColor: AppTheme.errorColor,
-          ),
-        );
-      }
     }
   }
 
@@ -1105,9 +1063,6 @@ class _GameScreenState extends State<GameScreen> {
   Widget build(BuildContext context) {
     final roomProvider = context.watch<RoomProvider>();
     final room = roomProvider.currentRoom;
-    final currentUserId = context.watch<AuthProvider>().user?.id;
-    final isHost =
-        room != null && currentUserId != null && room.isHost(currentUserId);
     final packProvider = context.watch<PackProvider>();
 
     return PopScope(
@@ -1122,8 +1077,26 @@ class _GameScreenState extends State<GameScreen> {
       child: Scaffold(
         backgroundColor: const Color(0xFF0F0F1E),
         appBar: AppBar(
-          title: Text(room?.displayName ?? 'Daily Challenge'),
+          title: room == null
+              ? const Text('Daily Challenge')
+              : InkWell(
+                  onTap: _openRoomDetails,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Text(
+                    room.displayName,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
           actions: [
+            IconButton(
+              icon: Icon(
+                _showHistorySelector ? Icons.history_toggle_off : Icons.history,
+              ),
+              onPressed: _toggleHistorySelector,
+              tooltip: _showHistorySelector
+                  ? 'Hide 30-day history'
+                  : 'Show 30-day history',
+            ),
             IconButton(
               icon: const Icon(Icons.album),
               onPressed: room == null
@@ -1137,12 +1110,6 @@ class _GameScreenState extends State<GameScreen> {
                     },
               tooltip: 'Packs',
             ),
-            if (isHost)
-              IconButton(
-                icon: const Icon(Icons.edit),
-                onPressed: _showRenameDialog,
-                tooltip: 'Rename room',
-              ),
           ],
         ),
         body: Container(
@@ -1151,19 +1118,13 @@ class _GameScreenState extends State<GameScreen> {
           ),
           child: Consumer<GameProvider>(
             builder: (context, gameProvider, _) {
-              return Column(
-                children: [
-                  _buildDateRow(gameProvider),
-                  Expanded(
-                    child: _selectedHistoryDate != null
-                        ? _buildHistoryView()
-                        : _buildActiveGameContent(
-                            context,
-                            gameProvider,
-                            packProvider,
-                          ),
-                  ),
-                ],
+              if (_selectedHistoryDate != null) {
+                return _buildHistoryView();
+              }
+              return _buildActiveGameContent(
+                context,
+                gameProvider,
+                packProvider,
               );
             },
           ),
@@ -1206,6 +1167,10 @@ class _GameScreenState extends State<GameScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (_showHistorySelector) ...[
+              _buildDateRow(),
+              const SizedBox(height: 8),
+            ],
             const _NextSongCountdown(),
             const SizedBox(height: 16),
             _buildPackSwitcher(context, packProvider.ownedPacks),
@@ -1232,6 +1197,10 @@ class _GameScreenState extends State<GameScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (_showHistorySelector) ...[
+            _buildDateRow(),
+            const SizedBox(height: 8),
+          ],
           const _NextSongCountdown(),
           const SizedBox(height: 16),
           _buildPackSwitcher(context, packProvider.ownedPacks),
@@ -1682,7 +1651,8 @@ class _GameScreenState extends State<GameScreen> {
 
   // ── Date row ────────────────────────────────────────────────────────────
 
-  Widget _buildDateRow(GameProvider gameProvider) {
+  Widget _buildDateRow() {
+    final gameProvider = context.read<GameProvider>();
     final activeDate = _activeGameDate();
     final dates = List.generate(
       31,
@@ -1785,14 +1755,14 @@ class _GameScreenState extends State<GameScreen> {
 
   Widget _buildHistoryView() {
     if (_historyDetailLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppTheme.primaryColor),
+      return _buildHistoryStateContainer(
+        const CircularProgressIndicator(color: AppTheme.primaryColor),
       );
     }
     if (_activePackId != null) {
       if (_packHistoryDetail == null) {
-        return Center(
-          child: Text(
+        return _buildHistoryStateContainer(
+          Text(
             'Could not load data',
             style: Theme.of(
               context,
@@ -1803,8 +1773,8 @@ class _GameScreenState extends State<GameScreen> {
       return _buildPackHistoryContent(_packHistoryDetail!);
     }
     if (_historyDetail == null) {
-      return Center(
-        child: Text(
+      return _buildHistoryStateContainer(
+        Text(
           'Could not load data',
           style: Theme.of(
             context,
@@ -1813,6 +1783,22 @@ class _GameScreenState extends State<GameScreen> {
       );
     }
     return _buildHistoryContent(_historyDetail!);
+  }
+
+  Widget _buildHistoryStateContainer(Widget child) {
+    return SingleChildScrollView(
+      padding: AppTheme.pagePadding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_showHistorySelector) ...[
+            _buildDateRow(),
+            const SizedBox(height: 8),
+          ],
+          SizedBox(height: 280, child: Center(child: child)),
+        ],
+      ),
+    );
   }
 
   Widget _buildHistoryContent(HistoryDayDetail detail) {
@@ -1824,6 +1810,10 @@ class _GameScreenState extends State<GameScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (_showHistorySelector) ...[
+            _buildDateRow(),
+            const SizedBox(height: 8),
+          ],
           // Song card
           Container(
             padding: const EdgeInsets.all(24),
@@ -2113,6 +2103,10 @@ class _GameScreenState extends State<GameScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (_showHistorySelector) ...[
+            _buildDateRow(),
+            const SizedBox(height: 8),
+          ],
           // Track card
           Container(
             padding: const EdgeInsets.all(24),
