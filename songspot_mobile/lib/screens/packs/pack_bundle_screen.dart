@@ -1061,25 +1061,25 @@ class _PackBundleContentState extends State<PackBundleContent> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Column(
+                            mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: isCurrentUser
                                 ? CrossAxisAlignment.end
                                 : CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                isCurrentUser
-                                    ? l10n.chatYou
-                                    : message.user.username,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: isCurrentUser
-                                      ? Colors.white70
-                                      : AppTheme.primaryColor,
-                                  fontSize: 12,
+                              if (!isCurrentUser) ...[
+                                Text(
+                                  message.user.username,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppTheme.primaryColor,
+                                    fontSize: 12,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 4),
+                                const SizedBox(height: 4),
+                              ],
                               Text(
                                 message.message,
+                                textWidthBasis: TextWidthBasis.longestLine,
                                 style: TextStyle(
                                   color: isCurrentUser
                                       ? Colors.white
