@@ -138,11 +138,11 @@ class GameProvider with ChangeNotifier {
   }
 
   /// Submit a guess
-  Future<bool> submitGuess({
+  Future<Map<String, dynamic>?> submitGuess({
     required String roomId,
     required String trackId,
   }) async {
-    if (_currentSession == null) return false;
+    if (_currentSession == null) return null;
 
     try {
       _isLoading = true;
@@ -210,12 +210,12 @@ class GameProvider with ChangeNotifier {
 
       _isLoading = false;
       notifyListeners();
-      return isCorrect;
+      return response;
     } catch (e) {
       _errorMessage = e.toString();
       _isLoading = false;
       notifyListeners();
-      return false;
+      return null;
     }
   }
 

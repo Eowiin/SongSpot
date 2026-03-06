@@ -53,6 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ).push(MaterialPageRoute(builder: (_) => GameScreen(roomId: room.id)));
       // Refresh rooms when returning from GameScreen
       if (mounted) {
+        await context.read<AuthProvider>().refreshProfile();
         roomProvider.loadMyRooms();
       }
     } else if (mounted && roomProvider.errorMessage != null) {
@@ -88,6 +89,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ).push(MaterialPageRoute(builder: (_) => GameScreen(roomId: room.id)));
       // Refresh rooms when returning from GameScreen
       if (mounted) {
+        await context.read<AuthProvider>().refreshProfile();
         roomProvider.loadMyRooms();
       }
     } else if (mounted && roomProvider.errorMessage != null) {

@@ -57,6 +57,21 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  /// Refresh the authenticated user's profile from backend.
+  /// Useful after coin-changing actions to keep shared UI state in sync.
+  Future<void> refreshProfile({bool notify = true}) async {
+    if (_status != AuthStatus.authenticated) return;
+    try {
+      final profileData = await _apiService.getProfile();
+      _user = User.fromJson(profileData);
+      if (notify) {
+        notifyListeners();
+      }
+    } catch (_) {
+      // Keep current state if refresh fails.
+    }
+  }
+
   /// Register a new user
   Future<bool> register({
     required String email,

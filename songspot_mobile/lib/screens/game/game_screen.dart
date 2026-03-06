@@ -122,12 +122,31 @@ class _GameScreenState extends State<GameScreen> {
     final gameProvider = context.read<GameProvider>();
     final previousGuesses = gameProvider.currentSession?.guessesMade ?? 0;
 
-    final isCorrect = await gameProvider.submitGuess(
+    final guessResponse = await gameProvider.submitGuess(
       roomId: widget.roomId,
       trackId: _selectedTrack!.id,
     );
 
     if (mounted) {
+      if (guessResponse == null) {
+        return;
+      }
+      final isCorrect = guessResponse['is_correct'] as bool? ?? false;
+      final updatedCoins = guessResponse['coins'] as int?;
+      final coinsAwarded = guessResponse['coins_awarded'] as int? ?? 0;
+      final streakBonus = guessResponse['streak_bonus'] as int? ?? 0;
+      final authProvider = context.read<AuthProvider>();
+      if (updatedCoins != null) {
+        authProvider.updateCoinsBalance(updatedCoins);
+        unawaited(authProvider.refreshProfile());
+      } else if (coinsAwarded > 0 || streakBonus > 0) {
+        final currentCoins = authProvider.user?.coins ?? 0;
+        authProvider.updateCoinsBalance(
+          currentCoins + coinsAwarded + streakBonus,
+        );
+        unawaited(authProvider.refreshProfile());
+      }
+
       final updatedSession = gameProvider.currentSession;
       final guessWasCounted =
           (updatedSession?.guessesMade ?? previousGuesses) > previousGuesses;

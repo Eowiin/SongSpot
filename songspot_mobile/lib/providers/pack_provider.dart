@@ -44,7 +44,10 @@ class PackProvider with ChangeNotifier {
       _errorMessage = null;
       notifyListeners();
 
-      final response = await _apiService.getPackDetail(roomId: roomId, packId: packId);
+      final response = await _apiService.getPackDetail(
+        roomId: roomId,
+        packId: packId,
+      );
       _currentPack = SongPack.fromJson(response);
     } catch (e) {
       _errorMessage = e.toString();
@@ -72,7 +75,7 @@ class PackProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> purchasePack({
+  Future<Map<String, dynamic>?> purchasePack({
     required String roomId,
     required String packId,
   }) async {
@@ -81,14 +84,19 @@ class PackProvider with ChangeNotifier {
       _errorMessage = null;
       notifyListeners();
 
-      final response = await _apiService.purchasePack(roomId: roomId, packId: packId);
+      final response = await _apiService.purchasePack(
+        roomId: roomId,
+        packId: packId,
+      );
       final packJson = response['pack'] as Map<String, dynamic>;
       final updatedPack = SongPack.fromJson(packJson);
 
       _packs = _packs.map((pack) {
         return pack.id == updatedPack.id ? updatedPack : pack;
       }).toList();
-      final ownedIndex = _ownedPacks.indexWhere((pack) => pack.id == updatedPack.id);
+      final ownedIndex = _ownedPacks.indexWhere(
+        (pack) => pack.id == updatedPack.id,
+      );
       if (updatedPack.isOwned) {
         if (ownedIndex == -1) {
           _ownedPacks = [..._ownedPacks, updatedPack];
@@ -96,17 +104,21 @@ class PackProvider with ChangeNotifier {
           _ownedPacks = _ownedPacks
               .asMap()
               .entries
-              .map((entry) => entry.key == ownedIndex ? updatedPack : entry.value)
+              .map(
+                (entry) => entry.key == ownedIndex ? updatedPack : entry.value,
+              )
               .toList();
         }
       } else if (ownedIndex != -1) {
-        _ownedPacks = _ownedPacks.where((pack) => pack.id != updatedPack.id).toList();
+        _ownedPacks = _ownedPacks
+            .where((pack) => pack.id != updatedPack.id)
+            .toList();
       }
       _currentPack = updatedPack;
-      return true;
+      return response;
     } catch (e) {
       _errorMessage = e.toString();
-      return false;
+      return null;
     } finally {
       _isLoading = false;
       notifyListeners();
