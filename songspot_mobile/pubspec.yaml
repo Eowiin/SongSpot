@@ -50,6 +50,9 @@ dependencies:
   firebase_messaging: ^16.1.1
   google_mobile_ads: ^7.0.0
 
+  # Monitoring
+  sentry_flutter: ^9.14.0
+
   # Settings page
   package_info_plus: ^8.0.0
   share_plus: ^10.0.0
