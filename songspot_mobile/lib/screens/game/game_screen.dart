@@ -53,15 +53,19 @@ class _GameScreenState extends State<GameScreen> {
   bool _completionAdInProgress = false;
   int _completionAdAttempts = 0;
   bool _retryActivationInProgress = false;
+  Timer? _resultRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     _gameProvider = context.read<GameProvider>();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _gameProvider.startGameSession(widget.roomId);
-      _gameProvider.loadLeaderboard(widget.roomId);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _gameProvider.startGameSession(widget.roomId);
+      await _gameProvider.loadLeaderboard(widget.roomId);
       _gameProvider.connectToChat(widget.roomId);
+      if (_gameProvider.currentSession?.isCompleted ?? false) {
+        _startResultRefreshTimer();
+      }
       // Load room details for name and host info
       context.read<RoomProvider>().loadRoomDetails(widget.roomId);
       context.read<PackProvider>().loadMyPacks(widget.roomId);
@@ -73,6 +77,7 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   void dispose() {
+    _resultRefreshTimer?.cancel();
     _gameProvider.disconnectFromChat();
     _titleController.dispose();
     _messageController.dispose();
@@ -158,6 +163,7 @@ class _GameScreenState extends State<GameScreen> {
       // Refresh leaderboard and load messages once when game is completed
       gameProvider.loadLeaderboard(widget.roomId);
       gameProvider.loadMessages(widget.roomId);
+      _startResultRefreshTimer();
     }
 
     _completionAdAttempts += 1;
@@ -194,6 +200,16 @@ class _GameScreenState extends State<GameScreen> {
     if (mounted) {
       setState(() => _completionAdInProgress = false);
     }
+  }
+
+  void _startResultRefreshTimer() {
+    if (_resultRefreshTimer != null) return;
+
+    _resultRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted) return;
+      if (!(_gameProvider.currentSession?.isCompleted ?? false)) return;
+      _gameProvider.loadLeaderboard(widget.roomId, silent: true);
+    });
   }
 
   Future<bool> _onWillPop() async {
@@ -868,7 +884,9 @@ class _GameScreenState extends State<GameScreen> {
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         Text(
-                          'Snippet ${leaderboardEntry.snippetNumber} - ${DateFormat.Hm().format(leaderboardEntry.completedAt.toLocal())}',
+                          leaderboardEntry.pointsEarned > 0
+                              ? 'Snippet ${leaderboardEntry.snippetNumber} - ${DateFormat.Hm().format(leaderboardEntry.completedAt.toLocal())}'
+                              : 'Did not guess - ${DateFormat.Hm().format(leaderboardEntry.completedAt.toLocal())}',
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: AppTheme.textSecondary),
                         ),
@@ -1478,7 +1496,10 @@ class _GameScreenState extends State<GameScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(l10n.gameHintsTitle, style: Theme.of(context).textTheme.headlineSmall),
+        Text(
+          l10n.gameHintsTitle,
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
         const SizedBox(height: 12),
         Row(
           children: _hintOrder.asMap().entries.map((entry) {

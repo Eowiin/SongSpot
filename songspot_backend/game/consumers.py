@@ -122,18 +122,11 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
         # Save message to database
         saved_message = await self.save_message(message_text)
 
-        if saved_message:
-            # Broadcast message to room group
-            await self.channel_layer.group_send(
-                self.room_group_name,
-                {
-                    'type': 'chat_message',
-                    'id': str(saved_message.id),
-                    'message': saved_message.message,
-                    'user': self.serialize_user(self.user),
-                    'created_at': saved_message.created_at.isoformat(),
-                }
-            )
+        if not saved_message:
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': 'Unable to save message'
+            }))
 
     async def handle_typing(self, data):
         """Broadcast typing indicator."""
@@ -189,6 +182,14 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
             'type': 'stems_ready',
             'pack_id': event['pack_id'],
             'pack_track_id': event['pack_track_id'],
+        }))
+
+    async def leaderboard_updated(self, event):
+        """Notify clients that the room leaderboard changed."""
+        await self.send(text_data=json.dumps({
+            'type': 'leaderboard_updated',
+            'room_id': event.get('room_id'),
+            'user_id': event.get('user_id'),
         }))
 
     # Database operations

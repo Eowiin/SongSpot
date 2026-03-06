@@ -12,6 +12,7 @@ enum WebSocketEventType {
   connected,
   disconnected,
   message,
+  leaderboardUpdated,
   userJoined,
   userLeft,
   typing,
@@ -68,10 +69,9 @@ class WebSocketService {
     try {
       final token = await _storageService.getAccessToken();
       if (token == null) {
-        _eventController.add(WebSocketEvent(
-          WebSocketEventType.error,
-          'Not authenticated',
-        ));
+        _eventController.add(
+          WebSocketEvent(WebSocketEventType.error, 'Not authenticated'),
+        );
         return false;
       }
 
@@ -101,10 +101,9 @@ class WebSocketService {
       return true;
     } catch (e) {
       debugPrint('WebSocket connection error: $e');
-      _eventController.add(WebSocketEvent(
-        WebSocketEventType.error,
-        'Connection failed: $e',
-      ));
+      _eventController.add(
+        WebSocketEvent(WebSocketEventType.error, 'Connection failed: $e'),
+      );
       return false;
     }
   }
@@ -131,27 +130,35 @@ class WebSocketService {
     debugPrint('WebSocket disconnected');
   }
 
-  /// Send a chat message
-  void sendMessage(String message) {
+  /// Send a chat message.
+  /// Returns true when the payload was written to the socket sink.
+  bool sendMessage(String message) {
     if (!_isConnected || _channel == null) {
       debugPrint('Cannot send message: not connected');
-      return;
+      return false;
     }
 
-    _channel!.sink.add(jsonEncode({
-      'type': 'chat_message',
-      'message': message,
-    }));
+    try {
+      _channel!.sink.add(
+        jsonEncode({'type': 'chat_message', 'message': message}),
+      );
+      return true;
+    } catch (e) {
+      debugPrint('WebSocket sendMessage failed: $e');
+      _isConnected = false;
+      _eventController.add(
+        WebSocketEvent(WebSocketEventType.error, 'Send failed: $e'),
+      );
+      _scheduleReconnect();
+      return false;
+    }
   }
 
   /// Send typing indicator
   void sendTyping(bool isTyping) {
     if (!_isConnected || _channel == null) return;
 
-    _channel!.sink.add(jsonEncode({
-      'type': 'typing',
-      'is_typing': isTyping,
-    }));
+    _channel!.sink.add(jsonEncode({'type': 'typing', 'is_typing': isTyping}));
   }
 
   void _onMessage(dynamic data) {
@@ -167,38 +174,59 @@ class WebSocketService {
             message: json['message'] as String,
             createdAt: DateTime.parse(json['created_at'] as String),
           );
-          _eventController.add(WebSocketEvent(WebSocketEventType.message, message));
+          _eventController.add(
+            WebSocketEvent(WebSocketEventType.message, message),
+          );
+          break;
+
+        case 'leaderboard_updated':
+          _eventController.add(
+            WebSocketEvent(WebSocketEventType.leaderboardUpdated, {
+              'room_id': json['room_id'] as String?,
+              'user_id': json['user_id'] as String?,
+            }),
+          );
           break;
 
         case 'user_joined':
           final user = User.fromJson(json['user'] as Map<String, dynamic>);
-          _eventController.add(WebSocketEvent(WebSocketEventType.userJoined, user));
+          _eventController.add(
+            WebSocketEvent(WebSocketEventType.userJoined, user),
+          );
           break;
 
         case 'user_left':
           final user = User.fromJson(json['user'] as Map<String, dynamic>);
-          _eventController.add(WebSocketEvent(WebSocketEventType.userLeft, user));
+          _eventController.add(
+            WebSocketEvent(WebSocketEventType.userLeft, user),
+          );
           break;
 
         case 'typing':
-          _eventController.add(WebSocketEvent(WebSocketEventType.typing, {
-            'user': User.fromJson(json['user'] as Map<String, dynamic>),
-            'is_typing': json['is_typing'] as bool,
-          }));
+          _eventController.add(
+            WebSocketEvent(WebSocketEventType.typing, {
+              'user': User.fromJson(json['user'] as Map<String, dynamic>),
+              'is_typing': json['is_typing'] as bool,
+            }),
+          );
           break;
 
         case 'stems_ready':
-          _eventController.add(WebSocketEvent(WebSocketEventType.stemsReady, {
-            'pack_id': json['pack_id'] as String?,
-            'pack_track_id': json['pack_track_id'] as String?,
-          }));
+          _eventController.add(
+            WebSocketEvent(WebSocketEventType.stemsReady, {
+              'pack_id': json['pack_id'] as String?,
+              'pack_track_id': json['pack_track_id'] as String?,
+            }),
+          );
           break;
 
         case 'error':
-          _eventController.add(WebSocketEvent(
-            WebSocketEventType.error,
-            json['message'] ?? 'Unknown error',
-          ));
+          _eventController.add(
+            WebSocketEvent(
+              WebSocketEventType.error,
+              json['message'] ?? 'Unknown error',
+            ),
+          );
           break;
 
         default:
@@ -212,7 +240,9 @@ class WebSocketService {
   void _onError(dynamic error) {
     debugPrint('WebSocket error: $error');
     _isConnected = false;
-    _eventController.add(WebSocketEvent(WebSocketEventType.error, error.toString()));
+    _eventController.add(
+      WebSocketEvent(WebSocketEventType.error, error.toString()),
+    );
     _scheduleReconnect();
   }
 

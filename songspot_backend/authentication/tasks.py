@@ -1,12 +1,24 @@
+from datetime import timedelta
+
 from celery import shared_task
+from django.utils import timezone
 
 from authentication.services.push_service import send_push_to_users
+from game.models import DailySong, DailyGameSession, RoomMessage, RoomUser
+
+
+ACTIVE_GAME_ROLLOVER_HOUR_UTC = 12
+
+
+def _active_game_date():
+    now = timezone.now()
+    if now.hour < ACTIVE_GAME_ROLLOVER_HOUR_UTC:
+        return (now - timedelta(days=1)).date()
+    return now.date()
 
 
 @shared_task
 def notify_daily_song_available_task(daily_song_id: str):
-    from game.models import DailySong, RoomUser
-
     daily_song = DailySong.objects.select_related('room').filter(id=daily_song_id).first()
     if not daily_song:
         return {'success_count': 0, 'failure_count': 0, 'skipped': True}
@@ -34,15 +46,20 @@ def notify_daily_song_available_task(daily_song_id: str):
 
 @shared_task
 def notify_room_message_task(message_id: str):
-    from game.models import RoomMessage, RoomUser
-
     message = RoomMessage.objects.select_related('room', 'user').filter(id=message_id).first()
     if not message:
         return {'success_count': 0, 'failure_count': 0, 'skipped': True}
 
+    active_date = _active_game_date()
+    guessed_user_ids = DailyGameSession.objects.filter(
+        room=message.room,
+        daily_song__date=active_date,
+        correct_guess=True,
+    ).exclude(user=message.user).values_list('user_id', flat=True)
+
     recipient_ids = list(
         RoomUser.objects.filter(room=message.room)
-        .exclude(user=message.user)
+        .filter(user_id__in=guessed_user_ids)
         .values_list('user_id', flat=True)
     )
     if not recipient_ids:
