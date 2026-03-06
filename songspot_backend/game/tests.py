@@ -995,3 +995,31 @@ class SearchTracksViewTests(APITestCase):
         response = self.client.get(f'{self.search_url}?q=nonexistent')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
+
+    def test_search_default_limit_allows_more_than_ten_results(self):
+        """Default search limit should not truncate common artist queries at 10."""
+        artist_name = 'TestArtistMany'
+        for i in range(12):
+            Track.objects.create(
+                title=f'Song {i}',
+                artist=artist_name,
+                preview_url=f'https://example.com/many-{i}.mp3',
+            )
+
+        response = self.client.get(f'{self.search_url}?q={artist_name}')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 12)
+
+    def test_search_limit_query_param_is_respected(self):
+        """Search should honor explicit limit query param."""
+        artist_name = 'TestArtistLimit'
+        for i in range(20):
+            Track.objects.create(
+                title=f'Limit Song {i}',
+                artist=artist_name,
+                preview_url=f'https://example.com/limit-{i}.mp3',
+            )
+
+        response = self.client.get(f'{self.search_url}?q={artist_name}&limit=8')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 8)

@@ -821,10 +821,11 @@ class ApiService {
   }
 
   // Track search
-  Future<List<dynamic>> searchTracks(String query) async {
+  Future<List<dynamic>> searchTracks(String query, {int limit = 25}) async {
+    final safeLimit = limit.clamp(1, 50);
     return await get(
       ApiConfig.searchTracks,
-      queryParameters: {'q': query},
+      queryParameters: {'q': query, 'limit': safeLimit.toString()},
       includeAuth: true,
     );
   }

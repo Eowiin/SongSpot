@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Case, When, Value, IntegerField
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 import logging
@@ -1927,6 +1927,11 @@ class SearchTracksView(APIView):
 
     def get(self, request):
         query = request.query_params.get('q', '').strip()
+        try:
+            limit = int(request.query_params.get('limit', 25))
+        except (TypeError, ValueError):
+            limit = 25
+        limit = max(1, min(limit, 50))
 
         if not query:
             return Response([], status=status.HTTP_200_OK)
@@ -1934,7 +1939,16 @@ class SearchTracksView(APIView):
         # Search tracks by title or artist (case-insensitive)
         tracks = Track.objects.filter(
             Q(title__icontains=query) | Q(artist__icontains=query)
-        )[:10]  # Limit to 10 results
+        ).annotate(
+            relevance=Case(
+                When(artist__iexact=query, then=Value(0)),
+                When(title__iexact=query, then=Value(1)),
+                When(artist__istartswith=query, then=Value(2)),
+                When(title__istartswith=query, then=Value(3)),
+                default=Value(4),
+                output_field=IntegerField(),
+            )
+        ).order_by('relevance', 'artist', 'title', 'id')[:limit]
 
         serializer = TrackSerializer(tracks, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
