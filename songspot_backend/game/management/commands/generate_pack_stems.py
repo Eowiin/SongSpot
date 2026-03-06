@@ -80,9 +80,9 @@ class Command(BaseCommand):
             raise CommandError('No PackTrack records found')
 
         for pack_track in pack_tracks:
-            self._process_pack_track(pack_track, source, model, overwrite)
+            self._process_pack_track(pack_track, source, model, overwrite, demucs_bin)
 
-    def _process_pack_track(self, pack_track, source, model, overwrite):
+    def _process_pack_track(self, pack_track, source, model, overwrite, demucs_bin):
         track = pack_track.track
         # Stems are stored on Track so the same track is never processed twice
         if not overwrite and all([
