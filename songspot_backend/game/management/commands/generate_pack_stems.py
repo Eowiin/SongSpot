@@ -112,10 +112,13 @@ class Command(BaseCommand):
             output_dir.mkdir(parents=True, exist_ok=True)
 
             self.stdout.write(self.style.WARNING(f'Running demucs for {track.title}...'))
-            subprocess.run(
+            result = subprocess.run(
                 [str(demucs_bin), '-n', model, '--mp3', '-o', str(output_dir), str(input_path)],
-                check=True
+                capture_output=True,
+                text=True,
             )
+            if result.returncode != 0:
+                raise CommandError(f'demucs failed:\n{result.stdout}\n{result.stderr}')
 
             stems_dir = self._find_stems_dir(output_dir, model, input_path.stem)
             if not stems_dir:
