@@ -1,6 +1,7 @@
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -42,8 +43,12 @@ class Command(BaseCommand):
         if source and not pack_track_id:
             raise CommandError('--source can only be used with --pack-track-id')
 
-        if shutil.which('demucs') is None:
-            raise CommandError('demucs is not available in PATH')
+        demucs_bin = Path(sys.executable).parent / 'demucs'
+        if not demucs_bin.exists():
+            demucs_bin = shutil.which('demucs')
+            if not demucs_bin:
+                raise CommandError('demucs is not available in PATH')
+            demucs_bin = Path(demucs_bin)
 
         if pack_track_id:
             pack_tracks = PackTrack.objects.filter(id=pack_track_id)
@@ -108,7 +113,7 @@ class Command(BaseCommand):
 
             self.stdout.write(self.style.WARNING(f'Running demucs for {track.title}...'))
             subprocess.run(
-                ['demucs', '-n', model, '--mp3', '-o', str(output_dir), str(input_path)],
+                [str(demucs_bin), '-n', model, '--mp3', '-o', str(output_dir), str(input_path)],
                 check=True
             )
 
