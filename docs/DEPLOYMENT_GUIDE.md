@@ -133,7 +133,7 @@ sudo apt install certbot python3-certbot-nginx
 ### Get SSL Certificate
 
 ```bash
-sudo certbot --nginx -d your-domain.com
+sudo certbot --nginx -d api.yourdomain.com
 ```
 
 ### Auto-Renewal
@@ -155,28 +155,38 @@ sudo apt install nginx
 
 ### Create Site Config
 
+> **Subdomain setup:** The backend runs on a dedicated subdomain, e.g. `api.yourdomain.com`.
+> Point an `A` record for `api.yourdomain.com` at your VPS IP before running Certbot.
+
 Create `/etc/nginx/sites-available/songspot`:
 ```nginx
 upstream asgi {
     server 127.0.0.1:8000;
 }
 
+# Redirect HTTP → HTTPS
 server {
     listen 80;
-    server_name your-domain.com;
+    server_name api.yourdomain.com;
     return 301 https://$server_name$request_uri;
 }
 
 server {
     listen 443 ssl http2;
-    server_name your-domain.com;
+    server_name api.yourdomain.com;
 
-    ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
+    ssl_certificate     /etc/letsencrypt/live/api.yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.yourdomain.com/privkey.pem;
+
+    # Recommended SSL settings
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:10m;
 
     # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
 
     # REST API
     location / {
@@ -373,7 +383,7 @@ Stems are generated on-demand when users start playing (not pre-generated).
 2. Click **Add New Monitor**:
    - Type: `HTTP(s)`
    - Friendly Name: `SongSpot API`
-   - URL: `https://your-domain.com/health/` (or any always-available endpoint)
+   - URL: `https://api.yourdomain.com/health/` (or any always-available endpoint)
    - Monitoring Interval: `5 minutes`
 3. Add alert contact (email) — you'll be notified within 5 minutes of downtime
 
@@ -397,7 +407,9 @@ See full setup guide: [docs/SENTRY_SETUP.md](SENTRY_SETUP.md)
 # Django
 DJANGO_SECRET_KEY=your-very-long-random-secret-key-here
 DEBUG=False
-ALLOWED_HOSTS=your-domain.com
+# Keep the bare IP for older app versions that connect directly to it.
+# Once all users have updated, you can remove the IP.
+ALLOWED_HOSTS=api.yourdomain.com,YOUR_VPS_IP
 
 # Database
 DATABASE_URL=postgres://songspot_user:password@localhost:5432/songspot
@@ -414,7 +426,7 @@ CHANNEL_LAYERS_REDIS_URL=redis://localhost:6379/1
 STEM_TTL_HOURS=72
 
 # Security
-CSRF_TRUSTED_ORIGINS=https://your-domain.com
+CSRF_TRUSTED_ORIGINS=https://api.yourdomain.com
 
 # AdMob app-ads.txt (required for AdMob app verification)
 APP_ADS_TXT=google.com, pub-2260442058102246, DIRECT, f08c47fec0942fa0
@@ -474,8 +486,8 @@ The deploy script (`scripts/deploy_backend.sh`) runs:
 
 Update `songspot_mobile/.env`:
 ```env
-API_BASE_URL=https://your-domain.com
-WS_BASE_URL=wss://your-domain.com/ws
+API_BASE_URL=https://api.yourdomain.com
+WS_BASE_URL=wss://api.yourdomain.com/ws
 ```
 
 ---
@@ -484,15 +496,15 @@ WS_BASE_URL=wss://your-domain.com/ws
 
 SongSpot backend exposes:
 
-- `GET https://your-domain.com/app-ads.txt`
+- `GET https://api.yourdomain.com/app-ads.txt`
 
 This value is controlled by `APP_ADS_TXT` in backend `.env`.
 
 Verify after deploy:
 
 ```bash
-curl -I https://your-domain.com/app-ads.txt
-curl https://your-domain.com/app-ads.txt
+curl -I https://api.yourdomain.com/app-ads.txt
+curl https://api.yourdomain.com/app-ads.txt
 ```
 
 Expected body:
@@ -544,7 +556,8 @@ python manage.py createsuperuser
 - [ ] Cron jobs set up (daily content + stem cleanup)
 - [ ] GitHub secrets configured for CI/CD
 - [ ] Mobile app `.env` updated with production URL
-- [ ] `https://your-domain.com/app-ads.txt` is reachable and returns the expected publisher line
-- [ ] UptimeRobot monitor created for the domain
+- [ ] DNS `A` record for `api.yourdomain.com` pointing to VPS IP
+- [ ] `https://api.yourdomain.com/app-ads.txt` is reachable and returns the expected publisher line
+- [ ] UptimeRobot monitor created for `api.yourdomain.com`
 - [ ] Sentry DSN configured in `.env` (backend + mobile)
 - [ ] django-axes migrations run (admin brute force protection active)
