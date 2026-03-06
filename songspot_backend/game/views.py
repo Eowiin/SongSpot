@@ -663,10 +663,14 @@ class PackBundleSkipView(APIView):
         if session.completed_at:
             return Response({'error': 'Pack already completed'}, status=status.HTTP_400_BAD_REQUEST)
 
+        last_stage = len(PACK_BUNDLE_STAGE_ORDER)
+        if session.current_stage >= last_stage:
+            return Response({
+                'error': 'You must submit a guess on the last stage'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         session.current_stage += 1
-        if session.current_stage > len(PACK_BUNDLE_STAGE_ORDER):
-            session.completed_at = timezone.now()
-        session.save(update_fields=['current_stage', 'completed_at'])
+        session.save(update_fields=['current_stage'])
 
         serializer = PackBundleSessionSerializer(session)
         stems = []

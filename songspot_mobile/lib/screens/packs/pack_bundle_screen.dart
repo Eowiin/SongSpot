@@ -231,11 +231,26 @@ class _PackBundleContentState extends State<PackBundleContent> {
   }
 
   Future<void> _skipStage() async {
+    final provider = context.read<PackBundleProvider>();
+    final stage = provider.session?.currentStage ?? 1;
+    if (stage >= 4 || provider.isLoading) {
+      return;
+    }
     await _stemAudioService.stop();
-    await context.read<PackBundleProvider>().skipStage(
-      roomId: widget.roomId,
-      packId: widget.packId,
-    );
+    provider.clearError();
+    final previousStage = stage;
+    await provider.skipStage(roomId: widget.roomId, packId: widget.packId);
+    if (!mounted) return;
+    if (provider.errorMessage != null &&
+        provider.session?.currentStage == previousStage) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(provider.errorMessage!.replaceFirst('Exception: ', '')),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+      provider.clearError();
+    }
   }
 
   Future<void> _submitGuess() async {
@@ -327,32 +342,42 @@ class _PackBundleContentState extends State<PackBundleContent> {
                 labelText: l10n.gameSongTitleLabel,
               ),
               const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _skipStage,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppTheme.textPrimary,
-                        side: const BorderSide(color: AppTheme.textSecondary),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                            AppTheme.borderRadius,
+              // Last stage must be guessed; skip is only enabled before stage 4.
+              // Keep button disabled while a request is in flight.
+              Builder(
+                builder: (context) {
+                  final canSkip =
+                      !provider.isLoading && session.currentStage < 4;
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: canSkip ? _skipStage : null,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppTheme.textPrimary,
+                            side: const BorderSide(
+                              color: AppTheme.textSecondary,
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.borderRadius,
+                              ),
+                            ),
                           ),
+                          child: Text(l10n.packSkipInstrument),
                         ),
                       ),
-                      child: Text(l10n.packSkipInstrument),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: GradientButton(
-                      text: l10n.gameSubmitGuess,
-                      onPressed: _submitGuess,
-                    ),
-                  ),
-                ],
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: GradientButton(
+                          text: l10n.gameSubmitGuess,
+                          onPressed: _submitGuess,
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ],
           );

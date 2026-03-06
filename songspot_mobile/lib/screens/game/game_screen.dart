@@ -33,12 +33,14 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen> {
   final _titleController = TextEditingController();
   final _messageController = TextEditingController();
-  final _chatScrollController = ScrollController();
+  final _contentScrollController = ScrollController();
   final _dateScrollController = ScrollController();
   Track? _selectedTrack;
   String? _activePackId;
   String? _activePackName;
   late GameProvider _gameProvider;
+  bool _pendingChatAutoScroll = false;
+  int _lastKnownMessageCount = 0;
 
   // History
   final _apiService = ApiService();
@@ -61,6 +63,8 @@ class _GameScreenState extends State<GameScreen> {
   void initState() {
     super.initState();
     _gameProvider = context.read<GameProvider>();
+    _lastKnownMessageCount = _gameProvider.messages.length;
+    _gameProvider.addListener(_handleGameProviderUpdate);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _gameProvider.startGameSession(widget.roomId);
       await _gameProvider.loadLeaderboard(widget.roomId);
@@ -80,12 +84,41 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void dispose() {
     _resultRefreshTimer?.cancel();
+    _gameProvider.removeListener(_handleGameProviderUpdate);
     _gameProvider.disconnectFromChat();
     _titleController.dispose();
     _messageController.dispose();
-    _chatScrollController.dispose();
+    _contentScrollController.dispose();
     _dateScrollController.dispose();
     super.dispose();
+  }
+
+  void _handleGameProviderUpdate() {
+    if (!mounted) return;
+    final count = _gameProvider.messages.length;
+    final newMessagesArrived = count > _lastKnownMessageCount;
+    _lastKnownMessageCount = count;
+    if (_pendingChatAutoScroll && newMessagesArrived) {
+      _scrollToLatestChatMessage();
+    }
+  }
+
+  void _requestChatAutoScroll() {
+    _pendingChatAutoScroll = true;
+    _scrollToLatestChatMessage();
+  }
+
+  void _scrollToLatestChatMessage() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_contentScrollController.hasClients) return;
+      final max = _contentScrollController.position.maxScrollExtent;
+      _contentScrollController.animateTo(
+        max,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOut,
+      );
+      _pendingChatAutoScroll = false;
+    });
   }
 
   Future<void> _handlePlaySnippet() async {
@@ -514,16 +547,7 @@ class _GameScreenState extends State<GameScreen> {
 
     if (success && mounted) {
       _messageController.clear();
-      // Scroll to bottom after sending message
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_chatScrollController.hasClients) {
-          _chatScrollController.animateTo(
-            _chatScrollController.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
-        }
-      });
+      _requestChatAutoScroll();
     }
   }
 
@@ -909,115 +933,121 @@ class _GameScreenState extends State<GameScreen> {
     final gameProvider = context.watch<GameProvider>();
     final messages = gameProvider.messages;
 
-    // Reverse to show oldest first (messages come newest first from API)
-    final displayMessages = messages.take(10).toList().reversed.toList();
+    // Reverse to show oldest first (messages come newest first from API).
+    // Keep only recent messages so the result page remains compact.
+    final displayMessages = messages.take(12).toList().reversed.toList();
+
+    if (messages.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.chat_bubble_outline,
+              size: 40,
+              color: AppTheme.textSecondary,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'No messages yet',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Start the conversation!',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      );
+    }
 
     return Column(
-      children: [
-        // Messages list with constrained height
-        Container(
-          constraints: const BoxConstraints(maxHeight: 300),
-          child: messages.isEmpty
-              ? Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 32),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.chat_bubble_outline,
-                        size: 40,
-                        color: AppTheme.textSecondary,
+      children: displayMessages.map((message) {
+        final isCurrentUser = message.user.id == currentUserId;
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Align(
+            alignment: isCurrentUser
+                ? Alignment.centerRight
+                : Alignment.centerLeft,
+            child: Container(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.7,
+              ),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                gradient: isCurrentUser ? AppTheme.primaryGradient : null,
+                color: isCurrentUser ? null : AppTheme.surfaceColor,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: isCurrentUser
+                    ? CrossAxisAlignment.end
+                    : CrossAxisAlignment.start,
+                children: [
+                  if (!isCurrentUser) ...[
+                    Text(
+                      message.user.username,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.primaryColor,
+                        fontSize: 12,
                       ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'No messages yet',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Start the conversation!',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
+                    ),
+                    const SizedBox(height: 4),
+                  ],
+                  Text(
+                    message.message,
+                    textWidthBasis: TextWidthBasis.longestLine,
+                    style: TextStyle(
+                      color: isCurrentUser
+                          ? Colors.white
+                          : AppTheme.textPrimary,
+                    ),
                   ),
-                )
-              : ListView.builder(
-                  controller: _chatScrollController,
-                  shrinkWrap: true,
-                  itemCount: displayMessages.length,
-                  itemBuilder: (context, index) {
-                    final message = displayMessages[index];
-                    final isCurrentUser = message.user.id == currentUserId;
+                  const SizedBox(height: 4),
+                  Text(
+                    DateFormat.Hm().format(message.createdAt.toLocal()),
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: isCurrentUser
+                          ? Colors.white70
+                          : AppTheme.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
 
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Align(
-                        alignment: isCurrentUser
-                            ? Alignment.centerRight
-                            : Alignment.centerLeft,
-                        child: Container(
-                          constraints: BoxConstraints(
-                            maxWidth: MediaQuery.of(context).size.width * 0.7,
-                          ),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            gradient: isCurrentUser
-                                ? AppTheme.primaryGradient
-                                : null,
-                            color: isCurrentUser ? null : AppTheme.surfaceColor,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: isCurrentUser
-                                ? CrossAxisAlignment.end
-                                : CrossAxisAlignment.start,
-                            children: [
-                              if (!isCurrentUser) ...[
-                                Text(
-                                  message.user.username,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: AppTheme.primaryColor,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                              ],
-                              Text(
-                                message.message,
-                                textWidthBasis: TextWidthBasis.longestLine,
-                                style: TextStyle(
-                                  color: isCurrentUser
-                                      ? Colors.white
-                                      : AppTheme.textPrimary,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                DateFormat.Hm().format(
-                                  message.createdAt.toLocal(),
-                                ),
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: isCurrentUser
-                                      ? Colors.white70
-                                      : AppTheme.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
+  bool _shouldShowRoomChatComposer(GameProvider gameProvider) {
+    final session = gameProvider.currentSession;
+    return _selectedHistoryDate == null &&
+        _activePackId == null &&
+        session != null &&
+        session.isCompleted;
+  }
+
+  Widget _buildRoomChatComposer() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F0F1E).withValues(alpha: 0.96),
+        border: Border(
+          top: BorderSide(color: AppTheme.surfaceColor.withValues(alpha: 0.6)),
         ),
-
-        const SizedBox(height: 16),
-
-        // Message input
-        Row(
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
           children: [
             Expanded(
               child: TextField(
@@ -1055,7 +1085,7 @@ class _GameScreenState extends State<GameScreen> {
             ),
           ],
         ),
-      ],
+      ),
     );
   }
 
@@ -1118,13 +1148,20 @@ class _GameScreenState extends State<GameScreen> {
           ),
           child: Consumer<GameProvider>(
             builder: (context, gameProvider, _) {
-              if (_selectedHistoryDate != null) {
-                return _buildHistoryView();
-              }
-              return _buildActiveGameContent(
-                context,
-                gameProvider,
-                packProvider,
+              final showComposer = _shouldShowRoomChatComposer(gameProvider);
+              final content = _selectedHistoryDate != null
+                  ? _buildHistoryView()
+                  : _buildActiveGameContent(
+                      context,
+                      gameProvider,
+                      packProvider,
+                    );
+
+              return Column(
+                children: [
+                  Expanded(child: content),
+                  if (showComposer) _buildRoomChatComposer(),
+                ],
               );
             },
           ),
@@ -1163,6 +1200,7 @@ class _GameScreenState extends State<GameScreen> {
         return const Center(child: CircularProgressIndicator());
       }
       return SingleChildScrollView(
+        controller: _contentScrollController,
         padding: AppTheme.pagePadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1191,6 +1229,7 @@ class _GameScreenState extends State<GameScreen> {
 
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return SingleChildScrollView(
+      controller: _contentScrollController,
       padding: AppTheme.pagePadding.copyWith(
         bottom: AppTheme.pagePadding.bottom + bottomInset,
       ),

@@ -195,6 +195,32 @@ class PackBundleSessionTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data['is_correct'])
 
+    def test_skip_last_stage_requires_guess(self):
+        start_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/'
+        self.client.get(start_url)
+        skip_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/skip/'
+
+        # Stage 1 -> 2 -> 3 -> 4 is allowed
+        self.assertEqual(self.client.post(skip_url, {}, format='json').status_code, status.HTTP_200_OK)
+        self.assertEqual(self.client.post(skip_url, {}, format='json').status_code, status.HTTP_200_OK)
+        self.assertEqual(self.client.post(skip_url, {}, format='json').status_code, status.HTTP_200_OK)
+
+        # Stage 4 cannot be skipped
+        response = self.client.post(skip_url, {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data.get('error'),
+            'You must submit a guess on the last stage',
+        )
+
+        session = PackBundleSession.objects.get(
+            room=self.room,
+            user=self.user,
+            pack=self.pack,
+        )
+        self.assertEqual(session.current_stage, len(PACK_BUNDLE_STAGE_ORDER))
+        self.assertIsNone(session.completed_at)
+
 
 
     def test_join_room_already_member(self):

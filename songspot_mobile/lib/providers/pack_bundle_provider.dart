@@ -247,6 +247,11 @@ class PackBundleProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
+
   Future<bool> sendMessage({
     required String roomId,
     required String packId,
