@@ -75,6 +75,8 @@ class _PackBundleContentState extends State<PackBundleContent> {
   Track? _selectedTrack;
   bool _requestedCompletionData = false;
   StreamSubscription<WebSocketEvent>? _wsSubscription;
+  Timer? _stemsPollingTimer;
+  PackBundleProvider? _packBundleProvider;
 
   @override
   void initState() {
@@ -82,12 +84,13 @@ class _PackBundleContentState extends State<PackBundleContent> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       () async {
         final provider = context.read<PackBundleProvider>();
+        _listenForStemsReady();
 
         // If this pack is already loaded in the provider, skip the reload to
         // avoid a flash of stale hint state. Just wire up the WebSocket.
         if (provider.loadedPackId == widget.packId &&
             provider.session != null) {
-          _listenForStemsReady();
+          _syncStemsPollingState();
           return;
         }
 
@@ -95,7 +98,7 @@ class _PackBundleContentState extends State<PackBundleContent> {
           roomId: widget.roomId,
           packId: widget.packId,
         );
-        _listenForStemsReady();
+        _syncStemsPollingState();
         if (provider.session?.isCompleted == true) {
           await provider.loadLeaderboard(
             roomId: widget.roomId,
@@ -115,6 +118,54 @@ class _PackBundleContentState extends State<PackBundleContent> {
     });
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final provider = context.read<PackBundleProvider>();
+    if (!identical(provider, _packBundleProvider)) {
+      _packBundleProvider?.removeListener(_handlePackBundleProviderChanged);
+      _packBundleProvider = provider;
+      _packBundleProvider?.addListener(_handlePackBundleProviderChanged);
+    }
+  }
+
+  void _handlePackBundleProviderChanged() {
+    _syncStemsPollingState();
+  }
+
+  void _syncStemsPollingState() {
+    if (!mounted) return;
+    final status = context.read<PackBundleProvider>().stemsStatus;
+    if (status == 'generating') {
+      _startStemsPolling();
+    } else {
+      _stopStemsPolling();
+    }
+  }
+
+  void _startStemsPolling() {
+    if (_stemsPollingTimer != null) return;
+    _stemsPollingTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
+      if (!mounted) return;
+      final provider = context.read<PackBundleProvider>();
+      if (provider.isLoading) return;
+      if (provider.stemsStatus != 'generating') {
+        _stopStemsPolling();
+        return;
+      }
+      await provider.loadSession(roomId: widget.roomId, packId: widget.packId);
+      if (!mounted) return;
+      if (provider.stemsStatus != 'generating') {
+        _stopStemsPolling();
+      }
+    });
+  }
+
+  void _stopStemsPolling() {
+    _stemsPollingTimer?.cancel();
+    _stemsPollingTimer = null;
+  }
+
   void _listenForStemsReady() {
     _wsSubscription?.cancel();
     final gameProvider = context.read<GameProvider>();
@@ -123,10 +174,10 @@ class _PackBundleContentState extends State<PackBundleContent> {
         final data = event.data as Map<String, dynamic>?;
         final packId = data?['pack_id'] as String?;
         if (packId == widget.packId && mounted) {
-          context.read<PackBundleProvider>().loadSession(
-            roomId: widget.roomId,
-            packId: widget.packId,
-          );
+          final provider = context.read<PackBundleProvider>();
+          if (!provider.isLoading) {
+            provider.loadSession(roomId: widget.roomId, packId: widget.packId);
+          }
         }
       }
     });
@@ -135,6 +186,8 @@ class _PackBundleContentState extends State<PackBundleContent> {
   @override
   void dispose() {
     _wsSubscription?.cancel();
+    _packBundleProvider?.removeListener(_handlePackBundleProviderChanged);
+    _stopStemsPolling();
     _titleController.dispose();
     _messageController.dispose();
     _chatScrollController.dispose();

@@ -28,7 +28,10 @@ class PackBundleProvider with ChangeNotifier {
   Map<String, String> get hintValues => _hintValues;
   String? get loadedPackId => _loadedPackId;
 
-  Future<void> loadSession({required String roomId, required String packId}) async {
+  Future<void> loadSession({
+    required String roomId,
+    required String packId,
+  }) async {
     // If switching to a different pack, clear stale state so loading skeleton shows.
     if (_loadedPackId != packId) {
       _session = null;
@@ -42,16 +45,27 @@ class PackBundleProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await _apiService.getPackBundle(roomId: roomId, packId: packId);
-      final newSession = PackBundleSession.fromJson(response['session'] as Map<String, dynamic>);
+      final response = await _apiService.getPackBundle(
+        roomId: roomId,
+        packId: packId,
+      );
+      final newSession = PackBundleSession.fromJson(
+        response['session'] as Map<String, dynamic>,
+      );
       final newStems = (response['stems'] as List)
           .map((item) => Stem.fromJson(item as Map<String, dynamic>))
           .toList();
       final newStemsStatus = response['stems_status'] as String? ?? 'ready';
 
       // Restore previously purchased hints into a local map first.
+      final cachedHintValues = Map<String, String>.from(_hintValues);
       final newHintValues = <String, String>{};
       for (final hintType in newSession.hintsUsed) {
+        final cachedValue = cachedHintValues[hintType];
+        if (cachedValue != null) {
+          newHintValues[hintType] = cachedValue;
+          continue;
+        }
         try {
           final hintResponse = await _apiService.purchasePackBundleHint(
             roomId: roomId,
@@ -106,7 +120,10 @@ class PackBundleProvider with ChangeNotifier {
     return response;
   }
 
-  Future<void> loadLeaderboard({required String roomId, required String packId}) async {
+  Future<void> loadLeaderboard({
+    required String roomId,
+    required String packId,
+  }) async {
     try {
       _errorMessage = null;
       final response = await _apiService.getPackBundleLeaderboard(
@@ -114,7 +131,11 @@ class PackBundleProvider with ChangeNotifier {
         packId: packId,
       );
       _leaderboard = (response['leaderboard'] as List)
-          .map((entry) => PackBundleLeaderboardEntry.fromJson(entry as Map<String, dynamic>))
+          .map(
+            (entry) => PackBundleLeaderboardEntry.fromJson(
+              entry as Map<String, dynamic>,
+            ),
+          )
           .toList();
     } catch (e) {
       _errorMessage = e.toString();
@@ -123,7 +144,10 @@ class PackBundleProvider with ChangeNotifier {
     }
   }
 
-  Future<void> loadMessages({required String roomId, required String packId}) async {
+  Future<void> loadMessages({
+    required String roomId,
+    required String packId,
+  }) async {
     try {
       _errorMessage = null;
       final response = await _apiService.getPackBundleMessages(
@@ -140,7 +164,10 @@ class PackBundleProvider with ChangeNotifier {
     }
   }
 
-  Future<void> skipStage({required String roomId, required String packId}) async {
+  Future<void> skipStage({
+    required String roomId,
+    required String packId,
+  }) async {
     if (_session == null) return;
     try {
       _isLoading = true;
@@ -148,8 +175,13 @@ class PackBundleProvider with ChangeNotifier {
       _guessResult = null;
       notifyListeners();
 
-      final response = await _apiService.skipPackBundle(roomId: roomId, packId: packId);
-      _session = PackBundleSession.fromJson(response['session'] as Map<String, dynamic>);
+      final response = await _apiService.skipPackBundle(
+        roomId: roomId,
+        packId: packId,
+      );
+      _session = PackBundleSession.fromJson(
+        response['session'] as Map<String, dynamic>,
+      );
       _stems = (response['stems'] as List)
           .map((item) => Stem.fromJson(item as Map<String, dynamic>))
           .toList();
@@ -184,7 +216,9 @@ class PackBundleProvider with ChangeNotifier {
         trackId: trackId,
       );
 
-      _session = PackBundleSession.fromJson(response['session'] as Map<String, dynamic>);
+      _session = PackBundleSession.fromJson(
+        response['session'] as Map<String, dynamic>,
+      );
       _stems = (response['stems'] as List)
           .map((item) => Stem.fromJson(item as Map<String, dynamic>))
           .toList();
