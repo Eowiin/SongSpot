@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../config/app_theme.dart';
@@ -19,6 +20,7 @@ import '../../services/admob_service.dart';
 import '../../models/history_day.dart';
 import '../packs/pack_list_screen.dart';
 import '../packs/pack_bundle_screen.dart';
+import '../room/room_detail_screen.dart';
 
 class GameScreen extends StatefulWidget {
   final String roomId;
@@ -32,12 +34,14 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen> {
   final _titleController = TextEditingController();
   final _messageController = TextEditingController();
-  final _chatScrollController = ScrollController();
+  final _contentScrollController = ScrollController();
   final _dateScrollController = ScrollController();
   Track? _selectedTrack;
   String? _activePackId;
   String? _activePackName;
   late GameProvider _gameProvider;
+  bool _pendingChatAutoScroll = false;
+  int _lastKnownMessageCount = 0;
 
   // History
   final _apiService = ApiService();
@@ -53,15 +57,24 @@ class _GameScreenState extends State<GameScreen> {
   bool _completionAdInProgress = false;
   int _completionAdAttempts = 0;
   bool _retryActivationInProgress = false;
+  bool _showHistorySelector = false;
+  Timer? _resultRefreshTimer;
+  Timer? _skipFeedbackTimer;
+  bool _skipFeedbackActive = false;
 
   @override
   void initState() {
     super.initState();
     _gameProvider = context.read<GameProvider>();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _gameProvider.startGameSession(widget.roomId);
-      _gameProvider.loadLeaderboard(widget.roomId);
+    _lastKnownMessageCount = _gameProvider.messages.length;
+    _gameProvider.addListener(_handleGameProviderUpdate);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _gameProvider.startGameSession(widget.roomId);
+      await _gameProvider.loadLeaderboard(widget.roomId);
       _gameProvider.connectToChat(widget.roomId);
+      if (_gameProvider.currentSession?.isCompleted ?? false) {
+        _startResultRefreshTimer();
+      }
       // Load room details for name and host info
       context.read<RoomProvider>().loadRoomDetails(widget.roomId);
       context.read<PackProvider>().loadMyPacks(widget.roomId);
@@ -73,12 +86,43 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   void dispose() {
+    _resultRefreshTimer?.cancel();
+    _skipFeedbackTimer?.cancel();
+    _gameProvider.removeListener(_handleGameProviderUpdate);
     _gameProvider.disconnectFromChat();
     _titleController.dispose();
     _messageController.dispose();
-    _chatScrollController.dispose();
+    _contentScrollController.dispose();
     _dateScrollController.dispose();
     super.dispose();
+  }
+
+  void _handleGameProviderUpdate() {
+    if (!mounted) return;
+    final count = _gameProvider.messages.length;
+    final newMessagesArrived = count > _lastKnownMessageCount;
+    _lastKnownMessageCount = count;
+    if (_pendingChatAutoScroll && newMessagesArrived) {
+      _scrollToLatestChatMessage();
+    }
+  }
+
+  void _requestChatAutoScroll() {
+    _pendingChatAutoScroll = true;
+    _scrollToLatestChatMessage();
+  }
+
+  void _scrollToLatestChatMessage() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_contentScrollController.hasClients) return;
+      final max = _contentScrollController.position.maxScrollExtent;
+      _contentScrollController.animateTo(
+        max,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOut,
+      );
+      _pendingChatAutoScroll = false;
+    });
   }
 
   Future<void> _handlePlaySnippet() async {
@@ -100,7 +144,49 @@ class _GameScreenState extends State<GameScreen> {
 
   Future<void> _handleSkip() async {
     final gameProvider = context.read<GameProvider>();
+    final previousSession = gameProvider.currentSession;
+    if (previousSession == null) return;
+    final previousSnippet = previousSession.currentSnippet;
+    unawaited(HapticFeedback.mediumImpact());
+    unawaited(SystemSound.play(SystemSoundType.click));
     await gameProvider.skipSnippet(widget.roomId);
+    if (!mounted) return;
+
+    final updatedSession = gameProvider.currentSession;
+    if (updatedSession == null) return;
+
+    if (updatedSession.currentSnippet > previousSnippet) {
+      _triggerSkipFeedbackAnimation();
+      return;
+    }
+
+    final errorMessage = gameProvider.errorMessage;
+    if (errorMessage != null && errorMessage.isNotEmpty) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage.replaceFirst('Exception: ', '')),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    }
+  }
+
+  void _triggerSkipFeedbackAnimation() {
+    _skipFeedbackTimer?.cancel();
+    setState(() => _skipFeedbackActive = true);
+    _skipFeedbackTimer = Timer(const Duration(milliseconds: 240), () {
+      if (!mounted) return;
+      setState(() => _skipFeedbackActive = false);
+    });
+  }
+
+  String _formatSnippetDuration(double seconds) {
+    final hasDecimal = seconds % 1 != 0;
+    final value = hasDecimal
+        ? seconds.toStringAsFixed(1)
+        : seconds.toStringAsFixed(0);
+    return '${value}s';
   }
 
   Future<void> _handleGuess() async {
@@ -117,12 +203,31 @@ class _GameScreenState extends State<GameScreen> {
     final gameProvider = context.read<GameProvider>();
     final previousGuesses = gameProvider.currentSession?.guessesMade ?? 0;
 
-    final isCorrect = await gameProvider.submitGuess(
+    final guessResponse = await gameProvider.submitGuess(
       roomId: widget.roomId,
       trackId: _selectedTrack!.id,
     );
 
     if (mounted) {
+      if (guessResponse == null) {
+        return;
+      }
+      final isCorrect = guessResponse['is_correct'] as bool? ?? false;
+      final updatedCoins = guessResponse['coins'] as int?;
+      final coinsAwarded = guessResponse['coins_awarded'] as int? ?? 0;
+      final streakBonus = guessResponse['streak_bonus'] as int? ?? 0;
+      final authProvider = context.read<AuthProvider>();
+      if (updatedCoins != null) {
+        authProvider.updateCoinsBalance(updatedCoins);
+        unawaited(authProvider.refreshProfile());
+      } else if (coinsAwarded > 0 || streakBonus > 0) {
+        final currentCoins = authProvider.user?.coins ?? 0;
+        authProvider.updateCoinsBalance(
+          currentCoins + coinsAwarded + streakBonus,
+        );
+        unawaited(authProvider.refreshProfile());
+      }
+
       final updatedSession = gameProvider.currentSession;
       final guessWasCounted =
           (updatedSession?.guessesMade ?? previousGuesses) > previousGuesses;
@@ -158,6 +263,7 @@ class _GameScreenState extends State<GameScreen> {
       // Refresh leaderboard and load messages once when game is completed
       gameProvider.loadLeaderboard(widget.roomId);
       gameProvider.loadMessages(widget.roomId);
+      _startResultRefreshTimer();
     }
 
     _completionAdAttempts += 1;
@@ -196,8 +302,41 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
+  void _startResultRefreshTimer() {
+    if (_resultRefreshTimer != null) return;
+
+    _resultRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted) return;
+      if (!(_gameProvider.currentSession?.isCompleted ?? false)) return;
+      _gameProvider.loadLeaderboard(widget.roomId, silent: true);
+    });
+  }
+
   Future<bool> _onWillPop() async {
     return true;
+  }
+
+  void _toggleHistorySelector() {
+    setState(() {
+      _showHistorySelector = !_showHistorySelector;
+      if (!_showHistorySelector) {
+        _selectedHistoryDate = null;
+      }
+    });
+  }
+
+  Future<void> _openRoomDetails() async {
+    final room = context.read<RoomProvider>().currentRoom;
+    if (room == null) return;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RoomDetailScreen(room: room, showPlayButton: false),
+      ),
+    );
+
+    if (!mounted) return;
+    await context.read<RoomProvider>().loadRoomDetails(widget.roomId);
   }
 
   Future<void> _handleActivateRetry(String action) async {
@@ -454,83 +593,7 @@ class _GameScreenState extends State<GameScreen> {
 
     if (success && mounted) {
       _messageController.clear();
-      // Scroll to bottom after sending message
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_chatScrollController.hasClients) {
-          _chatScrollController.animateTo(
-            _chatScrollController.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
-        }
-      });
-    }
-  }
-
-  Future<void> _showRenameDialog() async {
-    final roomProvider = context.read<RoomProvider>();
-    final room = roomProvider.currentRoom;
-    if (room == null) return;
-
-    final nameController = TextEditingController(text: room.name ?? '');
-
-    final newName = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppTheme.surfaceColor,
-        title: const Text('Rename Room'),
-        content: TextField(
-          controller: nameController,
-          decoration: InputDecoration(
-            hintText: 'Enter room name',
-            filled: true,
-            fillColor: AppTheme.backgroundColor,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-          ),
-          autofocus: true,
-          maxLength: 50,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, nameController.text.trim()),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-
-    // Don't manually dispose nameController - it will be garbage collected
-    // Disposing it here causes errors as the dialog may still be referencing it during teardown
-
-    if (newName != null && mounted) {
-      final result = await roomProvider.renameRoom(
-        widget.roomId,
-        newName.isEmpty ? null : newName,
-      );
-
-      if (result != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Room renamed successfully'),
-            backgroundColor: AppTheme.successColor,
-          ),
-        );
-      } else if (roomProvider.errorMessage != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(roomProvider.errorMessage!),
-            backgroundColor: AppTheme.errorColor,
-          ),
-        );
-      }
+      _requestChatAutoScroll();
     }
   }
 
@@ -868,7 +931,9 @@ class _GameScreenState extends State<GameScreen> {
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         Text(
-                          'Snippet ${leaderboardEntry.snippetNumber} - ${DateFormat.Hm().format(leaderboardEntry.completedAt.toLocal())}',
+                          leaderboardEntry.pointsEarned > 0
+                              ? 'Snippet ${leaderboardEntry.snippetNumber} - ${DateFormat.Hm().format(leaderboardEntry.completedAt.toLocal())}'
+                              : 'Did not guess - ${DateFormat.Hm().format(leaderboardEntry.completedAt.toLocal())}',
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: AppTheme.textSecondary),
                         ),
@@ -914,114 +979,121 @@ class _GameScreenState extends State<GameScreen> {
     final gameProvider = context.watch<GameProvider>();
     final messages = gameProvider.messages;
 
-    // Reverse to show oldest first (messages come newest first from API)
-    final displayMessages = messages.take(10).toList().reversed.toList();
+    // Reverse to show oldest first (messages come newest first from API).
+    // Keep only recent messages so the result page remains compact.
+    final displayMessages = messages.take(12).toList().reversed.toList();
+
+    if (messages.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.chat_bubble_outline,
+              size: 40,
+              color: AppTheme.textSecondary,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'No messages yet',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Start the conversation!',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      );
+    }
 
     return Column(
-      children: [
-        // Messages list with constrained height
-        Container(
-          constraints: const BoxConstraints(maxHeight: 300),
-          child: messages.isEmpty
-              ? Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 32),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.chat_bubble_outline,
-                        size: 40,
-                        color: AppTheme.textSecondary,
+      children: displayMessages.map((message) {
+        final isCurrentUser = message.user.id == currentUserId;
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Align(
+            alignment: isCurrentUser
+                ? Alignment.centerRight
+                : Alignment.centerLeft,
+            child: Container(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.7,
+              ),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                gradient: isCurrentUser ? AppTheme.primaryGradient : null,
+                color: isCurrentUser ? null : AppTheme.surfaceColor,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: isCurrentUser
+                    ? CrossAxisAlignment.end
+                    : CrossAxisAlignment.start,
+                children: [
+                  if (!isCurrentUser) ...[
+                    Text(
+                      message.user.username,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.primaryColor,
+                        fontSize: 12,
                       ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'No messages yet',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Start the conversation!',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
+                    ),
+                    const SizedBox(height: 4),
+                  ],
+                  Text(
+                    message.message,
+                    textWidthBasis: TextWidthBasis.longestLine,
+                    style: TextStyle(
+                      color: isCurrentUser
+                          ? Colors.white
+                          : AppTheme.textPrimary,
+                    ),
                   ),
-                )
-              : ListView.builder(
-                  controller: _chatScrollController,
-                  shrinkWrap: true,
-                  itemCount: displayMessages.length,
-                  itemBuilder: (context, index) {
-                    final message = displayMessages[index];
-                    final isCurrentUser = message.user.id == currentUserId;
+                  const SizedBox(height: 4),
+                  Text(
+                    DateFormat.Hm().format(message.createdAt.toLocal()),
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: isCurrentUser
+                          ? Colors.white70
+                          : AppTheme.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
 
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Align(
-                        alignment: isCurrentUser
-                            ? Alignment.centerRight
-                            : Alignment.centerLeft,
-                        child: Container(
-                          constraints: BoxConstraints(
-                            maxWidth: MediaQuery.of(context).size.width * 0.7,
-                          ),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            gradient: isCurrentUser
-                                ? AppTheme.primaryGradient
-                                : null,
-                            color: isCurrentUser ? null : AppTheme.surfaceColor,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: isCurrentUser
-                                ? CrossAxisAlignment.end
-                                : CrossAxisAlignment.start,
-                            children: [
-                              // Always show username
-                              Text(
-                                isCurrentUser ? 'You' : message.user.username,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: isCurrentUser
-                                      ? Colors.white70
-                                      : AppTheme.primaryColor,
-                                  fontSize: 12,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                message.message,
-                                style: TextStyle(
-                                  color: isCurrentUser
-                                      ? Colors.white
-                                      : AppTheme.textPrimary,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                DateFormat.Hm().format(
-                                  message.createdAt.toLocal(),
-                                ),
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: isCurrentUser
-                                      ? Colors.white70
-                                      : AppTheme.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
+  bool _shouldShowRoomChatComposer(GameProvider gameProvider) {
+    final session = gameProvider.currentSession;
+    return _selectedHistoryDate == null &&
+        _activePackId == null &&
+        session != null &&
+        session.isCompleted;
+  }
+
+  Widget _buildRoomChatComposer() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F0F1E).withValues(alpha: 0.96),
+        border: Border(
+          top: BorderSide(color: AppTheme.surfaceColor.withValues(alpha: 0.6)),
         ),
-
-        const SizedBox(height: 16),
-
-        // Message input
-        Row(
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
           children: [
             Expanded(
               child: TextField(
@@ -1059,7 +1131,7 @@ class _GameScreenState extends State<GameScreen> {
             ),
           ],
         ),
-      ],
+      ),
     );
   }
 
@@ -1067,9 +1139,6 @@ class _GameScreenState extends State<GameScreen> {
   Widget build(BuildContext context) {
     final roomProvider = context.watch<RoomProvider>();
     final room = roomProvider.currentRoom;
-    final currentUserId = context.watch<AuthProvider>().user?.id;
-    final isHost =
-        room != null && currentUserId != null && room.isHost(currentUserId);
     final packProvider = context.watch<PackProvider>();
 
     return PopScope(
@@ -1084,8 +1153,26 @@ class _GameScreenState extends State<GameScreen> {
       child: Scaffold(
         backgroundColor: const Color(0xFF0F0F1E),
         appBar: AppBar(
-          title: Text(room?.displayName ?? 'Daily Challenge'),
+          title: room == null
+              ? const Text('Daily Challenge')
+              : InkWell(
+                  onTap: _openRoomDetails,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Text(
+                    room.displayName,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
           actions: [
+            IconButton(
+              icon: Icon(
+                _showHistorySelector ? Icons.history_toggle_off : Icons.history,
+              ),
+              onPressed: _toggleHistorySelector,
+              tooltip: _showHistorySelector
+                  ? 'Hide 30-day history'
+                  : 'Show 30-day history',
+            ),
             IconButton(
               icon: const Icon(Icons.album),
               onPressed: room == null
@@ -1099,12 +1186,6 @@ class _GameScreenState extends State<GameScreen> {
                     },
               tooltip: 'Packs',
             ),
-            if (isHost)
-              IconButton(
-                icon: const Icon(Icons.edit),
-                onPressed: _showRenameDialog,
-                tooltip: 'Rename room',
-              ),
           ],
         ),
         body: Container(
@@ -1113,18 +1194,19 @@ class _GameScreenState extends State<GameScreen> {
           ),
           child: Consumer<GameProvider>(
             builder: (context, gameProvider, _) {
+              final showComposer = _shouldShowRoomChatComposer(gameProvider);
+              final content = _selectedHistoryDate != null
+                  ? _buildHistoryView()
+                  : _buildActiveGameContent(
+                      context,
+                      gameProvider,
+                      packProvider,
+                    );
+
               return Column(
                 children: [
-                  _buildDateRow(gameProvider),
-                  Expanded(
-                    child: _selectedHistoryDate != null
-                        ? _buildHistoryView()
-                        : _buildActiveGameContent(
-                            context,
-                            gameProvider,
-                            packProvider,
-                          ),
-                  ),
+                  Expanded(child: content),
+                  if (showComposer) _buildRoomChatComposer(),
                 ],
               );
             },
@@ -1164,10 +1246,15 @@ class _GameScreenState extends State<GameScreen> {
         return const Center(child: CircularProgressIndicator());
       }
       return SingleChildScrollView(
+        controller: _contentScrollController,
         padding: AppTheme.pagePadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (_showHistorySelector) ...[
+              _buildDateRow(),
+              const SizedBox(height: 8),
+            ],
             const _NextSongCountdown(),
             const SizedBox(height: 16),
             _buildPackSwitcher(context, packProvider.ownedPacks),
@@ -1188,12 +1275,17 @@ class _GameScreenState extends State<GameScreen> {
 
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return SingleChildScrollView(
+      controller: _contentScrollController,
       padding: AppTheme.pagePadding.copyWith(
         bottom: AppTheme.pagePadding.bottom + bottomInset,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (_showHistorySelector) ...[
+            _buildDateRow(),
+            const SizedBox(height: 8),
+          ],
           const _NextSongCountdown(),
           const SizedBox(height: 16),
           _buildPackSwitcher(context, packProvider.ownedPacks),
@@ -1205,33 +1297,41 @@ class _GameScreenState extends State<GameScreen> {
                 final snippetNumber = index + 1;
                 final isActive = snippetNumber == session.currentSnippet;
                 final isPassed = snippetNumber < session.currentSnippet;
+                final highlightActive = isActive && _skipFeedbackActive;
 
-                return Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isPassed
-                        ? AppTheme.textSecondary
-                        : isActive
-                        ? AppTheme.primaryColor
-                        : AppTheme.surfaceColor,
-                    border: Border.all(
-                      color: isActive
+                return AnimatedScale(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutBack,
+                  scale: highlightActive ? 1.1 : 1,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOut,
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isPassed
+                          ? AppTheme.textSecondary
+                          : isActive
                           ? AppTheme.primaryColor
-                          : AppTheme.textSecondary,
-                      width: 2,
-                    ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '$snippetNumber',
-                      style: TextStyle(
-                        color: isPassed || isActive
-                            ? Colors.white
+                          : AppTheme.surfaceColor,
+                      border: Border.all(
+                        color: isActive
+                            ? AppTheme.primaryColor
                             : AppTheme.textSecondary,
-                        fontWeight: FontWeight.bold,
+                        width: 2,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '$snippetNumber',
+                        style: TextStyle(
+                          color: isPassed || isActive
+                              ? Colors.white
+                              : AppTheme.textSecondary,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -1260,10 +1360,35 @@ class _GameScreenState extends State<GameScreen> {
                     style: Theme.of(context).textTheme.displaySmall,
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    '${session.snippetDuration}s',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: AppTheme.primaryColor,
+                  AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOut,
+                    style: Theme.of(context).textTheme.titleLarge!.copyWith(
+                      color: _skipFeedbackActive
+                          ? AppTheme.accentColor
+                          : AppTheme.primaryColor,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      switchInCurve: Curves.easeOut,
+                      switchOutCurve: Curves.easeIn,
+                      transitionBuilder: (child, animation) {
+                        return FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(0, 0.15),
+                              end: Offset.zero,
+                            ).animate(animation),
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: Text(
+                        _formatSnippetDuration(session.snippetDuration),
+                        key: ValueKey(session.currentSnippet),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -1478,7 +1603,10 @@ class _GameScreenState extends State<GameScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(l10n.gameHintsTitle, style: Theme.of(context).textTheme.headlineSmall),
+        Text(
+          l10n.gameHintsTitle,
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
         const SizedBox(height: 12),
         Row(
           children: _hintOrder.asMap().entries.map((entry) {
@@ -1641,7 +1769,8 @@ class _GameScreenState extends State<GameScreen> {
 
   // ── Date row ────────────────────────────────────────────────────────────
 
-  Widget _buildDateRow(GameProvider gameProvider) {
+  Widget _buildDateRow() {
+    final gameProvider = context.read<GameProvider>();
     final activeDate = _activeGameDate();
     final dates = List.generate(
       31,
@@ -1744,14 +1873,14 @@ class _GameScreenState extends State<GameScreen> {
 
   Widget _buildHistoryView() {
     if (_historyDetailLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppTheme.primaryColor),
+      return _buildHistoryStateContainer(
+        const CircularProgressIndicator(color: AppTheme.primaryColor),
       );
     }
     if (_activePackId != null) {
       if (_packHistoryDetail == null) {
-        return Center(
-          child: Text(
+        return _buildHistoryStateContainer(
+          Text(
             'Could not load data',
             style: Theme.of(
               context,
@@ -1762,8 +1891,8 @@ class _GameScreenState extends State<GameScreen> {
       return _buildPackHistoryContent(_packHistoryDetail!);
     }
     if (_historyDetail == null) {
-      return Center(
-        child: Text(
+      return _buildHistoryStateContainer(
+        Text(
           'Could not load data',
           style: Theme.of(
             context,
@@ -1772,6 +1901,22 @@ class _GameScreenState extends State<GameScreen> {
       );
     }
     return _buildHistoryContent(_historyDetail!);
+  }
+
+  Widget _buildHistoryStateContainer(Widget child) {
+    return SingleChildScrollView(
+      padding: AppTheme.pagePadding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_showHistorySelector) ...[
+            _buildDateRow(),
+            const SizedBox(height: 8),
+          ],
+          SizedBox(height: 280, child: Center(child: child)),
+        ],
+      ),
+    );
   }
 
   Widget _buildHistoryContent(HistoryDayDetail detail) {
@@ -1783,6 +1928,10 @@ class _GameScreenState extends State<GameScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (_showHistorySelector) ...[
+            _buildDateRow(),
+            const SizedBox(height: 8),
+          ],
           // Song card
           Container(
             padding: const EdgeInsets.all(24),
@@ -2072,6 +2221,10 @@ class _GameScreenState extends State<GameScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (_showHistorySelector) ...[
+            _buildDateRow(),
+            const SizedBox(height: 8),
+          ],
           // Track card
           Container(
             padding: const EdgeInsets.all(24),

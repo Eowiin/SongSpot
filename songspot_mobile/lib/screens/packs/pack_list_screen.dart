@@ -374,11 +374,20 @@ class _PackListScreenState extends State<PackListScreen> {
                       setState(() {
                         _purchasingPackIds.add(pack.id);
                       });
-                      final success = await context
+                      final purchaseResponse = await context
                           .read<PackProvider>()
                           .purchasePack(roomId: widget.roomId, packId: pack.id);
-                      if (success && mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                      if (!mounted) {
+                        return;
+                      }
+                      if (purchaseResponse != null) {
+                        final newCoins = purchaseResponse['coins'] as int?;
+                        if (newCoins != null) {
+                          this.context.read<AuthProvider>().updateCoinsBalance(
+                            newCoins,
+                          );
+                        }
+                        ScaffoldMessenger.of(this.context).showSnackBar(
                           SnackBar(
                             content: Text('Purchased ${pack.name}'),
                             backgroundColor: AppTheme.successColor,

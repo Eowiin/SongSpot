@@ -25,15 +25,18 @@ class TrackAutocomplete extends StatefulWidget {
 class _TrackAutocompleteState extends State<TrackAutocomplete> {
   final ApiService _apiService = ApiService();
   final ScrollController _suggestionsScrollController = ScrollController();
+  final GlobalKey _suggestionsPanelKey = GlobalKey();
   List<Track> _suggestions = [];
   bool _isLoading = false;
-  Track? _selectedTrack;
   Timer? _debounce;
+
+  static const double _suggestionsMaxHeight = 200;
 
   Future<void> _searchTracks(String query) async {
     if (query.trim().isEmpty) {
       setState(() {
         _suggestions = [];
+        _isLoading = false;
       });
       return;
     }
@@ -43,13 +46,14 @@ class _TrackAutocompleteState extends State<TrackAutocomplete> {
     });
 
     try {
-      final results = await _apiService.searchTracks(query);
+      final results = await _apiService.searchTracks(query, limit: 25);
       setState(() {
         _suggestions = results
             .map((json) => Track.fromJson(json as Map<String, dynamic>))
             .toList();
         _isLoading = false;
       });
+      _scrollSuggestionsIntoView();
     } catch (e) {
       setState(() {
         _suggestions = [];
@@ -58,9 +62,22 @@ class _TrackAutocompleteState extends State<TrackAutocomplete> {
     }
   }
 
+  void _scrollSuggestionsIntoView() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _suggestions.isEmpty) return;
+      final suggestionsContext = _suggestionsPanelKey.currentContext;
+      if (suggestionsContext == null) return;
+      Scrollable.ensureVisible(
+        suggestionsContext,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+        alignment: 1,
+      );
+    });
+  }
+
   void _selectTrack(Track track) {
     setState(() {
-      _selectedTrack = track;
       widget.controller.text = '${track.title} - ${track.artist}';
       _suggestions = [];
     });
@@ -68,7 +85,6 @@ class _TrackAutocompleteState extends State<TrackAutocomplete> {
   }
 
   void _onQueryChanged(String value) {
-    _selectedTrack = null;
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 300), () {
       _searchTracks(value);
@@ -88,10 +104,7 @@ class _TrackAutocompleteState extends State<TrackAutocomplete> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (widget.labelText != null) ...[
-          Text(
-            widget.labelText!,
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
+          Text(widget.labelText!, style: Theme.of(context).textTheme.bodyLarge),
           const SizedBox(height: 8),
         ],
         TextField(
@@ -99,7 +112,10 @@ class _TrackAutocompleteState extends State<TrackAutocomplete> {
           style: const TextStyle(color: AppTheme.textPrimary),
           decoration: InputDecoration(
             hintText: widget.hintText,
-            prefixIcon: const Icon(Icons.music_note, color: AppTheme.textSecondary),
+            prefixIcon: const Icon(
+              Icons.music_note,
+              color: AppTheme.textSecondary,
+            ),
             suffixIcon: _isLoading
                 ? const Padding(
                     padding: EdgeInsets.all(12.0),
@@ -108,7 +124,9 @@ class _TrackAutocompleteState extends State<TrackAutocomplete> {
                       height: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          AppTheme.primaryColor,
+                        ),
                       ),
                     ),
                   )
@@ -125,16 +143,23 @@ class _TrackAutocompleteState extends State<TrackAutocomplete> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppTheme.borderRadius),
-              borderSide: const BorderSide(color: AppTheme.primaryColor, width: 2),
+              borderSide: const BorderSide(
+                color: AppTheme.primaryColor,
+                width: 2,
+              ),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 16,
+            ),
           ),
           onChanged: _onQueryChanged,
         ),
         if (_suggestions.isNotEmpty) ...[
           const SizedBox(height: 8),
           Container(
-            constraints: const BoxConstraints(maxHeight: 200),
+            key: _suggestionsPanelKey,
+            constraints: const BoxConstraints(maxHeight: _suggestionsMaxHeight),
             decoration: BoxDecoration(
               color: AppTheme.surfaceColor,
               borderRadius: BorderRadius.circular(AppTheme.borderRadius),
@@ -158,7 +183,10 @@ class _TrackAutocompleteState extends State<TrackAutocomplete> {
                 itemBuilder: (context, index) {
                   final track = _suggestions[index];
                   return ListTile(
-                    leading: const Icon(Icons.music_note, color: AppTheme.primaryColor),
+                    leading: const Icon(
+                      Icons.music_note,
+                      color: AppTheme.primaryColor,
+                    ),
                     title: Text(
                       track.title,
                       style: const TextStyle(color: AppTheme.textPrimary),

@@ -22,6 +22,7 @@ class GameProvider with ChangeNotifier {
   String? _errorMessage;
   String? _guessResult;
   bool _isWebSocketConnected = false;
+  String? _currentChatRoomId;
   Map<String, bool> _typingUsers = {}; // userId -> isTyping
   Map<String, String> _hintValues = {}; // hintType -> revealed value
 
@@ -137,11 +138,11 @@ class GameProvider with ChangeNotifier {
   }
 
   /// Submit a guess
-  Future<bool> submitGuess({
+  Future<Map<String, dynamic>?> submitGuess({
     required String roomId,
     required String trackId,
   }) async {
-    if (_currentSession == null) return false;
+    if (_currentSession == null) return null;
 
     try {
       _isLoading = true;
@@ -209,12 +210,12 @@ class GameProvider with ChangeNotifier {
 
       _isLoading = false;
       notifyListeners();
-      return isCorrect;
+      return response;
     } catch (e) {
       _errorMessage = e.toString();
       _isLoading = false;
       notifyListeners();
-      return false;
+      return null;
     }
   }
 
@@ -298,11 +299,13 @@ class GameProvider with ChangeNotifier {
   }
 
   /// Load leaderboard
-  Future<void> loadLeaderboard(String roomId) async {
+  Future<void> loadLeaderboard(String roomId, {bool silent = false}) async {
     try {
-      _isLoading = true;
-      _errorMessage = null;
-      notifyListeners();
+      if (!silent) {
+        _isLoading = true;
+        _errorMessage = null;
+        notifyListeners();
+      }
 
       final response = await _apiService.getLeaderboard(roomId);
       _leaderboard = (response['leaderboard'] as List)
@@ -311,11 +314,15 @@ class GameProvider with ChangeNotifier {
           )
           .toList();
 
-      _isLoading = false;
+      if (!silent) {
+        _isLoading = false;
+      }
       notifyListeners();
     } catch (e) {
       _errorMessage = e.toString();
-      _isLoading = false;
+      if (!silent) {
+        _isLoading = false;
+      }
       notifyListeners();
     }
   }
@@ -331,6 +338,7 @@ class GameProvider with ChangeNotifier {
     // Connect to the room
     final connected = await _webSocketService.connect(roomId);
     _isWebSocketConnected = connected;
+    _currentChatRoomId = roomId;
     notifyListeners();
   }
 
@@ -340,6 +348,7 @@ class GameProvider with ChangeNotifier {
     _wsSubscription = null;
     await _webSocketService.disconnect();
     _isWebSocketConnected = false;
+    _currentChatRoomId = null;
     _typingUsers.clear();
     notifyListeners();
   }
@@ -362,6 +371,13 @@ class GameProvider with ChangeNotifier {
         if (!_messages.any((m) => m.id == message.id)) {
           _messages.insert(0, message);
           notifyListeners();
+        }
+        break;
+
+      case WebSocketEventType.leaderboardUpdated:
+        final roomId = _currentChatRoomId;
+        if (roomId != null) {
+          unawaited(loadLeaderboard(roomId, silent: true));
         }
         break;
 
@@ -429,8 +445,10 @@ class GameProvider with ChangeNotifier {
   Future<bool> sendMessage(String roomId, String message) async {
     // Try WebSocket first for real-time delivery
     if (_isWebSocketConnected) {
-      _webSocketService.sendMessage(message);
-      return true;
+      final sent = _webSocketService.sendMessage(message);
+      if (sent) {
+        return true;
+      }
     }
 
     // Fallback to REST API

@@ -342,6 +342,16 @@ python manage.py seed_genre_packs --count-per-pack 30 --genres pop,rock,hiphop
 
 ## 12. Stems Pipeline (Demucs)
 
+### Install FFmpeg (required)
+
+Demucs requires FFmpeg to decode MP3 files. Install it on the server:
+
+```bash
+sudo apt update && sudo apt install -y ffmpeg
+```
+
+> Without FFmpeg, stem generation will fail with: `FFmpeg is not installed.`
+
 ### Generate Stems (Batch)
 ```bash
 python manage.py generate_pack_stems --all --missing-only
@@ -547,6 +557,7 @@ python manage.py createsuperuser
 - [ ] `.env` configured with all production values
 - [ ] Django migrations run
 - [ ] Tracks populated (`fetch_deezer_tracks`)
+- [ ] FFmpeg installed (`apt install ffmpeg`, required for Demucs stem generation)
 - [ ] Redis installed and running
 - [ ] Daphne service running (`songspot.service`)
 - [ ] Celery worker running (`songspot-celery.service`)

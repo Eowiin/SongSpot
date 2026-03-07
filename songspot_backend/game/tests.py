@@ -1,3 +1,6 @@
+from datetime import timedelta
+from unittest.mock import patch
+
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -191,6 +194,32 @@ class PackBundleSessionTests(APITestCase):
         response = self.client.post(guess_url, {'track_id': str(self.track.id)}, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data['is_correct'])
+
+    def test_skip_last_stage_requires_guess(self):
+        start_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/'
+        self.client.get(start_url)
+        skip_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/skip/'
+
+        # Stage 1 -> 2 -> 3 -> 4 is allowed
+        self.assertEqual(self.client.post(skip_url, {}, format='json').status_code, status.HTTP_200_OK)
+        self.assertEqual(self.client.post(skip_url, {}, format='json').status_code, status.HTTP_200_OK)
+        self.assertEqual(self.client.post(skip_url, {}, format='json').status_code, status.HTTP_200_OK)
+
+        # Stage 4 cannot be skipped
+        response = self.client.post(skip_url, {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data.get('error'),
+            'You must submit a guess on the last stage',
+        )
+
+        session = PackBundleSession.objects.get(
+            room=self.room,
+            user=self.user,
+            pack=self.pack,
+        )
+        self.assertEqual(session.current_stage, len(PACK_BUNDLE_STAGE_ORDER))
+        self.assertIsNone(session.completed_at)
 
 
 
@@ -459,6 +488,18 @@ class SkipSnippetViewTests(APITestCase):
         response = self.client.post(self.skip_url, {}, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    @patch('game.views._broadcast_leaderboard_updated')
+    def test_skip_to_final_snippet_broadcasts_leaderboard_update(self, mock_broadcast):
+        """Entering snippet 6 should trigger realtime results refresh."""
+        self.game_session.current_snippet = 5
+        self.game_session.save(update_fields=['current_snippet'])
+
+        response = self.client.post(self.skip_url, {}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['current_snippet'], 6)
+        mock_broadcast.assert_called_once_with(self.room.id, self.user.id)
+
 
 class SubmitGuessViewTests(APITestCase):
     """Tests for submit guess endpoint."""
@@ -528,6 +569,23 @@ class SubmitGuessViewTests(APITestCase):
         self.assertFalse(response.data['is_correct'])
         self.assertEqual(response.data['current_snippet'], 2)
 
+    @patch('game.views._broadcast_leaderboard_updated')
+    def test_wrong_guess_to_final_snippet_broadcasts_leaderboard_update(self, mock_broadcast):
+        """Reaching snippet 6 via wrong guess should refresh results in realtime."""
+        self.game_session.current_snippet = 5
+        self.game_session.save(update_fields=['current_snippet'])
+
+        response = self.client.post(
+            self.guess_url,
+            {'track_id': str(self.wrong_track.id)},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data['is_correct'])
+        self.assertEqual(response.data['current_snippet'], 6)
+        mock_broadcast.assert_called_once_with(self.room.id, self.user.id)
+
     def test_wrong_guess_at_max_snippet(self):
         """Test wrong guess at max snippet prompts retry flow first."""
         self.game_session.current_snippet = 6
@@ -588,6 +646,24 @@ class SubmitGuessViewTests(APITestCase):
         data = {'track_id': str(self.wrong_track.id)}
         self.client.post(self.guess_url, data, format='json')
         self.assertTrue(GuessAttempt.objects.filter(game_session=self.game_session).exists())
+
+    @override_settings(DAILY_GAME_MAX_RETRIES=0)
+    @patch('game.views._broadcast_leaderboard_updated')
+    def test_failed_guess_broadcasts_leaderboard_update(self, mock_broadcast):
+        """Failed completion should trigger real-time leaderboard refresh."""
+        self.game_session.current_snippet = 6
+        self.game_session.save(update_fields=['current_snippet'])
+
+        response = self.client.post(
+            self.guess_url,
+            {'track_id': str(self.wrong_track.id)},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['game_over'])
+        self.assertEqual(response.data['points_earned'], 0)
+        mock_broadcast.assert_called_once_with(self.room.id, self.user.id)
 
 
 class LeaderboardViewTests(APITestCase):
@@ -656,6 +732,58 @@ class LeaderboardViewTests(APITestCase):
         # First place should have 6 points
         self.assertEqual(response.data['leaderboard'][0]['points_earned'], 6)
 
+    def test_leaderboard_includes_failed_players(self):
+        """Completed failed attempts should also appear in today's results."""
+        user3 = User.objects.create_user(
+            username='user3',
+            email='user3@example.com',
+            password='testpass123'
+        )
+        RoomUser.objects.create(room=self.room, user=user3)
+        DailyGameSession.objects.create(
+            room=self.room,
+            user=user3,
+            daily_song=self.daily_song,
+            current_snippet=6,
+            correct_guess=False,
+            points_earned=0,
+            completed_at=timezone.now()
+        )
+
+        response = self.client.get(self.leaderboard_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['leaderboard']), 3)
+
+        failed_entry = next(
+            item for item in response.data['leaderboard']
+            if item['user']['username'] == 'user3'
+        )
+        self.assertFalse(failed_entry['correct_guess'])
+        self.assertEqual(failed_entry['points_earned'], 0)
+
+    def test_leaderboard_orders_winners_before_failed_players(self):
+        """Successful guesses should rank above failed runs."""
+        user3 = User.objects.create_user(
+            username='user3',
+            email='user3@example.com',
+            password='testpass123'
+        )
+        RoomUser.objects.create(room=self.room, user=user3)
+        DailyGameSession.objects.create(
+            room=self.room,
+            user=user3,
+            daily_song=self.daily_song,
+            current_snippet=6,
+            correct_guess=False,
+            points_earned=0,
+            completed_at=timezone.now()
+        )
+
+        response = self.client.get(self.leaderboard_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        usernames = [entry['user']['username'] for entry in response.data['leaderboard']]
+        self.assertEqual(usernames[-1], 'user3')
+
     def test_leaderboard_non_member_fails(self):
         """Test that non-members cannot view leaderboard."""
         other_user = User.objects.create_user(
@@ -667,6 +795,110 @@ class LeaderboardViewTests(APITestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {str(other_refresh.access_token)}')
         response = self.client.get(self.leaderboard_url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_leaderboard_includes_final_snippet_incomplete_failures(self):
+        """Snippet-6 non-winners should appear in today's results."""
+        user3 = User.objects.create_user(
+            username='user3_final_snippet',
+            email='user3_final_snippet@example.com',
+            password='testpass123'
+        )
+        RoomUser.objects.create(room=self.room, user=user3)
+        DailyGameSession.objects.create(
+            room=self.room,
+            user=user3,
+            daily_song=self.daily_song,
+            current_snippet=6,
+            guesses_made=2,
+            correct_guess=False,
+            points_earned=None,
+            completed_at=None
+        )
+
+        response = self.client.get(self.leaderboard_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['leaderboard']), 3)
+        entry = next(
+            item for item in response.data['leaderboard']
+            if item['user']['username'] == 'user3_final_snippet'
+        )
+        self.assertFalse(entry['correct_guess'])
+        self.assertEqual(entry['points_earned'], 0)
+        self.assertIsNotNone(entry['completed_at'])
+
+
+class RoomHistoryDetailViewTests(APITestCase):
+    """Tests for room history detail endpoint."""
+
+    def setUp(self):
+        self.user1 = User.objects.create_user(
+            username='history_user1',
+            email='history_user1@example.com',
+            password='testpass123'
+        )
+        self.user2 = User.objects.create_user(
+            username='history_user2',
+            email='history_user2@example.com',
+            password='testpass123'
+        )
+        self.room = Room.objects.create(host_user=self.user1)
+        RoomUser.objects.create(room=self.room, user=self.user1)
+        RoomUser.objects.create(room=self.room, user=self.user2)
+
+        self.track = Track.objects.create(
+            title='History Song',
+            artist='History Artist',
+            preview_url='https://example.com/history.mp3'
+        )
+        self.history_date = timezone.now().date() - timedelta(days=2)
+        self.daily_song = DailySong.objects.create(
+            room=self.room,
+            track=self.track,
+            date=self.history_date,
+        )
+
+        DailyGameSession.objects.create(
+            room=self.room,
+            user=self.user1,
+            daily_song=self.daily_song,
+            current_snippet=2,
+            correct_guess=True,
+            points_earned=5,
+            completed_at=timezone.now() - timedelta(minutes=5),
+        )
+        DailyGameSession.objects.create(
+            room=self.room,
+            user=self.user2,
+            daily_song=self.daily_song,
+            current_snippet=6,
+            correct_guess=False,
+            points_earned=0,
+            completed_at=timezone.now(),
+        )
+
+        self.detail_url = f'/api/game/rooms/{self.room.id}/history/{self.history_date.isoformat()}/'
+        refresh = RefreshToken.for_user(self.user1)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {str(refresh.access_token)}')
+
+    def test_history_detail_includes_failed_players(self):
+        """History leaderboard should include completed failed attempts."""
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['leaderboard']), 2)
+
+        failed_entry = next(
+            item for item in response.data['leaderboard']
+            if item['user']['username'] == 'history_user2'
+        )
+        self.assertFalse(failed_entry['correct_guess'])
+        self.assertEqual(failed_entry['points_earned'], 0)
+
+    def test_history_detail_orders_winners_before_failed_players(self):
+        """Winners should remain ranked above failed attempts in history."""
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        usernames = [entry['user']['username'] for entry in response.data['leaderboard']]
+        self.assertEqual(usernames, ['history_user1', 'history_user2'])
 
 
 class RoomMessagesViewTests(APITestCase):
@@ -763,3 +995,31 @@ class SearchTracksViewTests(APITestCase):
         response = self.client.get(f'{self.search_url}?q=nonexistent')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
+
+    def test_search_default_limit_allows_more_than_ten_results(self):
+        """Default search limit should not truncate common artist queries at 10."""
+        artist_name = 'TestArtistMany'
+        for i in range(12):
+            Track.objects.create(
+                title=f'Song {i}',
+                artist=artist_name,
+                preview_url=f'https://example.com/many-{i}.mp3',
+            )
+
+        response = self.client.get(f'{self.search_url}?q={artist_name}')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 12)
+
+    def test_search_limit_query_param_is_respected(self):
+        """Search should honor explicit limit query param."""
+        artist_name = 'TestArtistLimit'
+        for i in range(20):
+            Track.objects.create(
+                title=f'Limit Song {i}',
+                artist=artist_name,
+                preview_url=f'https://example.com/limit-{i}.mp3',
+            )
+
+        response = self.client.get(f'{self.search_url}?q={artist_name}&limit=8')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 8)

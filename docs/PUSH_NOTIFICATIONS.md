@@ -10,7 +10,7 @@ This project uses Firebase Cloud Messaging (FCM) for iOS and Android push.
   - `POST /api/auth/push/devices/unregister/`
 - Async push delivery via Celery tasks on:
   - new `DailySong` creation
-  - new `RoomMessage` creation (sender excluded)
+  - new `RoomMessage` creation (sender excluded, and only users who already guessed correctly for the active daily song)
 - Per-device preferences:
   - `daily_song_enabled`
   - `messages_enabled`

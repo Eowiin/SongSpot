@@ -24,6 +24,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final Map<String, Room> _pendingDeletedRooms = {};
   final Map<String, Timer> _pendingDeleteTimers = {};
   final Set<String> _committingRoomIds = <String>{};
+  String? _activeDeleteSnackBarRoomId;
 
   @override
   void initState() {
@@ -53,6 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ).push(MaterialPageRoute(builder: (_) => GameScreen(roomId: room.id)));
       // Refresh rooms when returning from GameScreen
       if (mounted) {
+        await context.read<AuthProvider>().refreshProfile();
         roomProvider.loadMyRooms();
       }
     } else if (mounted && roomProvider.errorMessage != null) {
@@ -88,6 +90,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ).push(MaterialPageRoute(builder: (_) => GameScreen(roomId: room.id)));
       // Refresh rooms when returning from GameScreen
       if (mounted) {
+        await context.read<AuthProvider>().refreshProfile();
         roomProvider.loadMyRooms();
       }
     } else if (mounted && roomProvider.errorMessage != null) {
@@ -130,36 +133,41 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
+    final controller = messenger.showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 5),
+        backgroundColor: AppTheme.surfaceColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: AppTheme.primaryColor.withValues(alpha: 0.45),
+          ),
+        ),
+        content: Text(
+          message,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: AppTheme.textPrimary,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        action: SnackBarAction(
+          label: l10n.undoAction,
+          textColor: AppTheme.accentColor,
+          onPressed: () => _undoPendingRoomDeletion(roomId),
+        ),
+      ),
+    );
+    _activeDeleteSnackBarRoomId = roomId;
     unawaited(
-      messenger
-          .showSnackBar(
-            SnackBar(
-              behavior: SnackBarBehavior.floating,
-              duration: const Duration(seconds: 5),
-              backgroundColor: AppTheme.surfaceColor,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(
-                  color: AppTheme.primaryColor.withValues(alpha: 0.45),
-                ),
-              ),
-              content: Text(
-                message,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppTheme.textPrimary,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              action: SnackBarAction(
-                label: l10n.undoAction,
-                textColor: AppTheme.accentColor,
-                onPressed: () => _undoPendingRoomDeletion(roomId),
-              ),
-            ),
-          )
-          .closed,
+      controller.closed.then((_) {
+        if (!mounted) return;
+        if (_activeDeleteSnackBarRoomId == roomId) {
+          _activeDeleteSnackBarRoomId = null;
+        }
+      }),
     );
 
     return true;
@@ -175,6 +183,9 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     if (!mounted) return;
+    if (_activeDeleteSnackBarRoomId == roomId) {
+      _activeDeleteSnackBarRoomId = null;
+    }
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
@@ -195,6 +206,10 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_committingRoomIds.contains(roomId)) return;
 
     _pendingDeleteTimers.remove(roomId)?.cancel();
+    if (_activeDeleteSnackBarRoomId == roomId && mounted) {
+      _activeDeleteSnackBarRoomId = null;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    }
     setState(() {
       _committingRoomIds.add(roomId);
     });

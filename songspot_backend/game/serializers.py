@@ -292,13 +292,6 @@ class PackBundleGuessSerializer(serializers.Serializer):
         return value
 
 
-class LeaderboardEntrySerializer(serializers.Serializer):
-    user = UserBasicSerializer()
-    points_earned = serializers.IntegerField()
-    snippet_number = serializers.IntegerField()
-    completed_at = serializers.DateTimeField()
-
-
 class RoomMessageSerializer(serializers.ModelSerializer):
     user = UserBasicSerializer(read_only=True)
 

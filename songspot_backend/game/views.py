@@ -1,15 +1,20 @@
 from datetime import timedelta
 
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Case, When, Value, IntegerField
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+import logging
 import random
+
+logger = logging.getLogger(__name__)
 
 
 def _active_game_date():
@@ -41,7 +46,6 @@ from .serializers import (
     GameSessionSerializer,
     SubmitGuessSerializer,
     DailyGameRetrySerializer,
-    LeaderboardEntrySerializer,
     RoomMessageSerializer,
     PackBundleMessageSerializer,
     PostMessageSerializer,
@@ -88,6 +92,24 @@ def _max_hosted_rooms_per_user():
 
 def _max_room_creations_per_day():
     return max(1, int(getattr(settings, 'MAX_ROOM_CREATIONS_PER_DAY', 5)))
+
+
+def _broadcast_leaderboard_updated(room_id, user_id):
+    channel_layer = get_channel_layer()
+    if channel_layer is None:
+        return
+
+    try:
+        async_to_sync(channel_layer.group_send)(
+            f'chat_{room_id}',
+            {
+                'type': 'leaderboard_updated',
+                'room_id': str(room_id),
+                'user_id': str(user_id),
+            },
+        )
+    except Exception:
+        logger.exception('Failed to broadcast leaderboard_updated for room %s.', room_id)
 
 
 def _next_retry_requirement(game_session):
@@ -641,10 +663,14 @@ class PackBundleSkipView(APIView):
         if session.completed_at:
             return Response({'error': 'Pack already completed'}, status=status.HTTP_400_BAD_REQUEST)
 
+        last_stage = len(PACK_BUNDLE_STAGE_ORDER)
+        if session.current_stage >= last_stage:
+            return Response({
+                'error': 'You must submit a guess on the last stage'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         session.current_stage += 1
-        if session.current_stage > len(PACK_BUNDLE_STAGE_ORDER):
-            session.completed_at = timezone.now()
-        session.save(update_fields=['current_stage', 'completed_at'])
+        session.save(update_fields=['current_stage'])
 
         serializer = PackBundleSessionSerializer(session)
         stems = []
@@ -1113,6 +1139,9 @@ class SkipSnippetView(APIView):
         game_session.current_snippet += 1
         game_session.save()
 
+        if game_session.current_snippet == MAX_DAILY_SNIPPET:
+            _broadcast_leaderboard_updated(room.id, request.user.id)
+
         return Response({
             'current_snippet': game_session.current_snippet,
             'message': f'Skipped to snippet {game_session.current_snippet}'
@@ -1262,6 +1291,8 @@ class SubmitGuessView(APIView):
                         transaction_type='bonus',
                     )
 
+            _broadcast_leaderboard_updated(room.id, request.user.id)
+
             response_data = {
                 'is_correct': True,
                 'points_earned': points,
@@ -1286,6 +1317,9 @@ class SubmitGuessView(APIView):
             game_session.current_snippet += 1
             game_session.awaiting_retry_unlock = False
             game_session.save(update_fields=['guesses_made', 'current_snippet', 'awaiting_retry_unlock'])
+
+            if game_session.current_snippet == MAX_DAILY_SNIPPET:
+                _broadcast_leaderboard_updated(room.id, request.user.id)
 
             return Response({
                 'is_correct': False,
@@ -1343,6 +1377,7 @@ class SubmitGuessView(APIView):
                 played_date=today,
                 perfect_game=False
             )
+            _broadcast_leaderboard_updated(room.id, request.user.id)
             return Response({
                 'is_correct': False,
                 'points_earned': 0,
@@ -1395,6 +1430,7 @@ class SubmitGuessView(APIView):
             played_date=today,
             perfect_game=False
         )
+        _broadcast_leaderboard_updated(room.id, request.user.id)
 
         return Response({
             'is_correct': False,
@@ -1489,6 +1525,7 @@ class DailyGameRetryView(APIView):
                 played_date=today,
                 perfect_game=False,
             )
+            _broadcast_leaderboard_updated(room.id, request.user.id)
 
             return Response(
                 {
@@ -1606,12 +1643,16 @@ class LeaderboardView(APIView):
                 'error': 'No song available for today'
             }, status=status.HTTP_404_NOT_FOUND)
 
-        # Get completed sessions ordered by points and completion time
+        # Include completed sessions plus players who reached the final snippet
+        # without a correct guess, so "did not guess" entries appear in today's
+        # results even before an explicit forfeit.
         sessions = DailyGameSession.objects.filter(
             room=room,
             daily_song=daily_song,
-            correct_guess=True
-        ).select_related('user').order_by('-points_earned', 'completed_at')
+        ).filter(
+            Q(completed_at__isnull=False)
+            | Q(correct_guess=False, current_snippet=MAX_DAILY_SNIPPET)
+        ).select_related('user').order_by('-correct_guess', '-points_earned', 'completed_at', 'created_at')
 
         # Build leaderboard entries
         leaderboard = []
@@ -1622,9 +1663,10 @@ class LeaderboardView(APIView):
                     'username': session.user.username,
                     'email': session.user.email
                 },
-                'points_earned': session.points_earned,
+                'correct_guess': session.correct_guess,
+                'points_earned': session.points_earned or 0,
                 'snippet_number': session.current_snippet,
-                'completed_at': session.completed_at
+                'completed_at': session.completed_at or session.created_at
             })
 
         return Response({
@@ -1885,6 +1927,11 @@ class SearchTracksView(APIView):
 
     def get(self, request):
         query = request.query_params.get('q', '').strip()
+        try:
+            limit = int(request.query_params.get('limit', 25))
+        except (TypeError, ValueError):
+            limit = 25
+        limit = max(1, min(limit, 50))
 
         if not query:
             return Response([], status=status.HTTP_200_OK)
@@ -1892,7 +1939,16 @@ class SearchTracksView(APIView):
         # Search tracks by title or artist (case-insensitive)
         tracks = Track.objects.filter(
             Q(title__icontains=query) | Q(artist__icontains=query)
-        )[:10]  # Limit to 10 results
+        ).annotate(
+            relevance=Case(
+                When(artist__iexact=query, then=Value(0)),
+                When(title__iexact=query, then=Value(1)),
+                When(artist__istartswith=query, then=Value(2)),
+                When(title__istartswith=query, then=Value(3)),
+                default=Value(4),
+                output_field=IntegerField(),
+            )
+        ).order_by('relevance', 'artist', 'title', 'id')[:limit]
 
         serializer = TrackSerializer(tracks, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -2027,12 +2083,13 @@ class RoomHistoryDetailView(APIView):
         leaderboard_sessions = DailyGameSession.objects.filter(
             room=room,
             daily_song=daily_song,
-            correct_guess=True,
-        ).select_related('user').order_by('-points_earned', 'completed_at')
+            completed_at__isnull=False,
+        ).select_related('user').order_by('-correct_guess', '-points_earned', 'completed_at')
 
         leaderboard = [
             {
                 'user': {'id': str(s.user.id), 'username': s.user.username},
+                'correct_guess': s.correct_guess,
                 'points_earned': s.points_earned,
                 'snippet_number': s.current_snippet,
                 'completed_at': s.completed_at.isoformat() if s.completed_at else None,
