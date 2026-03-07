@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../config/app_theme.dart';
@@ -58,6 +59,8 @@ class _GameScreenState extends State<GameScreen> {
   bool _retryActivationInProgress = false;
   bool _showHistorySelector = false;
   Timer? _resultRefreshTimer;
+  Timer? _skipFeedbackTimer;
+  bool _skipFeedbackActive = false;
 
   @override
   void initState() {
@@ -84,6 +87,7 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void dispose() {
     _resultRefreshTimer?.cancel();
+    _skipFeedbackTimer?.cancel();
     _gameProvider.removeListener(_handleGameProviderUpdate);
     _gameProvider.disconnectFromChat();
     _titleController.dispose();
@@ -140,7 +144,49 @@ class _GameScreenState extends State<GameScreen> {
 
   Future<void> _handleSkip() async {
     final gameProvider = context.read<GameProvider>();
+    final previousSession = gameProvider.currentSession;
+    if (previousSession == null) return;
+    final previousSnippet = previousSession.currentSnippet;
+    unawaited(HapticFeedback.mediumImpact());
+    unawaited(SystemSound.play(SystemSoundType.click));
     await gameProvider.skipSnippet(widget.roomId);
+    if (!mounted) return;
+
+    final updatedSession = gameProvider.currentSession;
+    if (updatedSession == null) return;
+
+    if (updatedSession.currentSnippet > previousSnippet) {
+      _triggerSkipFeedbackAnimation();
+      return;
+    }
+
+    final errorMessage = gameProvider.errorMessage;
+    if (errorMessage != null && errorMessage.isNotEmpty) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage.replaceFirst('Exception: ', '')),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    }
+  }
+
+  void _triggerSkipFeedbackAnimation() {
+    _skipFeedbackTimer?.cancel();
+    setState(() => _skipFeedbackActive = true);
+    _skipFeedbackTimer = Timer(const Duration(milliseconds: 240), () {
+      if (!mounted) return;
+      setState(() => _skipFeedbackActive = false);
+    });
+  }
+
+  String _formatSnippetDuration(double seconds) {
+    final hasDecimal = seconds % 1 != 0;
+    final value = hasDecimal
+        ? seconds.toStringAsFixed(1)
+        : seconds.toStringAsFixed(0);
+    return '${value}s';
   }
 
   Future<void> _handleGuess() async {
@@ -1251,33 +1297,41 @@ class _GameScreenState extends State<GameScreen> {
                 final snippetNumber = index + 1;
                 final isActive = snippetNumber == session.currentSnippet;
                 final isPassed = snippetNumber < session.currentSnippet;
+                final highlightActive = isActive && _skipFeedbackActive;
 
-                return Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isPassed
-                        ? AppTheme.textSecondary
-                        : isActive
-                        ? AppTheme.primaryColor
-                        : AppTheme.surfaceColor,
-                    border: Border.all(
-                      color: isActive
+                return AnimatedScale(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutBack,
+                  scale: highlightActive ? 1.1 : 1,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOut,
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isPassed
+                          ? AppTheme.textSecondary
+                          : isActive
                           ? AppTheme.primaryColor
-                          : AppTheme.textSecondary,
-                      width: 2,
-                    ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '$snippetNumber',
-                      style: TextStyle(
-                        color: isPassed || isActive
-                            ? Colors.white
+                          : AppTheme.surfaceColor,
+                      border: Border.all(
+                        color: isActive
+                            ? AppTheme.primaryColor
                             : AppTheme.textSecondary,
-                        fontWeight: FontWeight.bold,
+                        width: 2,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '$snippetNumber',
+                        style: TextStyle(
+                          color: isPassed || isActive
+                              ? Colors.white
+                              : AppTheme.textSecondary,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -1306,10 +1360,35 @@ class _GameScreenState extends State<GameScreen> {
                     style: Theme.of(context).textTheme.displaySmall,
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    '${session.snippetDuration}s',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: AppTheme.primaryColor,
+                  AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOut,
+                    style: Theme.of(context).textTheme.titleLarge!.copyWith(
+                      color: _skipFeedbackActive
+                          ? AppTheme.accentColor
+                          : AppTheme.primaryColor,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      switchInCurve: Curves.easeOut,
+                      switchOutCurve: Curves.easeIn,
+                      transitionBuilder: (child, animation) {
+                        return FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(0, 0.15),
+                              end: Offset.zero,
+                            ).animate(animation),
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: Text(
+                        _formatSnippetDuration(session.snippetDuration),
+                        key: ValueKey(session.currentSnippet),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
