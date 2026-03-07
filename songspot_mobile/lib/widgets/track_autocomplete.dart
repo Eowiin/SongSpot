@@ -25,14 +25,18 @@ class TrackAutocomplete extends StatefulWidget {
 class _TrackAutocompleteState extends State<TrackAutocomplete> {
   final ApiService _apiService = ApiService();
   final ScrollController _suggestionsScrollController = ScrollController();
+  final GlobalKey _suggestionsPanelKey = GlobalKey();
   List<Track> _suggestions = [];
   bool _isLoading = false;
   Timer? _debounce;
+
+  static const double _suggestionsMaxHeight = 200;
 
   Future<void> _searchTracks(String query) async {
     if (query.trim().isEmpty) {
       setState(() {
         _suggestions = [];
+        _isLoading = false;
       });
       return;
     }
@@ -49,12 +53,27 @@ class _TrackAutocompleteState extends State<TrackAutocomplete> {
             .toList();
         _isLoading = false;
       });
+      _scrollSuggestionsIntoView();
     } catch (e) {
       setState(() {
         _suggestions = [];
         _isLoading = false;
       });
     }
+  }
+
+  void _scrollSuggestionsIntoView() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _suggestions.isEmpty) return;
+      final suggestionsContext = _suggestionsPanelKey.currentContext;
+      if (suggestionsContext == null) return;
+      Scrollable.ensureVisible(
+        suggestionsContext,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+        alignment: 1,
+      );
+    });
   }
 
   void _selectTrack(Track track) {
@@ -139,7 +158,8 @@ class _TrackAutocompleteState extends State<TrackAutocomplete> {
         if (_suggestions.isNotEmpty) ...[
           const SizedBox(height: 8),
           Container(
-            constraints: const BoxConstraints(maxHeight: 200),
+            key: _suggestionsPanelKey,
+            constraints: const BoxConstraints(maxHeight: _suggestionsMaxHeight),
             decoration: BoxDecoration(
               color: AppTheme.surfaceColor,
               borderRadius: BorderRadius.circular(AppTheme.borderRadius),
