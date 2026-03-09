@@ -50,13 +50,11 @@ class WebSocketService {
 
   /// Get WebSocket URL from API base URL
   String get _wsBaseUrl {
-    final apiUrl = ApiConfig.baseUrl;
-    // Convert http(s):// to ws(s)://
-    if (apiUrl.startsWith('https://')) {
-      return apiUrl.replaceFirst('https://', 'wss://').replaceAll('/api', '');
-    } else {
-      return apiUrl.replaceFirst('http://', 'ws://').replaceAll('/api', '');
-    }
+    final apiUri = Uri.parse(ApiConfig.baseUrl);
+    final wsScheme = apiUri.scheme == 'https' ? 'wss' : 'ws';
+
+    // Rebuild the URL with only scheme, host, and port, ignoring the path from the API base URL.
+    return '$wsScheme://${apiUri.host}${apiUri.hasPort ? ':${apiUri.port}' : ''}';
   }
 
   /// Connect to a room's chat WebSocket

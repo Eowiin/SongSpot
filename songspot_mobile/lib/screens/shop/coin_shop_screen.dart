@@ -21,6 +21,7 @@ class CoinShopScreen extends StatefulWidget {
 
 class _CoinShopScreenState extends State<CoinShopScreen> {
   final ApiService _apiService = ApiService();
+  bool _isBalanceLoading = true;
   bool _rewardClaimInProgress = false;
   bool _rewardStatusLoading = false;
   int? _rewardDailyCap;
@@ -30,25 +31,13 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
   Timer? _rewardFeedbackTimer;
   BannerAd? _bannerAd;
   bool _isBannerReady = false;
+  bool _isBannerLoading = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final shopProvider = context.read<CoinShopProvider>();
-      shopProvider.initialize();
-      shopProvider.loadProducts();
-      final adsDisabled = context.read<AuthProvider>().user?.hasNoAds ?? false;
-      unawaited(
-        AdMobService().preloadRewarded(
-          adsDisabled: adsDisabled,
-          placement: RewardedPlacement.coinShopBonus,
-        ),
-      );
-      if (AdMobService().canServeAds(adsDisabled: adsDisabled)) {
-        _loadBannerAd();
-      }
-      unawaited(_loadRewardStatus());
+      unawaited(_initializeScreen());
     });
   }
 
@@ -59,10 +48,46 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
     super.dispose();
   }
 
+  Future<void> _initializeScreen() async {
+    final shopProvider = context.read<CoinShopProvider>();
+    final authProvider = context.read<AuthProvider>();
+
+    setState(() => _isBalanceLoading = true);
+    await Future.wait([
+      authProvider.refreshProfile(notify: true),
+      shopProvider.initialize(),
+      shopProvider.loadProducts(),
+      _loadRewardStatus(),
+    ]);
+    if (!mounted) return;
+
+    setState(() => _isBalanceLoading = false);
+
+    final adsDisabled = context.read<AuthProvider>().user?.hasNoAds ?? false;
+    unawaited(
+      AdMobService().preloadRewarded(
+        adsDisabled: adsDisabled,
+        placement: RewardedPlacement.coinShopBonus,
+      ),
+    );
+    if (AdMobService().canServeAds(adsDisabled: adsDisabled)) {
+      _loadBannerAd();
+    }
+  }
+
   void _loadBannerAd() {
     final adsDisabled = context.read<AuthProvider>().user?.hasNoAds ?? false;
     if (!AdMobService().canServeAds(adsDisabled: adsDisabled)) return;
     _bannerAd?.dispose();
+    if (mounted) {
+      setState(() {
+        _isBannerReady = false;
+        _isBannerLoading = true;
+      });
+    } else {
+      _isBannerReady = false;
+      _isBannerLoading = true;
+    }
     _bannerAd = BannerAd(
       adUnitId: AdMobConfig.bannerPackListAdUnitId,
       size: AdSize.banner,
@@ -73,12 +98,18 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
             ad.dispose();
             return;
           }
-          setState(() => _isBannerReady = true);
+          setState(() {
+            _isBannerReady = true;
+            _isBannerLoading = false;
+          });
         },
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
           if (!mounted) return;
-          setState(() => _isBannerReady = false);
+          setState(() {
+            _isBannerReady = false;
+            _isBannerLoading = false;
+          });
         },
       ),
     )..load();
@@ -222,14 +253,8 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.coinShopTitle)),
-      bottomNavigationBar: (canServeAds && _isBannerReady && _bannerAd != null)
-          ? SafeArea(
-              top: false,
-              child: SizedBox(
-                height: _bannerAd!.size.height.toDouble(),
-                child: AdWidget(ad: _bannerAd!),
-              ),
-            )
+      bottomNavigationBar: canServeAds && (_isBannerReady || _isBannerLoading)
+          ? _buildBannerSlot()
           : null,
       body: Stack(
         children: [
@@ -245,8 +270,9 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
                       vertical: 24,
                     ),
                     children: [
-                      // Coin balance header
-                      _buildBalanceHeader(context, coins),
+                      _isBalanceLoading
+                          ? _buildBalanceHeaderSkeleton()
+                          : _buildBalanceHeader(context, coins),
                       const SizedBox(height: 24),
 
                       if (!shopProvider.isStoreAvailable)
@@ -373,6 +399,80 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBalanceHeaderSkeleton() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: AppTheme.primaryGradient,
+        borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.28),
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildPlaceholderLine(width: 110, height: 14),
+                const SizedBox(height: 12),
+                _buildPlaceholderLine(width: 140, height: 28),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlaceholderLine({
+    required double width,
+    required double height,
+  }) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.24),
+        borderRadius: BorderRadius.circular(999),
+      ),
+    );
+  }
+
+  Widget _buildBannerSlot() {
+    final banner = _bannerAd;
+    final bannerHeight = AdSize.banner.height.toDouble();
+
+    return SafeArea(
+      top: false,
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 200),
+        child: (banner != null && _isBannerReady)
+            ? SizedBox(
+                key: const ValueKey('coin-shop-banner-ready'),
+                height: banner.size.height.toDouble(),
+                child: AdWidget(ad: banner),
+              )
+            : Container(
+                key: const ValueKey('coin-shop-banner-placeholder'),
+                height: bannerHeight,
+                margin: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: AppTheme.surfaceColor.withValues(alpha: 0.22),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
       ),
     );
   }

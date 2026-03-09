@@ -14,6 +14,7 @@ class AdMobService {
 
   bool _initialized = false;
   final Set<RewardedPlacement> _loadingRewarded = <RewardedPlacement>{};
+  final Map<RewardedPlacement, Completer<void>> _rewardedLoadCompleters = {};
   bool _loadingInterstitial = false;
   final Map<RewardedPlacement, RewardedAd> _rewardedAds = {};
   InterstitialAd? _interstitialAd;
@@ -41,11 +42,18 @@ class AdMobService {
     if (!canServeAds(adsDisabled: adsDisabled)) return;
     await initialize();
     if (!_initialized) return;
-    if (_rewardedAds[placement] != null ||
-        _loadingRewarded.contains(placement)) {
+    if (_rewardedAds[placement] != null) {
       return;
     }
 
+    final existingLoad = _rewardedLoadCompleters[placement];
+    if (existingLoad != null) {
+      await _awaitRewardedLoad(placement, existingLoad);
+      return;
+    }
+
+    final loadCompleter = Completer<void>();
+    _rewardedLoadCompleters[placement] = loadCompleter;
     _loadingRewarded.add(placement);
     RewardedAd.load(
       adUnitId: AdMobConfig.rewardedAdUnitIdFor(placement),
@@ -54,13 +62,23 @@ class AdMobService {
         onAdLoaded: (ad) {
           _loadingRewarded.remove(placement);
           _rewardedAds[placement] = ad;
+          final completer = _rewardedLoadCompleters.remove(placement);
+          if (completer != null && !completer.isCompleted) {
+            completer.complete();
+          }
         },
         onAdFailedToLoad: (error) {
           _loadingRewarded.remove(placement);
           debugPrint('AdMob rewarded load failed: $error');
+          final completer = _rewardedLoadCompleters.remove(placement);
+          if (completer != null && !completer.isCompleted) {
+            completer.complete();
+          }
         },
       ),
     );
+
+    await _awaitRewardedLoad(placement, loadCompleter);
   }
 
   Future<bool> showRewarded({
@@ -74,50 +92,69 @@ class AdMobService {
 
     var ad = _rewardedAds.remove(placement);
     if (ad == null) {
-      await preloadRewarded(adsDisabled: false, placement: placement);
-      await Future<void>.delayed(const Duration(milliseconds: 400));
+      await preloadRewarded(adsDisabled: adsDisabled, placement: placement);
       ad = _rewardedAds.remove(placement);
       if (ad == null) return false;
     }
 
     var rewardGranted = false;
-    final completer = Completer<void>();
+    var showFailed = false;
+    final dismissCompleter = Completer<void>();
+    final rewardSignalCompleter = Completer<void>();
     final rewardCompleter = Completer<void>();
 
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdDismissedFullScreenContent: (ad) {
         ad.dispose();
-        if (!completer.isCompleted) completer.complete();
+        if (!dismissCompleter.isCompleted) dismissCompleter.complete();
       },
       onAdFailedToShowFullScreenContent: (ad, error) {
+        showFailed = true;
         ad.dispose();
-        if (!completer.isCompleted) completer.complete();
+        if (!dismissCompleter.isCompleted) dismissCompleter.complete();
       },
     );
 
-    await ad.show(
-      onUserEarnedReward: (adWithoutView, rewardItem) {
-        if (rewardGranted) return;
-        rewardGranted = true;
-        onRewardEarned()
-            .then((_) {
-              if (!rewardCompleter.isCompleted) rewardCompleter.complete();
-            })
-            .catchError((error, stackTrace) {
-              if (!rewardCompleter.isCompleted) {
-                rewardCompleter.completeError(error, stackTrace);
-              }
-            });
-      },
-    );
-    await completer.future.timeout(
+    try {
+      await ad.show(
+        onUserEarnedReward: (adWithoutView, rewardItem) {
+          if (rewardGranted) return;
+          rewardGranted = true;
+          if (!rewardSignalCompleter.isCompleted) {
+            rewardSignalCompleter.complete();
+          }
+          onRewardEarned()
+              .then((_) {
+                if (!rewardCompleter.isCompleted) rewardCompleter.complete();
+              })
+              .catchError((error, stackTrace) {
+                if (!rewardCompleter.isCompleted) {
+                  rewardCompleter.completeError(error, stackTrace);
+                }
+              });
+        },
+      );
+    } catch (error) {
+      showFailed = true;
+      debugPrint('AdMob rewarded show failed: $error');
+      ad.dispose();
+      if (!dismissCompleter.isCompleted) dismissCompleter.complete();
+    }
+
+    await dismissCompleter.future.timeout(
       const Duration(seconds: 10),
       onTimeout: () {},
     );
+    if (!rewardGranted && !showFailed) {
+      await rewardSignalCompleter.future.timeout(
+        const Duration(seconds: 1),
+        onTimeout: () {},
+      );
+    }
     if (rewardGranted) {
       await rewardCompleter.future;
     }
-    unawaited(preloadRewarded(adsDisabled: false, placement: placement));
+    unawaited(preloadRewarded(adsDisabled: adsDisabled, placement: placement));
     return rewardGranted;
   }
 
@@ -212,5 +249,20 @@ class AdMobService {
     required String gameDate,
   }) {
     return 'ads_interstitial_room_completion_${roomId}_$gameDate';
+  }
+
+  Future<void> _awaitRewardedLoad(
+    RewardedPlacement placement,
+    Completer<void> loadCompleter,
+  ) async {
+    await loadCompleter.future.timeout(
+      const Duration(seconds: 8),
+      onTimeout: () {
+        if (identical(_rewardedLoadCompleters[placement], loadCompleter)) {
+          _rewardedLoadCompleters.remove(placement);
+          _loadingRewarded.remove(placement);
+        }
+      },
+    );
   }
 }
