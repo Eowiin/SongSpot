@@ -7,7 +7,7 @@ import '../models/message.dart';
 class ResultChatSection extends StatelessWidget {
   final String title;
   final String emptyTitle;
-  final String emptySubtitle;
+  final String? emptySubtitle;
   final List<Message> messages;
   final String? currentUserId;
   final int maxMessages;
@@ -18,7 +18,7 @@ class ResultChatSection extends StatelessWidget {
     super.key,
     required this.title,
     required this.emptyTitle,
-    required this.emptySubtitle,
+    this.emptySubtitle,
     required this.messages,
     required this.currentUserId,
     this.maxMessages = 12,
@@ -48,8 +48,13 @@ class ResultChatSection extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(emptyTitle, style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 4),
-            Text(emptySubtitle, style: Theme.of(context).textTheme.bodySmall),
+            if ((emptySubtitle ?? '').isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                emptySubtitle!,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
           ],
         ),
       );

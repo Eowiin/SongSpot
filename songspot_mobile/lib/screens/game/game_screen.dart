@@ -14,6 +14,8 @@ import '../../providers/pack_provider.dart';
 import '../../models/track.dart';
 import '../../models/game_session.dart';
 import '../../models/pack.dart';
+import '../../models/message.dart';
+import '../../models/user.dart';
 import '../../widgets/compact_playback_panel.dart';
 import '../../widgets/result_chat_section.dart';
 import '../../widgets/result_leaderboard_section.dart';
@@ -1793,301 +1795,72 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildHistoryContent(HistoryDayDetail detail) {
-    final currentUserId = context.read<AuthProvider>().user?.id;
     final session = detail.mySession;
-
-    return SingleChildScrollView(
-      padding: AppTheme.pagePadding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (_showHistorySelector) ...[
-            _buildDateRow(),
-            const SizedBox(height: 8),
-          ],
-          // Song card
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: AppTheme.cardGradient,
-              borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-            ),
-            child: Column(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: detail.track.coverUrl != null
-                      ? Image.network(
-                          detail.track.coverUrl!,
-                          width: 160,
-                          height: 160,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context2, e, s) =>
-                              _historyAlbumPlaceholder(),
-                        )
-                      : _historyAlbumPlaceholder(),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  detail.track.title,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  detail.track.artist,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppTheme.textSecondary,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                if (session != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: session.correctGuess
-                          ? AppTheme.successColor.withValues(alpha: 0.2)
-                          : AppTheme.errorColor.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          session.correctGuess
-                              ? Icons.check_circle
-                              : Icons.cancel,
-                          color: session.correctGuess
-                              ? AppTheme.successColor
-                              : AppTheme.errorColor,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          session.correctGuess
-                              ? '+${session.pointsEarned ?? 0} pts · Snippet ${session.currentSnippet}'
-                              : 'Not guessed',
-                          style: TextStyle(
-                            color: session.correctGuess
-                                ? AppTheme.successColor
-                                : AppTheme.errorColor,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppTheme.surfaceColor,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      'You didn\'t play this day',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+    final leaderboardRows = detail.leaderboard
+        .map(
+          (entry) => ResultLeaderboardRowData(
+            title: entry.username,
+            subtitle:
+                'Snippet ${entry.snippetNumber}'
+                '${entry.completedAt != null ? ' · ${DateFormat.Hm().format(entry.completedAt!.toLocal())}' : ''}',
+            scoreText: '${entry.pointsEarned}',
           ),
-          const SizedBox(height: 24),
+        )
+        .toList();
 
-          // Leaderboard
-          Text('Results', style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: 12),
-
-          if (detail.leaderboard.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppTheme.surfaceColor,
-                borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-              ),
-              child: Text(
-                'Nobody guessed this day',
-                style: Theme.of(context).textTheme.bodyMedium,
-                textAlign: TextAlign.center,
-              ),
-            )
-          else
-            ...detail.leaderboard.asMap().entries.map((entry) {
-              final rank = entry.key + 1;
-              final e = entry.value;
-              final rankColor = rank == 1
-                  ? const Color(0xFFFFD700)
-                  : rank == 2
-                  ? const Color(0xFFC0C0C0)
-                  : rank == 3
-                  ? const Color(0xFFCD7F32)
-                  : AppTheme.textSecondary;
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppTheme.surfaceColor,
-                  borderRadius: BorderRadius.circular(
-                    AppTheme.cardBorderRadius,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: rankColor.withValues(alpha: 0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          '$rank',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: rankColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            e.username,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          Text(
-                            'Snippet ${e.snippetNumber}${e.completedAt != null ? ' · ${DateFormat.Hm().format(e.completedAt!.toLocal())}' : ''}',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: AppTheme.textSecondary),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: AppTheme.primaryGradient,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '${e.pointsEarned}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-          const SizedBox(height: 24),
-
-          // Chat
-          Text('Chat', style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: 12),
-
-          if (detail.messages.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Column(
-                children: [
-                  const Icon(
-                    Icons.chat_bubble_outline,
-                    size: 36,
-                    color: AppTheme.textSecondary,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'No messages that day',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            )
-          else
-            ...detail.messages.map((msg) {
-              final isMe = msg.userId == currentUserId;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Align(
-                  alignment: isMe
-                      ? Alignment.centerRight
-                      : Alignment.centerLeft,
-                  child: Container(
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.75,
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isMe
-                          ? AppTheme.primaryColor.withValues(alpha: 0.2)
-                          : AppTheme.surfaceColor,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: isMe
-                          ? CrossAxisAlignment.end
-                          : CrossAxisAlignment.start,
-                      children: [
-                        if (!isMe)
-                          Text(
-                            msg.username,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: AppTheme.primaryColor,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                          ),
-                        Text(
-                          msg.message,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          DateFormat.Hm().format(msg.createdAt.toLocal()),
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: AppTheme.textSecondary),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            }),
-          const SizedBox(height: 32),
-        ],
+    return _buildSharedHistoryContent(
+      track: detail.track,
+      footer: _buildHistoryStatusFooter(
+        isSuccess: session?.correctGuess,
+        successText: session == null
+            ? null
+            : '+${session.pointsEarned ?? 0} pts · Snippet ${session.currentSnippet}',
+        failureText: 'Not guessed',
+        emptyText: 'You didn\'t play this day',
       ),
+      leaderboardRows: leaderboardRows,
+      leaderboardEmptyText: 'Nobody guessed this day',
+      messages: _mapHistoryMessages(detail.messages),
     );
   }
 
   Widget _buildPackHistoryContent(PackHistoryDayDetail detail) {
-    final currentUserId = context.read<AuthProvider>().user?.id;
     final session = detail.mySession;
+    final leaderboardRows = detail.leaderboard
+        .map(
+          (entry) => ResultLeaderboardRowData(
+            title: entry.username,
+            subtitle:
+                'Stage ${entry.stageNumber} · ${DateFormat.Hm().format(entry.completedAt.toLocal())}',
+            scoreText: '${entry.pointsEarned}',
+          ),
+        )
+        .toList();
+
+    return _buildSharedHistoryContent(
+      track: detail.track,
+      footer: _buildHistoryStatusFooter(
+        isSuccess: session?.completed,
+        successText: session == null
+            ? null
+            : '+${session.pointsEarned} pts · Stage ${session.currentStage}',
+        failureText: 'Not completed',
+        emptyText: 'You didn\'t play this pack that day',
+      ),
+      leaderboardRows: leaderboardRows,
+      leaderboardEmptyText: 'Nobody completed this pack that day',
+      messages: _mapHistoryMessages(detail.messages),
+    );
+  }
+
+  Widget _buildSharedHistoryContent({
+    required HistoryTrack track,
+    required Widget footer,
+    required List<ResultLeaderboardRowData> leaderboardRows,
+    required String leaderboardEmptyText,
+    required List<Message> messages,
+  }) {
+    final currentUserId = context.read<AuthProvider>().user?.id;
 
     return SingleChildScrollView(
       padding: AppTheme.pagePadding,
@@ -2098,290 +1871,94 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
             _buildDateRow(),
             const SizedBox(height: 8),
           ],
-          // Track card
-          Container(
+          ResultTrackCard(
+            title: track.title,
+            artist: track.artist,
+            coverUrl: track.coverUrl,
+            artworkSize: 160,
             padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: AppTheme.cardGradient,
-              borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-            ),
-            child: Column(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: detail.track.coverUrl != null
-                      ? Image.network(
-                          detail.track.coverUrl!,
-                          width: 160,
-                          height: 160,
-                          fit: BoxFit.cover,
-                          errorBuilder: (c, e, s) => _historyAlbumPlaceholder(),
-                        )
-                      : _historyAlbumPlaceholder(),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  detail.track.title,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  detail.track.artist,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppTheme.textSecondary,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                if (session != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: session.completed
-                          ? AppTheme.successColor.withValues(alpha: 0.2)
-                          : AppTheme.errorColor.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          session.completed ? Icons.check_circle : Icons.cancel,
-                          color: session.completed
-                              ? AppTheme.successColor
-                              : AppTheme.errorColor,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          session.completed
-                              ? '+${session.pointsEarned} pts · Stage ${session.currentStage}'
-                              : 'Not completed',
-                          style: TextStyle(
-                            color: session.completed
-                                ? AppTheme.successColor
-                                : AppTheme.errorColor,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppTheme.surfaceColor,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      "You didn't play this pack that day",
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+            footer: footer,
           ),
           const SizedBox(height: 24),
-
-          // Leaderboard
-          Text("Results", style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: 12),
-
-          if (detail.leaderboard.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppTheme.surfaceColor,
-                borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-              ),
-              child: Text(
-                'Nobody completed this pack that day',
-                style: Theme.of(context).textTheme.bodyMedium,
-                textAlign: TextAlign.center,
-              ),
-            )
-          else
-            ...detail.leaderboard.asMap().entries.map((entry) {
-              final rank = entry.key + 1;
-              final e = entry.value;
-              final rankColor = rank == 1
-                  ? const Color(0xFFFFD700)
-                  : rank == 2
-                  ? const Color(0xFFC0C0C0)
-                  : rank == 3
-                  ? const Color(0xFFCD7F32)
-                  : AppTheme.textSecondary;
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppTheme.surfaceColor,
-                  borderRadius: BorderRadius.circular(
-                    AppTheme.cardBorderRadius,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: rankColor.withValues(alpha: 0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          '$rank',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: rankColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            e.username,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          Text(
-                            'Stage ${e.stageNumber} · ${DateFormat.Hm().format(e.completedAt.toLocal())}',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: AppTheme.textSecondary),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: AppTheme.primaryGradient,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '${e.pointsEarned}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
+          ResultLeaderboardSection(
+            title: 'Results',
+            emptyText: leaderboardEmptyText,
+            rows: leaderboardRows,
+          ),
           const SizedBox(height: 24),
-
-          // Chat
-          Text('Chat', style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: 12),
-
-          if (detail.messages.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Column(
-                children: [
-                  const Icon(
-                    Icons.chat_bubble_outline,
-                    size: 36,
-                    color: AppTheme.textSecondary,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'No messages that day',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            )
-          else
-            ...detail.messages.map((msg) {
-              final isMe = msg.userId == currentUserId;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Align(
-                  alignment: isMe
-                      ? Alignment.centerRight
-                      : Alignment.centerLeft,
-                  child: Container(
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.75,
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isMe
-                          ? AppTheme.primaryColor.withValues(alpha: 0.2)
-                          : AppTheme.surfaceColor,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: isMe
-                          ? CrossAxisAlignment.end
-                          : CrossAxisAlignment.start,
-                      children: [
-                        if (!isMe)
-                          Text(
-                            msg.username,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: AppTheme.primaryColor,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                          ),
-                        Text(
-                          msg.message,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          DateFormat.Hm().format(msg.createdAt.toLocal()),
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: AppTheme.textSecondary),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            }),
+          ResultChatSection(
+            title: 'Chat',
+            emptyTitle: 'No messages that day',
+            messages: messages,
+            currentUserId: currentUserId,
+          ),
           const SizedBox(height: 32),
         ],
       ),
     );
   }
 
-  Widget _historyAlbumPlaceholder() {
+  Widget _buildHistoryStatusFooter({
+    required bool? isSuccess,
+    required String? successText,
+    required String failureText,
+    required String emptyText,
+  }) {
+    if (isSuccess == null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceColor,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          emptyText,
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    final color = isSuccess ? AppTheme.successColor : AppTheme.errorColor;
+    final icon = isSuccess ? Icons.check_circle : Icons.cancel;
+
     return Container(
-      width: 160,
-      height: 160,
-      color: AppTheme.surfaceColor,
-      child: const Icon(Icons.album, size: 64, color: AppTheme.primaryColor),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 8),
+          Text(
+            isSuccess ? successText! : failureText,
+            style: TextStyle(color: color, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
     );
+  }
+
+  List<Message> _mapHistoryMessages(List<HistoryMessage> messages) {
+    return messages
+        .map(
+          (message) => Message(
+            id: message.id,
+            user: User(
+              id: message.userId,
+              email: '',
+              username: message.username,
+            ),
+            message: message.message,
+            createdAt: message.createdAt,
+          ),
+        )
+        .toList();
   }
 }
 
