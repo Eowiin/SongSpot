@@ -25,6 +25,7 @@ class GameProvider with ChangeNotifier {
   String? _currentChatRoomId;
   Map<String, bool> _typingUsers = {}; // userId -> isTyping
   Map<String, String> _hintValues = {}; // hintType -> revealed value
+  int _playSnippetRequestId = 0;
 
   GameSession? get currentSession => _currentSession;
   List<LeaderboardEntry> get leaderboard => _leaderboard;
@@ -92,13 +93,19 @@ class GameProvider with ChangeNotifier {
       }
     }
 
+    await _refreshAndLoadAudio(session);
+  }
+
+  Future<GameSession> _refreshAndLoadAudio(GameSession session) async {
     final refreshed = await _apiService.refreshTrackPreview(
       trackId: session.dailySong.track.id,
     );
     final trackJson = refreshed['track'] as Map<String, dynamic>;
     final updatedTrack = Track.fromJson(trackJson);
-    _currentSession = _copySessionWithTrack(session, updatedTrack);
+    final updatedSession = _copySessionWithTrack(session, updatedTrack);
+    _currentSession = updatedSession;
     await _audioService.loadAudio(updatedTrack.previewUrl);
+    return updatedSession;
   }
 
   GameSession _copySessionWithTrack(GameSession session, Track updatedTrack) {
@@ -480,20 +487,36 @@ class GameProvider with ChangeNotifier {
   /// Play current snippet
   Future<void> playCurrentSnippet() async {
     if (_currentSession != null) {
+      final requestId = ++_playSnippetRequestId;
       try {
-        // Notify UI that playback is starting
-        notifyListeners();
-
-        await _audioService.playSnippetByNumber(
+        final playbackFuture = _audioService.playSnippetByNumber(
           _currentSession!.currentSnippet,
         );
-
-        // Notify UI that playback has finished
         notifyListeners();
+        await playbackFuture;
+        if (requestId == _playSnippetRequestId) {
+          notifyListeners();
+        }
       } catch (e) {
-        _errorMessage = 'Failed to play audio: $e';
-        notifyListeners();
-        rethrow;
+        try {
+          final refreshedSession = await _refreshAndLoadAudio(_currentSession!);
+          final retryFuture = _audioService.playSnippetByNumber(
+            refreshedSession.currentSnippet,
+          );
+          if (requestId == _playSnippetRequestId) {
+            notifyListeners();
+          }
+          await retryFuture;
+          if (requestId == _playSnippetRequestId) {
+            notifyListeners();
+          }
+        } catch (_) {
+          if (requestId == _playSnippetRequestId) {
+            _errorMessage = 'Failed to play audio: $e';
+            notifyListeners();
+            rethrow;
+          }
+        }
       }
     }
   }
@@ -501,6 +524,12 @@ class GameProvider with ChangeNotifier {
   /// Clear error message
   void clearError() {
     _errorMessage = null;
+    notifyListeners();
+  }
+
+  Future<void> stopPlayback() async {
+    _playSnippetRequestId += 1;
+    await _audioService.stop();
     notifyListeners();
   }
 

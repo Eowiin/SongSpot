@@ -13,6 +13,7 @@ import '../../providers/pack_provider.dart';
 import '../../models/track.dart';
 import '../../models/game_session.dart';
 import '../../models/pack.dart';
+import '../../widgets/compact_playback_panel.dart';
 import '../../widgets/track_autocomplete.dart';
 import '../../widgets/gradient_button.dart';
 import '../../services/api_service.dart';
@@ -31,7 +32,8 @@ class GameScreen extends StatefulWidget {
   State<GameScreen> createState() => _GameScreenState();
 }
 
-class _GameScreenState extends State<GameScreen> {
+class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
+  static const List<double> _snippetTimelineWeights = [1, 1, 2, 3, 4, 5];
   final _titleController = TextEditingController();
   final _messageController = TextEditingController();
   final _contentScrollController = ScrollController();
@@ -65,6 +67,7 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _gameProvider = context.read<GameProvider>();
     _lastKnownMessageCount = _gameProvider.messages.length;
     _gameProvider.addListener(_handleGameProviderUpdate);
@@ -86,6 +89,7 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _resultRefreshTimer?.cancel();
     _skipFeedbackTimer?.cancel();
     _gameProvider.removeListener(_handleGameProviderUpdate);
@@ -95,6 +99,20 @@ class _GameScreenState extends State<GameScreen> {
     _contentScrollController.dispose();
     _dateScrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.resumed:
+        break;
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        unawaited(_gameProvider.audioService.stop());
+        break;
+    }
   }
 
   void _handleGameProviderUpdate() {
@@ -340,6 +358,18 @@ class _GameScreenState extends State<GameScreen> {
     await context.read<RoomProvider>().loadRoomDetails(widget.roomId);
   }
 
+  Future<void> _openPackList() async {
+    final room = context.read<RoomProvider>().currentRoom;
+    if (room == null) return;
+
+    await context.read<GameProvider>().stopPlayback();
+    if (!mounted) return;
+
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => PackListScreen(roomId: room.id)));
+  }
+
   Future<void> _handleActivateRetry(String action) async {
     if (_retryActivationInProgress) return;
 
@@ -547,7 +577,9 @@ class _GameScreenState extends State<GameScreen> {
               ChoiceChip(
                 label: const Text('Daily'),
                 selected: isDailySelected,
-                onSelected: (_) {
+                onSelected: (_) async {
+                  await context.read<GameProvider>().stopPlayback();
+                  if (!mounted) return;
                   setState(() {
                     _activePackId = null;
                     _activePackName = null;
@@ -565,7 +597,9 @@ class _GameScreenState extends State<GameScreen> {
                   child: ChoiceChip(
                     label: Text(pack.name),
                     selected: pack.id == _activePackId,
-                    onSelected: (_) {
+                    onSelected: (_) async {
+                      await context.read<GameProvider>().stopPlayback();
+                      if (!mounted) return;
                       setState(() {
                         _activePackId = pack.id;
                         _activePackName = pack.name;
@@ -1176,15 +1210,7 @@ class _GameScreenState extends State<GameScreen> {
             ),
             IconButton(
               icon: const Icon(Icons.album),
-              onPressed: room == null
-                  ? null
-                  : () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => PackListScreen(roomId: room.id),
-                        ),
-                      );
-                    },
+              onPressed: room == null ? null : _openPackList,
               tooltip: 'Packs',
             ),
           ],
@@ -1291,147 +1317,21 @@ class _GameScreenState extends State<GameScreen> {
           const SizedBox(height: 16),
           _buildPackSwitcher(context, packProvider.ownedPacks),
           if (_activePackId == null) ...[
-            // Progress Indicators
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(6, (index) {
-                final snippetNumber = index + 1;
-                final isActive = snippetNumber == session.currentSnippet;
-                final isPassed = snippetNumber < session.currentSnippet;
-                final highlightActive = isActive && _skipFeedbackActive;
-
-                return AnimatedScale(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutBack,
-                  scale: highlightActive ? 1.1 : 1,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    curve: Curves.easeOut,
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isPassed
-                          ? AppTheme.textSecondary
-                          : isActive
-                          ? AppTheme.primaryColor
-                          : AppTheme.surfaceColor,
-                      border: Border.all(
-                        color: isActive
-                            ? AppTheme.primaryColor
-                            : AppTheme.textSecondary,
-                        width: 2,
-                      ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        '$snippetNumber',
-                        style: TextStyle(
-                          color: isPassed || isActive
-                              ? Colors.white
-                              : AppTheme.textSecondary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            ),
-            const SizedBox(height: 32),
-
-            // Audio Player Card
-            Container(
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                gradient: AppTheme.cardGradient,
-                borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-              ),
-              child: Column(
-                children: [
-                  const Icon(
-                    Icons.music_note,
-                    size: 80,
-                    color: AppTheme.primaryColor,
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    l10n.gameSnippetLabel(session.currentSnippet),
-                    style: Theme.of(context).textTheme.displaySmall,
-                  ),
-                  const SizedBox(height: 8),
-                  AnimatedDefaultTextStyle(
-                    duration: const Duration(milliseconds: 200),
-                    curve: Curves.easeOut,
-                    style: Theme.of(context).textTheme.titleLarge!.copyWith(
-                      color: _skipFeedbackActive
-                          ? AppTheme.accentColor
-                          : AppTheme.primaryColor,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 180),
-                      switchInCurve: Curves.easeOut,
-                      switchOutCurve: Curves.easeIn,
-                      transitionBuilder: (child, animation) {
-                        return FadeTransition(
-                          opacity: animation,
-                          child: SlideTransition(
-                            position: Tween<Offset>(
-                              begin: const Offset(0, 0.15),
-                              end: Offset.zero,
-                            ).animate(animation),
-                            child: child,
-                          ),
-                        );
-                      },
-                      child: Text(
-                        _formatSnippetDuration(session.snippetDuration),
-                        key: ValueKey(session.currentSnippet),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    l10n.gamePointsLabel(session.possiblePoints),
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  const SizedBox(height: 24),
-                  GradientButton(
-                    text: gameProvider.audioService.isPlaying
-                        ? l10n.gamePlayingSnippet
-                        : l10n.gamePlaySnippet,
-                    onPressed: gameProvider.audioService.isPlaying
-                        ? null
-                        : _handlePlaySnippet,
-                    isLoading: false,
-                  ),
-                ],
-              ),
-            ),
+            _buildSnippetTimeline(session),
             const SizedBox(height: 24),
 
-            // Hints
-            _buildHintsSection(context, gameProvider),
+            CompactPlaybackPanel(
+              durationLabel: _formatSnippetDuration(session.snippetDuration),
+              onPressed: _handlePlaySnippet,
+              isPlaying: gameProvider.audioService.isPlaying,
+            ),
             const SizedBox(height: 24),
-
-            if (session.currentSnippet >= 6 && !session.isCompleted) ...[
-              _buildRetryCard(session),
-              const SizedBox(height: 24),
-            ],
 
             if (!retryUnlockPending) ...[
-              // Guess Form
-              Text(
-                l10n.gameMakeYourGuess,
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-              const SizedBox(height: 16),
               TrackAutocomplete(
                 controller: _titleController,
-                hintText: l10n.gameSongTitleHint,
-                labelText: l10n.gameSongTitleLabel,
+                hintText: l10n.packSearchSongTitleOrArtist,
+                labelText: l10n.packSearchSongTitleOrArtist,
                 onTrackSelected: (track) {
                   setState(() {
                     _selectedTrack = track;
@@ -1475,13 +1375,16 @@ class _GameScreenState extends State<GameScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Guesses Made
-              Text(
-                l10n.gameGuessesMade(session.guessesMade),
-                style: Theme.of(context).textTheme.bodyMedium,
-                textAlign: TextAlign.center,
-              ),
+              const SizedBox(height: 24),
             ],
+
+            if (session.currentSnippet >= 6 && !session.isCompleted) ...[
+              _buildRetryCard(session),
+              const SizedBox(height: 24),
+            ],
+
+            // Hints
+            _buildHintsSection(context, gameProvider),
           ] else
             PackBundleContent(
               key: ValueKey(_activePackId),
@@ -1491,6 +1394,90 @@ class _GameScreenState extends State<GameScreen> {
               embedInScroll: true,
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSnippetTimeline(GameSession session) {
+    final totalWeight = _snippetTimelineWeights.fold<double>(
+      0,
+      (sum, weight) => sum + weight,
+    );
+
+    return SizedBox(
+      height: 22,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final boundaries = <double>[0];
+          var consumedWidth = 0.0;
+
+          for (final weight in _snippetTimelineWeights) {
+            consumedWidth += constraints.maxWidth * (weight / totalWeight);
+            boundaries.add(consumedWidth);
+          }
+
+          return Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                top: 10,
+                left: 0,
+                right: 0,
+                child: Container(
+                  height: 2,
+                  color: AppTheme.textSecondary.withValues(alpha: 0.25),
+                ),
+              ),
+              Positioned(
+                top: 10,
+                left: 0,
+                width: boundaries[session.currentSnippet],
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  height: _skipFeedbackActive ? 5 : 4,
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryColor,
+                    borderRadius: BorderRadius.circular(999),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primaryColor.withValues(alpha: 0.22),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              for (var index = 0; index < boundaries.length; index++)
+                Positioned(
+                  left: (boundaries[index] - 1).clamp(
+                    0,
+                    constraints.maxWidth - 2,
+                  ),
+                  top: 4,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOut,
+                    width: index < session.currentSnippet - 1 ? 0 : 2,
+                    height: index == session.currentSnippet
+                        ? (_skipFeedbackActive ? 16 : 14)
+                        : 12,
+                    decoration: BoxDecoration(
+                      color: index < session.currentSnippet - 1
+                          ? Colors.transparent
+                          : index == session.currentSnippet
+                          ? AppTheme.primaryColor
+                          : index == session.currentSnippet - 1
+                          ? Colors.transparent
+                          : AppTheme.textSecondary.withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }

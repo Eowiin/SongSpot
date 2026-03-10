@@ -13,6 +13,7 @@ import '../../providers/pack_bundle_provider.dart';
 import '../../services/admob_service.dart';
 import '../../services/stem_audio_service.dart';
 import '../../services/websocket_service.dart';
+import '../../widgets/compact_playback_panel.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/track_autocomplete.dart';
 
@@ -69,7 +70,8 @@ class PackBundleContent extends StatefulWidget {
   State<PackBundleContent> createState() => _PackBundleContentState();
 }
 
-class _PackBundleContentState extends State<PackBundleContent> {
+class _PackBundleContentState extends State<PackBundleContent>
+    with WidgetsBindingObserver {
   final _titleController = TextEditingController();
   final _messageController = TextEditingController();
   final _chatScrollController = ScrollController();
@@ -80,6 +82,8 @@ class _PackBundleContentState extends State<PackBundleContent> {
   bool _completionAdInProgress = false;
   int _completionAdAttempts = 0;
   bool _retryActivationInProgress = false;
+  bool _isStemPlaybackActive = false;
+  int _stemPlaybackRequestId = 0;
   StreamSubscription<WebSocketEvent>? _wsSubscription;
   Timer? _stemsPollingTimer;
   PackBundleProvider? _packBundleProvider;
@@ -87,8 +91,11 @@ class _PackBundleContentState extends State<PackBundleContent> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       () async {
+        await context.read<GameProvider>().stopPlayback();
+        if (!mounted) return;
         final provider = context.read<PackBundleProvider>();
         _listenForStemsReady();
         final adsDisabled =
@@ -211,6 +218,7 @@ class _PackBundleContentState extends State<PackBundleContent> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _wsSubscription?.cancel();
     _packBundleProvider?.removeListener(_handlePackBundleProviderChanged);
     _stopStemsPolling();
@@ -219,6 +227,24 @@ class _PackBundleContentState extends State<PackBundleContent> {
     _chatScrollController.dispose();
     _stemAudioService.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.resumed:
+        break;
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        _stemPlaybackRequestId += 1;
+        if (mounted && _isStemPlaybackActive) {
+          setState(() => _isStemPlaybackActive = false);
+        }
+        unawaited(_stemAudioService.stop());
+        break;
+    }
   }
 
   Future<void> _playStems() async {
@@ -243,9 +269,19 @@ class _PackBundleContentState extends State<PackBundleContent> {
       );
       return;
     }
+    final requestId = ++_stemPlaybackRequestId;
     try {
+      if (mounted) {
+        setState(() => _isStemPlaybackActive = true);
+      }
       await _stemAudioService.playStems(stems);
+      if (mounted && requestId == _stemPlaybackRequestId) {
+        setState(() => _isStemPlaybackActive = false);
+      }
     } catch (e) {
+      if (mounted && requestId == _stemPlaybackRequestId) {
+        setState(() => _isStemPlaybackActive = false);
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -261,6 +297,10 @@ class _PackBundleContentState extends State<PackBundleContent> {
     final stage = provider.session?.currentStage ?? 1;
     if (stage >= 4 || provider.isLoading) {
       return;
+    }
+    _stemPlaybackRequestId += 1;
+    if (_isStemPlaybackActive && mounted) {
+      setState(() => _isStemPlaybackActive = false);
     }
     await _stemAudioService.stop();
     provider.clearError();
@@ -289,6 +329,10 @@ class _PackBundleContentState extends State<PackBundleContent> {
         ),
       );
       return;
+    }
+    _stemPlaybackRequestId += 1;
+    if (_isStemPlaybackActive && mounted) {
+      setState(() => _isStemPlaybackActive = false);
     }
     await _stemAudioService.stop();
     final provider = context.read<PackBundleProvider>();
@@ -478,6 +522,13 @@ class _PackBundleContentState extends State<PackBundleContent> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    if (_isStemPlaybackActive && !_stemAudioService.isPlaying) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _isStemPlaybackActive && !_stemAudioService.isPlaying) {
+          setState(() => _isStemPlaybackActive = false);
+        }
+      });
+    }
     final provider = context.watch<PackBundleProvider>();
     final session = provider.session;
     final retryUnlockPending =
@@ -497,28 +548,17 @@ class _PackBundleContentState extends State<PackBundleContent> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _buildStageIndicators(session),
-              const SizedBox(height: 32),
-              _buildProgressCard(session, onPlay: _playStems),
               const SizedBox(height: 24),
-              _buildHintsSection(context, provider),
+              _buildProgressSection(session, onPlay: _playStems),
               const SizedBox(height: 24),
-              if (session.currentStage >= 4) ...[
-                _buildRetryCard(session),
-                const SizedBox(height: 24),
-              ],
               if (!retryUnlockPending) ...[
-                Text(
-                  l10n.gameMakeYourGuess,
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
-                const SizedBox(height: 16),
                 TrackAutocomplete(
                   controller: _titleController,
                   onTrackSelected: (track) {
                     _selectedTrack = track;
                   },
                   hintText: l10n.packSearchSongTitleOrArtist,
-                  labelText: l10n.gameSongTitleLabel,
+                  labelText: l10n.packSearchSongTitleOrArtist,
                 ),
                 const SizedBox(height: 24),
                 Builder(
@@ -542,11 +582,12 @@ class _PackBundleContentState extends State<PackBundleContent> {
                                 ),
                               ),
                             ),
-                            child: Text(l10n.packSkipInstrument),
+                            child: Text(l10n.gameSkip),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 16),
                         Expanded(
+                          flex: 2,
                           child: GradientButton(
                             text: l10n.gameSubmitGuess,
                             onPressed: interactionLocked ? null : _submitGuess,
@@ -556,7 +597,13 @@ class _PackBundleContentState extends State<PackBundleContent> {
                     );
                   },
                 ),
+                const SizedBox(height: 24),
               ],
+              if (session.currentStage >= 4) ...[
+                _buildRetryCard(session),
+                const SizedBox(height: 24),
+              ],
+              _buildHintsSection(context, provider),
             ],
           );
 
@@ -979,7 +1026,7 @@ class _PackBundleContentState extends State<PackBundleContent> {
     );
   }
 
-  Widget _buildProgressCard(
+  Widget _buildProgressSection(
     PackBundleSession session, {
     required VoidCallback onPlay,
   }) {
@@ -998,65 +1045,61 @@ class _PackBundleContentState extends State<PackBundleContent> {
         ? l10n.packStageLabel(session.currentStage)
         : activeStages.join(' + ');
 
-    return Container(
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        gradient: AppTheme.cardGradient,
-        borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
+    if (stemsStatus == 'generating') {
+      return Column(
         children: [
-          const Icon(Icons.graphic_eq, size: 80, color: AppTheme.primaryColor),
-          const SizedBox(height: 24),
           Text(
             l10n.packStageLabel(session.currentStage),
-            style: Theme.of(context).textTheme.displaySmall,
+            style: Theme.of(context).textTheme.headlineSmall,
+            textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             stageLabel,
             style: Theme.of(
               context,
-            ).textTheme.titleLarge?.copyWith(color: AppTheme.primaryColor),
+            ).textTheme.titleMedium?.copyWith(color: AppTheme.primaryColor),
+            textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             l10n.packPointsSoFar(session.pointsEarned),
-            style: Theme.of(context).textTheme.bodyLarge,
+            style: Theme.of(context).textTheme.bodyMedium,
+            textAlign: TextAlign.center,
           ),
-          if (stemsStatus == 'generating') ...[
-            const SizedBox(height: 16),
-            const SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  AppTheme.primaryColor,
-                ),
-              ),
+          const SizedBox(height: 16),
+          const SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
             ),
-            const SizedBox(height: 12),
-            Text(
-              l10n.packPreparingChallenge,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(color: AppTheme.primaryColor),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              l10n.packPreparingChallengeSubtitle,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
-            ),
-          ] else ...[
-            const SizedBox(height: 24),
-            GradientButton(text: l10n.packPlayStems, onPressed: onPlay),
-          ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            l10n.packPreparingChallenge,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: AppTheme.primaryColor),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            l10n.packPreparingChallengeSubtitle,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
+            textAlign: TextAlign.center,
+          ),
         ],
-      ),
+      );
+    }
+
+    return CompactPlaybackPanel(
+      subtitle: stageLabel,
+      onPressed: onPlay,
+      isPlaying: _isStemPlaybackActive,
     );
   }
 
