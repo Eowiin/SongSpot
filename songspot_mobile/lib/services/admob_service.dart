@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config/admob_config.dart';
 import 'consent_service.dart';
 
+enum RewardedAdShowResult { rewardGranted, shownWithoutReward, unavailable }
+
 class AdMobService {
   AdMobService._();
   static final AdMobService _instance = AdMobService._();
@@ -35,21 +37,21 @@ class AdMobService {
     _initialized = true;
   }
 
-  Future<void> preloadRewarded({
+  Future<bool> preloadRewarded({
     required bool adsDisabled,
     required RewardedPlacement placement,
   }) async {
-    if (!canServeAds(adsDisabled: adsDisabled)) return;
+    if (!canServeAds(adsDisabled: adsDisabled)) return false;
     await initialize();
-    if (!_initialized) return;
+    if (!_initialized) return false;
     if (_rewardedAds[placement] != null) {
-      return;
+      return true;
     }
 
     final existingLoad = _rewardedLoadCompleters[placement];
     if (existingLoad != null) {
       await _awaitRewardedLoad(placement, existingLoad);
-      return;
+      return _rewardedAds[placement] != null;
     }
 
     final loadCompleter = Completer<void>();
@@ -79,24 +81,28 @@ class AdMobService {
     );
 
     await _awaitRewardedLoad(placement, loadCompleter);
+    return _rewardedAds[placement] != null;
   }
 
-  Future<bool> showRewarded({
+  Future<RewardedAdShowResult> showRewarded({
     required bool adsDisabled,
     required RewardedPlacement placement,
     required Future<void> Function() onRewardEarned,
   }) async {
-    if (!canServeAds(adsDisabled: adsDisabled)) return false;
+    if (!canServeAds(adsDisabled: adsDisabled)) {
+      return RewardedAdShowResult.unavailable;
+    }
     await initialize();
-    if (!_initialized) return false;
+    if (!_initialized) return RewardedAdShowResult.unavailable;
 
     var ad = _rewardedAds.remove(placement);
     if (ad == null) {
       await preloadRewarded(adsDisabled: adsDisabled, placement: placement);
       ad = _rewardedAds.remove(placement);
-      if (ad == null) return false;
+      if (ad == null) return RewardedAdShowResult.unavailable;
     }
 
+    var adWasShown = false;
     var rewardGranted = false;
     var showFailed = false;
     final dismissCompleter = Completer<void>();
@@ -104,6 +110,9 @@ class AdMobService {
     final rewardCompleter = Completer<void>();
 
     ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdShowedFullScreenContent: (ad) {
+        adWasShown = true;
+      },
       onAdDismissedFullScreenContent: (ad) {
         ad.dispose();
         if (!dismissCompleter.isCompleted) dismissCompleter.complete();
@@ -155,7 +164,11 @@ class AdMobService {
       await rewardCompleter.future;
     }
     unawaited(preloadRewarded(adsDisabled: adsDisabled, placement: placement));
-    return rewardGranted;
+    if (rewardGranted) return RewardedAdShowResult.rewardGranted;
+    if (adWasShown && !showFailed) {
+      return RewardedAdShowResult.shownWithoutReward;
+    }
+    return RewardedAdShowResult.unavailable;
   }
 
   Future<void> preloadInterstitial({required bool adsDisabled}) async {

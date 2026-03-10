@@ -24,6 +24,8 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
   bool _isBalanceLoading = true;
   bool _rewardClaimInProgress = false;
   bool _rewardStatusLoading = false;
+  bool _rewardAdLoading = false;
+  bool _rewardAdReady = false;
   int? _rewardDailyCap;
   int? _rewardRemainingToday;
   int? _rewardCoinsPerClaim;
@@ -64,15 +66,34 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
     setState(() => _isBalanceLoading = false);
 
     final adsDisabled = context.read<AuthProvider>().user?.hasNoAds ?? false;
-    unawaited(
-      AdMobService().preloadRewarded(
-        adsDisabled: adsDisabled,
-        placement: RewardedPlacement.coinShopBonus,
-      ),
-    );
+    unawaited(_primeRewardedAd());
     if (AdMobService().canServeAds(adsDisabled: adsDisabled)) {
       _loadBannerAd();
     }
+  }
+
+  Future<void> _primeRewardedAd() async {
+    if (!mounted) return;
+
+    final adsDisabled = context.read<AuthProvider>().user?.hasNoAds ?? false;
+    if (!AdMobService().canServeAds(adsDisabled: adsDisabled)) {
+      setState(() {
+        _rewardAdLoading = false;
+        _rewardAdReady = false;
+      });
+      return;
+    }
+
+    setState(() => _rewardAdLoading = true);
+    final ready = await AdMobService().preloadRewarded(
+      adsDisabled: adsDisabled,
+      placement: RewardedPlacement.coinShopBonus,
+    );
+    if (!mounted) return;
+    setState(() {
+      _rewardAdLoading = false;
+      _rewardAdReady = ready;
+    });
   }
 
   void _loadBannerAd() {
@@ -148,7 +169,12 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
     }
 
     try {
-      final rewarded = await AdMobService().showRewarded(
+      if (!_rewardAdReady && !_rewardAdLoading) {
+        await _primeRewardedAd();
+      }
+      if (!mounted) return;
+
+      final result = await AdMobService().showRewarded(
         adsDisabled: adsDisabled,
         placement: RewardedPlacement.coinShopBonus,
         onRewardEarned: () async {
@@ -178,7 +204,7 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
         },
       );
 
-      if (!rewarded && mounted) {
+      if (result == RewardedAdShowResult.unavailable && mounted) {
         final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -198,6 +224,7 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
     } finally {
       if (mounted) {
         await _loadRewardStatus();
+        unawaited(_primeRewardedAd());
         setState(() => _rewardClaimInProgress = false);
       }
     }
@@ -581,7 +608,7 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
     final cap = _rewardDailyCap;
     final coinsPerClaim = _rewardCoinsPerClaim ?? 10;
     final limitReached = remaining != null && remaining <= 0;
-    final buttonLabel = _rewardClaimInProgress
+    final buttonLabel = _rewardClaimInProgress || _rewardAdLoading
         ? l10n.loading
         : limitReached
         ? l10n.dailyLimitReached
@@ -622,7 +649,10 @@ class _CoinShopScreenState extends State<CoinShopScreen> {
           const SizedBox(height: 12),
           ElevatedButton.icon(
             onPressed:
-                _rewardClaimInProgress || _rewardStatusLoading || limitReached
+                _rewardClaimInProgress ||
+                    _rewardStatusLoading ||
+                    _rewardAdLoading ||
+                    limitReached
                 ? null
                 : _handleWatchAdForCoins,
             icon: const Icon(Icons.play_circle_outline),

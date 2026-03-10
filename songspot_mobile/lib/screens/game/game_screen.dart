@@ -357,7 +357,7 @@ class _GameScreenState extends State<GameScreen> {
             action: 'ad',
           );
         } else {
-          final rewarded = await AdMobService().showRewarded(
+          final result = await AdMobService().showRewarded(
             adsDisabled: false,
             placement: RewardedPlacement.retryUnlock,
             onRewardEarned: () async {
@@ -367,7 +367,7 @@ class _GameScreenState extends State<GameScreen> {
               );
             },
           );
-          if (!rewarded) {
+          if (result == RewardedAdShowResult.unavailable) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(

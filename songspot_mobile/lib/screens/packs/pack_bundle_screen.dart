@@ -328,7 +328,7 @@ class _PackBundleContentState extends State<PackBundleContent> {
             action: 'ad',
           );
         } else {
-          final rewarded = await AdMobService().showRewarded(
+          final result = await AdMobService().showRewarded(
             adsDisabled: false,
             placement: RewardedPlacement.retryUnlock,
             onRewardEarned: () async {
@@ -339,7 +339,7 @@ class _PackBundleContentState extends State<PackBundleContent> {
               );
             },
           );
-          if (!rewarded) {
+          if (result == RewardedAdShowResult.unavailable) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
