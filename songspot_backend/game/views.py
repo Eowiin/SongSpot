@@ -237,7 +237,13 @@ def _get_daily_pack_track(room, pack, today):
         available_tracks = [pt.track for pt in pack_tracks]
 
     track = random.choice(available_tracks)
-    return PackDailyTrack.objects.create(room=room, pack=pack, track=track, date=today)
+    daily_track, _ = PackDailyTrack.objects.get_or_create(
+        room=room,
+        pack=pack,
+        date=today,
+        defaults={'track': track},
+    )
+    return daily_track
 
 
 class RoomCreateView(APIView):
