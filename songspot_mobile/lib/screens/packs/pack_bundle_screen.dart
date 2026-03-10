@@ -522,13 +522,6 @@ class _PackBundleContentState extends State<PackBundleContent>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    if (_isStemPlaybackActive && !_stemAudioService.isPlaying) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _isStemPlaybackActive && !_stemAudioService.isPlaying) {
-          setState(() => _isStemPlaybackActive = false);
-        }
-      });
-    }
     final provider = context.watch<PackBundleProvider>();
     final session = provider.session;
     final retryUnlockPending =
@@ -1104,40 +1097,81 @@ class _PackBundleContentState extends State<PackBundleContent>
   }
 
   Widget _buildStageIndicators(PackBundleSession session) {
-    final totalStages = 4;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(totalStages, (index) {
+    final l10n = AppLocalizations.of(context);
+    final stageLabels = [
+      l10n.packStageDrums,
+      l10n.packStageBass,
+      l10n.packStageOther,
+      l10n.packStageVocals,
+    ];
+
+    return Column(
+      children: List.generate(stageLabels.length, (index) {
         final stageNumber = index + 1;
         final isActive = stageNumber == session.currentStage;
         final isPassed = stageNumber < session.currentStage;
+        final laneColor = isActive
+            ? AppTheme.primaryColor
+            : isPassed
+            ? AppTheme.accentColor
+            : AppTheme.textSecondary.withValues(alpha: 0.24);
 
-        return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: isPassed
-                ? AppTheme.textSecondary
-                : isActive
-                ? AppTheme.primaryColor
-                : AppTheme.surfaceColor,
-            border: Border.all(
-              color: isActive ? AppTheme.primaryColor : AppTheme.textSecondary,
-              width: 2,
-            ),
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: index == stageLabels.length - 1 ? 0 : 10,
           ),
-          child: Center(
-            child: Text(
-              '$stageNumber',
-              style: TextStyle(
-                color: isPassed || isActive
-                    ? Colors.white
-                    : AppTheme.textSecondary,
-                fontWeight: FontWeight.bold,
+          child: Row(
+            children: [
+              SizedBox(
+                width: 68,
+                child: Text(
+                  stageLabels[index],
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: isActive
+                        ? AppTheme.primaryColor
+                        : isPassed
+                        ? AppTheme.textPrimary
+                        : AppTheme.textSecondary,
+                    fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOut,
+                  height: isActive ? 10 : 8,
+                  decoration: BoxDecoration(
+                    color: laneColor,
+                    borderRadius: BorderRadius.circular(999),
+                    boxShadow: isActive
+                        ? [
+                            BoxShadow(
+                              color: AppTheme.primaryColor.withValues(
+                                alpha: 0.28,
+                              ),
+                              blurRadius: 12,
+                              offset: const Offset(0, 3),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: FractionallySizedBox(
+                      widthFactor: isPassed || isActive ? 1 : 0,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: laneColor,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         );
       }),
