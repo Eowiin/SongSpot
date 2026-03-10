@@ -9,15 +9,20 @@ import '../../l10n/app_localizations.dart';
 import '../../providers/game_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/room_provider.dart';
+import '../../providers/pack_bundle_provider.dart';
 import '../../providers/pack_provider.dart';
 import '../../models/track.dart';
 import '../../models/game_session.dart';
 import '../../models/pack.dart';
 import '../../widgets/compact_playback_panel.dart';
+import '../../widgets/result_chat_section.dart';
+import '../../widgets/result_leaderboard_section.dart';
+import '../../widgets/result_track_card.dart';
 import '../../widgets/track_autocomplete.dart';
 import '../../widgets/gradient_button.dart';
 import '../../services/api_service.dart';
 import '../../services/admob_service.dart';
+import '../../services/audio_service.dart';
 import '../../models/history_day.dart';
 import '../packs/pack_list_screen.dart';
 import '../packs/pack_bundle_screen.dart';
@@ -38,12 +43,16 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   final _messageController = TextEditingController();
   final _contentScrollController = ScrollController();
   final _dateScrollController = ScrollController();
+  final AudioService _previewAudioService = AudioService();
   Track? _selectedTrack;
   String? _activePackId;
   String? _activePackName;
   late GameProvider _gameProvider;
   bool _pendingChatAutoScroll = false;
   int _lastKnownMessageCount = 0;
+  bool _isPreviewPlaying = false;
+  int _previewPlaybackRequestId = 0;
+  String? _previewTrackId;
 
   // History
   final _apiService = ApiService();
@@ -98,6 +107,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     _messageController.dispose();
     _contentScrollController.dispose();
     _dateScrollController.dispose();
+    _previewAudioService.dispose();
     super.dispose();
   }
 
@@ -111,6 +121,14 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
         unawaited(_gameProvider.audioService.stop());
+        _previewPlaybackRequestId += 1;
+        unawaited(_previewAudioService.stop());
+        if (_isPreviewPlaying) {
+          setState(() {
+            _isPreviewPlaying = false;
+            _previewTrackId = null;
+          });
+        }
         break;
     }
   }
@@ -158,6 +176,71 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         );
       }
     }
+  }
+
+  Future<void> _toggleResultPreview(Track track) async {
+    if (_isPreviewPlaying && _previewTrackId == track.id) {
+      _previewPlaybackRequestId += 1;
+      await _previewAudioService.stop();
+      if (mounted) {
+        setState(() {
+          _isPreviewPlaying = false;
+          _previewTrackId = null;
+        });
+      }
+      return;
+    }
+
+    final previewUrl = track.previewUrl.trim();
+    if (previewUrl.isEmpty) return;
+
+    final requestId = ++_previewPlaybackRequestId;
+    if (mounted) {
+      setState(() {
+        _isPreviewPlaying = true;
+        _previewTrackId = track.id;
+      });
+    }
+
+    try {
+      await _playResultPreviewWithRefresh(track, previewUrl);
+    } catch (e) {
+      if (!mounted || requestId != _previewPlaybackRequestId) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    } finally {
+      if (mounted && requestId == _previewPlaybackRequestId) {
+        setState(() {
+          _isPreviewPlaying = false;
+          _previewTrackId = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _playResultPreviewWithRefresh(
+    Track track,
+    String previewUrl,
+  ) async {
+    if (previewUrl.isNotEmpty) {
+      try {
+        await _previewAudioService.loadAudio(previewUrl);
+        await _previewAudioService.playFullAudio();
+        return;
+      } catch (_) {
+        // Fall through to refresh and retry.
+      }
+    }
+
+    final refreshed = await _apiService.refreshTrackPreview(trackId: track.id);
+    final trackJson = refreshed['track'] as Map<String, dynamic>;
+    final refreshedTrack = Track.fromJson(trackJson);
+    await _previewAudioService.loadAudio(refreshedTrack.previewUrl);
+    await _previewAudioService.playFullAudio();
   }
 
   Future<void> _handleSkip() async {
@@ -632,6 +715,24 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _handlePackSendMessage() async {
+    final message = _messageController.text.trim();
+    final packId = _activePackId;
+    if (message.isEmpty || packId == null) return;
+
+    final provider = context.read<PackBundleProvider>();
+    final success = await provider.sendMessage(
+      roomId: widget.roomId,
+      packId: packId,
+      message: message,
+    );
+
+    if (success && mounted) {
+      _messageController.clear();
+      _requestChatAutoScroll();
+    }
+  }
+
   Widget _buildLoadingSkeleton() {
     return SingleChildScrollView(
       padding: AppTheme.pagePadding,
@@ -781,331 +882,84 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     GameSession session,
     List<LeaderboardEntry> leaderboard,
   ) {
+    final l10n = AppLocalizations.of(context);
     final track = session.dailySong.track;
     final isCorrect = session.correctGuess;
+    final leaderboardRows = leaderboard
+        .map(
+          (entry) => ResultLeaderboardRowData(
+            title: entry.user.username,
+            subtitle: entry.pointsEarned > 0
+                ? l10n.dailyResultSnippetCompletedAt(
+                    entry.snippetNumber,
+                    DateFormat.Hm().format(entry.completedAt.toLocal()),
+                  )
+                : l10n.dailyResultNotGuessedAt(
+                    DateFormat.Hm().format(entry.completedAt.toLocal()),
+                  ),
+            scoreText: '${entry.pointsEarned}',
+          ),
+        )
+        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Result Header
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            gradient: AppTheme.cardGradient,
-            borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-          ),
-          child: Column(
-            children: [
-              // Cover Image
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: track.coverUrl != null
-                    ? Image.network(
-                        track.coverUrl!,
-                        width: 200,
-                        height: 200,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          width: 200,
-                          height: 200,
-                          color: AppTheme.surfaceColor,
-                          child: const Icon(
-                            Icons.album,
-                            size: 80,
-                            color: AppTheme.primaryColor,
-                          ),
+        ResultTrackCard(
+          title: track.title,
+          artist: track.artist,
+          coverUrl: track.coverUrl,
+          artworkSize: 132,
+          padding: const EdgeInsets.all(18),
+          onArtworkTap: () => _toggleResultPreview(track),
+          isArtworkPlaying: _isPreviewPlaying && _previewTrackId == track.id,
+          footer: isCorrect
+              ? Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.successColor.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.check_circle, color: AppTheme.successColor),
+                      const SizedBox(width: 8),
+                      Text(
+                        l10n.dailyResultPointsSnippet(
+                          session.pointsEarned ?? 0,
+                          session.currentSnippet,
                         ),
-                      )
-                    : Container(
-                        width: 200,
-                        height: 200,
-                        color: AppTheme.surfaceColor,
-                        child: const Icon(
-                          Icons.album,
-                          size: 80,
-                          color: AppTheme.primaryColor,
+                        style: const TextStyle(
+                          color: AppTheme.successColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
                         ),
                       ),
-              ),
-              const SizedBox(height: 20),
-
-              // Song Info
-              Text(
-                track.title,
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                track.artist,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppTheme.textSecondary,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-
-              // Result Badge
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: isCorrect
-                      ? AppTheme.successColor.withValues(alpha: 0.2)
-                      : AppTheme.errorColor.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isCorrect ? Icons.check_circle : Icons.cancel,
-                      color: isCorrect
-                          ? AppTheme.successColor
-                          : AppTheme.errorColor,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      isCorrect
-                          ? '+${session.pointsEarned} points (Snippet ${session.currentSnippet})'
-                          : 'Not guessed',
-                      style: TextStyle(
-                        color: isCorrect
-                            ? AppTheme.successColor
-                            : AppTheme.errorColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+                    ],
+                  ),
+                )
+              : null,
         ),
         const SizedBox(height: 24),
-
-        // Today's Results Section
-        Text(
-          'Today\'s Results',
-          style: Theme.of(context).textTheme.headlineMedium,
+        ResultLeaderboardSection(
+          title: l10n.packResultsTitle,
+          emptyText: l10n.dailyResultNoOtherPlayersCompleted,
+          rows: leaderboardRows,
         ),
-        const SizedBox(height: 16),
-
-        if (leaderboard.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppTheme.surfaceColor,
-              borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-            ),
-            child: Text(
-              'No other players have guessed yet',
-              style: Theme.of(context).textTheme.bodyMedium,
-              textAlign: TextAlign.center,
-            ),
-          )
-        else
-          ...leaderboard.asMap().entries.map((entry) {
-            final index = entry.key;
-            final leaderboardEntry = entry.value;
-            final rank = index + 1;
-
-            Color rankColor;
-            if (rank == 1) {
-              rankColor = const Color(0xFFFFD700); // Gold
-            } else if (rank == 2) {
-              rankColor = const Color(0xFFC0C0C0); // Silver
-            } else if (rank == 3) {
-              rankColor = const Color(0xFFCD7F32); // Bronze
-            } else {
-              rankColor = AppTheme.textSecondary;
-            }
-
-            return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppTheme.surfaceColor,
-                borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-              ),
-              child: Row(
-                children: [
-                  // Rank
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: rankColor.withValues(alpha: 0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        '$rank',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: rankColor,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-
-                  // User Info
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          leaderboardEntry.user.username,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        Text(
-                          leaderboardEntry.pointsEarned > 0
-                              ? 'Snippet ${leaderboardEntry.snippetNumber} - ${DateFormat.Hm().format(leaderboardEntry.completedAt.toLocal())}'
-                              : 'Did not guess - ${DateFormat.Hm().format(leaderboardEntry.completedAt.toLocal())}',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: AppTheme.textSecondary),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Points
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: AppTheme.primaryGradient,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Text(
-                      '${leaderboardEntry.pointsEarned}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
         const SizedBox(height: 32),
-
-        // Chat Section
-        Text('Chat', style: Theme.of(context).textTheme.headlineMedium),
-        const SizedBox(height: 16),
-        _buildInlineChat(),
+        ResultChatSection(
+          title: l10n.chatTitle,
+          emptyTitle: l10n.chatNoMessagesYet,
+          emptySubtitle: l10n.chatStartConversation,
+          messages: context.watch<GameProvider>().messages,
+          currentUserId: context.watch<AuthProvider>().user?.id,
+        ),
         const SizedBox(height: 24),
       ],
-    );
-  }
-
-  Widget _buildInlineChat() {
-    final currentUserId = context.watch<AuthProvider>().user?.id;
-    final gameProvider = context.watch<GameProvider>();
-    final messages = gameProvider.messages;
-
-    // Reverse to show oldest first (messages come newest first from API).
-    // Keep only recent messages so the result page remains compact.
-    final displayMessages = messages.take(12).toList().reversed.toList();
-
-    if (messages.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.chat_bubble_outline,
-              size: 40,
-              color: AppTheme.textSecondary,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'No messages yet',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Start the conversation!',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Column(
-      children: displayMessages.map((message) {
-        final isCurrentUser = message.user.id == currentUserId;
-
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Align(
-            alignment: isCurrentUser
-                ? Alignment.centerRight
-                : Alignment.centerLeft,
-            child: Container(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.7,
-              ),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                gradient: isCurrentUser ? AppTheme.primaryGradient : null,
-                color: isCurrentUser ? null : AppTheme.surfaceColor,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: isCurrentUser
-                    ? CrossAxisAlignment.end
-                    : CrossAxisAlignment.start,
-                children: [
-                  if (!isCurrentUser) ...[
-                    Text(
-                      message.user.username,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.primaryColor,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                  ],
-                  Text(
-                    message.message,
-                    textWidthBasis: TextWidthBasis.longestLine,
-                    style: TextStyle(
-                      color: isCurrentUser
-                          ? Colors.white
-                          : AppTheme.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    DateFormat.Hm().format(message.createdAt.toLocal()),
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: isCurrentUser
-                          ? Colors.white70
-                          : AppTheme.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      }).toList(),
     );
   }
 
@@ -1117,7 +971,17 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         session.isCompleted;
   }
 
-  Widget _buildRoomChatComposer() {
+  bool _shouldShowPackChatComposer(PackBundleProvider packBundleProvider) {
+    return _selectedHistoryDate == null &&
+        _activePackId != null &&
+        packBundleProvider.loadedPackId == _activePackId &&
+        packBundleProvider.session?.isCompleted == true;
+  }
+
+  Widget _buildChatComposer({
+    required String hintText,
+    required VoidCallback onSend,
+  }) {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
       decoration: BoxDecoration(
@@ -1134,7 +998,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
               child: TextField(
                 controller: _messageController,
                 decoration: InputDecoration(
-                  hintText: 'Type a message...',
+                  hintText: hintText,
                   filled: true,
                   fillColor: AppTheme.surfaceColor,
                   border: OutlineInputBorder(
@@ -1148,7 +1012,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                 ),
                 maxLines: 1,
                 textInputAction: TextInputAction.send,
-                onSubmitted: (_) => _handleSendMessage(),
+                onSubmitted: (_) => onSend(),
               ),
             ),
             const SizedBox(width: 12),
@@ -1161,7 +1025,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
               ),
               child: IconButton(
                 icon: const Icon(Icons.send, color: Colors.white),
-                onPressed: _handleSendMessage,
+                onPressed: onSend,
               ),
             ),
           ],
@@ -1170,11 +1034,26 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     );
   }
 
+  Widget _buildRoomChatComposer() {
+    return _buildChatComposer(
+      hintText: AppLocalizations.of(context).chatTypeMessageHint,
+      onSend: _handleSendMessage,
+    );
+  }
+
+  Widget _buildPackChatComposer(BuildContext context) {
+    return _buildChatComposer(
+      hintText: AppLocalizations.of(context).chatTypeMessageHint,
+      onSend: _handlePackSendMessage,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final roomProvider = context.watch<RoomProvider>();
     final room = roomProvider.currentRoom;
     final packProvider = context.watch<PackProvider>();
+    final packBundleProvider = context.watch<PackBundleProvider>();
 
     return PopScope(
       canPop: false,
@@ -1221,7 +1100,12 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
           ),
           child: Consumer<GameProvider>(
             builder: (context, gameProvider, _) {
-              final showComposer = _shouldShowRoomChatComposer(gameProvider);
+              final showRoomComposer = _shouldShowRoomChatComposer(
+                gameProvider,
+              );
+              final showPackComposer = _shouldShowPackChatComposer(
+                packBundleProvider,
+              );
               final content = _selectedHistoryDate != null
                   ? _buildHistoryView()
                   : _buildActiveGameContent(
@@ -1233,7 +1117,8 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
               return Column(
                 children: [
                   Expanded(child: content),
-                  if (showComposer) _buildRoomChatComposer(),
+                  if (showRoomComposer) _buildRoomChatComposer(),
+                  if (showPackComposer) _buildPackChatComposer(context),
                 ],
               );
             },

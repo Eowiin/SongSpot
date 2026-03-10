@@ -11,10 +11,15 @@ import '../../providers/auth_provider.dart';
 import '../../providers/game_provider.dart';
 import '../../providers/pack_bundle_provider.dart';
 import '../../services/admob_service.dart';
+import '../../services/api_service.dart';
+import '../../services/audio_service.dart';
 import '../../services/stem_audio_service.dart';
 import '../../services/websocket_service.dart';
 import '../../widgets/compact_playback_panel.dart';
 import '../../widgets/gradient_button.dart';
+import '../../widgets/result_chat_section.dart';
+import '../../widgets/result_leaderboard_section.dart';
+import '../../widgets/result_track_card.dart';
 import '../../widgets/track_autocomplete.dart';
 
 // Hint order: sequential unlocking, same as daily game
@@ -72,10 +77,12 @@ class PackBundleContent extends StatefulWidget {
 
 class _PackBundleContentState extends State<PackBundleContent>
     with WidgetsBindingObserver {
+  final ApiService _apiService = ApiService();
   final _titleController = TextEditingController();
   final _messageController = TextEditingController();
-  final _chatScrollController = ScrollController();
+  final _contentScrollController = ScrollController();
   final StemAudioService _stemAudioService = StemAudioService();
+  final AudioService _previewAudioService = AudioService();
   Track? _selectedTrack;
   bool _requestedCompletionData = false;
   bool _completionRecorded = false;
@@ -83,7 +90,11 @@ class _PackBundleContentState extends State<PackBundleContent>
   int _completionAdAttempts = 0;
   bool _retryActivationInProgress = false;
   bool _isStemPlaybackActive = false;
+  bool _isPreviewPlaying = false;
   int _stemPlaybackRequestId = 0;
+  int _previewPlaybackRequestId = 0;
+  int _lastKnownMessageCount = 0;
+  String? _previewTrackId;
   StreamSubscription<WebSocketEvent>? _wsSubscription;
   Timer? _stemsPollingTimer;
   PackBundleProvider? _packBundleProvider;
@@ -143,13 +154,32 @@ class _PackBundleContentState extends State<PackBundleContent>
     if (!identical(provider, _packBundleProvider)) {
       _packBundleProvider?.removeListener(_handlePackBundleProviderChanged);
       _packBundleProvider = provider;
+      _lastKnownMessageCount = provider.messages.length;
       _packBundleProvider?.addListener(_handlePackBundleProviderChanged);
     }
   }
 
   void _handlePackBundleProviderChanged() {
+    final provider = _packBundleProvider;
+    final count = provider?.messages.length ?? 0;
+    final newMessagesArrived = count > _lastKnownMessageCount;
+    _lastKnownMessageCount = count;
     _syncStemsPollingState();
-    _maybePreloadRetryAd(_packBundleProvider?.session);
+    _maybePreloadRetryAd(provider?.session);
+    if (newMessagesArrived && provider?.session?.isCompleted == true) {
+      _scrollToLatestChatMessage();
+    }
+  }
+
+  void _scrollToLatestChatMessage() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_contentScrollController.hasClients) return;
+      _contentScrollController.animateTo(
+        _contentScrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    });
   }
 
   void _maybePreloadRetryAd(PackBundleSession? session) {
@@ -224,8 +254,9 @@ class _PackBundleContentState extends State<PackBundleContent>
     _stopStemsPolling();
     _titleController.dispose();
     _messageController.dispose();
-    _chatScrollController.dispose();
+    _contentScrollController.dispose();
     _stemAudioService.dispose();
+    _previewAudioService.dispose();
     super.dispose();
   }
 
@@ -239,10 +270,15 @@ class _PackBundleContentState extends State<PackBundleContent>
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
         _stemPlaybackRequestId += 1;
+        _previewPlaybackRequestId += 1;
         if (mounted && _isStemPlaybackActive) {
           setState(() => _isStemPlaybackActive = false);
         }
+        if (mounted && _isPreviewPlaying) {
+          setState(() => _isPreviewPlaying = false);
+        }
         unawaited(_stemAudioService.stop());
+        unawaited(_previewAudioService.stop());
         break;
     }
   }
@@ -507,16 +543,73 @@ class _PackBundleContentState extends State<PackBundleContent>
 
     if (success && mounted) {
       _messageController.clear();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_chatScrollController.hasClients) {
-          _chatScrollController.animateTo(
-            _chatScrollController.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
-        }
+      _scrollToLatestChatMessage();
+    }
+  }
+
+  Future<void> _toggleResultPreview(Track track) async {
+    if (_isPreviewPlaying && _previewTrackId == track.id) {
+      _previewPlaybackRequestId += 1;
+      await _previewAudioService.stop();
+      if (mounted) {
+        setState(() {
+          _isPreviewPlaying = false;
+          _previewTrackId = null;
+        });
+      }
+      return;
+    }
+
+    final previewUrl = track.previewUrl.trim();
+    if (previewUrl.isEmpty) return;
+
+    final requestId = ++_previewPlaybackRequestId;
+    if (mounted) {
+      setState(() {
+        _isPreviewPlaying = true;
+        _previewTrackId = track.id;
       });
     }
+
+    try {
+      await _playResultPreviewWithRefresh(track, previewUrl);
+    } catch (e) {
+      if (!mounted || requestId != _previewPlaybackRequestId) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    } finally {
+      if (mounted && requestId == _previewPlaybackRequestId) {
+        setState(() {
+          _isPreviewPlaying = false;
+          _previewTrackId = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _playResultPreviewWithRefresh(
+    Track track,
+    String previewUrl,
+  ) async {
+    if (previewUrl.isNotEmpty) {
+      try {
+        await _previewAudioService.loadAudio(previewUrl);
+        await _previewAudioService.playFullAudio();
+        return;
+      } catch (_) {
+        // Fall through to refresh and retry.
+      }
+    }
+
+    final refreshed = await _apiService.refreshTrackPreview(trackId: track.id);
+    final trackJson = refreshed['track'] as Map<String, dynamic>;
+    final refreshedTrack = Track.fromJson(trackJson);
+    await _previewAudioService.loadAudio(refreshedTrack.previewUrl);
+    await _previewAudioService.playFullAudio();
   }
 
   @override
@@ -548,7 +641,9 @@ class _PackBundleContentState extends State<PackBundleContent>
                 TrackAutocomplete(
                   controller: _titleController,
                   onTrackSelected: (track) {
-                    _selectedTrack = track;
+                    setState(() {
+                      _selectedTrack = track;
+                    });
                   },
                   hintText: l10n.packSearchSongTitleOrArtist,
                   labelText: l10n.packSearchSongTitleOrArtist,
@@ -615,12 +710,25 @@ class _PackBundleContentState extends State<PackBundleContent>
       return content;
     }
 
+    final showComposer = session?.isCompleted == true;
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    return SingleChildScrollView(
+    final scrollView = SingleChildScrollView(
+      controller: _contentScrollController,
       padding: AppTheme.pagePadding.copyWith(
         bottom: AppTheme.pagePadding.bottom + bottomInset,
       ),
       child: content,
+    );
+
+    if (!showComposer) {
+      return scrollView;
+    }
+
+    return Column(
+      children: [
+        Expanded(child: scrollView),
+        _buildCompletedChatComposer(),
+      ],
     );
   }
 
@@ -1185,18 +1293,21 @@ class _PackBundleContentState extends State<PackBundleContent>
     final l10n = AppLocalizations.of(context);
     final track = session.packTrack?.track;
     if (track == null) {
+      final completedSuccessfully = session.pointsEarned > 0;
+      final statusColor = completedSuccessfully
+          ? AppTheme.successColor
+          : AppTheme.errorColor;
+      final statusIcon = completedSuccessfully
+          ? Icons.check_circle
+          : Icons.cancel;
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
-              Icons.check_circle,
-              size: 60,
-              color: AppTheme.successColor,
-            ),
+            Icon(statusIcon, size: 60, color: statusColor),
             const SizedBox(height: 16),
             Text(
-              l10n.packCompleted,
+              completedSuccessfully ? l10n.packCompleted : l10n.packFailed,
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
@@ -1209,330 +1320,65 @@ class _PackBundleContentState extends State<PackBundleContent>
       );
     }
 
+    final leaderboardRows = provider.leaderboard
+        .map(
+          (entry) => ResultLeaderboardRowData(
+            title: entry.user.username,
+            subtitle: l10n.packStageCompletedAt(
+              entry.stageNumber,
+              DateFormat.Hm().format(entry.completedAt.toLocal()),
+            ),
+            scoreText: '${entry.pointsEarned}',
+          ),
+        )
+        .toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            gradient: AppTheme.cardGradient,
-            borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-          ),
-          child: Column(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: track.coverUrl != null
-                    ? Image.network(
-                        track.coverUrl!,
-                        width: 200,
-                        height: 200,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          width: 200,
-                          height: 200,
-                          color: AppTheme.surfaceColor,
-                          child: const Icon(
-                            Icons.album,
-                            size: 80,
-                            color: AppTheme.primaryColor,
-                          ),
-                        ),
-                      )
-                    : Container(
-                        width: 200,
-                        height: 200,
-                        color: AppTheme.surfaceColor,
-                        child: const Icon(
-                          Icons.album,
-                          size: 80,
-                          color: AppTheme.primaryColor,
-                        ),
-                      ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                track.title,
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                track.artist,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppTheme.textSecondary,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: AppTheme.successColor.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.check_circle,
-                      color: AppTheme.successColor,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      l10n.packCompletedSummary(session.pointsEarned),
-                      style: const TextStyle(
-                        color: AppTheme.successColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+        ResultTrackCard(
+          title: track.title,
+          artist: track.artist,
+          coverUrl: track.coverUrl,
+          artworkSize: 132,
+          padding: const EdgeInsets.all(18),
+          onArtworkTap: () => _toggleResultPreview(track),
+          isArtworkPlaying: _isPreviewPlaying && _previewTrackId == track.id,
         ),
         const SizedBox(height: 24),
-        _buildResultsSection(provider),
+        ResultLeaderboardSection(
+          title: l10n.packResultsTitle,
+          emptyText: l10n.packNoOtherPlayersCompleted,
+          rows: leaderboardRows,
+        ),
         const SizedBox(height: 32),
-        _buildChatSection(provider),
+        ResultChatSection(
+          title: l10n.chatTitle,
+          emptyTitle: l10n.chatNoMessagesYet,
+          emptySubtitle: l10n.chatStartConversation,
+          messages: provider.messages,
+          currentUserId: context.watch<AuthProvider>().user?.id,
+          maxMessages: 10,
+        ),
         const SizedBox(height: 24),
       ],
     );
   }
 
-  Widget _buildResultsSection(PackBundleProvider provider) {
+  Widget _buildCompletedChatComposer() {
     final l10n = AppLocalizations.of(context);
-    final leaderboard = provider.leaderboard;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          l10n.packResultsTitle,
-          style: Theme.of(context).textTheme.headlineMedium,
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F0F1E).withValues(alpha: 0.96),
+        border: Border(
+          top: BorderSide(color: AppTheme.surfaceColor.withValues(alpha: 0.6)),
         ),
-        const SizedBox(height: 16),
-        if (leaderboard.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppTheme.surfaceColor,
-              borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-            ),
-            child: Text(
-              l10n.packNoOtherPlayersCompleted,
-              style: Theme.of(context).textTheme.bodyMedium,
-              textAlign: TextAlign.center,
-            ),
-          )
-        else
-          ...leaderboard.asMap().entries.map((entry) {
-            final index = entry.key;
-            final leaderboardEntry = entry.value;
-            final rank = index + 1;
-
-            Color rankColor;
-            if (rank == 1) {
-              rankColor = const Color(0xFFFFD700); // Gold
-            } else if (rank == 2) {
-              rankColor = const Color(0xFFC0C0C0); // Silver
-            } else if (rank == 3) {
-              rankColor = const Color(0xFFCD7F32); // Bronze
-            } else {
-              rankColor = AppTheme.textSecondary;
-            }
-
-            return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppTheme.surfaceColor,
-                borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: rankColor.withValues(alpha: 0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        '$rank',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: rankColor,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          leaderboardEntry.user.username,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        Text(
-                          l10n.packStageCompletedAt(
-                            leaderboardEntry.stageNumber,
-                            DateFormat.Hm().format(
-                              leaderboardEntry.completedAt.toLocal(),
-                            ),
-                          ),
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: AppTheme.textSecondary),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: AppTheme.primaryGradient,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Text(
-                      '${leaderboardEntry.pointsEarned}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-      ],
-    );
-  }
-
-  Widget _buildChatSection(PackBundleProvider provider) {
-    final l10n = AppLocalizations.of(context);
-    final currentUserId = context.watch<AuthProvider>().user?.id;
-    final messages = provider.messages;
-    final displayMessages = messages.take(10).toList().reversed.toList();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(l10n.chatTitle, style: Theme.of(context).textTheme.headlineMedium),
-        const SizedBox(height: 16),
-        Container(
-          constraints: const BoxConstraints(maxHeight: 300),
-          child: messages.isEmpty
-              ? Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 32),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.chat_bubble_outline,
-                        size: 40,
-                        color: AppTheme.textSecondary,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        l10n.chatNoMessagesYet,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        l10n.chatStartConversation,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                )
-              : ListView.builder(
-                  controller: _chatScrollController,
-                  shrinkWrap: true,
-                  itemCount: displayMessages.length,
-                  itemBuilder: (context, index) {
-                    final message = displayMessages[index];
-                    final isCurrentUser = message.user.id == currentUserId;
-
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Align(
-                        alignment: isCurrentUser
-                            ? Alignment.centerRight
-                            : Alignment.centerLeft,
-                        child: Container(
-                          constraints: BoxConstraints(
-                            maxWidth: MediaQuery.of(context).size.width * 0.7,
-                          ),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            gradient: isCurrentUser
-                                ? AppTheme.primaryGradient
-                                : null,
-                            color: isCurrentUser ? null : AppTheme.surfaceColor,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: isCurrentUser
-                                ? CrossAxisAlignment.end
-                                : CrossAxisAlignment.start,
-                            children: [
-                              if (!isCurrentUser) ...[
-                                Text(
-                                  message.user.username,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: AppTheme.primaryColor,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                              ],
-                              Text(
-                                message.message,
-                                textWidthBasis: TextWidthBasis.longestLine,
-                                style: TextStyle(
-                                  color: isCurrentUser
-                                      ? Colors.white
-                                      : AppTheme.textPrimary,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                DateFormat.Hm().format(
-                                  message.createdAt.toLocal(),
-                                ),
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: isCurrentUser
-                                      ? Colors.white70
-                                      : AppTheme.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-        ),
-        const SizedBox(height: 16),
-        Row(
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
           children: [
             Expanded(
               child: TextField(
@@ -1570,7 +1416,7 @@ class _PackBundleContentState extends State<PackBundleContent>
             ),
           ],
         ),
-      ],
+      ),
     );
   }
 }

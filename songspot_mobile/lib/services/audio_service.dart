@@ -88,6 +88,33 @@ class AudioService {
     }
   }
 
+  Future<void> playFullAudio({bool fromStart = true}) async {
+    final requestId = ++_playbackRequestId;
+    try {
+      _stopTimer?.cancel();
+
+      if (_currentUrl == null) {
+        throw StateError('Audio must be loaded before playing.');
+      }
+
+      _isPlaying = true;
+      await _player.stop();
+      if (fromStart) {
+        await _player.seek(Duration.zero);
+      }
+
+      await _player.play();
+      if (requestId == _playbackRequestId) {
+        _isPlaying = false;
+      }
+    } catch (e) {
+      if (requestId == _playbackRequestId) {
+        _isPlaying = false;
+      }
+      throw Exception('Failed to play audio: $e');
+    }
+  }
+
   /// Stop playback
   Future<void> stop({bool cancelTimer = true}) async {
     _playbackRequestId += 1;

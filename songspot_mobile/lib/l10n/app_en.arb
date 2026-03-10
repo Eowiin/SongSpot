@@ -651,18 +651,12 @@
 
   "packCompleted": "Pack completed!",
   "@packCompleted": { "description": "Pack completion headline" },
+  "packFailed": "Pack failed",
+  "@packFailed": { "description": "Pack failure headline" },
 
   "packTotalPoints": "Total points: {points}",
   "@packTotalPoints": {
     "description": "Pack completion total points",
-    "placeholders": {
-      "points": { "type": "num" }
-    }
-  },
-
-  "packCompletedSummary": "Pack completed · {points} points",
-  "@packCompletedSummary": {
-    "description": "Pack completion badge summary",
     "placeholders": {
       "points": { "type": "num" }
     }
@@ -680,6 +674,35 @@
     "placeholders": {
       "stage": { "type": "num" },
       "time": { "type": "String" }
+    }
+  },
+
+  "dailyResultNoOtherPlayersCompleted": "No other players have guessed yet",
+  "@dailyResultNoOtherPlayersCompleted": { "description": "Empty state for daily results leaderboard" },
+
+  "dailyResultSnippetCompletedAt": "Snippet {snippet} - {time}",
+  "@dailyResultSnippetCompletedAt": {
+    "description": "Daily leaderboard row subtitle with snippet and completion time",
+    "placeholders": {
+      "snippet": { "type": "num" },
+      "time": { "type": "String" }
+    }
+  },
+
+  "dailyResultNotGuessedAt": "Did not guess - {time}",
+  "@dailyResultNotGuessedAt": {
+    "description": "Daily leaderboard row subtitle when the song was not guessed",
+    "placeholders": {
+      "time": { "type": "String" }
+    }
+  },
+
+  "dailyResultPointsSnippet": "+{points} points (Snippet {snippet})",
+  "@dailyResultPointsSnippet": {
+    "description": "Daily result success badge with points and snippet number",
+    "placeholders": {
+      "points": { "type": "num" },
+      "snippet": { "type": "num" }
     }
   },
 

@@ -637,13 +637,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get packCompleted => 'Pack completed!';
 
   @override
-  String packTotalPoints(num points) {
-    return 'Total points: $points';
-  }
+  String get packFailed => 'Pack failed';
 
   @override
-  String packCompletedSummary(num points) {
-    return 'Pack completed · $points points';
+  String packTotalPoints(num points) {
+    return 'Total points: $points';
   }
 
   @override
@@ -656,6 +654,25 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String packStageCompletedAt(num stage, String time) {
     return 'Stage $stage - $time';
+  }
+
+  @override
+  String get dailyResultNoOtherPlayersCompleted =>
+      'No other players have guessed yet';
+
+  @override
+  String dailyResultSnippetCompletedAt(num snippet, String time) {
+    return 'Snippet $snippet - $time';
+  }
+
+  @override
+  String dailyResultNotGuessedAt(String time) {
+    return 'Did not guess - $time';
+  }
+
+  @override
+  String dailyResultPointsSnippet(num points, num snippet) {
+    return '+$points points (Snippet $snippet)';
   }
 
   @override

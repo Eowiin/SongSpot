@@ -1214,17 +1214,17 @@ abstract class AppLocalizations {
   /// **'Pack completed!'**
   String get packCompleted;
 
+  /// Pack failure headline
+  ///
+  /// In en, this message translates to:
+  /// **'Pack failed'**
+  String get packFailed;
+
   /// Pack completion total points
   ///
   /// In en, this message translates to:
   /// **'Total points: {points}'**
   String packTotalPoints(num points);
-
-  /// Pack completion badge summary
-  ///
-  /// In en, this message translates to:
-  /// **'Pack completed · {points} points'**
-  String packCompletedSummary(num points);
 
   /// Pack completion results section title
   ///
@@ -1243,6 +1243,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Stage {stage} - {time}'**
   String packStageCompletedAt(num stage, String time);
+
+  /// Empty state for daily results leaderboard
+  ///
+  /// In en, this message translates to:
+  /// **'No other players have guessed yet'**
+  String get dailyResultNoOtherPlayersCompleted;
+
+  /// Daily leaderboard row subtitle with snippet and completion time
+  ///
+  /// In en, this message translates to:
+  /// **'Snippet {snippet} - {time}'**
+  String dailyResultSnippetCompletedAt(num snippet, String time);
+
+  /// Daily leaderboard row subtitle when the song was not guessed
+  ///
+  /// In en, this message translates to:
+  /// **'Did not guess - {time}'**
+  String dailyResultNotGuessedAt(String time);
+
+  /// Daily result success badge with points and snippet number
+  ///
+  /// In en, this message translates to:
+  /// **'+{points} points (Snippet {snippet})'**
+  String dailyResultPointsSnippet(num points, num snippet);
 
   /// Backend room hosted limit error
   ///
