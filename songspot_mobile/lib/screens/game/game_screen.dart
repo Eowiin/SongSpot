@@ -282,6 +282,7 @@ class _GameScreenState extends State<GameScreen> {
     final adsDisabled = context.read<AuthProvider>().user?.hasNoAds ?? false;
     final shown = await AdMobService().tryShowInterstitialForRoomCompletion(
       adsDisabled: adsDisabled,
+      completionScope: 'daily',
       roomId: widget.roomId,
       gameDate: session.dailySong.date,
     );

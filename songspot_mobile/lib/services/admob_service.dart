@@ -170,12 +170,14 @@ class AdMobService {
     required bool adsDisabled,
     required String roomId,
     required String gameDate,
+    String completionScope = 'daily',
   }) async {
     if (!canServeAds(adsDisabled: adsDisabled)) return false;
     await initialize();
     if (!_initialized) return false;
     final prefs = await SharedPreferences.getInstance();
     final shownKey = _completionInterstitialShownKey(
+      completionScope: completionScope,
       roomId: roomId,
       gameDate: gameDate,
     );
@@ -245,10 +247,11 @@ class AdMobService {
   }
 
   String _completionInterstitialShownKey({
+    required String completionScope,
     required String roomId,
     required String gameDate,
   }) {
-    return 'ads_interstitial_room_completion_${roomId}_$gameDate';
+    return 'ads_interstitial_room_completion_${completionScope}_${roomId}_$gameDate';
   }
 
   Future<void> _awaitRewardedLoad(

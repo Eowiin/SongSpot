@@ -248,12 +248,21 @@ class DailyGameRetrySerializer(serializers.Serializer):
 class PackBundleSessionSerializer(serializers.ModelSerializer):
     pack_track = serializers.SerializerMethodField()
     date = serializers.DateField(source='pack_daily_track.date', read_only=True)
+    retry_available = serializers.SerializerMethodField()
+    next_retry_requirement = serializers.SerializerMethodField()
+    retry_cost_coins = serializers.SerializerMethodField()
 
     class Meta:
         model = PackBundleSession
         fields = (
             'id',
             'current_stage',
+            'retries_used',
+            'retry_credits',
+            'awaiting_retry_unlock',
+            'retry_available',
+            'next_retry_requirement',
+            'retry_cost_coins',
             'points_earned',
             'completed_at',
             'created_at',
@@ -263,6 +272,12 @@ class PackBundleSessionSerializer(serializers.ModelSerializer):
         )
         read_only_fields = (
             'id',
+            'retries_used',
+            'retry_credits',
+            'awaiting_retry_unlock',
+            'retry_available',
+            'next_retry_requirement',
+            'retry_cost_coins',
             'points_earned',
             'completed_at',
             'created_at',
@@ -281,6 +296,26 @@ class PackBundleSessionSerializer(serializers.ModelSerializer):
         if not pack_track:
             return None
         return PackTrackSerializer(pack_track).data
+
+    def get_retry_available(self, obj):
+        if obj.retry_credits > 0:
+            return True
+        if not obj.awaiting_retry_unlock:
+            return False
+        return self.get_next_retry_requirement(obj) is not None
+
+    def get_next_retry_requirement(self, obj):
+        if obj.retry_credits > 0:
+            return None
+        if not obj.awaiting_retry_unlock:
+            return None
+        max_retries = max(0, int(getattr(settings, 'DAILY_GAME_MAX_RETRIES', 2)))
+        if obj.retries_used >= max_retries:
+            return None
+        return 'ad' if obj.retries_used == 0 else 'coins'
+
+    def get_retry_cost_coins(self, obj):
+        return max(0, int(getattr(settings, 'DAILY_GAME_RETRY_COIN_COST', 120)))
 
 
 class PackBundleGuessSerializer(serializers.Serializer):

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../../config/admob_config.dart';
 import '../../config/app_theme.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/track.dart';
@@ -9,6 +10,7 @@ import '../../models/pack_bundle.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/game_provider.dart';
 import '../../providers/pack_bundle_provider.dart';
+import '../../services/admob_service.dart';
 import '../../services/stem_audio_service.dart';
 import '../../services/websocket_service.dart';
 import '../../widgets/gradient_button.dart';
@@ -74,6 +76,10 @@ class _PackBundleContentState extends State<PackBundleContent> {
   final StemAudioService _stemAudioService = StemAudioService();
   Track? _selectedTrack;
   bool _requestedCompletionData = false;
+  bool _completionRecorded = false;
+  bool _completionAdInProgress = false;
+  int _completionAdAttempts = 0;
+  bool _retryActivationInProgress = false;
   StreamSubscription<WebSocketEvent>? _wsSubscription;
   Timer? _stemsPollingTimer;
   PackBundleProvider? _packBundleProvider;
@@ -85,12 +91,16 @@ class _PackBundleContentState extends State<PackBundleContent> {
       () async {
         final provider = context.read<PackBundleProvider>();
         _listenForStemsReady();
+        final adsDisabled =
+            context.read<AuthProvider>().user?.hasNoAds ?? false;
+        unawaited(AdMobService().preloadInterstitial(adsDisabled: adsDisabled));
 
         // If this pack is already loaded in the provider, skip the reload to
         // avoid a flash of stale hint state. Just wire up the WebSocket.
         if (provider.loadedPackId == widget.packId &&
             provider.session != null) {
           _syncStemsPollingState();
+          _maybePreloadRetryAd(provider.session);
           return;
         }
 
@@ -99,6 +109,7 @@ class _PackBundleContentState extends State<PackBundleContent> {
           packId: widget.packId,
         );
         _syncStemsPollingState();
+        _maybePreloadRetryAd(provider.session);
         if (provider.session?.isCompleted == true) {
           await provider.loadLeaderboard(
             roomId: widget.roomId,
@@ -131,6 +142,21 @@ class _PackBundleContentState extends State<PackBundleContent> {
 
   void _handlePackBundleProviderChanged() {
     _syncStemsPollingState();
+    _maybePreloadRetryAd(_packBundleProvider?.session);
+  }
+
+  void _maybePreloadRetryAd(PackBundleSession? session) {
+    if (!mounted || session == null || session.isCompleted) return;
+    if (!session.awaitingRetryUnlock || session.nextRetryRequirement != 'ad') {
+      return;
+    }
+    final adsDisabled = context.read<AuthProvider>().user?.hasNoAds ?? false;
+    unawaited(
+      AdMobService().preloadRewarded(
+        adsDisabled: adsDisabled,
+        placement: RewardedPlacement.retryUnlock,
+      ),
+    );
   }
 
   void _syncStemsPollingState() {
@@ -266,19 +292,161 @@ class _PackBundleContentState extends State<PackBundleContent> {
     }
     await _stemAudioService.stop();
     final provider = context.read<PackBundleProvider>();
-    await provider.submitGuess(
+    final response = await provider.submitGuess(
       roomId: widget.roomId,
       packId: widget.packId,
       trackId: _selectedTrack!.id,
     );
-    if (provider.guessResult != null && mounted) {
+    if (!mounted || response == null) {
+      return;
+    }
+    _titleController.clear();
+    _selectedTrack = null;
+    final updatedSession = provider.session;
+    if (updatedSession?.isCompleted == true) {
+      await _onPackCompleted();
+      return;
+    }
+  }
+
+  Future<void> _handleActivateRetry(String action) async {
+    if (_retryActivationInProgress) return;
+
+    setState(() => _retryActivationInProgress = true);
+    final l10n = AppLocalizations.of(context);
+    final provider = context.read<PackBundleProvider>();
+
+    try {
+      Map<String, dynamic>? response;
+      if (action == 'ad') {
+        final adsDisabled =
+            context.read<AuthProvider>().user?.hasNoAds ?? false;
+        if (adsDisabled) {
+          response = await provider.activateRetry(
+            roomId: widget.roomId,
+            packId: widget.packId,
+            action: 'ad',
+          );
+        } else {
+          final rewarded = await AdMobService().showRewarded(
+            adsDisabled: false,
+            placement: RewardedPlacement.retryUnlock,
+            onRewardEarned: () async {
+              response = await provider.activateRetry(
+                roomId: widget.roomId,
+                packId: widget.packId,
+                action: 'ad',
+              );
+            },
+          );
+          if (!rewarded) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(l10n.adNotReadyTryAgain),
+                  backgroundColor: AppTheme.errorColor,
+                ),
+              );
+            }
+            return;
+          }
+        }
+      } else {
+        response = await provider.activateRetry(
+          roomId: widget.roomId,
+          packId: widget.packId,
+          action: action,
+        );
+      }
+
+      if (!mounted) return;
+      if (response == null) {
+        final error =
+            provider.errorMessage ??
+            'Unable to unlock retry. Please try again.';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.replaceFirst('Exception: ', '')),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+        return;
+      }
+      final resolvedResponse = response!;
+      final updatedCoins = resolvedResponse['coins'] as int?;
+      if (updatedCoins != null) {
+        context.read<AuthProvider>().updateCoinsBalance(updatedCoins);
+      }
+      if (provider.session?.isCompleted ?? false) {
+        await _onPackCompleted();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(provider.guessResult!),
-          backgroundColor: AppTheme.primaryColor,
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: AppTheme.errorColor,
         ),
       );
-      provider.clearGuessResult();
+    } finally {
+      if (mounted) {
+        setState(() => _retryActivationInProgress = false);
+      }
+    }
+  }
+
+  Future<void> _onPackCompleted() async {
+    if (_completionRecorded || _completionAdInProgress) return;
+
+    final provider = context.read<PackBundleProvider>();
+    if (_completionAdAttempts == 0) {
+      await provider.loadLeaderboard(
+        roomId: widget.roomId,
+        packId: widget.packId,
+      );
+      await provider.loadMessages(roomId: widget.roomId, packId: widget.packId);
+      if (mounted) {
+        setState(() {
+          _requestedCompletionData = true;
+        });
+      }
+    }
+
+    _completionAdAttempts += 1;
+    if (mounted) {
+      setState(() => _completionAdInProgress = true);
+    }
+
+    final session = provider.session;
+    if (session == null) {
+      if (mounted) {
+        setState(() => _completionAdInProgress = false);
+      }
+      return;
+    }
+
+    final adsDisabled = context.read<AuthProvider>().user?.hasNoAds ?? false;
+    final shown = await AdMobService().tryShowInterstitialForRoomCompletion(
+      adsDisabled: adsDisabled,
+      completionScope: 'pack_${widget.packId}',
+      roomId: widget.roomId,
+      gameDate: session.date,
+    );
+    if (!shown && !adsDisabled) {
+      await AdMobService().preloadInterstitial(adsDisabled: false);
+    }
+    if (shown || adsDisabled || _completionAdAttempts >= 2) {
+      _completionRecorded = true;
+    }
+    unawaited(
+      AdMobService().preloadRewarded(
+        adsDisabled: adsDisabled,
+        placement: RewardedPlacement.retryUnlock,
+      ),
+    );
+    if (mounted) {
+      setState(() => _completionAdInProgress = false);
     }
   }
 
@@ -312,13 +480,19 @@ class _PackBundleContentState extends State<PackBundleContent> {
     final l10n = AppLocalizations.of(context);
     final provider = context.watch<PackBundleProvider>();
     final session = provider.session;
+    final retryUnlockPending =
+        session?.awaitingRetryUnlock == true && session?.retryCredits == 0;
+    final interactionLocked =
+        provider.isLoading ||
+        _retryActivationInProgress ||
+        _completionAdInProgress;
 
     final content = provider.isLoading && session == null
         ? _buildLoadingSkeleton()
         : session == null
         ? _buildLoadingSkeleton()
         : session.isCompleted
-        ? _buildCompletedView(session, provider)
+        ? _buildCompletedState(session, provider)
         : Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -328,57 +502,61 @@ class _PackBundleContentState extends State<PackBundleContent> {
               const SizedBox(height: 24),
               _buildHintsSection(context, provider),
               const SizedBox(height: 24),
-              Text(
-                l10n.gameMakeYourGuess,
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-              const SizedBox(height: 16),
-              TrackAutocomplete(
-                controller: _titleController,
-                onTrackSelected: (track) {
-                  _selectedTrack = track;
-                },
-                hintText: l10n.packSearchSongTitleOrArtist,
-                labelText: l10n.gameSongTitleLabel,
-              ),
-              const SizedBox(height: 24),
-              // Last stage must be guessed; skip is only enabled before stage 4.
-              // Keep button disabled while a request is in flight.
-              Builder(
-                builder: (context) {
-                  final canSkip =
-                      !provider.isLoading && session.currentStage < 4;
-                  return Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: canSkip ? _skipStage : null,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppTheme.textPrimary,
-                            side: const BorderSide(
-                              color: AppTheme.textSecondary,
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(
-                                AppTheme.borderRadius,
+              if (session.currentStage >= 4) ...[
+                _buildRetryCard(session),
+                const SizedBox(height: 24),
+              ],
+              if (!retryUnlockPending) ...[
+                Text(
+                  l10n.gameMakeYourGuess,
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+                const SizedBox(height: 16),
+                TrackAutocomplete(
+                  controller: _titleController,
+                  onTrackSelected: (track) {
+                    _selectedTrack = track;
+                  },
+                  hintText: l10n.packSearchSongTitleOrArtist,
+                  labelText: l10n.gameSongTitleLabel,
+                ),
+                const SizedBox(height: 24),
+                Builder(
+                  builder: (context) {
+                    final canSkip =
+                        !interactionLocked && session.currentStage < 4;
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: canSkip ? _skipStage : null,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppTheme.textPrimary,
+                              side: const BorderSide(
+                                color: AppTheme.textSecondary,
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppTheme.borderRadius,
+                                ),
                               ),
                             ),
+                            child: Text(l10n.packSkipInstrument),
                           ),
-                          child: Text(l10n.packSkipInstrument),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: GradientButton(
-                          text: l10n.gameSubmitGuess,
-                          onPressed: _submitGuess,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: GradientButton(
+                            text: l10n.gameSubmitGuess,
+                            onPressed: interactionLocked ? null : _submitGuess,
+                          ),
                         ),
-                      ),
-                    ],
-                  );
-                },
-              ),
+                      ],
+                    );
+                  },
+                ),
+              ],
             ],
           );
 
@@ -403,6 +581,98 @@ class _PackBundleContentState extends State<PackBundleContent> {
         bottom: AppTheme.pagePadding.bottom + bottomInset,
       ),
       child: content,
+    );
+  }
+
+  Widget _buildCompletedState(
+    PackBundleSession session,
+    PackBundleProvider provider,
+  ) {
+    if (!_completionRecorded && !_completionAdInProgress) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _onPackCompleted();
+        }
+      });
+    }
+    if (_completionAdInProgress) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return _buildCompletedView(session, provider);
+  }
+
+  Widget _buildRetryCard(PackBundleSession session) {
+    final l10n = AppLocalizations.of(context);
+    if (session.retryCredits > 0) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.successColor.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+          border: Border.all(
+            color: AppTheme.successColor.withValues(alpha: 0.35),
+          ),
+        ),
+        child: Text(
+          l10n.gameRetryUnlocked,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppTheme.successColor,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
+
+    if (!session.retryAvailable) {
+      return const SizedBox.shrink();
+    }
+
+    final nextAction = session.nextRetryRequirement;
+    final isAdAction = nextAction == 'ad';
+    final retryCost = session.retryCostCoins ?? 120;
+    final buttonLabel = isAdAction
+        ? l10n.gameWatchAdForRetry
+        : l10n.gameSpendCoinsForFinalChance(retryCost);
+    final subtitle = isAdAction
+        ? l10n.gameRetryWatchAdSubtitle
+        : l10n.gameRetryUseCoinsSubtitle;
+    final hasNoAds = context.watch<AuthProvider>().user?.hasNoAds ?? false;
+    final ctaLabel = isAdAction
+        ? (hasNoAds ? l10n.gameUseRewardForSecondChance : buttonLabel)
+        : buttonLabel;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceColor.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+        border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            l10n.gameExtraChanceTitle,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 6),
+          Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
+          const SizedBox(height: 12),
+          ElevatedButton(
+            onPressed: _retryActivationInProgress
+                ? null
+                : () => _handleActivateRetry(isAdAction ? 'ad' : 'coins'),
+            child: Text(_retryActivationInProgress ? l10n.loading : ctaLabel),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: _retryActivationInProgress
+                ? null
+                : () => _handleActivateRetry('forfeit'),
+            child: Text(l10n.gameSkipExtraChanceShowResults),
+          ),
+        ],
+      ),
     );
   }
 

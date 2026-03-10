@@ -195,6 +195,69 @@ class PackBundleSessionTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data['is_correct'])
 
+    def test_wrong_guess_on_final_stage_prompts_retry_flow(self):
+        start_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/'
+        self.client.get(start_url)
+        wrong_track = Track.objects.create(
+            title='Wrong Song',
+            artist='Wrong Artist',
+            preview_url='https://example.com/wrong.mp3'
+        )
+        session = PackBundleSession.objects.get(room=self.room, user=self.user, pack=self.pack)
+        session.current_stage = len(PACK_BUNDLE_STAGE_ORDER)
+        session.save(update_fields=['current_stage'])
+
+        guess_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/guess/'
+        response = self.client.post(guess_url, {'track_id': str(wrong_track.id)}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data['is_correct'])
+        self.assertFalse(response.data['game_over'])
+        self.assertTrue(response.data['session']['retry_available'])
+        self.assertEqual(response.data['session']['next_retry_requirement'], 'ad')
+
+    def test_pack_retry_ad_then_wrong_guess_requests_coin_retry(self):
+        start_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/'
+        self.client.get(start_url)
+        wrong_track = Track.objects.create(
+            title='Wrong Song',
+            artist='Wrong Artist',
+            preview_url='https://example.com/wrong.mp3'
+        )
+        session = PackBundleSession.objects.get(room=self.room, user=self.user, pack=self.pack)
+        session.current_stage = len(PACK_BUNDLE_STAGE_ORDER)
+        session.awaiting_retry_unlock = True
+        session.save(update_fields=['current_stage', 'awaiting_retry_unlock'])
+
+        retry_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/retry/'
+        retry_response = self.client.post(retry_url, {'action': 'ad'}, format='json')
+        self.assertEqual(retry_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(retry_response.data['session']['retry_credits'], 1)
+
+        guess_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/guess/'
+        wrong_again = self.client.post(guess_url, {'track_id': str(wrong_track.id)}, format='json')
+        self.assertEqual(wrong_again.status_code, status.HTTP_200_OK)
+        self.assertFalse(wrong_again.data['game_over'])
+        self.assertEqual(
+            wrong_again.data['session']['next_retry_requirement'],
+            'coins',
+        )
+
+    def test_pack_retry_forfeit_ends_challenge(self):
+        start_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/'
+        self.client.get(start_url)
+        session = PackBundleSession.objects.get(room=self.room, user=self.user, pack=self.pack)
+        session.current_stage = len(PACK_BUNDLE_STAGE_ORDER)
+        session.awaiting_retry_unlock = True
+        session.save(update_fields=['current_stage', 'awaiting_retry_unlock'])
+
+        retry_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/retry/'
+        response = self.client.post(retry_url, {'action': 'forfeit'}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['game_over'])
+        self.assertIsNotNone(response.data['session']['completed_at'])
+
     def test_skip_last_stage_requires_guess(self):
         start_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/'
         self.client.get(start_url)
