@@ -1,6 +1,7 @@
 from datetime import timedelta
 from unittest.mock import patch
 
+from django.db import IntegrityError
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -9,8 +10,10 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from authentication.models import User
 from .models import (
     Track, Room, RoomUser, DailySong, DailyGameSession,
-    GuessAttempt, RoomMessage, SongPack, PackTrack, RoomPack
+    GuessAttempt, RoomMessage, SongPack, PackTrack, RoomPack,
+    PackDailyTrack, PackBundleSession
 )
+from .views import PACK_BUNDLE_STAGE_ORDER, _get_daily_pack_track
 
 
 class TrackModelTests(TestCase):
@@ -195,6 +198,69 @@ class PackBundleSessionTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data['is_correct'])
 
+    def test_wrong_guess_on_final_stage_prompts_retry_flow(self):
+        start_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/'
+        self.client.get(start_url)
+        wrong_track = Track.objects.create(
+            title='Wrong Song',
+            artist='Wrong Artist',
+            preview_url='https://example.com/wrong.mp3'
+        )
+        session = PackBundleSession.objects.get(room=self.room, user=self.user, pack=self.pack)
+        session.current_stage = len(PACK_BUNDLE_STAGE_ORDER)
+        session.save(update_fields=['current_stage'])
+
+        guess_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/guess/'
+        response = self.client.post(guess_url, {'track_id': str(wrong_track.id)}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data['is_correct'])
+        self.assertFalse(response.data['game_over'])
+        self.assertTrue(response.data['session']['retry_available'])
+        self.assertEqual(response.data['session']['next_retry_requirement'], 'ad')
+
+    def test_pack_retry_ad_then_wrong_guess_requests_coin_retry(self):
+        start_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/'
+        self.client.get(start_url)
+        wrong_track = Track.objects.create(
+            title='Wrong Song',
+            artist='Wrong Artist',
+            preview_url='https://example.com/wrong.mp3'
+        )
+        session = PackBundleSession.objects.get(room=self.room, user=self.user, pack=self.pack)
+        session.current_stage = len(PACK_BUNDLE_STAGE_ORDER)
+        session.awaiting_retry_unlock = True
+        session.save(update_fields=['current_stage', 'awaiting_retry_unlock'])
+
+        retry_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/retry/'
+        retry_response = self.client.post(retry_url, {'action': 'ad'}, format='json')
+        self.assertEqual(retry_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(retry_response.data['session']['retry_credits'], 1)
+
+        guess_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/guess/'
+        wrong_again = self.client.post(guess_url, {'track_id': str(wrong_track.id)}, format='json')
+        self.assertEqual(wrong_again.status_code, status.HTTP_200_OK)
+        self.assertFalse(wrong_again.data['game_over'])
+        self.assertEqual(
+            wrong_again.data['session']['next_retry_requirement'],
+            'coins',
+        )
+
+    def test_pack_retry_forfeit_ends_challenge(self):
+        start_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/'
+        self.client.get(start_url)
+        session = PackBundleSession.objects.get(room=self.room, user=self.user, pack=self.pack)
+        session.current_stage = len(PACK_BUNDLE_STAGE_ORDER)
+        session.awaiting_retry_unlock = True
+        session.save(update_fields=['current_stage', 'awaiting_retry_unlock'])
+
+        retry_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/retry/'
+        response = self.client.post(retry_url, {'action': 'forfeit'}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['game_over'])
+        self.assertIsNotNone(response.data['session']['completed_at'])
+
     def test_skip_last_stage_requires_guess(self):
         start_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/'
         self.client.get(start_url)
@@ -220,8 +286,6 @@ class PackBundleSessionTests(APITestCase):
         )
         self.assertEqual(session.current_stage, len(PACK_BUNDLE_STAGE_ORDER))
         self.assertIsNone(session.completed_at)
-
-
 
     def test_join_room_already_member(self):
         """Test joining room fails if already a member."""
@@ -1023,3 +1087,48 @@ class SearchTracksViewTests(APITestCase):
         response = self.client.get(f'{self.search_url}?q={artist_name}&limit=8')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 8)
+
+
+class PackDailyTrackTests(TestCase):
+    """Tests for daily pack track assignment."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='dailytrackuser',
+            email='dailytrack@example.com',
+            password='testpass123'
+        )
+        self.room = Room.objects.create(host_user=self.user)
+        self.pack = SongPack.objects.create(name='Rotation Pack', price_coins=0)
+        self.track_one = Track.objects.create(
+            title='Track One',
+            artist='Artist One',
+            preview_url='https://example.com/track-one.mp3'
+        )
+        self.track_two = Track.objects.create(
+            title='Track Two',
+            artist='Artist Two',
+            preview_url='https://example.com/track-two.mp3'
+        )
+        PackTrack.objects.create(pack=self.pack, track=self.track_one, order_in_pack=1)
+        PackTrack.objects.create(pack=self.pack, track=self.track_two, order_in_pack=2)
+
+    def test_get_daily_pack_track_returns_existing_row_after_duplicate_create_race(self):
+        today = timezone.now().date()
+        original_create = PackDailyTrack.objects.create
+
+        def create_then_raise(*args, **kwargs):
+            original_create(*args, **kwargs)
+            raise IntegrityError('UNIQUE constraint failed')
+
+        with patch('game.views.PackDailyTrack.objects.create', side_effect=create_then_raise):
+            daily_track = _get_daily_pack_track(self.room, self.pack, today)
+
+        self.assertIsNotNone(daily_track)
+        self.assertEqual(daily_track.room, self.room)
+        self.assertEqual(daily_track.pack, self.pack)
+        self.assertEqual(daily_track.date, today)
+        self.assertEqual(
+            PackDailyTrack.objects.filter(room=self.room, pack=self.pack, date=today).count(),
+            1,
+        )

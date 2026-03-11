@@ -237,7 +237,13 @@ def _get_daily_pack_track(room, pack, today):
         available_tracks = [pt.track for pt in pack_tracks]
 
     track = random.choice(available_tracks)
-    return PackDailyTrack.objects.create(room=room, pack=pack, track=track, date=today)
+    daily_track, _ = PackDailyTrack.objects.get_or_create(
+        room=room,
+        pack=pack,
+        date=today,
+        defaults={'track': track},
+    )
+    return daily_track
 
 
 class RoomCreateView(APIView):
@@ -727,12 +733,17 @@ class PackBundleGuessView(APIView):
         current_pack_track = PackTrack.objects.filter(pack=pack, track=daily_track.track).first()
         if not current_pack_track:
             return Response({'error': 'Pack track not found'}, status=status.HTTP_404_NOT_FOUND)
-        already_attempted = PackBundleAttempt.objects.filter(
+        attempt_count = PackBundleAttempt.objects.filter(
             session=session,
             pack_track=current_pack_track,
             stage=session.current_stage
-        ).exists()
-        if already_attempted:
+        ).count()
+        max_attempts_for_stage = (
+            1
+            if session.current_stage < len(PACK_BUNDLE_STAGE_ORDER)
+            else 1 + session.retries_used + session.retry_credits
+        )
+        if attempt_count >= max_attempts_for_stage:
             return Response({'error': 'Already guessed for this stage'}, status=status.HTTP_400_BAD_REQUEST)
 
         guessed_track = Track.objects.get(id=serializer.validated_data['track_id'])
@@ -751,16 +762,92 @@ class PackBundleGuessView(APIView):
 
         session.points_earned += points_awarded
 
-        # Advance stage or complete on correct guess
         if is_correct:
             session.current_stage = stage_guessed + 1
+            session.awaiting_retry_unlock = False
             session.completed_at = timezone.now()
-        else:
+            session.save(update_fields=[
+                'points_earned',
+                'current_stage',
+                'awaiting_retry_unlock',
+                'completed_at',
+            ])
+        elif stage_guessed < len(PACK_BUNDLE_STAGE_ORDER):
             session.current_stage += 1
-            if session.current_stage > len(PACK_BUNDLE_STAGE_ORDER):
-                session.completed_at = timezone.now()
+            session.awaiting_retry_unlock = False
+            session.save(update_fields=[
+                'points_earned',
+                'current_stage',
+                'awaiting_retry_unlock',
+            ])
+        elif session.retry_credits > 0:
+            session.retry_credits -= 1
+            session.retries_used += 1
+            next_requirement = _next_retry_requirement(session)
+            if next_requirement is not None:
+                session.awaiting_retry_unlock = True
+                session.save(update_fields=[
+                    'points_earned',
+                    'retry_credits',
+                    'retries_used',
+                    'awaiting_retry_unlock',
+                ])
+                retry_message = (
+                    'Incorrect. Watch an ad to unlock your next chance.'
+                    if next_requirement == 'ad'
+                    else f'Incorrect. Spend {_daily_game_retry_coin_cost()} coins to unlock one final chance.'
+                )
+                response_serializer = PackBundleSessionSerializer(session)
+                return Response({
+                    'session': response_serializer.data,
+                    'stems': _make_stem_urls_absolute(request, _get_pack_bundle_stems(current_pack_track, session.current_stage)),
+                    'stems_status': _get_stems_status_and_enqueue(current_pack_track),
+                    'is_correct': False,
+                    'points_awarded': 0,
+                    'game_over': False,
+                    'message': retry_message,
+                }, status=status.HTTP_200_OK)
 
-        session.save(update_fields=['points_earned', 'current_stage', 'completed_at'])
+            session.awaiting_retry_unlock = False
+            session.completed_at = timezone.now()
+            session.save(update_fields=[
+                'points_earned',
+                'retry_credits',
+                'retries_used',
+                'awaiting_retry_unlock',
+                'completed_at',
+            ])
+        else:
+            next_requirement = _next_retry_requirement(session)
+            if next_requirement is not None:
+                session.awaiting_retry_unlock = True
+                session.save(update_fields=[
+                    'points_earned',
+                    'awaiting_retry_unlock',
+                ])
+                retry_message = (
+                    'Incorrect. Watch an ad to unlock a second chance.'
+                    if next_requirement == 'ad'
+                    else f'Incorrect. Spend {_daily_game_retry_coin_cost()} coins to unlock one final chance.'
+                )
+                response_serializer = PackBundleSessionSerializer(session)
+                return Response({
+                    'session': response_serializer.data,
+                    'stems': _make_stem_urls_absolute(request, _get_pack_bundle_stems(current_pack_track, session.current_stage)),
+                    'stems_status': _get_stems_status_and_enqueue(current_pack_track),
+                    'is_correct': False,
+                    'points_awarded': 0,
+                    'game_over': False,
+                    'message': retry_message,
+                }, status=status.HTTP_200_OK)
+
+            session.awaiting_retry_unlock = False
+            session.completed_at = timezone.now()
+            session.save(update_fields=[
+                'points_earned',
+                'awaiting_retry_unlock',
+                'completed_at',
+            ])
 
         response_serializer = PackBundleSessionSerializer(session)
         stems = []
@@ -775,7 +862,174 @@ class PackBundleGuessView(APIView):
             'stems_status': stems_status,
             'is_correct': is_correct,
             'points_awarded': points_awarded,
+            'game_over': session.completed_at is not None,
         }, status=status.HTTP_200_OK)
+
+
+class PackBundleRetryView(APIView):
+    """
+    Activate an extra guess after failing on the last pack bundle stage.
+
+    POST /api/game/rooms/<room_id>/packs/<pack_id>/bundle/retry/
+    Headers: Authorization: Bearer <access_token>
+    Body: {"action": "ad" | "coins" | "forfeit"}
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, room_id, pack_id):
+        room = get_object_or_404(Room, id=room_id)
+        pack = get_object_or_404(SongPack, id=pack_id)
+        today = _active_game_date()
+
+        if not RoomUser.objects.filter(room=room, user=request.user).exists():
+            return error_response(
+                code=ErrorCode.MUST_BE_IN_ROOM_TO_PLAY_GAME,
+                message='You must be in the room to play this pack',
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = DailyGameRetrySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        action = serializer.validated_data['action']
+
+        daily_track = _get_daily_pack_track(room, pack, today)
+        session = PackBundleSession.objects.filter(
+            room=room,
+            user=request.user,
+            pack=pack,
+            pack_daily_track=daily_track,
+        ).first()
+        if not session:
+            return error_response(
+                code=ErrorCode.NO_ACTIVE_GAME_SESSION,
+                message='No active pack session. Start by calling GET /bundle/.',
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if session.completed_at:
+            return error_response(
+                code=ErrorCode.GAME_ALREADY_COMPLETED,
+                message='Pack already completed',
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if session.current_stage < len(PACK_BUNDLE_STAGE_ORDER):
+            return error_response(
+                code=ErrorCode.RETRY_AFTER_LAST_SNIPPET_ONLY,
+                message='Retry is only available after reaching the last stage',
+                status_code=status.HTTP_400_BAD_REQUEST,
+                session=PackBundleSessionSerializer(session).data,
+            )
+
+        if action == 'forfeit':
+            session.retry_credits = 0
+            session.awaiting_retry_unlock = False
+            session.completed_at = timezone.now()
+            session.save(update_fields=[
+                'retry_credits',
+                'awaiting_retry_unlock',
+                'completed_at',
+            ])
+
+            return Response(
+                {
+                    'game_over': True,
+                    'guess_counted': False,
+                    'points_earned': session.points_earned,
+                    'message': 'Challenge ended. Better luck next time!',
+                    'session': PackBundleSessionSerializer(session).data,
+                    'stems': [],
+                    'stems_status': 'ready',
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        if session.retry_credits > 0:
+            return error_response(
+                code=ErrorCode.RETRY_ALREADY_ACTIVE,
+                message='A retry is already active',
+                status_code=status.HTTP_400_BAD_REQUEST,
+                session=PackBundleSessionSerializer(session).data,
+            )
+
+        if not session.awaiting_retry_unlock:
+            return error_response(
+                code=ErrorCode.RETRY_NOT_PENDING_UNLOCK,
+                message='No retry is pending unlock yet',
+                status_code=status.HTTP_400_BAD_REQUEST,
+                session=PackBundleSessionSerializer(session).data,
+            )
+
+        expected_action = _next_retry_requirement(session)
+        if expected_action is None:
+            return error_response(
+                code=ErrorCode.NO_RETRIES_REMAINING,
+                message='No retries remaining',
+                status_code=status.HTTP_400_BAD_REQUEST,
+                session=PackBundleSessionSerializer(session).data,
+            )
+
+        if action != expected_action:
+            return error_response(
+                code=ErrorCode.INVALID_RETRY_ACTION,
+                message=f'Invalid retry action. Expected "{expected_action}"',
+                status_code=status.HTTP_400_BAD_REQUEST,
+                params={'expected_action': expected_action},
+                expected_action=expected_action,
+                session=PackBundleSessionSerializer(session).data,
+            )
+
+        with transaction.atomic():
+            if action == 'coins':
+                retry_cost = _daily_game_retry_coin_cost()
+                if request.user.coins < retry_cost:
+                    return error_response(
+                        code=ErrorCode.INSUFFICIENT_COINS,
+                        message='Insufficient coins',
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        params={'required_coins': retry_cost},
+                        coins=request.user.coins,
+                        retry_cost_coins=retry_cost,
+                        session=PackBundleSessionSerializer(session).data,
+                    )
+
+                if not request.user.spend_coins(retry_cost, reason=f"Pack retry in room {room.room_code}"):
+                    return error_response(
+                        code=ErrorCode.INSUFFICIENT_COINS,
+                        message='Insufficient coins',
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        params={'required_coins': retry_cost},
+                    )
+
+            session.retry_credits += 1
+            session.awaiting_retry_unlock = False
+            session.save(update_fields=['retry_credits', 'awaiting_retry_unlock'])
+
+        current_pack_track = PackTrack.objects.filter(
+            pack=pack,
+            track=daily_track.track,
+        ).first()
+        stems = (
+            []
+            if current_pack_track is None
+            else _get_pack_bundle_stems(current_pack_track, session.current_stage)
+        )
+        stems_status = (
+            'ready'
+            if current_pack_track is None
+            else _get_stems_status_and_enqueue(current_pack_track)
+        )
+
+        return Response(
+            {
+                'message': 'Retry unlocked. Make another guess.',
+                'coins': request.user.coins,
+                'session': PackBundleSessionSerializer(session).data,
+                'stems': _make_stem_urls_absolute(request, stems),
+                'stems_status': stems_status,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class PackBundleLeaderboardView(APIView):

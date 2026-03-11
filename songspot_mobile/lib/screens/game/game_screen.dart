@@ -9,14 +9,22 @@ import '../../l10n/app_localizations.dart';
 import '../../providers/game_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/room_provider.dart';
+import '../../providers/pack_bundle_provider.dart';
 import '../../providers/pack_provider.dart';
 import '../../models/track.dart';
 import '../../models/game_session.dart';
 import '../../models/pack.dart';
+import '../../models/message.dart';
+import '../../models/user.dart';
+import '../../widgets/compact_playback_panel.dart';
+import '../../widgets/result_chat_section.dart';
+import '../../widgets/result_leaderboard_section.dart';
+import '../../widgets/result_track_card.dart';
 import '../../widgets/track_autocomplete.dart';
 import '../../widgets/gradient_button.dart';
 import '../../services/api_service.dart';
 import '../../services/admob_service.dart';
+import '../../services/audio_service.dart';
 import '../../models/history_day.dart';
 import '../packs/pack_list_screen.dart';
 import '../packs/pack_bundle_screen.dart';
@@ -31,17 +39,22 @@ class GameScreen extends StatefulWidget {
   State<GameScreen> createState() => _GameScreenState();
 }
 
-class _GameScreenState extends State<GameScreen> {
+class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
+  static const List<double> _snippetTimelineWeights = [1, 1, 2, 3, 4, 5];
   final _titleController = TextEditingController();
   final _messageController = TextEditingController();
   final _contentScrollController = ScrollController();
   final _dateScrollController = ScrollController();
+  final AudioService _previewAudioService = AudioService();
   Track? _selectedTrack;
   String? _activePackId;
   String? _activePackName;
   late GameProvider _gameProvider;
   bool _pendingChatAutoScroll = false;
   int _lastKnownMessageCount = 0;
+  bool _isPreviewPlaying = false;
+  int _previewPlaybackRequestId = 0;
+  String? _previewTrackId;
 
   // History
   final _apiService = ApiService();
@@ -65,6 +78,7 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _gameProvider = context.read<GameProvider>();
     _lastKnownMessageCount = _gameProvider.messages.length;
     _gameProvider.addListener(_handleGameProviderUpdate);
@@ -86,6 +100,7 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _resultRefreshTimer?.cancel();
     _skipFeedbackTimer?.cancel();
     _gameProvider.removeListener(_handleGameProviderUpdate);
@@ -94,7 +109,30 @@ class _GameScreenState extends State<GameScreen> {
     _messageController.dispose();
     _contentScrollController.dispose();
     _dateScrollController.dispose();
+    _previewAudioService.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.resumed:
+        break;
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        unawaited(_gameProvider.audioService.stop());
+        _previewPlaybackRequestId += 1;
+        unawaited(_previewAudioService.stop());
+        if (_isPreviewPlaying) {
+          setState(() {
+            _isPreviewPlaying = false;
+            _previewTrackId = null;
+          });
+        }
+        break;
+    }
   }
 
   void _handleGameProviderUpdate() {
@@ -140,6 +178,71 @@ class _GameScreenState extends State<GameScreen> {
         );
       }
     }
+  }
+
+  Future<void> _toggleResultPreview(Track track) async {
+    if (_isPreviewPlaying && _previewTrackId == track.id) {
+      _previewPlaybackRequestId += 1;
+      await _previewAudioService.stop();
+      if (mounted) {
+        setState(() {
+          _isPreviewPlaying = false;
+          _previewTrackId = null;
+        });
+      }
+      return;
+    }
+
+    final previewUrl = track.previewUrl.trim();
+    if (previewUrl.isEmpty) return;
+
+    final requestId = ++_previewPlaybackRequestId;
+    if (mounted) {
+      setState(() {
+        _isPreviewPlaying = true;
+        _previewTrackId = track.id;
+      });
+    }
+
+    try {
+      await _playResultPreviewWithRefresh(track, previewUrl);
+    } catch (e) {
+      if (!mounted || requestId != _previewPlaybackRequestId) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    } finally {
+      if (mounted && requestId == _previewPlaybackRequestId) {
+        setState(() {
+          _isPreviewPlaying = false;
+          _previewTrackId = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _playResultPreviewWithRefresh(
+    Track track,
+    String previewUrl,
+  ) async {
+    if (previewUrl.isNotEmpty) {
+      try {
+        await _previewAudioService.loadAudio(previewUrl);
+        await _previewAudioService.playFullAudio();
+        return;
+      } catch (_) {
+        // Fall through to refresh and retry.
+      }
+    }
+
+    final refreshed = await _apiService.refreshTrackPreview(trackId: track.id);
+    final trackJson = refreshed['track'] as Map<String, dynamic>;
+    final refreshedTrack = Track.fromJson(trackJson);
+    await _previewAudioService.loadAudio(refreshedTrack.previewUrl);
+    await _previewAudioService.playFullAudio();
   }
 
   Future<void> _handleSkip() async {
@@ -282,6 +385,7 @@ class _GameScreenState extends State<GameScreen> {
     final adsDisabled = context.read<AuthProvider>().user?.hasNoAds ?? false;
     final shown = await AdMobService().tryShowInterstitialForRoomCompletion(
       adsDisabled: adsDisabled,
+      completionScope: 'daily',
       roomId: widget.roomId,
       gameDate: session.dailySong.date,
     );
@@ -339,6 +443,18 @@ class _GameScreenState extends State<GameScreen> {
     await context.read<RoomProvider>().loadRoomDetails(widget.roomId);
   }
 
+  Future<void> _openPackList() async {
+    final room = context.read<RoomProvider>().currentRoom;
+    if (room == null) return;
+
+    await context.read<GameProvider>().stopPlayback();
+    if (!mounted) return;
+
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => PackListScreen(roomId: room.id)));
+  }
+
   Future<void> _handleActivateRetry(String action) async {
     if (_retryActivationInProgress) return;
 
@@ -356,7 +472,7 @@ class _GameScreenState extends State<GameScreen> {
             action: 'ad',
           );
         } else {
-          final rewarded = await AdMobService().showRewarded(
+          final result = await AdMobService().showRewarded(
             adsDisabled: false,
             placement: RewardedPlacement.retryUnlock,
             onRewardEarned: () async {
@@ -366,7 +482,7 @@ class _GameScreenState extends State<GameScreen> {
               );
             },
           );
-          if (!rewarded) {
+          if (result == RewardedAdShowResult.unavailable) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -546,7 +662,9 @@ class _GameScreenState extends State<GameScreen> {
               ChoiceChip(
                 label: const Text('Daily'),
                 selected: isDailySelected,
-                onSelected: (_) {
+                onSelected: (_) async {
+                  await context.read<GameProvider>().stopPlayback();
+                  if (!mounted) return;
                   setState(() {
                     _activePackId = null;
                     _activePackName = null;
@@ -564,7 +682,9 @@ class _GameScreenState extends State<GameScreen> {
                   child: ChoiceChip(
                     label: Text(pack.name),
                     selected: pack.id == _activePackId,
-                    onSelected: (_) {
+                    onSelected: (_) async {
+                      await context.read<GameProvider>().stopPlayback();
+                      if (!mounted) return;
                       setState(() {
                         _activePackId = pack.id;
                         _activePackName = pack.name;
@@ -590,6 +710,24 @@ class _GameScreenState extends State<GameScreen> {
 
     final gameProvider = context.read<GameProvider>();
     final success = await gameProvider.sendMessage(widget.roomId, message);
+
+    if (success && mounted) {
+      _messageController.clear();
+      _requestChatAutoScroll();
+    }
+  }
+
+  Future<void> _handlePackSendMessage() async {
+    final message = _messageController.text.trim();
+    final packId = _activePackId;
+    if (message.isEmpty || packId == null) return;
+
+    final provider = context.read<PackBundleProvider>();
+    final success = await provider.sendMessage(
+      roomId: widget.roomId,
+      packId: packId,
+      message: message,
+    );
 
     if (success && mounted) {
       _messageController.clear();
@@ -746,331 +884,84 @@ class _GameScreenState extends State<GameScreen> {
     GameSession session,
     List<LeaderboardEntry> leaderboard,
   ) {
+    final l10n = AppLocalizations.of(context);
     final track = session.dailySong.track;
     final isCorrect = session.correctGuess;
+    final leaderboardRows = leaderboard
+        .map(
+          (entry) => ResultLeaderboardRowData(
+            title: entry.user.username,
+            subtitle: entry.pointsEarned > 0
+                ? l10n.dailyResultSnippetCompletedAt(
+                    entry.snippetNumber,
+                    DateFormat.Hm().format(entry.completedAt.toLocal()),
+                  )
+                : l10n.dailyResultNotGuessedAt(
+                    DateFormat.Hm().format(entry.completedAt.toLocal()),
+                  ),
+            scoreText: '${entry.pointsEarned}',
+          ),
+        )
+        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Result Header
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            gradient: AppTheme.cardGradient,
-            borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-          ),
-          child: Column(
-            children: [
-              // Cover Image
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: track.coverUrl != null
-                    ? Image.network(
-                        track.coverUrl!,
-                        width: 200,
-                        height: 200,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          width: 200,
-                          height: 200,
-                          color: AppTheme.surfaceColor,
-                          child: const Icon(
-                            Icons.album,
-                            size: 80,
-                            color: AppTheme.primaryColor,
-                          ),
+        ResultTrackCard(
+          title: track.title,
+          artist: track.artist,
+          coverUrl: track.coverUrl,
+          artworkSize: 132,
+          padding: const EdgeInsets.all(18),
+          onArtworkTap: () => _toggleResultPreview(track),
+          isArtworkPlaying: _isPreviewPlaying && _previewTrackId == track.id,
+          footer: isCorrect
+              ? Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.successColor.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.check_circle, color: AppTheme.successColor),
+                      const SizedBox(width: 8),
+                      Text(
+                        l10n.dailyResultPointsSnippet(
+                          session.pointsEarned ?? 0,
+                          session.currentSnippet,
                         ),
-                      )
-                    : Container(
-                        width: 200,
-                        height: 200,
-                        color: AppTheme.surfaceColor,
-                        child: const Icon(
-                          Icons.album,
-                          size: 80,
-                          color: AppTheme.primaryColor,
+                        style: const TextStyle(
+                          color: AppTheme.successColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
                         ),
                       ),
-              ),
-              const SizedBox(height: 20),
-
-              // Song Info
-              Text(
-                track.title,
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                track.artist,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppTheme.textSecondary,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-
-              // Result Badge
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: isCorrect
-                      ? AppTheme.successColor.withValues(alpha: 0.2)
-                      : AppTheme.errorColor.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isCorrect ? Icons.check_circle : Icons.cancel,
-                      color: isCorrect
-                          ? AppTheme.successColor
-                          : AppTheme.errorColor,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      isCorrect
-                          ? '+${session.pointsEarned} points (Snippet ${session.currentSnippet})'
-                          : 'Not guessed',
-                      style: TextStyle(
-                        color: isCorrect
-                            ? AppTheme.successColor
-                            : AppTheme.errorColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+                    ],
+                  ),
+                )
+              : null,
         ),
         const SizedBox(height: 24),
-
-        // Today's Results Section
-        Text(
-          'Today\'s Results',
-          style: Theme.of(context).textTheme.headlineMedium,
+        ResultLeaderboardSection(
+          title: l10n.packResultsTitle,
+          emptyText: l10n.dailyResultNoOtherPlayersCompleted,
+          rows: leaderboardRows,
         ),
-        const SizedBox(height: 16),
-
-        if (leaderboard.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppTheme.surfaceColor,
-              borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-            ),
-            child: Text(
-              'No other players have guessed yet',
-              style: Theme.of(context).textTheme.bodyMedium,
-              textAlign: TextAlign.center,
-            ),
-          )
-        else
-          ...leaderboard.asMap().entries.map((entry) {
-            final index = entry.key;
-            final leaderboardEntry = entry.value;
-            final rank = index + 1;
-
-            Color rankColor;
-            if (rank == 1) {
-              rankColor = const Color(0xFFFFD700); // Gold
-            } else if (rank == 2) {
-              rankColor = const Color(0xFFC0C0C0); // Silver
-            } else if (rank == 3) {
-              rankColor = const Color(0xFFCD7F32); // Bronze
-            } else {
-              rankColor = AppTheme.textSecondary;
-            }
-
-            return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppTheme.surfaceColor,
-                borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-              ),
-              child: Row(
-                children: [
-                  // Rank
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: rankColor.withValues(alpha: 0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        '$rank',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: rankColor,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-
-                  // User Info
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          leaderboardEntry.user.username,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        Text(
-                          leaderboardEntry.pointsEarned > 0
-                              ? 'Snippet ${leaderboardEntry.snippetNumber} - ${DateFormat.Hm().format(leaderboardEntry.completedAt.toLocal())}'
-                              : 'Did not guess - ${DateFormat.Hm().format(leaderboardEntry.completedAt.toLocal())}',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: AppTheme.textSecondary),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Points
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: AppTheme.primaryGradient,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Text(
-                      '${leaderboardEntry.pointsEarned}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
         const SizedBox(height: 32),
-
-        // Chat Section
-        Text('Chat', style: Theme.of(context).textTheme.headlineMedium),
-        const SizedBox(height: 16),
-        _buildInlineChat(),
+        ResultChatSection(
+          title: l10n.chatTitle,
+          emptyTitle: l10n.chatNoMessagesYet,
+          emptySubtitle: l10n.chatStartConversation,
+          messages: context.watch<GameProvider>().messages,
+          currentUserId: context.watch<AuthProvider>().user?.id,
+        ),
         const SizedBox(height: 24),
       ],
-    );
-  }
-
-  Widget _buildInlineChat() {
-    final currentUserId = context.watch<AuthProvider>().user?.id;
-    final gameProvider = context.watch<GameProvider>();
-    final messages = gameProvider.messages;
-
-    // Reverse to show oldest first (messages come newest first from API).
-    // Keep only recent messages so the result page remains compact.
-    final displayMessages = messages.take(12).toList().reversed.toList();
-
-    if (messages.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.chat_bubble_outline,
-              size: 40,
-              color: AppTheme.textSecondary,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'No messages yet',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Start the conversation!',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Column(
-      children: displayMessages.map((message) {
-        final isCurrentUser = message.user.id == currentUserId;
-
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Align(
-            alignment: isCurrentUser
-                ? Alignment.centerRight
-                : Alignment.centerLeft,
-            child: Container(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.7,
-              ),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                gradient: isCurrentUser ? AppTheme.primaryGradient : null,
-                color: isCurrentUser ? null : AppTheme.surfaceColor,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: isCurrentUser
-                    ? CrossAxisAlignment.end
-                    : CrossAxisAlignment.start,
-                children: [
-                  if (!isCurrentUser) ...[
-                    Text(
-                      message.user.username,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.primaryColor,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                  ],
-                  Text(
-                    message.message,
-                    textWidthBasis: TextWidthBasis.longestLine,
-                    style: TextStyle(
-                      color: isCurrentUser
-                          ? Colors.white
-                          : AppTheme.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    DateFormat.Hm().format(message.createdAt.toLocal()),
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: isCurrentUser
-                          ? Colors.white70
-                          : AppTheme.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      }).toList(),
     );
   }
 
@@ -1082,7 +973,17 @@ class _GameScreenState extends State<GameScreen> {
         session.isCompleted;
   }
 
-  Widget _buildRoomChatComposer() {
+  bool _shouldShowPackChatComposer(PackBundleProvider packBundleProvider) {
+    return _selectedHistoryDate == null &&
+        _activePackId != null &&
+        packBundleProvider.loadedPackId == _activePackId &&
+        packBundleProvider.session?.isCompleted == true;
+  }
+
+  Widget _buildChatComposer({
+    required String hintText,
+    required VoidCallback onSend,
+  }) {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
       decoration: BoxDecoration(
@@ -1099,7 +1000,7 @@ class _GameScreenState extends State<GameScreen> {
               child: TextField(
                 controller: _messageController,
                 decoration: InputDecoration(
-                  hintText: 'Type a message...',
+                  hintText: hintText,
                   filled: true,
                   fillColor: AppTheme.surfaceColor,
                   border: OutlineInputBorder(
@@ -1113,7 +1014,7 @@ class _GameScreenState extends State<GameScreen> {
                 ),
                 maxLines: 1,
                 textInputAction: TextInputAction.send,
-                onSubmitted: (_) => _handleSendMessage(),
+                onSubmitted: (_) => onSend(),
               ),
             ),
             const SizedBox(width: 12),
@@ -1126,7 +1027,7 @@ class _GameScreenState extends State<GameScreen> {
               ),
               child: IconButton(
                 icon: const Icon(Icons.send, color: Colors.white),
-                onPressed: _handleSendMessage,
+                onPressed: onSend,
               ),
             ),
           ],
@@ -1135,11 +1036,26 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
+  Widget _buildRoomChatComposer() {
+    return _buildChatComposer(
+      hintText: AppLocalizations.of(context).chatTypeMessageHint,
+      onSend: _handleSendMessage,
+    );
+  }
+
+  Widget _buildPackChatComposer(BuildContext context) {
+    return _buildChatComposer(
+      hintText: AppLocalizations.of(context).chatTypeMessageHint,
+      onSend: _handlePackSendMessage,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final roomProvider = context.watch<RoomProvider>();
     final room = roomProvider.currentRoom;
     final packProvider = context.watch<PackProvider>();
+    final packBundleProvider = context.watch<PackBundleProvider>();
 
     return PopScope(
       canPop: false,
@@ -1175,15 +1091,7 @@ class _GameScreenState extends State<GameScreen> {
             ),
             IconButton(
               icon: const Icon(Icons.album),
-              onPressed: room == null
-                  ? null
-                  : () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => PackListScreen(roomId: room.id),
-                        ),
-                      );
-                    },
+              onPressed: room == null ? null : _openPackList,
               tooltip: 'Packs',
             ),
           ],
@@ -1194,7 +1102,12 @@ class _GameScreenState extends State<GameScreen> {
           ),
           child: Consumer<GameProvider>(
             builder: (context, gameProvider, _) {
-              final showComposer = _shouldShowRoomChatComposer(gameProvider);
+              final showRoomComposer = _shouldShowRoomChatComposer(
+                gameProvider,
+              );
+              final showPackComposer = _shouldShowPackChatComposer(
+                packBundleProvider,
+              );
               final content = _selectedHistoryDate != null
                   ? _buildHistoryView()
                   : _buildActiveGameContent(
@@ -1206,7 +1119,8 @@ class _GameScreenState extends State<GameScreen> {
               return Column(
                 children: [
                   Expanded(child: content),
-                  if (showComposer) _buildRoomChatComposer(),
+                  if (showRoomComposer) _buildRoomChatComposer(),
+                  if (showPackComposer) _buildPackChatComposer(context),
                 ],
               );
             },
@@ -1290,147 +1204,21 @@ class _GameScreenState extends State<GameScreen> {
           const SizedBox(height: 16),
           _buildPackSwitcher(context, packProvider.ownedPacks),
           if (_activePackId == null) ...[
-            // Progress Indicators
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(6, (index) {
-                final snippetNumber = index + 1;
-                final isActive = snippetNumber == session.currentSnippet;
-                final isPassed = snippetNumber < session.currentSnippet;
-                final highlightActive = isActive && _skipFeedbackActive;
-
-                return AnimatedScale(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutBack,
-                  scale: highlightActive ? 1.1 : 1,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    curve: Curves.easeOut,
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isPassed
-                          ? AppTheme.textSecondary
-                          : isActive
-                          ? AppTheme.primaryColor
-                          : AppTheme.surfaceColor,
-                      border: Border.all(
-                        color: isActive
-                            ? AppTheme.primaryColor
-                            : AppTheme.textSecondary,
-                        width: 2,
-                      ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        '$snippetNumber',
-                        style: TextStyle(
-                          color: isPassed || isActive
-                              ? Colors.white
-                              : AppTheme.textSecondary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            ),
-            const SizedBox(height: 32),
-
-            // Audio Player Card
-            Container(
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                gradient: AppTheme.cardGradient,
-                borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-              ),
-              child: Column(
-                children: [
-                  const Icon(
-                    Icons.music_note,
-                    size: 80,
-                    color: AppTheme.primaryColor,
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    l10n.gameSnippetLabel(session.currentSnippet),
-                    style: Theme.of(context).textTheme.displaySmall,
-                  ),
-                  const SizedBox(height: 8),
-                  AnimatedDefaultTextStyle(
-                    duration: const Duration(milliseconds: 200),
-                    curve: Curves.easeOut,
-                    style: Theme.of(context).textTheme.titleLarge!.copyWith(
-                      color: _skipFeedbackActive
-                          ? AppTheme.accentColor
-                          : AppTheme.primaryColor,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 180),
-                      switchInCurve: Curves.easeOut,
-                      switchOutCurve: Curves.easeIn,
-                      transitionBuilder: (child, animation) {
-                        return FadeTransition(
-                          opacity: animation,
-                          child: SlideTransition(
-                            position: Tween<Offset>(
-                              begin: const Offset(0, 0.15),
-                              end: Offset.zero,
-                            ).animate(animation),
-                            child: child,
-                          ),
-                        );
-                      },
-                      child: Text(
-                        _formatSnippetDuration(session.snippetDuration),
-                        key: ValueKey(session.currentSnippet),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    l10n.gamePointsLabel(session.possiblePoints),
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  const SizedBox(height: 24),
-                  GradientButton(
-                    text: gameProvider.audioService.isPlaying
-                        ? l10n.gamePlayingSnippet
-                        : l10n.gamePlaySnippet,
-                    onPressed: gameProvider.audioService.isPlaying
-                        ? null
-                        : _handlePlaySnippet,
-                    isLoading: false,
-                  ),
-                ],
-              ),
-            ),
+            _buildSnippetTimeline(session),
             const SizedBox(height: 24),
 
-            // Hints
-            _buildHintsSection(context, gameProvider),
+            CompactPlaybackPanel(
+              durationLabel: _formatSnippetDuration(session.snippetDuration),
+              onPressed: _handlePlaySnippet,
+              isPlaying: gameProvider.audioService.isPlaying,
+            ),
             const SizedBox(height: 24),
-
-            if (session.currentSnippet >= 6 && !session.isCompleted) ...[
-              _buildRetryCard(session),
-              const SizedBox(height: 24),
-            ],
 
             if (!retryUnlockPending) ...[
-              // Guess Form
-              Text(
-                l10n.gameMakeYourGuess,
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-              const SizedBox(height: 16),
               TrackAutocomplete(
                 controller: _titleController,
-                hintText: l10n.gameSongTitleHint,
-                labelText: l10n.gameSongTitleLabel,
+                hintText: l10n.packSearchSongTitleOrArtist,
+                labelText: l10n.packSearchSongTitleOrArtist,
                 onTrackSelected: (track) {
                   setState(() {
                     _selectedTrack = track;
@@ -1474,13 +1262,16 @@ class _GameScreenState extends State<GameScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Guesses Made
-              Text(
-                l10n.gameGuessesMade(session.guessesMade),
-                style: Theme.of(context).textTheme.bodyMedium,
-                textAlign: TextAlign.center,
-              ),
+              const SizedBox(height: 24),
             ],
+
+            if (session.currentSnippet >= 6 && !session.isCompleted) ...[
+              _buildRetryCard(session),
+              const SizedBox(height: 24),
+            ],
+
+            // Hints
+            _buildHintsSection(context, gameProvider),
           ] else
             PackBundleContent(
               key: ValueKey(_activePackId),
@@ -1490,6 +1281,90 @@ class _GameScreenState extends State<GameScreen> {
               embedInScroll: true,
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSnippetTimeline(GameSession session) {
+    final totalWeight = _snippetTimelineWeights.fold<double>(
+      0,
+      (sum, weight) => sum + weight,
+    );
+
+    return SizedBox(
+      height: 22,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final boundaries = <double>[0];
+          var consumedWidth = 0.0;
+
+          for (final weight in _snippetTimelineWeights) {
+            consumedWidth += constraints.maxWidth * (weight / totalWeight);
+            boundaries.add(consumedWidth);
+          }
+
+          return Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                top: 10,
+                left: 0,
+                right: 0,
+                child: Container(
+                  height: 2,
+                  color: AppTheme.textSecondary.withValues(alpha: 0.25),
+                ),
+              ),
+              Positioned(
+                top: 10,
+                left: 0,
+                width: boundaries[session.currentSnippet],
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  height: _skipFeedbackActive ? 5 : 4,
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryColor,
+                    borderRadius: BorderRadius.circular(999),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primaryColor.withValues(alpha: 0.22),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              for (var index = 0; index < boundaries.length; index++)
+                Positioned(
+                  left: (boundaries[index] - 1).clamp(
+                    0,
+                    constraints.maxWidth - 2,
+                  ),
+                  top: 4,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOut,
+                    width: index < session.currentSnippet - 1 ? 0 : 2,
+                    height: index == session.currentSnippet
+                        ? (_skipFeedbackActive ? 16 : 14)
+                        : 12,
+                    decoration: BoxDecoration(
+                      color: index < session.currentSnippet - 1
+                          ? Colors.transparent
+                          : index == session.currentSnippet
+                          ? AppTheme.primaryColor
+                          : index == session.currentSnippet - 1
+                          ? Colors.transparent
+                          : AppTheme.textSecondary.withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1920,301 +1795,72 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Widget _buildHistoryContent(HistoryDayDetail detail) {
-    final currentUserId = context.read<AuthProvider>().user?.id;
     final session = detail.mySession;
-
-    return SingleChildScrollView(
-      padding: AppTheme.pagePadding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (_showHistorySelector) ...[
-            _buildDateRow(),
-            const SizedBox(height: 8),
-          ],
-          // Song card
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: AppTheme.cardGradient,
-              borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-            ),
-            child: Column(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: detail.track.coverUrl != null
-                      ? Image.network(
-                          detail.track.coverUrl!,
-                          width: 160,
-                          height: 160,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context2, e, s) =>
-                              _historyAlbumPlaceholder(),
-                        )
-                      : _historyAlbumPlaceholder(),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  detail.track.title,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  detail.track.artist,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppTheme.textSecondary,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                if (session != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: session.correctGuess
-                          ? AppTheme.successColor.withValues(alpha: 0.2)
-                          : AppTheme.errorColor.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          session.correctGuess
-                              ? Icons.check_circle
-                              : Icons.cancel,
-                          color: session.correctGuess
-                              ? AppTheme.successColor
-                              : AppTheme.errorColor,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          session.correctGuess
-                              ? '+${session.pointsEarned ?? 0} pts · Snippet ${session.currentSnippet}'
-                              : 'Not guessed',
-                          style: TextStyle(
-                            color: session.correctGuess
-                                ? AppTheme.successColor
-                                : AppTheme.errorColor,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppTheme.surfaceColor,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      'You didn\'t play this day',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+    final leaderboardRows = detail.leaderboard
+        .map(
+          (entry) => ResultLeaderboardRowData(
+            title: entry.username,
+            subtitle:
+                'Snippet ${entry.snippetNumber}'
+                '${entry.completedAt != null ? ' · ${DateFormat.Hm().format(entry.completedAt!.toLocal())}' : ''}',
+            scoreText: '${entry.pointsEarned}',
           ),
-          const SizedBox(height: 24),
+        )
+        .toList();
 
-          // Leaderboard
-          Text('Results', style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: 12),
-
-          if (detail.leaderboard.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppTheme.surfaceColor,
-                borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-              ),
-              child: Text(
-                'Nobody guessed this day',
-                style: Theme.of(context).textTheme.bodyMedium,
-                textAlign: TextAlign.center,
-              ),
-            )
-          else
-            ...detail.leaderboard.asMap().entries.map((entry) {
-              final rank = entry.key + 1;
-              final e = entry.value;
-              final rankColor = rank == 1
-                  ? const Color(0xFFFFD700)
-                  : rank == 2
-                  ? const Color(0xFFC0C0C0)
-                  : rank == 3
-                  ? const Color(0xFFCD7F32)
-                  : AppTheme.textSecondary;
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppTheme.surfaceColor,
-                  borderRadius: BorderRadius.circular(
-                    AppTheme.cardBorderRadius,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: rankColor.withValues(alpha: 0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          '$rank',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: rankColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            e.username,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          Text(
-                            'Snippet ${e.snippetNumber}${e.completedAt != null ? ' · ${DateFormat.Hm().format(e.completedAt!.toLocal())}' : ''}',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: AppTheme.textSecondary),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: AppTheme.primaryGradient,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '${e.pointsEarned}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-          const SizedBox(height: 24),
-
-          // Chat
-          Text('Chat', style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: 12),
-
-          if (detail.messages.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Column(
-                children: [
-                  const Icon(
-                    Icons.chat_bubble_outline,
-                    size: 36,
-                    color: AppTheme.textSecondary,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'No messages that day',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            )
-          else
-            ...detail.messages.map((msg) {
-              final isMe = msg.userId == currentUserId;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Align(
-                  alignment: isMe
-                      ? Alignment.centerRight
-                      : Alignment.centerLeft,
-                  child: Container(
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.75,
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isMe
-                          ? AppTheme.primaryColor.withValues(alpha: 0.2)
-                          : AppTheme.surfaceColor,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: isMe
-                          ? CrossAxisAlignment.end
-                          : CrossAxisAlignment.start,
-                      children: [
-                        if (!isMe)
-                          Text(
-                            msg.username,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: AppTheme.primaryColor,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                          ),
-                        Text(
-                          msg.message,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          DateFormat.Hm().format(msg.createdAt.toLocal()),
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: AppTheme.textSecondary),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            }),
-          const SizedBox(height: 32),
-        ],
+    return _buildSharedHistoryContent(
+      track: detail.track,
+      footer: _buildHistoryStatusFooter(
+        isSuccess: session?.correctGuess,
+        successText: session == null
+            ? null
+            : '+${session.pointsEarned ?? 0} pts · Snippet ${session.currentSnippet}',
+        failureText: 'Not guessed',
+        emptyText: 'You didn\'t play this day',
       ),
+      leaderboardRows: leaderboardRows,
+      leaderboardEmptyText: 'Nobody guessed this day',
+      messages: _mapHistoryMessages(detail.messages),
     );
   }
 
   Widget _buildPackHistoryContent(PackHistoryDayDetail detail) {
-    final currentUserId = context.read<AuthProvider>().user?.id;
     final session = detail.mySession;
+    final leaderboardRows = detail.leaderboard
+        .map(
+          (entry) => ResultLeaderboardRowData(
+            title: entry.username,
+            subtitle:
+                'Stage ${entry.stageNumber} · ${DateFormat.Hm().format(entry.completedAt.toLocal())}',
+            scoreText: '${entry.pointsEarned}',
+          ),
+        )
+        .toList();
+
+    return _buildSharedHistoryContent(
+      track: detail.track,
+      footer: _buildHistoryStatusFooter(
+        isSuccess: session?.completed,
+        successText: session == null
+            ? null
+            : '+${session.pointsEarned} pts · Stage ${session.currentStage}',
+        failureText: 'Not completed',
+        emptyText: 'You didn\'t play this pack that day',
+      ),
+      leaderboardRows: leaderboardRows,
+      leaderboardEmptyText: 'Nobody completed this pack that day',
+      messages: _mapHistoryMessages(detail.messages),
+    );
+  }
+
+  Widget _buildSharedHistoryContent({
+    required HistoryTrack track,
+    required Widget footer,
+    required List<ResultLeaderboardRowData> leaderboardRows,
+    required String leaderboardEmptyText,
+    required List<Message> messages,
+  }) {
+    final currentUserId = context.read<AuthProvider>().user?.id;
 
     return SingleChildScrollView(
       padding: AppTheme.pagePadding,
@@ -2225,290 +1871,94 @@ class _GameScreenState extends State<GameScreen> {
             _buildDateRow(),
             const SizedBox(height: 8),
           ],
-          // Track card
-          Container(
+          ResultTrackCard(
+            title: track.title,
+            artist: track.artist,
+            coverUrl: track.coverUrl,
+            artworkSize: 160,
             padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: AppTheme.cardGradient,
-              borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-            ),
-            child: Column(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: detail.track.coverUrl != null
-                      ? Image.network(
-                          detail.track.coverUrl!,
-                          width: 160,
-                          height: 160,
-                          fit: BoxFit.cover,
-                          errorBuilder: (c, e, s) => _historyAlbumPlaceholder(),
-                        )
-                      : _historyAlbumPlaceholder(),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  detail.track.title,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  detail.track.artist,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppTheme.textSecondary,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                if (session != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: session.completed
-                          ? AppTheme.successColor.withValues(alpha: 0.2)
-                          : AppTheme.errorColor.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          session.completed ? Icons.check_circle : Icons.cancel,
-                          color: session.completed
-                              ? AppTheme.successColor
-                              : AppTheme.errorColor,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          session.completed
-                              ? '+${session.pointsEarned} pts · Stage ${session.currentStage}'
-                              : 'Not completed',
-                          style: TextStyle(
-                            color: session.completed
-                                ? AppTheme.successColor
-                                : AppTheme.errorColor,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppTheme.surfaceColor,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      "You didn't play this pack that day",
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+            footer: footer,
           ),
           const SizedBox(height: 24),
-
-          // Leaderboard
-          Text("Results", style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: 12),
-
-          if (detail.leaderboard.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppTheme.surfaceColor,
-                borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-              ),
-              child: Text(
-                'Nobody completed this pack that day',
-                style: Theme.of(context).textTheme.bodyMedium,
-                textAlign: TextAlign.center,
-              ),
-            )
-          else
-            ...detail.leaderboard.asMap().entries.map((entry) {
-              final rank = entry.key + 1;
-              final e = entry.value;
-              final rankColor = rank == 1
-                  ? const Color(0xFFFFD700)
-                  : rank == 2
-                  ? const Color(0xFFC0C0C0)
-                  : rank == 3
-                  ? const Color(0xFFCD7F32)
-                  : AppTheme.textSecondary;
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppTheme.surfaceColor,
-                  borderRadius: BorderRadius.circular(
-                    AppTheme.cardBorderRadius,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: rankColor.withValues(alpha: 0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          '$rank',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: rankColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            e.username,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          Text(
-                            'Stage ${e.stageNumber} · ${DateFormat.Hm().format(e.completedAt.toLocal())}',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: AppTheme.textSecondary),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: AppTheme.primaryGradient,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '${e.pointsEarned}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
+          ResultLeaderboardSection(
+            title: 'Results',
+            emptyText: leaderboardEmptyText,
+            rows: leaderboardRows,
+          ),
           const SizedBox(height: 24),
-
-          // Chat
-          Text('Chat', style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: 12),
-
-          if (detail.messages.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Column(
-                children: [
-                  const Icon(
-                    Icons.chat_bubble_outline,
-                    size: 36,
-                    color: AppTheme.textSecondary,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'No messages that day',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            )
-          else
-            ...detail.messages.map((msg) {
-              final isMe = msg.userId == currentUserId;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Align(
-                  alignment: isMe
-                      ? Alignment.centerRight
-                      : Alignment.centerLeft,
-                  child: Container(
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.75,
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isMe
-                          ? AppTheme.primaryColor.withValues(alpha: 0.2)
-                          : AppTheme.surfaceColor,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: isMe
-                          ? CrossAxisAlignment.end
-                          : CrossAxisAlignment.start,
-                      children: [
-                        if (!isMe)
-                          Text(
-                            msg.username,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: AppTheme.primaryColor,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                          ),
-                        Text(
-                          msg.message,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          DateFormat.Hm().format(msg.createdAt.toLocal()),
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: AppTheme.textSecondary),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            }),
+          ResultChatSection(
+            title: 'Chat',
+            emptyTitle: 'No messages that day',
+            messages: messages,
+            currentUserId: currentUserId,
+          ),
           const SizedBox(height: 32),
         ],
       ),
     );
   }
 
-  Widget _historyAlbumPlaceholder() {
+  Widget _buildHistoryStatusFooter({
+    required bool? isSuccess,
+    required String? successText,
+    required String failureText,
+    required String emptyText,
+  }) {
+    if (isSuccess == null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceColor,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          emptyText,
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    final color = isSuccess ? AppTheme.successColor : AppTheme.errorColor;
+    final icon = isSuccess ? Icons.check_circle : Icons.cancel;
+
     return Container(
-      width: 160,
-      height: 160,
-      color: AppTheme.surfaceColor,
-      child: const Icon(Icons.album, size: 64, color: AppTheme.primaryColor),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 8),
+          Text(
+            isSuccess ? successText! : failureText,
+            style: TextStyle(color: color, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
     );
+  }
+
+  List<Message> _mapHistoryMessages(List<HistoryMessage> messages) {
+    return messages
+        .map(
+          (message) => Message(
+            id: message.id,
+            user: User(
+              id: message.userId,
+              email: '',
+              username: message.username,
+            ),
+            message: message.message,
+            createdAt: message.createdAt,
+          ),
+        )
+        .toList();
   }
 }
 

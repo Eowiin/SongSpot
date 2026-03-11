@@ -9,10 +9,7 @@ class Stem extends Equatable {
   const Stem({required this.type, required this.url});
 
   factory Stem.fromJson(Map<String, dynamic> json) {
-    return Stem(
-      type: json['type'] as String,
-      url: json['url'] as String,
-    );
+    return Stem(type: json['type'] as String, url: json['url'] as String);
   }
 
   @override
@@ -22,6 +19,12 @@ class Stem extends Equatable {
 class PackBundleSession extends Equatable {
   final String id;
   final int currentStage;
+  final int retriesUsed;
+  final int retryCredits;
+  final bool awaitingRetryUnlock;
+  final bool retryAvailable;
+  final String? nextRetryRequirement;
+  final int? retryCostCoins;
   final int pointsEarned;
   final DateTime? completedAt;
   final DateTime createdAt;
@@ -32,6 +35,12 @@ class PackBundleSession extends Equatable {
   const PackBundleSession({
     required this.id,
     required this.currentStage,
+    this.retriesUsed = 0,
+    this.retryCredits = 0,
+    this.awaitingRetryUnlock = false,
+    this.retryAvailable = false,
+    this.nextRetryRequirement,
+    this.retryCostCoins,
     required this.pointsEarned,
     this.completedAt,
     required this.createdAt,
@@ -44,6 +53,12 @@ class PackBundleSession extends Equatable {
     return PackBundleSession(
       id: json['id'].toString(),
       currentStage: json['current_stage'] as int? ?? 1,
+      retriesUsed: json['retries_used'] as int? ?? 0,
+      retryCredits: json['retry_credits'] as int? ?? 0,
+      awaitingRetryUnlock: json['awaiting_retry_unlock'] as bool? ?? false,
+      retryAvailable: json['retry_available'] as bool? ?? false,
+      nextRetryRequirement: json['next_retry_requirement'] as String?,
+      retryCostCoins: json['retry_cost_coins'] as int?,
       pointsEarned: json['points_earned'] as int? ?? 0,
       completedAt: json['completed_at'] != null
           ? DateTime.parse(json['completed_at'] as String)
@@ -57,19 +72,63 @@ class PackBundleSession extends Equatable {
     );
   }
 
+  PackBundleSession copyWith({
+    String? id,
+    int? currentStage,
+    int? retriesUsed,
+    int? retryCredits,
+    bool? awaitingRetryUnlock,
+    bool? retryAvailable,
+    String? nextRetryRequirement,
+    bool clearNextRetryRequirement = false,
+    int? retryCostCoins,
+    int? pointsEarned,
+    DateTime? completedAt,
+    bool clearCompletedAt = false,
+    DateTime? createdAt,
+    PackTrack? packTrack,
+    String? date,
+    List<String>? hintsUsed,
+  }) {
+    return PackBundleSession(
+      id: id ?? this.id,
+      currentStage: currentStage ?? this.currentStage,
+      retriesUsed: retriesUsed ?? this.retriesUsed,
+      retryCredits: retryCredits ?? this.retryCredits,
+      awaitingRetryUnlock: awaitingRetryUnlock ?? this.awaitingRetryUnlock,
+      retryAvailable: retryAvailable ?? this.retryAvailable,
+      nextRetryRequirement: clearNextRetryRequirement
+          ? null
+          : (nextRetryRequirement ?? this.nextRetryRequirement),
+      retryCostCoins: retryCostCoins ?? this.retryCostCoins,
+      pointsEarned: pointsEarned ?? this.pointsEarned,
+      completedAt: clearCompletedAt ? null : (completedAt ?? this.completedAt),
+      createdAt: createdAt ?? this.createdAt,
+      packTrack: packTrack ?? this.packTrack,
+      date: date ?? this.date,
+      hintsUsed: hintsUsed ?? this.hintsUsed,
+    );
+  }
+
   bool get isCompleted => completedAt != null;
 
   @override
   List<Object?> get props => [
-        id,
-        currentStage,
-        pointsEarned,
-        completedAt,
-        createdAt,
-        packTrack,
-        date,
-        hintsUsed,
-      ];
+    id,
+    currentStage,
+    retriesUsed,
+    retryCredits,
+    awaitingRetryUnlock,
+    retryAvailable,
+    nextRetryRequirement,
+    retryCostCoins,
+    pointsEarned,
+    completedAt,
+    createdAt,
+    packTrack,
+    date,
+    hintsUsed,
+  ];
 }
 
 class PackBundleLeaderboardEntry extends Equatable {

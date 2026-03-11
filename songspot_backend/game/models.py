@@ -385,6 +385,9 @@ class PackBundleSession(models.Model):
         blank=True
     )
     current_stage = models.PositiveSmallIntegerField(default=1)
+    retries_used = models.PositiveSmallIntegerField(default=0)
+    retry_credits = models.PositiveSmallIntegerField(default=0)
+    awaiting_retry_unlock = models.BooleanField(default=False)
     points_earned = models.PositiveIntegerField(default=0)
     hints_used = models.JSONField(default=list, blank=True, help_text="List of hint types purchased, e.g. ['genre', 'artist_letter']")
     completed_at = models.DateTimeField(null=True, blank=True)

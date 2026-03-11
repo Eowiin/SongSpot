@@ -616,6 +616,19 @@ class ApiService {
     return response as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> activatePackBundleRetry({
+    required String roomId,
+    required String packId,
+    required String action,
+  }) async {
+    final response = await post(
+      ApiConfig.packBundleRetry(roomId, packId),
+      includeAuth: true,
+      body: {'action': action},
+    );
+    return response as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> getPackBundleLeaderboard({
     required String roomId,
     required String packId,

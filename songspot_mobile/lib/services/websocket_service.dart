@@ -6,6 +6,7 @@ import '../config/api_config.dart';
 import '../models/message.dart';
 import '../models/user.dart';
 import 'storage_service.dart';
+import 'websocket_channel_factory.dart';
 
 /// Events that can be emitted by the WebSocket service
 enum WebSocketEventType {
@@ -48,17 +49,6 @@ class WebSocketService {
   bool get isConnected => _isConnected;
   String? get currentRoomId => _currentRoomId;
 
-  /// Get WebSocket URL from API base URL
-  String get _wsBaseUrl {
-    final apiUrl = ApiConfig.baseUrl;
-    // Convert http(s):// to ws(s)://
-    if (apiUrl.startsWith('https://')) {
-      return apiUrl.replaceFirst('https://', 'wss://').replaceAll('/api', '');
-    } else {
-      return apiUrl.replaceFirst('http://', 'ws://').replaceAll('/api', '');
-    }
-  }
-
   /// Connect to a room's chat WebSocket
   Future<bool> connect(String roomId) async {
     // Disconnect from any existing connection
@@ -75,11 +65,14 @@ class WebSocketService {
         return false;
       }
 
-      final wsUrl = '$_wsBaseUrl/ws/room/$roomId/chat/?token=$token';
-      debugPrint('WebSocket connecting to: $wsUrl');
+      final wsUri = ApiConfig.roomChatWebSocketUri(roomId, token);
+      debugPrint('WebSocket connecting to: $wsUri');
 
-      _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
       _currentRoomId = roomId;
+      _channel = createWebSocketChannel(wsUri);
+
+      // Wait for the HTTP upgrade to complete before reporting success.
+      await _channel!.ready;
 
       // Listen to messages
       _streamSubscription = _channel!.stream.listen(
@@ -101,9 +94,19 @@ class WebSocketService {
       return true;
     } catch (e) {
       debugPrint('WebSocket connection error: $e');
+      _isConnected = false;
+      await _streamSubscription?.cancel();
+      _streamSubscription = null;
+
+      if (_channel != null) {
+        await _channel!.sink.close();
+        _channel = null;
+      }
+
       _eventController.add(
         WebSocketEvent(WebSocketEventType.error, 'Connection failed: $e'),
       );
+      _scheduleReconnect();
       return false;
     }
   }
@@ -243,7 +246,9 @@ class WebSocketService {
     _eventController.add(
       WebSocketEvent(WebSocketEventType.error, error.toString()),
     );
-    _scheduleReconnect();
+    if (!_intentionalDisconnect) {
+      _scheduleReconnect();
+    }
   }
 
   void _onDone() {

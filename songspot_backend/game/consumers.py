@@ -3,9 +3,12 @@ WebSocket consumers for real-time features.
 """
 
 import json
+import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth.models import AnonymousUser
+
+logger = logging.getLogger(__name__)
 
 
 class RoomChatConsumer(AsyncWebsocketConsumer):
@@ -41,12 +44,22 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
 
         # Reject anonymous users
         if isinstance(self.user, AnonymousUser) or not self.user.is_authenticated:
+            logger.warning(
+                'WebSocket connect rejected anonymous user room_id=%s path=%s',
+                self.room_id,
+                self.scope.get('path', ''),
+            )
             await self.close(code=4001)  # Unauthorized
             return
 
         # Check if user is a member of the room
         is_member = await self.is_room_member()
         if not is_member:
+            logger.warning(
+                'WebSocket connect rejected non-member user_id=%s room_id=%s',
+                self.user.id,
+                self.room_id,
+            )
             await self.close(code=4003)  # Forbidden
             return
 
@@ -57,6 +70,11 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
         )
 
         await self.accept()
+        logger.info(
+            'WebSocket connect accepted user_id=%s room_id=%s',
+            self.user.id,
+            self.room_id,
+        )
 
         # Send join notification to room
         await self.channel_layer.group_send(

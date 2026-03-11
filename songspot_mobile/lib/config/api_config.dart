@@ -1,11 +1,43 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ApiConfig {
+  static String? _trimmedEnv(String key) {
+    final value = dotenv.env[key]?.trim();
+    return value != null && value.isNotEmpty ? value : null;
+  }
+
   // Base URL for the API
   static String get baseUrl =>
-      dotenv.env['API_BASE_URL']?.trim().isNotEmpty == true
-      ? dotenv.env['API_BASE_URL']!.trim()
-      : 'http://localhost:8000/api';
+      _trimmedEnv('API_BASE_URL') ?? 'http://localhost:8000/api';
+
+  // Base URL for WebSocket connections. Prefer an explicit production config,
+  // and fall back to deriving it from the API origin for local development.
+  static Uri get wsBaseUri {
+    final configured = _trimmedEnv('WS_BASE_URL');
+    if (configured != null) {
+      final uri = Uri.parse(configured);
+      final port = uri.hasPort && uri.port > 0 ? uri.port : null;
+      return Uri(scheme: uri.scheme, host: uri.host, port: port);
+    }
+
+    final apiUri = Uri.parse(baseUrl);
+    final wsScheme = apiUri.scheme == 'https' ? 'wss' : 'ws';
+    final port = apiUri.hasPort && apiUri.port > 0 ? apiUri.port : null;
+    return Uri(scheme: wsScheme, host: apiUri.host, port: port);
+  }
+
+  static Uri roomChatWebSocketUri(String roomId, String token) {
+    final port = wsBaseUri.hasPort && wsBaseUri.port > 0
+        ? wsBaseUri.port
+        : null;
+    return Uri(
+      scheme: wsBaseUri.scheme,
+      host: wsBaseUri.host,
+      port: port,
+      path: '/ws/room/$roomId/chat/',
+      queryParameters: {'token': token},
+    );
+  }
 
   // Auth endpoints
   static const String authRegister = '/auth/register/';
@@ -54,6 +86,8 @@ class ApiConfig {
       '/game/rooms/$roomId/packs/$packId/bundle/skip/';
   static String packBundleGuess(String roomId, String packId) =>
       '/game/rooms/$roomId/packs/$packId/bundle/guess/';
+  static String packBundleRetry(String roomId, String packId) =>
+      '/game/rooms/$roomId/packs/$packId/bundle/retry/';
   static String packBundleLeaderboard(String roomId, String packId) =>
       '/game/rooms/$roomId/packs/$packId/bundle/leaderboard/';
   static String packBundleMessages(String roomId, String packId) =>

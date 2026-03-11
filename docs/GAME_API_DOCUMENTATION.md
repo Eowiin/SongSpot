@@ -453,6 +453,12 @@ Already in room (400 Bad Request):
   "session": {
     "id": "550e8400-e29b-41d4-a716-446655440500",
     "current_stage": 1,
+    "retries_used": 0,
+    "retry_credits": 0,
+    "awaiting_retry_unlock": false,
+    "retry_available": false,
+    "next_retry_requirement": null,
+    "retry_cost_coins": 120,
     "points_earned": 0,
     "completed_at": null,
     "created_at": "2026-01-13T10:30:00Z",
@@ -506,6 +512,12 @@ Already in room (400 Bad Request):
   "session": {
     "id": "550e8400-e29b-41d4-a716-446655440500",
     "current_stage": 1,
+    "retries_used": 0,
+    "retry_credits": 0,
+    "awaiting_retry_unlock": false,
+    "retry_available": false,
+    "next_retry_requirement": null,
+    "retry_cost_coins": 120,
     "points_earned": 3,
     "completed_at": null,
     "created_at": "2026-01-13T10:30:00Z",
@@ -530,7 +542,67 @@ Already in room (400 Bad Request):
     { "type": "drums", "url": "https://example.com/stems/billie_drums.mp3" }
   ],
   "is_correct": true,
-  "points_awarded": 3
+  "points_awarded": 3,
+  "game_over": false
+}
+```
+
+---
+
+### 8. Unlock Pack Bundle Retry
+
+**Endpoint:** `POST /api/game/rooms/{room_id}/packs/{pack_id}/bundle/retry/`
+
+**Body:**
+```json
+{
+  "action": "ad"
+}
+```
+
+`action` can be `ad`, `coins`, or `forfeit`.
+
+**Success Response (200 OK):**
+```json
+{
+  "message": "Retry unlocked. Make another guess.",
+  "coins": 420,
+  "session": {
+    "id": "550e8400-e29b-41d4-a716-446655440500",
+    "current_stage": 4,
+    "retries_used": 0,
+    "retry_credits": 1,
+    "awaiting_retry_unlock": false,
+    "retry_available": true,
+    "next_retry_requirement": null,
+    "retry_cost_coins": 120,
+    "points_earned": 0,
+    "completed_at": null,
+    "created_at": "2026-01-13T10:30:00Z",
+    "date": "2026-01-13",
+    "pack_track": {
+      "track": {
+        "id": "550e8400-e29b-41d4-a716-446655440200",
+        "title": "Take On Me",
+        "artist": "a-ha",
+        "preview_url": "https://cdns-preview-e.dzcdn.net/stream/...",
+        "cover_url": "https://example.com/covers/aha.jpg",
+        "created_at": "2026-01-13T14:00:00Z"
+      },
+      "order_in_pack": 1,
+      "vocals_url": "https://example.com/stems/aha_vocals.mp3",
+      "drums_url": "https://example.com/stems/aha_drums.mp3",
+      "bass_url": "https://example.com/stems/aha_bass.mp3",
+      "other_url": "https://example.com/stems/aha_other.mp3"
+    }
+  },
+  "stems": [
+    { "type": "drums", "url": "https://example.com/stems/aha_drums.mp3" },
+    { "type": "bass", "url": "https://example.com/stems/aha_bass.mp3" },
+    { "type": "other", "url": "https://example.com/stems/aha_other.mp3" },
+    { "type": "vocals", "url": "https://example.com/stems/aha_vocals.mp3" }
+  ],
+  "stems_status": "ready"
 }
 ```
 

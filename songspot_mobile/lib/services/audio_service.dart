@@ -8,6 +8,7 @@ class AudioService {
   bool _isInitialized = false;
   Timer? _stopTimer;
   String? _currentUrl;
+  int _playbackRequestId = 0;
 
   bool get isPlaying => _isPlaying;
 
@@ -34,6 +35,7 @@ class AudioService {
       await initializeAudioSession();
 
       // Ensure we are not playing from a previous session
+      _playbackRequestId += 1;
       _stopTimer?.cancel();
       _isPlaying = false;
       await _player.stop();
@@ -48,46 +50,77 @@ class AudioService {
 
   /// Play snippet for a specific duration (in seconds)
   Future<void> playSnippet(double durationInSeconds) async {
+    final requestId = ++_playbackRequestId;
     try {
-      // Cancel any existing timer
       _stopTimer?.cancel();
 
       if (_currentUrl == null) {
         throw StateError('Audio must be loaded before playing a snippet.');
       }
 
-      // Set isPlaying to true BEFORE async operations so UI updates immediately
       _isPlaying = true;
+      await _player.stop();
+      await _player.seek(Duration.zero);
 
-      final clipEnd = Duration(milliseconds: (durationInSeconds * 1000).round());
-
-      await _player.setAudioSource(
-        ClippingAudioSource(
-          start: Duration.zero,
-          end: clipEnd,
-          child: AudioSource.uri(Uri.parse(_currentUrl!)),
-        ),
-        initialPosition: Duration.zero,
-        preload: true,
+      final clipEnd = Duration(
+        milliseconds: (durationInSeconds * 1000).round(),
       );
+
+      _stopTimer = Timer(clipEnd, () async {
+        if (requestId != _playbackRequestId) return;
+        await _player.stop();
+        await _player.seek(Duration.zero);
+      });
 
       await _player.play();
-
-      await _player.playerStateStream.firstWhere(
-        (state) => state.processingState == ProcessingState.completed,
-      );
-      _isPlaying = false;
+      if (requestId == _playbackRequestId) {
+        _stopTimer?.cancel();
+        _stopTimer = null;
+        _isPlaying = false;
+      }
     } catch (e) {
-      _isPlaying = false;
-      _stopTimer?.cancel();
+      if (requestId == _playbackRequestId) {
+        _stopTimer?.cancel();
+        _stopTimer = null;
+        _isPlaying = false;
+      }
       throw Exception('Failed to play snippet: $e');
+    }
+  }
+
+  Future<void> playFullAudio({bool fromStart = true}) async {
+    final requestId = ++_playbackRequestId;
+    try {
+      _stopTimer?.cancel();
+
+      if (_currentUrl == null) {
+        throw StateError('Audio must be loaded before playing.');
+      }
+
+      _isPlaying = true;
+      await _player.stop();
+      if (fromStart) {
+        await _player.seek(Duration.zero);
+      }
+
+      await _player.play();
+      if (requestId == _playbackRequestId) {
+        _isPlaying = false;
+      }
+    } catch (e) {
+      if (requestId == _playbackRequestId) {
+        _isPlaying = false;
+      }
+      throw Exception('Failed to play audio: $e');
     }
   }
 
   /// Stop playback
   Future<void> stop({bool cancelTimer = true}) async {
+    _playbackRequestId += 1;
     if (cancelTimer) {
       _stopTimer?.cancel();
+      _stopTimer = null;
     }
     await _player.stop();
     await _player.seek(Duration.zero);
@@ -96,6 +129,9 @@ class AudioService {
 
   /// Pause playback
   Future<void> pause() async {
+    _playbackRequestId += 1;
+    _stopTimer?.cancel();
+    _stopTimer = null;
     await _player.pause();
     _isPlaying = false;
   }

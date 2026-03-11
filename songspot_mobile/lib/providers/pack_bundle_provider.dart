@@ -28,6 +28,16 @@ class PackBundleProvider with ChangeNotifier {
   Map<String, String> get hintValues => _hintValues;
   String? get loadedPackId => _loadedPackId;
 
+  void _applySessionResponse(Map<String, dynamic> response) {
+    _session = PackBundleSession.fromJson(
+      response['session'] as Map<String, dynamic>,
+    );
+    _stems = (response['stems'] as List)
+        .map((item) => Stem.fromJson(item as Map<String, dynamic>))
+        .toList();
+    _stemsStatus = response['stems_status'] as String? ?? 'ready';
+  }
+
   Future<void> loadSession({
     required String roomId,
     required String packId,
@@ -179,13 +189,7 @@ class PackBundleProvider with ChangeNotifier {
         roomId: roomId,
         packId: packId,
       );
-      _session = PackBundleSession.fromJson(
-        response['session'] as Map<String, dynamic>,
-      );
-      _stems = (response['stems'] as List)
-          .map((item) => Stem.fromJson(item as Map<String, dynamic>))
-          .toList();
-      _stemsStatus = response['stems_status'] as String? ?? 'ready';
+      _applySessionResponse(response);
       if (_session?.isCompleted == true) {
         await loadLeaderboard(roomId: roomId, packId: packId);
         await loadMessages(roomId: roomId, packId: packId);
@@ -198,12 +202,12 @@ class PackBundleProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> submitGuess({
+  Future<Map<String, dynamic>?> submitGuess({
     required String roomId,
     required String packId,
     required String trackId,
   }) async {
-    if (_session == null) return false;
+    if (_session == null) return null;
     try {
       _isLoading = true;
       _errorMessage = null;
@@ -216,26 +220,50 @@ class PackBundleProvider with ChangeNotifier {
         trackId: trackId,
       );
 
-      _session = PackBundleSession.fromJson(
-        response['session'] as Map<String, dynamic>,
-      );
-      _stems = (response['stems'] as List)
-          .map((item) => Stem.fromJson(item as Map<String, dynamic>))
-          .toList();
-      _stemsStatus = response['stems_status'] as String? ?? 'ready';
-      final isCorrect = response['is_correct'] as bool? ?? false;
-      final points = response['points_awarded'] as int? ?? 0;
-      _guessResult = isCorrect
-          ? 'Correct! +$points points'
-          : 'Wrong guess. Next instrument!';
+      _applySessionResponse(response);
+      _guessResult = response['message'] as String?;
       if (_session?.isCompleted == true) {
         await loadLeaderboard(roomId: roomId, packId: packId);
         await loadMessages(roomId: roomId, packId: packId);
       }
-      return isCorrect;
+      return response;
     } catch (e) {
       _errorMessage = e.toString();
-      return false;
+      return null;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<Map<String, dynamic>?> activateRetry({
+    required String roomId,
+    required String packId,
+    required String action,
+  }) async {
+    if (_session == null) return null;
+
+    try {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+
+      final response = await _apiService.activatePackBundleRetry(
+        roomId: roomId,
+        packId: packId,
+        action: action,
+      );
+
+      _applySessionResponse(response);
+      _guessResult = response['message'] as String?;
+      if (_session?.isCompleted == true) {
+        await loadLeaderboard(roomId: roomId, packId: packId);
+        await loadMessages(roomId: roomId, packId: packId);
+      }
+      return response;
+    } catch (e) {
+      _errorMessage = e.toString();
+      return null;
     } finally {
       _isLoading = false;
       notifyListeners();
