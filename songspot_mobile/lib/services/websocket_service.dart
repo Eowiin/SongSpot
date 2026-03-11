@@ -66,10 +66,10 @@ class WebSocketService {
       }
 
       final wsUri = ApiConfig.roomChatWebSocketUri(roomId, token);
-      debugPrint('WebSocket connecting to: $wsUri');
+      final headers = ApiConfig.webSocketHeaders;
 
       _currentRoomId = roomId;
-      _channel = createWebSocketChannel(wsUri);
+      _channel = createWebSocketChannel(wsUri, headers: headers);
 
       // Wait for the HTTP upgrade to complete before reporting success.
       await _channel!.ready;
