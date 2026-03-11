@@ -41,6 +41,7 @@ class Command(BaseCommand):
 
         tracks_added = 0
         tracks_skipped = 0
+        tracks_updated = 0
 
         for artist in artists:
             if tracks_added >= max_tracks:
@@ -54,7 +55,7 @@ class Command(BaseCommand):
             for track_data in top_tracks:
                 if tracks_added >= max_tracks:
                     break
-                track_info = deezer.extract_track_info(track_data)
+                track_info = deezer.enrich_track_info(track_data)
 
                 if not track_info['preview_url']:
                     tracks_skipped += 1
@@ -66,6 +67,19 @@ class Command(BaseCommand):
                 ).first()
 
                 if existing_track:
+                    update_fields = []
+                    for field in ('cover_url', 'deezer_id', 'release_year', 'genre'):
+                        new_value = track_info.get(field)
+                        if not new_value:
+                            continue
+                        current_value = getattr(existing_track, field)
+                        if current_value in (None, ''):
+                            setattr(existing_track, field, new_value)
+                            update_fields.append(field)
+
+                    if update_fields:
+                        existing_track.save(update_fields=update_fields)
+                        tracks_updated += 1
                     tracks_skipped += 1
                     continue
 
@@ -74,7 +88,9 @@ class Command(BaseCommand):
                     artist=track_info['artist'],
                     preview_url=track_info['preview_url'],
                     cover_url=track_info.get('cover_url'),
-                    deezer_id=track_info.get('deezer_id')
+                    deezer_id=track_info.get('deezer_id'),
+                    release_year=track_info.get('release_year'),
+                    genre=track_info.get('genre'),
                 )
                 tracks_added += 1
 
@@ -83,7 +99,7 @@ class Command(BaseCommand):
             ))
 
         self.stdout.write(self.style.SUCCESS(
-            f'\nCompleted! {tracks_added} tracks added, {tracks_skipped} skipped'
+            f'\nCompleted! {tracks_added} tracks added, {tracks_updated} updated, {tracks_skipped} skipped'
         ))
         self.stdout.write(self.style.SUCCESS(
             f'Total tracks in database: {Track.objects.count()}'

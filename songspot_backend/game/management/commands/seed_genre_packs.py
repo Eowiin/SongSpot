@@ -399,7 +399,7 @@ class Command(BaseCommand):
         Extract track info, apply all filters, persist to DB if it passes.
         Returns a Track instance on success, None otherwise.
         """
-        info = deezer.extract_track_info(raw)
+        info = deezer.enrich_track_info(raw, fallback_genre=category_name)
 
         if not info['preview_url']:
             return None
@@ -426,6 +426,24 @@ class Command(BaseCommand):
                 'genre': info.get('genre') or category_name,
             },
         )
+
+        update_fields = []
+        field_updates = {
+            'cover_url': info.get('cover_url'),
+            'deezer_id': deezer_id,
+            'release_year': info.get('release_year'),
+            'genre': info.get('genre') or category_name,
+        }
+        for field, new_value in field_updates.items():
+            if not new_value:
+                continue
+            current_value = getattr(track, field)
+            if current_value in (None, ''):
+                setattr(track, field, new_value)
+                update_fields.append(field)
+
+        if update_fields:
+            track.save(update_fields=update_fields)
 
         if track.id in used_track_ids:
             return None

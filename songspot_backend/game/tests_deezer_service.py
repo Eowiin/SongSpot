@@ -77,3 +77,40 @@ class DeezerServiceRandomTracksTests(SimpleTestCase):
         service = DeezerService()
         self.assertEqual(service.get_random_tracks(count=0), [])
         self.assertEqual(service.get_random_tracks(count=-5), [])
+
+
+class DeezerServiceMetadataTests(SimpleTestCase):
+    @patch.object(DeezerService, 'get_album')
+    @patch.object(DeezerService, 'get_track')
+    def test_enrich_track_info_uses_full_track_and_album_metadata(
+        self,
+        mock_get_track,
+        mock_get_album,
+    ):
+        service = DeezerService()
+        raw_track = {
+            'id': 42,
+            'title': 'Song 42',
+            'preview': 'https://example.com/preview.mp3',
+            'artist': {'name': 'Artist 42'},
+            'album': {'id': 7},
+        }
+        mock_get_track.return_value = {
+            'id': 42,
+            'title': 'Song 42',
+            'preview': 'https://example.com/preview.mp3',
+            'artist': {'name': 'Artist 42'},
+            'album': {'id': 7, 'title': 'Album 7'},
+        }
+        mock_get_album.return_value = {
+            'id': 7,
+            'release_date': '1998-09-15',
+            'genres': {'data': [{'id': 152, 'name': 'Rock'}]},
+            'cover_xl': 'https://example.com/cover-xl.jpg',
+        }
+
+        info = service.enrich_track_info(raw_track)
+
+        self.assertEqual(info['release_year'], 1998)
+        self.assertEqual(info['genre'], 'Rock')
+        self.assertEqual(info['cover_url'], 'https://example.com/cover-xl.jpg')

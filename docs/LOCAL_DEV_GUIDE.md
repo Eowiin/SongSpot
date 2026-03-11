@@ -17,6 +17,8 @@ It focuses on the fastest path to a working dev loop.
    python manage.py migrate
    python manage.py createsuperuser
    python manage.py fetch_deezer_tracks --count 200
+   python manage.py update_track_metadata --dry-run
+   python manage.py update_track_metadata
    python manage.py runserver
    ```
 
@@ -185,6 +187,14 @@ This starts:
 You still need to seed track data manually:
 ```bash
 docker compose exec backend python manage.py fetch_deezer_tracks --count 200
+docker compose exec backend python manage.py update_track_metadata --dry-run
+docker compose exec backend python manage.py update_track_metadata
+```
+
+If some older rows have no `deezer_id`, enable the conservative title+artist lookup:
+
+```bash
+docker compose exec backend python manage.py update_track_metadata --search-missing
 ```
 
 ### Open a Shell in the Container
