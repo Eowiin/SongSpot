@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'pack.dart';
 import 'user.dart';
 
 class RoomUser extends Equatable {
@@ -28,6 +29,7 @@ class Room extends Equatable {
   final User hostUser;
   final List<RoomUser> users;
   final int userCount;
+  final SongPack? activePack;
   final DateTime createdAt;
 
   const Room({
@@ -37,6 +39,7 @@ class Room extends Equatable {
     required this.hostUser,
     required this.users,
     required this.userCount,
+    this.activePack,
     required this.createdAt,
   });
 
@@ -50,6 +53,9 @@ class Room extends Equatable {
           .map((u) => RoomUser.fromJson(u as Map<String, dynamic>))
           .toList(),
       userCount: json['user_count'] as int,
+      activePack: json['active_pack'] != null
+          ? SongPack.fromJson(json['active_pack'] as Map<String, dynamic>)
+          : null,
       createdAt: DateTime.parse(json['created_at'] as String),
     );
   }
@@ -60,5 +66,14 @@ class Room extends Equatable {
   bool isHost(String userId) => hostUser.id == userId;
 
   @override
-  List<Object?> get props => [id, roomCode, name, hostUser, users, userCount, createdAt];
+  List<Object?> get props => [
+    id,
+    roomCode,
+    name,
+    hostUser,
+    users,
+    userCount,
+    activePack,
+    createdAt,
+  ];
 }

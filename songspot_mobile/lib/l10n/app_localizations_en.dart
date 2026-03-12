@@ -420,6 +420,83 @@ class AppLocalizationsEn extends AppLocalizations {
   String get coinShopTitle => 'Coin Shop';
 
   @override
+  String get packListTitle => 'Song Packs';
+
+  @override
+  String get packBrowseTitle => 'Browse packs';
+
+  @override
+  String get packFilterAll => 'All';
+
+  @override
+  String get packNeedMoreCoins => 'Need more coins?';
+
+  @override
+  String get packGetCoins => 'Get Coins';
+
+  @override
+  String get packPriceFree => 'Free';
+
+  @override
+  String packCoinsPrice(num coins) {
+    return '$coins coins';
+  }
+
+  @override
+  String packProgressDay(num day, num totalDays) {
+    return 'Day $day of $totalDays';
+  }
+
+  @override
+  String get packStateInProgress => 'In progress';
+
+  @override
+  String get packStateFinishedInRoom => 'Finished in this room';
+
+  @override
+  String get packStateReadyNow => 'Ready now';
+
+  @override
+  String get packStateAfterActivePack => 'Unavailable now';
+
+  @override
+  String get packTagInProgress => 'In Progress';
+
+  @override
+  String get packTagFinished => 'Finished';
+
+  @override
+  String get packTagReadyNow => 'Ready Now';
+
+  @override
+  String get packTagAfterActivePack => 'Unavailable';
+
+  @override
+  String get packActionUnlock => 'Unlock';
+
+  @override
+  String get packActionBuy => 'Buy';
+
+  @override
+  String get packActionInProgress => 'In Progress';
+
+  @override
+  String get packActionFinished => 'Finished';
+
+  @override
+  String get packActionActivate => 'Activate';
+
+  @override
+  String get packActionLater => 'Later';
+
+  @override
+  String get packActivatedSuccessfully => 'Pack activated successfully';
+
+  @override
+  String get packUnlockedActivateWhenReady =>
+      'Pack unlocked. Activate it when you are ready.';
+
+  @override
   String get adNotReadyTryAgain =>
       'Ad not ready yet. Please try again in a moment.';
 

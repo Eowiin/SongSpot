@@ -26,6 +26,7 @@ class Command(BaseCommand):
 
         tracks_fetched = 0
         tracks_skipped = 0
+        tracks_updated = 0
         max_rounds = 6
 
         for round_num in range(1, max_rounds + 1):
@@ -52,7 +53,7 @@ class Command(BaseCommand):
                 if tracks_fetched >= count:
                     break
 
-                track_info = deezer.extract_track_info(track_data)
+                track_info = deezer.enrich_track_info(track_data)
 
                 # Skip if no preview URL
                 if not track_info['preview_url']:
@@ -66,11 +67,30 @@ class Command(BaseCommand):
                 ).first()
 
                 if existing_track:
-                    self.stdout.write(
-                        self.style.WARNING(
-                            f'  Skipped: {track_info["title"]} - {track_info["artist"]} (already exists)'
+                    update_fields = []
+                    for field in ('cover_url', 'deezer_id', 'release_year', 'genre'):
+                        new_value = track_info.get(field)
+                        if not new_value:
+                            continue
+                        current_value = getattr(existing_track, field)
+                        if current_value in (None, ''):
+                            setattr(existing_track, field, new_value)
+                            update_fields.append(field)
+
+                    if update_fields:
+                        existing_track.save(update_fields=update_fields)
+                        tracks_updated += 1
+                        self.stdout.write(
+                            self.style.SUCCESS(
+                                f'  Updated metadata: {track_info["title"]} - {track_info["artist"]}'
+                            )
                         )
-                    )
+                    else:
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f'  Skipped: {track_info["title"]} - {track_info["artist"]} (already exists)'
+                            )
+                        )
                     tracks_skipped += 1
                     continue
 
@@ -102,7 +122,7 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f'\nCompleted! {tracks_fetched} tracks added, {tracks_skipped} skipped'
+                f'\nCompleted! {tracks_fetched} tracks added, {tracks_updated} updated, {tracks_skipped} skipped'
             )
         )
         self.stdout.write(

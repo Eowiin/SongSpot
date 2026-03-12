@@ -3,9 +3,12 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../config/admob_config.dart';
+import '../../l10n/app_localizations.dart';
 import '../../models/pack.dart';
+import '../../models/room.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/pack_provider.dart';
+import '../../providers/room_provider.dart';
 import '../../services/admob_service.dart';
 import '../shop/coin_shop_screen.dart';
 
@@ -37,7 +40,6 @@ class PackListScreen extends StatefulWidget {
 }
 
 class _PackListScreenState extends State<PackListScreen> {
-  final Set<String> _purchasingPackIds = {};
   String? _selectedCategory;
   BannerAd? _bannerAd;
   bool _isBannerLoaded = false;
@@ -107,8 +109,16 @@ class _PackListScreenState extends State<PackListScreen> {
   }
 
   List<SongPack> _filteredPacks(List<SongPack> packs) {
-    if (_selectedCategory == null) return packs;
-    return packs.where((p) => p.category == _selectedCategory).toList();
+    final filtered = _selectedCategory == null
+        ? List<SongPack>.from(packs)
+        : packs.where((p) => p.category == _selectedCategory).toList();
+    filtered.sort((a, b) {
+      if (a.isOwned != b.isOwned) {
+        return a.isOwned ? -1 : 1;
+      }
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+    return filtered;
   }
 
   /// Returns the sorted list of distinct category keys present in the pack list.
@@ -126,6 +136,7 @@ class _PackListScreenState extends State<PackListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final packProvider = context.watch<PackProvider>();
     final showLoadingState =
         packProvider.isLoading && packProvider.packs.isEmpty;
@@ -133,7 +144,7 @@ class _PackListScreenState extends State<PackListScreen> {
     final canServeAds = AdMobService().canServeAds(adsDisabled: hasNoAds);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Song Packs')),
+      appBar: AppBar(title: Text(l10n.packListTitle)),
       body: Container(
         decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
         child: showLoadingState
@@ -144,7 +155,7 @@ class _PackListScreenState extends State<PackListScreen> {
                   Padding(
                     padding: AppTheme.pagePadding.copyWith(bottom: 8),
                     child: Text(
-                      'Browse packs',
+                      l10n.packBrowseTitle,
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                   ),
@@ -207,6 +218,7 @@ class _PackListScreenState extends State<PackListScreen> {
   }
 
   Widget _buildCategoryFilter(List<SongPack> packs) {
+    final l10n = AppLocalizations.of(context);
     final categories = _availableCategories(packs);
     if (categories.isEmpty) return const SizedBox.shrink();
 
@@ -220,7 +232,7 @@ class _PackListScreenState extends State<PackListScreen> {
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: FilterChip(
-              label: const Text('All'),
+              label: Text(l10n.packFilterAll),
               selected: _selectedCategory == null,
               onSelected: (_) => setState(() => _selectedCategory = null),
             ),
@@ -244,6 +256,7 @@ class _PackListScreenState extends State<PackListScreen> {
   }
 
   Widget _buildGetMoreCoinsBanner(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final coins = context.watch<AuthProvider>().user?.coins ?? 0;
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -261,13 +274,13 @@ class _PackListScreenState extends State<PackListScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '$coins coins',
+                  l10n.coinsAmount(coins),
                   style: Theme.of(
                     context,
                   ).textTheme.titleLarge?.copyWith(color: Colors.white),
                 ),
                 Text(
-                  'Need more coins?',
+                  l10n.packNeedMoreCoins,
                   style: Theme.of(
                     context,
                   ).textTheme.bodyMedium?.copyWith(color: Colors.white70),
@@ -286,7 +299,7 @@ class _PackListScreenState extends State<PackListScreen> {
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             ),
-            child: const Text('Get Coins'),
+            child: Text(l10n.packGetCoins),
           ),
         ],
       ),
@@ -294,18 +307,39 @@ class _PackListScreenState extends State<PackListScreen> {
   }
 
   Widget _buildPackCard(BuildContext context, SongPack pack) {
+    final l10n = AppLocalizations.of(context);
     final priceLabel = pack.isFree || pack.priceCoins == 0
-        ? 'Free'
-        : '${pack.priceCoins} coins';
-    final description = pack.description.isEmpty
-        ? 'Stem Pack'
-        : pack.description;
+        ? l10n.packPriceFree
+        : l10n.packCoinsPrice(pack.priceCoins);
+    final metaParts = <String>['${pack.trackCount} tracks'];
+    if (pack.category != null) {
+      metaParts.add(_categoryLabels[pack.category!] ?? pack.category!);
+    }
+    if (!pack.isOwned) {
+      metaParts.add(priceLabel);
+    }
+    final progressCopy = pack.isActive
+        ? (pack.currentDay != null && pack.totalDays > 0
+              ? l10n.packProgressDay(pack.currentDay!, pack.totalDays)
+              : l10n.packStateInProgress)
+        : pack.isCompleted
+        ? l10n.packStateFinishedInRoom
+        : pack.canActivate
+        ? l10n.packStateReadyNow
+        : pack.isOwned
+        ? l10n.packStateAfterActivePack
+        : priceLabel;
+    final statusColor = pack.isActive
+        ? AppTheme.accentColor
+        : pack.canActivate
+        ? AppTheme.successColor
+        : AppTheme.textSecondary;
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         gradient: AppTheme.cardGradient,
         borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.12),
@@ -314,10 +348,11 @@ class _PackListScreenState extends State<PackListScreen> {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+      child: Material(
+        color: Colors.transparent,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildPackIcon(pack.iconUrl),
@@ -328,104 +363,137 @@ class _PackListScreenState extends State<PackListScreen> {
                   children: [
                     Text(
                       pack.name,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      description,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                      maxLines: 2,
+                      style: Theme.of(context).textTheme.titleMedium,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 4),
                     Text(
-                      '${pack.trackCount} tracks • $priceLabel',
-                      style: Theme.of(context).textTheme.bodySmall,
+                      metaParts.join(' • '),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.textSecondary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      progressCopy,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: statusColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              if (pack.category != null)
-                _buildTag(
-                  context,
-                  _categoryLabels[pack.category!] ?? pack.category!,
-                  AppTheme.primaryColor,
+              const SizedBox(width: 12),
+              SizedBox(
+                height: 40,
+                child: ElevatedButton(
+                  onPressed: _isPackActionEnabled(pack)
+                      ? () => _handlePackPrimaryAction(pack)
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                  ),
+                  child: Text(_packPrimaryLabel(pack)),
                 ),
-              if (pack.isOwned)
-                _buildTag(context, 'Owned', AppTheme.successColor),
-              if (pack.isFree || pack.priceCoins == 0)
-                _buildTag(context, 'Free', AppTheme.secondaryColor),
+              ),
             ],
           ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: pack.isOwned || _purchasingPackIds.contains(pack.id)
-                  ? null
-                  : () async {
-                      setState(() {
-                        _purchasingPackIds.add(pack.id);
-                      });
-                      final purchaseResponse = await context
-                          .read<PackProvider>()
-                          .purchasePack(roomId: widget.roomId, packId: pack.id);
-                      if (!mounted) {
-                        return;
-                      }
-                      if (purchaseResponse != null) {
-                        final newCoins = purchaseResponse['coins'] as int?;
-                        if (newCoins != null) {
-                          this.context.read<AuthProvider>().updateCoinsBalance(
-                            newCoins,
-                          );
-                        }
-                        ScaffoldMessenger.of(this.context).showSnackBar(
-                          SnackBar(
-                            content: Text('Purchased ${pack.name}'),
-                            backgroundColor: AppTheme.successColor,
-                          ),
-                        );
-                      }
-                      if (mounted) {
-                        setState(() {
-                          _purchasingPackIds.remove(pack.id);
-                        });
-                      }
-                    },
-              child: Text(
-                pack.isOwned
-                    ? 'Owned'
-                    : _purchasingPackIds.contains(pack.id)
-                    ? 'Buying...'
-                    : 'Buy',
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildTag(BuildContext context, String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(color: color),
-      ),
+  String _packPrimaryLabel(SongPack pack) {
+    final l10n = AppLocalizations.of(context);
+    if (!pack.isOwned) {
+      return pack.isFree || pack.priceCoins == 0
+          ? l10n.packActionUnlock
+          : l10n.packActionBuy;
+    }
+    if (pack.isActive) return l10n.packActionInProgress;
+    if (pack.isCompleted) return l10n.packActionFinished;
+    if (pack.canActivate) return l10n.packActionActivate;
+    return l10n.packActionLater;
+  }
+
+  bool _isPackActionEnabled(SongPack pack) {
+    if (!pack.isOwned) return true;
+    if (pack.isActive) return false;
+    if (pack.isCompleted) return false;
+    return pack.canActivate;
+  }
+
+  Future<void> _handlePackPrimaryAction(SongPack pack) async {
+    final l10n = AppLocalizations.of(context);
+    if (pack.isOwned) {
+      final activateResponse = await context.read<PackProvider>().activatePack(
+        roomId: widget.roomId,
+        packId: pack.id,
+      );
+      if (!mounted) return;
+      if (activateResponse != null) {
+        final roomJson = activateResponse['room'] as Map<String, dynamic>?;
+        if (roomJson != null) {
+          context.read<RoomProvider>().setCurrentRoom(Room.fromJson(roomJson));
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              activateResponse['message'] as String? ??
+                  l10n.packActivatedSuccessfully,
+            ),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+      } else {
+        final errorMessage = context.read<PackProvider>().errorMessage;
+        if (errorMessage != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMessage.replaceFirst('Exception: ', '')),
+              backgroundColor: AppTheme.errorColor,
+            ),
+          );
+        }
+      }
+      return;
+    }
+
+    final purchaseResponse = await context.read<PackProvider>().purchasePack(
+      roomId: widget.roomId,
+      packId: pack.id,
     );
+    if (!mounted) return;
+
+    if (purchaseResponse != null) {
+      final newCoins = purchaseResponse['coins'] as int?;
+      if (newCoins != null) {
+        context.read<AuthProvider>().updateCoinsBalance(newCoins);
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.packUnlockedActivateWhenReady),
+          backgroundColor: AppTheme.successColor,
+        ),
+      );
+      return;
+    }
+
+    final errorMessage = context.read<PackProvider>().errorMessage;
+    if (errorMessage != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage.replaceFirst('Exception: ', '')),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    }
   }
 
   Widget _buildPackIcon(String? iconUrl) {
@@ -445,7 +513,7 @@ class _PackListScreenState extends State<PackListScreen> {
         child: Image.network(
           iconUrl,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) =>
+          errorBuilder: (context, error, stackTrace) =>
               const Icon(Icons.album, color: AppTheme.primaryColor),
         ),
       ),

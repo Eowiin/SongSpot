@@ -70,6 +70,8 @@ source .venv/bin/activate
 python manage.py migrate
 python manage.py createsuperuser
 python manage.py fetch_deezer_tracks --count 50
+python manage.py update_track_metadata --dry-run
+python manage.py update_track_metadata
 python manage.py seed_genre_packs --count-per-pack 10 --genres pop,rock
 ```
 
@@ -157,6 +159,21 @@ docker compose up
 
 This is convenient for quick testing but slower for iterating (no live reload). Best used when you only need to work on the mobile app and want the backend running in the background.
 
+Run backend management commands inside Docker with:
+
+```bash
+docker compose exec backend python manage.py <command>
+```
+
+Examples:
+
+```bash
+docker compose exec backend python manage.py fetch_deezer_tracks --count 50
+docker compose exec backend python manage.py update_track_metadata --dry-run
+docker compose exec backend python manage.py update_track_metadata
+docker compose exec backend python manage.py update_track_metadata --search-missing
+```
+
 ---
 
 ## Common Gotchas
@@ -178,6 +195,7 @@ This is convenient for quick testing but slower for iterating (no live reload). 
 | `python manage.py migrate` | Run database migrations |
 | `python manage.py createsuperuser` | Create admin account |
 | `python manage.py fetch_deezer_tracks --count N` | Populate tracks from Deezer |
+| `python manage.py update_track_metadata [--dry-run] [--search-missing]` | Backfill `genre`, `release_year`, cover URL, and missing `deezer_id` on existing tracks |
 | `python manage.py seed_genre_packs --count-per-pack N --genres pop,rock` | Create song packs |
 | `python manage.py generate_pack_stems --all --missing-only` | Generate stems (batch) |
 | `python manage.py prepare_daily_content` | Create daily songs for all rooms |

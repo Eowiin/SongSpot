@@ -55,11 +55,17 @@ class HistorySession {
 /// Summary entry for the history list screen.
 class HistoryDay {
   final String date;
+  final String mode;
+  final String? genreKey;
+  final String? genreName;
   final HistoryTrack track;
   final HistorySession? mySession;
 
   const HistoryDay({
     required this.date,
+    this.mode = 'mix',
+    this.genreKey,
+    this.genreName,
     required this.track,
     this.mySession,
   });
@@ -67,6 +73,9 @@ class HistoryDay {
   factory HistoryDay.fromJson(Map<String, dynamic> json) {
     return HistoryDay(
       date: json['date'] as String,
+      mode: json['mode'] as String? ?? 'mix',
+      genreKey: json['genre_key'] as String?,
+      genreName: json['genre_name'] as String?,
       track: HistoryTrack.fromJson(json['track'] as Map<String, dynamic>),
       mySession: json['my_session'] != null
           ? HistorySession.fromJson(json['my_session'] as Map<String, dynamic>)
@@ -174,7 +183,9 @@ class PackHistoryDay {
       date: json['date'] as String,
       track: HistoryTrack.fromJson(json['track'] as Map<String, dynamic>),
       mySession: json['my_session'] != null
-          ? PackHistorySession.fromJson(json['my_session'] as Map<String, dynamic>)
+          ? PackHistorySession.fromJson(
+              json['my_session'] as Map<String, dynamic>,
+            )
           : null,
     );
   }
@@ -227,10 +238,15 @@ class PackHistoryDayDetail {
       date: json['date'] as String,
       track: HistoryTrack.fromJson(json['track'] as Map<String, dynamic>),
       mySession: json['my_session'] != null
-          ? PackHistorySession.fromJson(json['my_session'] as Map<String, dynamic>)
+          ? PackHistorySession.fromJson(
+              json['my_session'] as Map<String, dynamic>,
+            )
           : null,
       leaderboard: (json['leaderboard'] as List<dynamic>)
-          .map((e) => PackHistoryLeaderboardEntry.fromJson(e as Map<String, dynamic>))
+          .map(
+            (e) =>
+                PackHistoryLeaderboardEntry.fromJson(e as Map<String, dynamic>),
+          )
           .toList(),
       messages: (json['messages'] as List<dynamic>)
           .map((e) => HistoryMessage.fromJson(e as Map<String, dynamic>))
@@ -242,6 +258,9 @@ class PackHistoryDayDetail {
 /// Full detail entry for a specific past day.
 class HistoryDayDetail {
   final String date;
+  final String mode;
+  final String? genreKey;
+  final String? genreName;
   final HistoryTrack track;
   final HistorySession? mySession;
   final List<HistoryLeaderboardEntry> leaderboard;
@@ -249,6 +268,9 @@ class HistoryDayDetail {
 
   const HistoryDayDetail({
     required this.date,
+    this.mode = 'mix',
+    this.genreKey,
+    this.genreName,
     required this.track,
     this.mySession,
     required this.leaderboard,
@@ -258,12 +280,17 @@ class HistoryDayDetail {
   factory HistoryDayDetail.fromJson(Map<String, dynamic> json) {
     return HistoryDayDetail(
       date: json['date'] as String,
+      mode: json['mode'] as String? ?? 'mix',
+      genreKey: json['genre_key'] as String?,
+      genreName: json['genre_name'] as String?,
       track: HistoryTrack.fromJson(json['track'] as Map<String, dynamic>),
       mySession: json['my_session'] != null
           ? HistorySession.fromJson(json['my_session'] as Map<String, dynamic>)
           : null,
       leaderboard: (json['leaderboard'] as List<dynamic>)
-          .map((e) => HistoryLeaderboardEntry.fromJson(e as Map<String, dynamic>))
+          .map(
+            (e) => HistoryLeaderboardEntry.fromJson(e as Map<String, dynamic>),
+          )
           .toList(),
       messages: (json['messages'] as List<dynamic>)
           .map((e) => HistoryMessage.fromJson(e as Map<String, dynamic>))

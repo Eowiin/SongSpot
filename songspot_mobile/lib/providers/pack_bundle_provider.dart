@@ -1,10 +1,13 @@
 import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 import '../models/message.dart';
 import '../models/pack_bundle.dart';
+import '../models/user.dart';
 import '../services/api_service.dart';
 
 class PackBundleProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
+  final Uuid _uuid = const Uuid();
 
   PackBundleSession? _session;
   List<Stem> _stems = [];
@@ -164,9 +167,10 @@ class PackBundleProvider with ChangeNotifier {
         roomId: roomId,
         packId: packId,
       );
-      _messages = (response['messages'] as List)
+      final serverMessages = (response['messages'] as List)
           .map((item) => Message.fromJson(item as Map<String, dynamic>))
           .toList();
+      _messages = _mergeServerMessages(serverMessages);
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
@@ -280,26 +284,130 @@ class PackBundleProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> sendMessage({
+  Future<void> sendMessage({
     required String roomId,
     required String packId,
     required String message,
+    required User currentUser,
+    String? clientMessageId,
   }) async {
+    final resolvedClientMessageId = clientMessageId ?? _uuid.v4();
+    _upsertLocalMessage(
+      Message.pending(
+        clientMessageId: resolvedClientMessageId,
+        user: currentUser,
+        message: message,
+      ),
+    );
+    notifyListeners();
+
     try {
       final response = await _apiService.sendPackBundleMessage(
         roomId: roomId,
         packId: packId,
         message: message,
+        clientMessageId: resolvedClientMessageId,
       );
-      final newMessage = Message.fromJson(response);
-      _messages.insert(0, newMessage);
-      notifyListeners();
-      return true;
+      _reconcileIncomingMessage(Message.fromJson(response));
     } catch (e) {
       _errorMessage = e.toString();
-      notifyListeners();
-      return false;
+      _markMessageFailed(resolvedClientMessageId, _errorMessage!);
     }
+  }
+
+  Future<void> retryMessage({
+    required String roomId,
+    required String packId,
+    required Message message,
+    required User currentUser,
+  }) async {
+    final clientMessageId = message.clientMessageId;
+    if (clientMessageId == null) return;
+
+    _upsertLocalMessage(
+      message.copyWith(
+        user: currentUser,
+        deliveryStatus: MessageDeliveryStatus.sending,
+        clearFailureReason: true,
+      ),
+    );
+    notifyListeners();
+
+    await sendMessage(
+      roomId: roomId,
+      packId: packId,
+      message: message.message,
+      currentUser: currentUser,
+      clientMessageId: clientMessageId,
+    );
+  }
+
+  List<Message> _mergeServerMessages(List<Message> serverMessages) {
+    final unresolvedMessages = _messages.where((message) {
+      if (!message.isSending && !message.isFailed) {
+        return false;
+      }
+
+      return !serverMessages.any(
+        (serverMessage) =>
+            serverMessage.id == message.id ||
+            (message.clientMessageId != null &&
+                serverMessage.clientMessageId == message.clientMessageId),
+      );
+    }).toList();
+
+    return [...unresolvedMessages, ...serverMessages];
+  }
+
+  void _upsertLocalMessage(Message message) {
+    final existingIndex = _messages.indexWhere(
+      (existingMessage) =>
+          existingMessage.id == message.id ||
+          (message.clientMessageId != null &&
+              existingMessage.clientMessageId == message.clientMessageId),
+    );
+
+    if (existingIndex >= 0) {
+      _messages[existingIndex] = message;
+      return;
+    }
+
+    _messages.insert(0, message);
+  }
+
+  void _reconcileIncomingMessage(Message message) {
+    final existingIndex = _messages.indexWhere(
+      (existingMessage) =>
+          existingMessage.id == message.id ||
+          (message.clientMessageId != null &&
+              existingMessage.clientMessageId == message.clientMessageId),
+    );
+    final resolvedMessage = message.copyWith(
+      deliveryStatus: MessageDeliveryStatus.sent,
+      clearFailureReason: true,
+    );
+
+    if (existingIndex >= 0) {
+      _messages[existingIndex] = resolvedMessage;
+    } else {
+      _messages.insert(0, resolvedMessage);
+    }
+    notifyListeners();
+  }
+
+  void _markMessageFailed(String clientMessageId, String errorMessage) {
+    final existingIndex = _messages.indexWhere(
+      (message) => message.clientMessageId == clientMessageId,
+    );
+    if (existingIndex < 0) {
+      return;
+    }
+
+    _messages[existingIndex] = _messages[existingIndex].copyWith(
+      deliveryStatus: MessageDeliveryStatus.failed,
+      failureReason: errorMessage,
+    );
+    notifyListeners();
   }
 
   void clearMessages() {

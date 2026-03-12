@@ -27,7 +27,10 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 Future<void> main() async {
   await SentryFlutter.init(
     (options) {
-      options.dsn = const String.fromEnvironment('SENTRY_DSN', defaultValue: '');
+      options.dsn = const String.fromEnvironment(
+        'SENTRY_DSN',
+        defaultValue: '',
+      );
       options.environment = const String.fromEnvironment(
         'SENTRY_ENVIRONMENT',
         defaultValue: 'development',
@@ -81,7 +84,7 @@ class MyApp extends StatelessWidget {
         builder: (context, settings, _) {
           return MaterialApp(
             navigatorKey: navigatorKey,
-            title: 'SongSpot',
+            onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
             debugShowCheckedModeBanner: false,
             // Localization
             locale: settings.locale,
@@ -170,15 +173,15 @@ class _SplashScreenState extends State<SplashScreen> {
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
-        child: const Center(
+        child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(Icons.music_note, size: 100, color: AppTheme.primaryColor),
               SizedBox(height: 24),
               Text(
-                'SongSpot',
-                style: TextStyle(
+                AppLocalizations.of(context).appTitle,
+                style: const TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
                   color: AppTheme.textPrimary,

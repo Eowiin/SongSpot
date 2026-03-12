@@ -259,6 +259,12 @@ Restart=always
 WantedBy=multi-user.target
 ```
 
+For future production log aggregation with Grafana Cloud on a non-Docker VPS, see [GRAFANA_SETUP.md](/Users/ethan/Personal/SongSpot/docs/GRAFANA_SETUP.md). The recommended direction is:
+- keep app services on `systemd`
+- log backend/Celery to `journald`
+- ship only selected logs with Grafana Alloy
+- keep Sentry for exceptions
+
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable songspot

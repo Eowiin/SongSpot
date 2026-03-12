@@ -66,10 +66,10 @@ class WebSocketService {
       }
 
       final wsUri = ApiConfig.roomChatWebSocketUri(roomId, token);
-      debugPrint('WebSocket connecting to: $wsUri');
+      final headers = ApiConfig.webSocketHeaders;
 
       _currentRoomId = roomId;
-      _channel = createWebSocketChannel(wsUri);
+      _channel = createWebSocketChannel(wsUri, headers: headers);
 
       // Wait for the HTTP upgrade to complete before reporting success.
       await _channel!.ready;
@@ -135,7 +135,7 @@ class WebSocketService {
 
   /// Send a chat message.
   /// Returns true when the payload was written to the socket sink.
-  bool sendMessage(String message) {
+  bool sendMessage(String message, {String? clientMessageId}) {
     if (!_isConnected || _channel == null) {
       debugPrint('Cannot send message: not connected');
       return false;
@@ -143,7 +143,11 @@ class WebSocketService {
 
     try {
       _channel!.sink.add(
-        jsonEncode({'type': 'chat_message', 'message': message}),
+        jsonEncode({
+          'type': 'chat_message',
+          'message': message,
+          if (clientMessageId != null) 'client_message_id': clientMessageId,
+        }),
       );
       return true;
     } catch (e) {
@@ -176,6 +180,7 @@ class WebSocketService {
             user: User.fromJson(json['user'] as Map<String, dynamic>),
             message: json['message'] as String,
             createdAt: DateTime.parse(json['created_at'] as String),
+            clientMessageId: json['client_message_id']?.toString(),
           );
           _eventController.add(
             WebSocketEvent(WebSocketEventType.message, message),

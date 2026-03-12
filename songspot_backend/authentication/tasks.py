@@ -38,6 +38,9 @@ def notify_daily_song_available_task(daily_song_id: str):
             'type': 'daily_song_available',
             'room_id': str(daily_song.room_id),
             'daily_song_id': str(daily_song.id),
+            'mode': daily_song.mode,
+            'genre_key': daily_song.genre_key,
+            'genre_name': daily_song.genre_name,
             'date': str(daily_song.date),
         },
         notification_type='daily_song',
@@ -55,7 +58,7 @@ def notify_room_message_task(message_id: str):
         room=message.room,
         daily_song__date=active_date,
         correct_guess=True,
-    ).exclude(user=message.user).values_list('user_id', flat=True)
+    ).exclude(user=message.user).values_list('user_id', flat=True).distinct()
 
     recipient_ids = list(
         RoomUser.objects.filter(room=message.room)

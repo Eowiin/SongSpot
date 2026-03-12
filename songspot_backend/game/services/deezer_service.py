@@ -100,6 +100,26 @@ class DeezerService:
             print(f"Error fetching track {track_id}: {e}")
             return None
 
+    def get_album(self, album_id: int) -> Optional[Dict]:
+        """
+        Get details of a specific album by ID.
+
+        Args:
+            album_id: Deezer album ID
+
+        Returns:
+            Dict containing album details or None if error
+        """
+        url = f"{self.BASE_URL}/album/{album_id}"
+
+        try:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            print(f"Error fetching album {album_id}: {e}")
+            return None
+
     def get_chart_tracks(self, limit: int = 50) -> List[Dict]:
         """
         Get chart (popular) tracks.
@@ -353,12 +373,45 @@ class DeezerService:
         random.shuffle(all_tracks)
         return all_tracks[:count]
 
-    def extract_track_info(self, track_data: Dict) -> Dict:
+    @staticmethod
+    def _parse_release_year(raw_date) -> Optional[int]:
+        if not raw_date:
+            return None
+
+        try:
+            return int(str(raw_date)[:4])
+        except (ValueError, TypeError):
+            return None
+
+    @classmethod
+    def _extract_primary_genre_name(cls, payload: Optional[Dict]) -> Optional[str]:
+        if not isinstance(payload, dict):
+            return None
+
+        genre_name = payload.get('_genre_name')
+        if genre_name:
+            return genre_name
+
+        genres = payload.get('genres', {})
+        genre_items = genres.get('data', []) if isinstance(genres, dict) else []
+        for genre in genre_items:
+            name = genre.get('name')
+            if name:
+                return name
+
+        genre_id = payload.get('genre_id')
+        if genre_id:
+            return cls.GENRE_NAMES.get(genre_id)
+
+        return None
+
+    def extract_track_info(self, track_data: Dict, fallback_genre: Optional[str] = None) -> Dict:
         """
         Extract relevant track information from Deezer API response.
 
         Args:
             track_data: Raw track data from Deezer API
+            fallback_genre: Fallback genre to store when Deezer does not provide one
 
         Returns:
             Dict with title, artist, preview_url, and cover_url
@@ -374,13 +427,14 @@ class DeezerService:
         )
 
         # Extract release year from track or album release_date (format: "YYYY-MM-DD" or "YYYY")
-        release_year = None
-        raw_date = track_data.get('release_date') or album_data.get('release_date', '')
-        if raw_date:
-            try:
-                release_year = int(str(raw_date)[:4])
-            except (ValueError, TypeError):
-                pass
+        release_year = self._parse_release_year(
+            track_data.get('release_date') or album_data.get('release_date', '')
+        )
+        genre = (
+            self._extract_primary_genre_name(track_data) or
+            self._extract_primary_genre_name(album_data) or
+            fallback_genre
+        )
 
         return {
             'title': track_data.get('title', ''),
@@ -391,6 +445,56 @@ class DeezerService:
             'duration': track_data.get('duration', 0),
             'album': album_data.get('title', ''),
             'release_year': release_year,
-            'genre': track_data.get('_genre_name'),
+            'genre': genre,
             'rank': track_data.get('rank', 0),
         }
+
+    def enrich_track_info(self, track_data: Dict, fallback_genre: Optional[str] = None) -> Dict:
+        """
+        Enrich partial track payloads with missing metadata from Deezer track/album endpoints.
+
+        Search and chart endpoints often omit `release_date` and genre information. This
+        helper fetches the full track and album only when needed.
+        """
+        info = self.extract_track_info(track_data, fallback_genre=fallback_genre)
+        resolved_track_data = track_data
+
+        if info.get('deezer_id') and (
+            not info.get('release_year') or
+            not info.get('genre') or
+            not info.get('cover_url')
+        ):
+            full_track_data = self.get_track(info['deezer_id'])
+            if full_track_data:
+                resolved_track_data = full_track_data
+                full_info = self.extract_track_info(full_track_data, fallback_genre=fallback_genre)
+                for key in ('preview_url', 'cover_url', 'release_year', 'genre'):
+                    if full_info.get(key):
+                        info[key] = full_info[key]
+
+        album_id = (resolved_track_data.get('album') or {}).get('id')
+        if album_id and (
+            not info.get('release_year') or
+            not info.get('genre') or
+            not info.get('cover_url')
+        ):
+            album_data = self.get_album(album_id)
+            if album_data:
+                if not info.get('release_year'):
+                    info['release_year'] = self._parse_release_year(album_data.get('release_date'))
+                if not info.get('genre'):
+                    info['genre'] = self._extract_primary_genre_name(album_data)
+                if not info.get('cover_url'):
+                    info['cover_url'] = (
+                        album_data.get('cover_xl') or
+                        album_data.get('cover_big') or
+                        album_data.get('cover_medium') or
+                        album_data.get('cover_small') or
+                        album_data.get('cover') or
+                        info.get('cover_url')
+                    )
+
+        if not info.get('genre') and fallback_genre:
+            info['genre'] = fallback_genre
+
+        return info

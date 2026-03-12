@@ -7,6 +7,7 @@ import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth.models import AnonymousUser
+from django.db import IntegrityError, transaction
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +123,7 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
     async def handle_chat_message(self, data):
         """Process and broadcast a chat message."""
         message_text = data.get('message', '').strip()
+        client_message_id = str(data.get('client_message_id', '')).strip() or None
 
         if not message_text:
             await self.send(text_data=json.dumps({
@@ -137,8 +139,15 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
             }))
             return
 
+        if client_message_id is not None and len(client_message_id) > 64:
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': 'Client message ID too long (max 64 characters)'
+            }))
+            return
+
         # Save message to database
-        saved_message = await self.save_message(message_text)
+        saved_message = await self.save_message(message_text, client_message_id)
 
         if not saved_message:
             await self.send(text_data=json.dumps({
@@ -167,6 +176,7 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
             'type': 'chat_message',
             'id': event['id'],
             'message': event['message'],
+            'client_message_id': event.get('client_message_id'),
             'user': event['user'],
             'created_at': event['created_at'],
         }))
@@ -224,17 +234,32 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
             return False
 
     @database_sync_to_async
-    def save_message(self, message_text):
+    def save_message(self, message_text, client_message_id=None):
         """Save message to database."""
         from .models import Room, RoomMessage
 
         try:
             room = Room.objects.get(id=self.room_id)
-            message = RoomMessage.objects.create(
-                room=room,
-                user=self.user,
-                message=message_text
-            )
+            if client_message_id:
+                lookup = {
+                    'room': room,
+                    'user': self.user,
+                    'client_message_id': client_message_id,
+                }
+                try:
+                    with transaction.atomic():
+                        message, _ = RoomMessage.objects.get_or_create(
+                            **lookup,
+                            defaults={'message': message_text},
+                        )
+                except IntegrityError:
+                    message = RoomMessage.objects.get(**lookup)
+            else:
+                message = RoomMessage.objects.create(
+                    room=room,
+                    user=self.user,
+                    message=message_text
+                )
             return message
         except Room.DoesNotExist:
             return None

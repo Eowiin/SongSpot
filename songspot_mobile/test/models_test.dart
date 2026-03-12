@@ -286,25 +286,25 @@ void main() {
 
     test('snippetDuration returns correct values', () {
       GameSession createWithSnippet(int snippet) => GameSession(
+        id: '1',
+        user: const User(id: '1', email: 'a@b.com', username: 'user'),
+        dailySong: DailySong(
+          id: '1',
+          track: Track(
             id: '1',
-            user: const User(id: '1', email: 'a@b.com', username: 'user'),
-            dailySong: DailySong(
-              id: '1',
-              track: Track(
-                id: '1',
-                title: 'Test',
-                artist: 'Artist',
-                previewUrl: 'url',
-                createdAt: DateTime.now(),
-              ),
-              date: '2024-01-15',
-              createdAt: DateTime.now(),
-            ),
-            currentSnippet: snippet,
-            guessesMade: 0,
-            correctGuess: false,
+            title: 'Test',
+            artist: 'Artist',
+            previewUrl: 'url',
             createdAt: DateTime.now(),
-          );
+          ),
+          date: '2024-01-15',
+          createdAt: DateTime.now(),
+        ),
+        currentSnippet: snippet,
+        guessesMade: 0,
+        correctGuess: false,
+        createdAt: DateTime.now(),
+      );
 
       expect(createWithSnippet(1).snippetDuration, 0.2);
       expect(createWithSnippet(2).snippetDuration, 0.5);
@@ -316,25 +316,25 @@ void main() {
 
     test('possiblePoints returns correct values', () {
       GameSession createWithSnippet(int snippet) => GameSession(
+        id: '1',
+        user: const User(id: '1', email: 'a@b.com', username: 'user'),
+        dailySong: DailySong(
+          id: '1',
+          track: Track(
             id: '1',
-            user: const User(id: '1', email: 'a@b.com', username: 'user'),
-            dailySong: DailySong(
-              id: '1',
-              track: Track(
-                id: '1',
-                title: 'Test',
-                artist: 'Artist',
-                previewUrl: 'url',
-                createdAt: DateTime.now(),
-              ),
-              date: '2024-01-15',
-              createdAt: DateTime.now(),
-            ),
-            currentSnippet: snippet,
-            guessesMade: 0,
-            correctGuess: false,
+            title: 'Test',
+            artist: 'Artist',
+            previewUrl: 'url',
             createdAt: DateTime.now(),
-          );
+          ),
+          date: '2024-01-15',
+          createdAt: DateTime.now(),
+        ),
+        currentSnippet: snippet,
+        guessesMade: 0,
+        correctGuess: false,
+        createdAt: DateTime.now(),
+      );
 
       expect(createWithSnippet(1).possiblePoints, 6);
       expect(createWithSnippet(2).possiblePoints, 5);
@@ -376,6 +376,7 @@ void main() {
           'username': 'sender',
         },
         'message': 'Hello everyone!',
+        'client_message_id': 'client-msg-1',
         'created_at': '2024-01-15T10:00:00Z',
       };
 
@@ -384,6 +385,8 @@ void main() {
       expect(message.id, 'msg-123');
       expect(message.user.username, 'sender');
       expect(message.message, 'Hello everyone!');
+      expect(message.clientMessageId, 'client-msg-1');
+      expect(message.deliveryStatus, MessageDeliveryStatus.sent);
     });
   });
 }

@@ -424,6 +424,83 @@ class AppLocalizationsFr extends AppLocalizations {
   String get coinShopTitle => 'Boutique de pièces';
 
   @override
+  String get packListTitle => 'Packs musicaux';
+
+  @override
+  String get packBrowseTitle => 'Parcourir les packs';
+
+  @override
+  String get packFilterAll => 'Tous';
+
+  @override
+  String get packNeedMoreCoins => 'Besoin de plus de pièces ?';
+
+  @override
+  String get packGetCoins => 'Obtenir des pièces';
+
+  @override
+  String get packPriceFree => 'Gratuit';
+
+  @override
+  String packCoinsPrice(num coins) {
+    return '$coins pièces';
+  }
+
+  @override
+  String packProgressDay(num day, num totalDays) {
+    return 'Jour $day sur $totalDays';
+  }
+
+  @override
+  String get packStateInProgress => 'En cours';
+
+  @override
+  String get packStateFinishedInRoom => 'Terminé dans cette salle';
+
+  @override
+  String get packStateReadyNow => 'Prêt maintenant';
+
+  @override
+  String get packStateAfterActivePack => 'Indisponible maintenant';
+
+  @override
+  String get packTagInProgress => 'En cours';
+
+  @override
+  String get packTagFinished => 'Terminé';
+
+  @override
+  String get packTagReadyNow => 'Prêt';
+
+  @override
+  String get packTagAfterActivePack => 'Indisponible';
+
+  @override
+  String get packActionUnlock => 'Débloquer';
+
+  @override
+  String get packActionBuy => 'Acheter';
+
+  @override
+  String get packActionInProgress => 'En cours';
+
+  @override
+  String get packActionFinished => 'Terminé';
+
+  @override
+  String get packActionActivate => 'Activer';
+
+  @override
+  String get packActionLater => 'Plus tard';
+
+  @override
+  String get packActivatedSuccessfully => 'Pack activé avec succès';
+
+  @override
+  String get packUnlockedActivateWhenReady =>
+      'Pack débloqué. Activez-le quand vous voulez.';
+
+  @override
   String get adNotReadyTryAgain =>
       'La pub n\'est pas prête. Réessayez dans un instant.';
 

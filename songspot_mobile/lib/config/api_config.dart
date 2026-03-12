@@ -6,6 +6,15 @@ class ApiConfig {
     return value != null && value.isNotEmpty ? value : null;
   }
 
+  static Uri _authorityOnlyUri(Uri uri, {String? schemeOverride}) {
+    final port = uri.hasPort && uri.port > 0 ? uri.port : null;
+    return Uri(
+      scheme: schemeOverride ?? uri.scheme,
+      host: uri.host,
+      port: port,
+    );
+  }
+
   // Base URL for the API
   static String get baseUrl =>
       _trimmedEnv('API_BASE_URL') ?? 'http://localhost:8000/api';
@@ -15,16 +24,30 @@ class ApiConfig {
   static Uri get wsBaseUri {
     final configured = _trimmedEnv('WS_BASE_URL');
     if (configured != null) {
-      final uri = Uri.parse(configured);
-      final port = uri.hasPort && uri.port > 0 ? uri.port : null;
-      return Uri(scheme: uri.scheme, host: uri.host, port: port);
+      return _authorityOnlyUri(Uri.parse(configured));
     }
 
     final apiUri = Uri.parse(baseUrl);
     final wsScheme = apiUri.scheme == 'https' ? 'wss' : 'ws';
-    final port = apiUri.hasPort && apiUri.port > 0 ? apiUri.port : null;
-    return Uri(scheme: wsScheme, host: apiUri.host, port: port);
+    return _authorityOnlyUri(apiUri, schemeOverride: wsScheme);
   }
+
+  // Mobile websocket clients need an explicit Origin header because the
+  // backend uses AllowedHostsOriginValidator during the upgrade handshake.
+  static Uri get webSocketOriginUri {
+    final serverUrl = _trimmedEnv('SERVER_URL');
+    if (serverUrl != null) {
+      return _authorityOnlyUri(Uri.parse(serverUrl));
+    }
+
+    final wsUri = wsBaseUri;
+    final originScheme = wsUri.scheme == 'wss' ? 'https' : 'http';
+    return _authorityOnlyUri(wsUri, schemeOverride: originScheme);
+  }
+
+  static Map<String, String> get webSocketHeaders => {
+    'Origin': webSocketOriginUri.toString(),
+  };
 
   static Uri roomChatWebSocketUri(String roomId, String token) {
     final port = wsBaseUri.hasPort && wsBaseUri.port > 0
@@ -80,6 +103,8 @@ class ApiConfig {
   static const String packsMy = '/game/packs/my/';
   static String packDetail(String packId) => '/game/packs/$packId/';
   static String packPurchase(String packId) => '/game/packs/$packId/purchase/';
+  static String packActivate(String roomId, String packId) =>
+      '/game/rooms/$roomId/packs/$packId/activate/';
   static String packBundle(String roomId, String packId) =>
       '/game/rooms/$roomId/packs/$packId/bundle/';
   static String packBundleSkip(String roomId, String packId) =>

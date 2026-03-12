@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 import '../models/game_session.dart';
 import '../models/message.dart';
 import '../models/track.dart';
@@ -12,6 +13,9 @@ class GameProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
   final AudioService _audioService = AudioService();
   final WebSocketService _webSocketService = WebSocketService();
+  final Uuid _uuid = const Uuid();
+  final Map<String, Timer> _pendingMessageTimeouts = {};
+  static const Duration _pendingMessageTimeout = Duration(seconds: 15);
 
   StreamSubscription<WebSocketEvent>? _wsSubscription;
 
@@ -23,9 +27,10 @@ class GameProvider with ChangeNotifier {
   String? _guessResult;
   bool _isWebSocketConnected = false;
   String? _currentChatRoomId;
-  Map<String, bool> _typingUsers = {}; // userId -> isTyping
+  final Map<String, bool> _typingUsers = {}; // userId -> isTyping
   Map<String, String> _hintValues = {}; // hintType -> revealed value
   int _playSnippetRequestId = 0;
+  String _currentMode = 'mix';
 
   GameSession? get currentSession => _currentSession;
   List<LeaderboardEntry> get leaderboard => _leaderboard;
@@ -36,24 +41,27 @@ class GameProvider with ChangeNotifier {
   AudioService get audioService => _audioService;
   bool get isWebSocketConnected => _isWebSocketConnected;
   Map<String, String> get hintValues => _hintValues;
+  String get currentMode => _currentMode;
   Stream<WebSocketEvent> get webSocketEvents => _webSocketService.events;
   List<String> get typingUsernames =>
       _typingUsers.entries.where((e) => e.value).map((e) => e.key).toList();
 
   /// Start or get current game session
-  Future<void> startGameSession(String roomId) async {
+  Future<void> startGameSession(String roomId, {String mode = 'mix'}) async {
     try {
+      _currentMode = mode;
       // Clear previous session immediately to avoid showing stale data
       _currentSession = null;
       _leaderboard = [];
       _messages = [];
+      _clearPendingMessageTimeouts();
       _hintValues = {};
       _isLoading = true;
       _errorMessage = null;
       _guessResult = null;
       notifyListeners();
 
-      final response = await _apiService.startGameSession(roomId);
+      final response = await _apiService.startGameSession(roomId, mode: mode);
       _currentSession = GameSession.fromJson(response);
 
       // Restore any already-purchased hints (re-fetch values without charging)
@@ -62,6 +70,7 @@ class GameProvider with ChangeNotifier {
           final hintResponse = await _apiService.purchaseDailyGameHint(
             roomId: roomId,
             hintType: hintType,
+            mode: mode,
           );
           _hintValues[hintType] = hintResponse['hint_value'] as String;
         } catch (_) {
@@ -112,6 +121,9 @@ class GameProvider with ChangeNotifier {
     final updatedDailySong = DailySong(
       id: session.dailySong.id,
       track: updatedTrack,
+      mode: session.dailySong.mode,
+      genreKey: session.dailySong.genreKey,
+      genreName: session.dailySong.genreName,
       date: session.dailySong.date,
       createdAt: session.dailySong.createdAt,
     );
@@ -120,7 +132,7 @@ class GameProvider with ChangeNotifier {
   }
 
   /// Skip to next snippet
-  Future<void> skipSnippet(String roomId) async {
+  Future<void> skipSnippet(String roomId, {String? mode}) async {
     if (_currentSession == null) return;
 
     try {
@@ -129,7 +141,10 @@ class GameProvider with ChangeNotifier {
       _guessResult = null;
       notifyListeners();
 
-      final response = await _apiService.skipSnippet(roomId);
+      final response = await _apiService.skipSnippet(
+        roomId,
+        mode: mode ?? _currentMode,
+      );
 
       // Update current snippet
       final newSnippet = response['current_snippet'] as int;
@@ -148,6 +163,7 @@ class GameProvider with ChangeNotifier {
   Future<Map<String, dynamic>?> submitGuess({
     required String roomId,
     required String trackId,
+    String? mode,
   }) async {
     if (_currentSession == null) return null;
 
@@ -160,6 +176,7 @@ class GameProvider with ChangeNotifier {
       final response = await _apiService.submitGuess(
         roomId: roomId,
         trackId: trackId,
+        mode: mode ?? _currentMode,
       );
 
       final isCorrect = response['is_correct'] as bool;
@@ -230,6 +247,7 @@ class GameProvider with ChangeNotifier {
   Future<Map<String, dynamic>?> activateRetry({
     required String roomId,
     required String action,
+    String? mode,
   }) async {
     if (_currentSession == null) return null;
 
@@ -241,6 +259,7 @@ class GameProvider with ChangeNotifier {
       final response = await _apiService.activateDailyRetry(
         roomId: roomId,
         action: action,
+        mode: mode ?? _currentMode,
       );
 
       final current = _currentSession!;
@@ -284,10 +303,12 @@ class GameProvider with ChangeNotifier {
   Future<Map<String, dynamic>> purchaseHint({
     required String roomId,
     required String hintType,
+    String? mode,
   }) async {
     final response = await _apiService.purchaseDailyGameHint(
       roomId: roomId,
       hintType: hintType,
+      mode: mode ?? _currentMode,
     );
 
     final hintValue = response['hint_value'] as String;
@@ -306,7 +327,11 @@ class GameProvider with ChangeNotifier {
   }
 
   /// Load leaderboard
-  Future<void> loadLeaderboard(String roomId, {bool silent = false}) async {
+  Future<void> loadLeaderboard(
+    String roomId, {
+    bool silent = false,
+    String? mode,
+  }) async {
     try {
       if (!silent) {
         _isLoading = true;
@@ -314,7 +339,10 @@ class GameProvider with ChangeNotifier {
         notifyListeners();
       }
 
-      final response = await _apiService.getLeaderboard(roomId);
+      final response = await _apiService.getLeaderboard(
+        roomId,
+        mode: mode ?? _currentMode,
+      );
       _leaderboard = (response['leaderboard'] as List)
           .map(
             (entry) => LeaderboardEntry.fromJson(entry as Map<String, dynamic>),
@@ -357,6 +385,7 @@ class GameProvider with ChangeNotifier {
     _isWebSocketConnected = false;
     _currentChatRoomId = null;
     _typingUsers.clear();
+    _markAllPendingMessagesFailed('Connection lost. Tap retry.');
     notifyListeners();
   }
 
@@ -369,16 +398,13 @@ class GameProvider with ChangeNotifier {
 
       case WebSocketEventType.disconnected:
         _isWebSocketConnected = false;
+        _markAllPendingMessagesFailed('Connection lost. Tap retry.');
         notifyListeners();
         break;
 
       case WebSocketEventType.message:
         final message = event.data as Message;
-        // Add to beginning (newest first), avoid duplicates
-        if (!_messages.any((m) => m.id == message.id)) {
-          _messages.insert(0, message);
-          notifyListeners();
-        }
+        _reconcileIncomingMessage(message);
         break;
 
       case WebSocketEventType.leaderboardUpdated:
@@ -419,6 +445,9 @@ class GameProvider with ChangeNotifier {
 
       case WebSocketEventType.error:
         _errorMessage = event.data?.toString();
+        _markAllPendingMessagesFailed(
+          _errorMessage ?? 'Message failed to send.',
+        );
         notifyListeners();
         break;
     }
@@ -437,9 +466,10 @@ class GameProvider with ChangeNotifier {
         offset: offset,
       );
 
-      _messages = (response['messages'] as List)
+      final serverMessages = (response['messages'] as List)
           .map((msg) => Message.fromJson(msg as Map<String, dynamic>))
           .toList();
+      _messages = _mergeServerMessages(serverMessages);
 
       notifyListeners();
     } catch (e) {
@@ -448,33 +478,181 @@ class GameProvider with ChangeNotifier {
     }
   }
 
-  /// Send a message via WebSocket (real-time) or REST API (fallback)
-  Future<bool> sendMessage(String roomId, String message) async {
-    // Try WebSocket first for real-time delivery
+  /// Send a message via WebSocket (real-time) or REST API (fallback).
+  Future<void> sendMessage(
+    String roomId,
+    String message, {
+    required User currentUser,
+    String? clientMessageId,
+  }) async {
+    final resolvedClientMessageId = clientMessageId ?? _uuid.v4();
+    _upsertLocalMessage(
+      Message.pending(
+        clientMessageId: resolvedClientMessageId,
+        user: currentUser,
+        message: message,
+      ),
+    );
+    notifyListeners();
+
     if (_isWebSocketConnected) {
-      final sent = _webSocketService.sendMessage(message);
+      _schedulePendingMessageTimeout(resolvedClientMessageId);
+      final sent = _webSocketService.sendMessage(
+        message,
+        clientMessageId: resolvedClientMessageId,
+      );
       if (sent) {
-        return true;
+        return;
       }
+      _cancelPendingMessageTimeout(resolvedClientMessageId);
     }
 
-    // Fallback to REST API
     try {
       final response = await _apiService.sendMessage(
         roomId: roomId,
         message: message,
+        clientMessageId: resolvedClientMessageId,
       );
-
-      final newMessage = Message.fromJson(response);
-      _messages.insert(0, newMessage); // Add to beginning (newest first)
-
-      notifyListeners();
-      return true;
+      _reconcileIncomingMessage(Message.fromJson(response));
     } catch (e) {
       _errorMessage = e.toString();
-      notifyListeners();
-      return false;
+      _markMessageFailed(resolvedClientMessageId, _errorMessage!);
     }
+  }
+
+  Future<void> retryMessage(
+    String roomId,
+    Message message, {
+    required User currentUser,
+  }) async {
+    final clientMessageId = message.clientMessageId;
+    if (clientMessageId == null) return;
+
+    _upsertLocalMessage(
+      message.copyWith(
+        user: currentUser,
+        deliveryStatus: MessageDeliveryStatus.sending,
+        clearFailureReason: true,
+      ),
+    );
+    notifyListeners();
+
+    await sendMessage(
+      roomId,
+      message.message,
+      currentUser: currentUser,
+      clientMessageId: clientMessageId,
+    );
+  }
+
+  List<Message> _mergeServerMessages(List<Message> serverMessages) {
+    final unresolvedMessages = _messages.where((message) {
+      if (!message.isSending && !message.isFailed) {
+        return false;
+      }
+
+      return !serverMessages.any(
+        (serverMessage) =>
+            serverMessage.id == message.id ||
+            (message.clientMessageId != null &&
+                serverMessage.clientMessageId == message.clientMessageId),
+      );
+    }).toList();
+
+    return [...unresolvedMessages, ...serverMessages];
+  }
+
+  void _upsertLocalMessage(Message message) {
+    final existingIndex = _messages.indexWhere(
+      (existingMessage) =>
+          existingMessage.id == message.id ||
+          (message.clientMessageId != null &&
+              existingMessage.clientMessageId == message.clientMessageId),
+    );
+
+    if (existingIndex >= 0) {
+      _messages[existingIndex] = message;
+      return;
+    }
+
+    _messages.insert(0, message);
+  }
+
+  void _reconcileIncomingMessage(Message message) {
+    final existingIndex = _messages.indexWhere(
+      (existingMessage) =>
+          existingMessage.id == message.id ||
+          (message.clientMessageId != null &&
+              existingMessage.clientMessageId == message.clientMessageId),
+    );
+    final resolvedMessage = message.copyWith(
+      deliveryStatus: MessageDeliveryStatus.sent,
+      clearFailureReason: true,
+    );
+
+    if (existingIndex >= 0) {
+      _messages[existingIndex] = resolvedMessage;
+    } else {
+      _messages.insert(0, resolvedMessage);
+    }
+
+    if (message.clientMessageId != null) {
+      _cancelPendingMessageTimeout(message.clientMessageId!);
+    }
+    notifyListeners();
+  }
+
+  void _markMessageFailed(String clientMessageId, String errorMessage) {
+    final existingIndex = _messages.indexWhere(
+      (message) => message.clientMessageId == clientMessageId,
+    );
+    if (existingIndex < 0) {
+      return;
+    }
+
+    _messages[existingIndex] = _messages[existingIndex].copyWith(
+      deliveryStatus: MessageDeliveryStatus.failed,
+      failureReason: errorMessage,
+    );
+    _cancelPendingMessageTimeout(clientMessageId);
+    notifyListeners();
+  }
+
+  void _markAllPendingMessagesFailed(String errorMessage) {
+    var hasChanges = false;
+    for (var i = 0; i < _messages.length; i += 1) {
+      if (_messages[i].isSending) {
+        _messages[i] = _messages[i].copyWith(
+          deliveryStatus: MessageDeliveryStatus.failed,
+          failureReason: errorMessage,
+        );
+        hasChanges = true;
+      }
+    }
+
+    if (hasChanges) {
+      _clearPendingMessageTimeouts();
+    }
+  }
+
+  void _schedulePendingMessageTimeout(String clientMessageId) {
+    _cancelPendingMessageTimeout(clientMessageId);
+    _pendingMessageTimeouts[clientMessageId] = Timer(
+      _pendingMessageTimeout,
+      () =>
+          _markMessageFailed(clientMessageId, 'Message timed out. Tap retry.'),
+    );
+  }
+
+  void _cancelPendingMessageTimeout(String clientMessageId) {
+    _pendingMessageTimeouts.remove(clientMessageId)?.cancel();
+  }
+
+  void _clearPendingMessageTimeouts() {
+    for (final timer in _pendingMessageTimeouts.values) {
+      timer.cancel();
+    }
+    _pendingMessageTimeouts.clear();
   }
 
   /// Send typing indicator
@@ -491,25 +669,19 @@ class GameProvider with ChangeNotifier {
       try {
         final playbackFuture = _audioService.playSnippetByNumber(
           _currentSession!.currentSnippet,
+          onPlaybackStarted: notifyListeners,
+          onPlaybackStopped: notifyListeners,
         );
-        notifyListeners();
         await playbackFuture;
-        if (requestId == _playSnippetRequestId) {
-          notifyListeners();
-        }
       } catch (e) {
         try {
           final refreshedSession = await _refreshAndLoadAudio(_currentSession!);
           final retryFuture = _audioService.playSnippetByNumber(
             refreshedSession.currentSnippet,
+            onPlaybackStarted: notifyListeners,
+            onPlaybackStopped: notifyListeners,
           );
-          if (requestId == _playSnippetRequestId) {
-            notifyListeners();
-          }
           await retryFuture;
-          if (requestId == _playSnippetRequestId) {
-            notifyListeners();
-          }
         } catch (_) {
           if (requestId == _playSnippetRequestId) {
             _errorMessage = 'Failed to play audio: $e';
@@ -541,6 +713,7 @@ class GameProvider with ChangeNotifier {
 
   /// Reset game state
   void reset() {
+    _clearPendingMessageTimeouts();
     _currentSession = null;
     _leaderboard = [];
     _messages = [];
@@ -551,6 +724,7 @@ class GameProvider with ChangeNotifier {
 
   @override
   void dispose() {
+    _clearPendingMessageTimeouts();
     _wsSubscription?.cancel();
     _webSocketService.dispose();
     _audioService.dispose();
