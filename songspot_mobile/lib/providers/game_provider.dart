@@ -669,25 +669,19 @@ class GameProvider with ChangeNotifier {
       try {
         final playbackFuture = _audioService.playSnippetByNumber(
           _currentSession!.currentSnippet,
+          onPlaybackStarted: notifyListeners,
+          onPlaybackStopped: notifyListeners,
         );
-        notifyListeners();
         await playbackFuture;
-        if (requestId == _playSnippetRequestId) {
-          notifyListeners();
-        }
       } catch (e) {
         try {
           final refreshedSession = await _refreshAndLoadAudio(_currentSession!);
           final retryFuture = _audioService.playSnippetByNumber(
             refreshedSession.currentSnippet,
+            onPlaybackStarted: notifyListeners,
+            onPlaybackStopped: notifyListeners,
           );
-          if (requestId == _playSnippetRequestId) {
-            notifyListeners();
-          }
           await retryFuture;
-          if (requestId == _playSnippetRequestId) {
-            notifyListeners();
-          }
         } catch (_) {
           if (requestId == _playSnippetRequestId) {
             _errorMessage = 'Failed to play audio: $e';
