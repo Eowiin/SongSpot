@@ -408,6 +408,89 @@
   "coinShopTitle": "Coin Shop",
   "@coinShopTitle": { "description": "Coin shop screen title" },
 
+  "packListTitle": "Song Packs",
+  "@packListTitle": { "description": "Pack list screen title" },
+
+  "packBrowseTitle": "Browse packs",
+  "@packBrowseTitle": { "description": "Pack list heading" },
+
+  "packFilterAll": "All",
+  "@packFilterAll": { "description": "Pack category filter for all packs" },
+
+  "packNeedMoreCoins": "Need more coins?",
+  "@packNeedMoreCoins": { "description": "Pack list coin helper text" },
+
+  "packGetCoins": "Get Coins",
+  "@packGetCoins": { "description": "Pack list CTA to open coin shop" },
+
+  "packPriceFree": "Free",
+  "@packPriceFree": { "description": "Pack price label for free packs" },
+
+  "packCoinsPrice": "{coins} coins",
+  "@packCoinsPrice": {
+    "description": "Pack price label in coins",
+    "placeholders": {
+      "coins": { "type": "num" }
+    }
+  },
+
+  "packProgressDay": "Day {day} of {totalDays}",
+  "@packProgressDay": {
+    "description": "Current active day progress for a pack",
+    "placeholders": {
+      "day": { "type": "num" },
+      "totalDays": { "type": "num" }
+    }
+  },
+
+  "packStateInProgress": "In progress",
+  "@packStateInProgress": { "description": "Pack state text when active" },
+
+  "packStateFinishedInRoom": "Finished in this room",
+  "@packStateFinishedInRoom": { "description": "Pack state text when completed" },
+
+  "packStateReadyNow": "Ready now",
+  "@packStateReadyNow": { "description": "Pack state text when available to activate" },
+
+  "packStateAfterActivePack": "Unavailable now",
+  "@packStateAfterActivePack": { "description": "Pack state text when blocked by another active pack" },
+
+  "packTagInProgress": "In Progress",
+  "@packTagInProgress": { "description": "Pack status tag when active" },
+
+  "packTagFinished": "Finished",
+  "@packTagFinished": { "description": "Pack status tag when completed" },
+
+  "packTagReadyNow": "Ready Now",
+  "@packTagReadyNow": { "description": "Pack status tag when can activate" },
+
+  "packTagAfterActivePack": "Unavailable",
+  "@packTagAfterActivePack": { "description": "Pack status tag when blocked by another active pack" },
+
+  "packActionUnlock": "Unlock",
+  "@packActionUnlock": { "description": "Primary pack action for free unowned packs" },
+
+  "packActionBuy": "Buy",
+  "@packActionBuy": { "description": "Primary pack action for paid unowned packs" },
+
+  "packActionInProgress": "In Progress",
+  "@packActionInProgress": { "description": "Disabled pack action label while pack is active" },
+
+  "packActionFinished": "Finished",
+  "@packActionFinished": { "description": "Disabled pack action label when pack is completed" },
+
+  "packActionActivate": "Activate",
+  "@packActionActivate": { "description": "Primary pack action to activate an owned pack" },
+
+  "packActionLater": "Later",
+  "@packActionLater": { "description": "Disabled pack action label when another pack is active" },
+
+  "packActivatedSuccessfully": "Pack activated successfully",
+  "@packActivatedSuccessfully": { "description": "Pack activation success message" },
+
+  "packUnlockedActivateWhenReady": "Pack unlocked. Activate it when you are ready.",
+  "@packUnlockedActivateWhenReady": { "description": "Pack purchase success message" },
+
   "adNotReadyTryAgain": "Ad not ready yet. Please try again in a moment.",
   "@adNotReadyTryAgain": { "description": "Shown when rewarded ad cannot be displayed" },
 

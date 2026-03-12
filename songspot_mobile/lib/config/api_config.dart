@@ -103,6 +103,8 @@ class ApiConfig {
   static const String packsMy = '/game/packs/my/';
   static String packDetail(String packId) => '/game/packs/$packId/';
   static String packPurchase(String packId) => '/game/packs/$packId/purchase/';
+  static String packActivate(String roomId, String packId) =>
+      '/game/rooms/$roomId/packs/$packId/activate/';
   static String packBundle(String roomId, String packId) =>
       '/game/rooms/$roomId/packs/$packId/bundle/';
   static String packBundleSkip(String roomId, String packId) =>

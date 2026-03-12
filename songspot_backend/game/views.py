@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, time, timedelta, timezone as dt_timezone
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
@@ -7,7 +7,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.conf import settings
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Q, Case, When, Value, IntegerField
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -30,10 +30,21 @@ def _active_game_date():
     return now.date()
 
 
+def _active_game_window(active_date):
+    """
+    Returns the UTC datetime window for a given active game date.
+    Active day D spans from D 12:00 UTC to D+1 12:00 UTC.
+    """
+    start = datetime.combine(active_date, time(hour=12, tzinfo=dt_timezone.utc))
+    end = start + timedelta(days=1)
+    return start, end
+
+
 from .models import (
     Track, SongPack, Room, RoomUser, RoomPack,
     DailySong, PackTrack, PackDailyTrack, PackBundleSession, PackBundleAttempt,
-    DailyGameSession, GuessAttempt, RoomMessage, PackBundleMessage, PackBundleStemJob
+    DailyGameSession, GuessAttempt, RoomMessage, PackBundleMessage, PackBundleStemJob,
+    DAILY_MODE_MIX, DAILY_MODE_GENRE,
 )
 from .serializers import (
     TrackSerializer,
@@ -71,6 +82,19 @@ COIN_REWARD_MAX = 8
 STREAK_BONUS_INTERVAL = 7
 STREAK_BONUS_COINS = 50
 MAX_DAILY_SNIPPET = 6
+SUPPORTED_DAILY_MODES = {DAILY_MODE_MIX, DAILY_MODE_GENRE}
+DAILY_GENRE_ROTATION = [
+    ('rock', 'Rock'),
+    ('pop', 'Pop'),
+    ('hiphop', 'Hip-Hop'),
+    ('rnb', 'R&B'),
+]
+DAILY_GENRE_FALLBACK_ALIASES = {
+    'rock': ['rock', 'alternative'],
+    'pop': ['pop'],
+    'hiphop': ['hip hop', 'hip-hop', 'rap'],
+    'rnb': ['r&b', 'rnb', 'soul'],
+}
 
 
 def _coins_for_correct_guess(snippet_number):
@@ -112,6 +136,14 @@ def _broadcast_leaderboard_updated(room_id, user_id):
         logger.exception('Failed to broadcast leaderboard_updated for room %s.', room_id)
 
 
+def _create_idempotent_message(model, *, lookup, defaults):
+    try:
+        with transaction.atomic():
+            return model.objects.get_or_create(**lookup, defaults=defaults)
+    except IntegrityError:
+        return model.objects.get(**lookup), False
+
+
 def _next_retry_requirement(game_session):
     if game_session.retry_credits > 0:
         return None
@@ -135,6 +167,115 @@ def _retry_state_payload(game_session):
         'retries_used': game_session.retries_used,
         'awaiting_retry_unlock': game_session.awaiting_retry_unlock,
     }
+
+
+def _parse_daily_mode(request, *, default=DAILY_MODE_MIX):
+    mode = request.query_params.get('mode')
+    if mode is None and hasattr(request, 'data'):
+        try:
+            mode = request.data.get('mode')
+        except Exception:
+            mode = None
+    mode = (mode or default).strip().lower()
+    if mode not in SUPPORTED_DAILY_MODES:
+        return None
+    return mode
+
+
+def _invalid_daily_mode_response():
+    return Response(
+        {'error': f'Invalid mode. Supported values: {", ".join(sorted(SUPPORTED_DAILY_MODES))}'},
+        status=status.HTTP_400_BAD_REQUEST,
+    )
+
+
+def _daily_genre_for_date(target_date):
+    start_index = target_date.toordinal() % len(DAILY_GENRE_ROTATION)
+    for offset in range(len(DAILY_GENRE_ROTATION)):
+        genre_key, genre_name = DAILY_GENRE_ROTATION[(start_index + offset) % len(DAILY_GENRE_ROTATION)]
+        if _genre_track_queryset(genre_key).exists():
+            return genre_key, genre_name
+    return DAILY_GENRE_ROTATION[start_index]
+
+
+def _daily_song_filter(room, date, mode):
+    return DailySong.objects.filter(room=room, date=date, mode=mode)
+
+
+def _used_track_ids_for_mode(room, mode):
+    return DailySong.objects.filter(room=room, mode=mode).values_list('track_id', flat=True)
+
+
+def _same_day_daily_exclusion_ids(room, date, mode):
+    return DailySong.objects.filter(room=room, date=date).exclude(mode=mode).values_list('track_id', flat=True)
+
+
+def _genre_track_queryset(genre_key):
+    pack_tracks = Track.objects.filter(
+        in_packs__pack__category=genre_key,
+    ).distinct()
+    if pack_tracks.exists():
+        return pack_tracks
+
+    aliases = DAILY_GENRE_FALLBACK_ALIASES.get(genre_key, [genre_key])
+    query = Q()
+    for alias in aliases:
+        query |= Q(genre__icontains=alias)
+    return Track.objects.filter(query).distinct()
+
+
+def _choose_track_from_queryset(queryset, excluded_ids=()):
+    candidates = queryset.exclude(id__in=excluded_ids)
+    candidates_with_deezer = candidates.filter(deezer_id__isnull=False)
+    if candidates_with_deezer.exists():
+        return random.choice(list(candidates_with_deezer))
+    if candidates.exists():
+        return random.choice(list(candidates))
+    return None
+
+
+def _select_daily_track(room, date, mode):
+    excluded_ids = set(_same_day_daily_exclusion_ids(room, date, mode))
+    if mode == DAILY_MODE_GENRE:
+        genre_key, genre_name = _daily_genre_for_date(date)
+        base_queryset = _genre_track_queryset(genre_key)
+        used_track_ids = set(_used_track_ids_for_mode(room, mode))
+
+        track = _choose_track_from_queryset(base_queryset, excluded_ids | used_track_ids)
+        if track is None:
+            track = _choose_track_from_queryset(base_queryset, excluded_ids)
+        if track is None:
+            return None, genre_key, genre_name
+        return track, genre_key, genre_name
+
+    used_track_ids = set(_used_track_ids_for_mode(room, mode))
+    base_queryset = Track.objects.all()
+
+    track = _choose_track_from_queryset(base_queryset, excluded_ids | used_track_ids)
+    if track is None:
+        track = _choose_track_from_queryset(base_queryset, excluded_ids)
+    if track is None:
+        track = _choose_track_from_queryset(base_queryset)
+    return track, None, None
+
+
+def _get_or_create_daily_song(room, date, mode):
+    daily_song = _daily_song_filter(room, date, mode).select_related('track').first()
+    if daily_song:
+        return daily_song
+
+    track, genre_key, genre_name = _select_daily_track(room, date, mode)
+    if track is None:
+        return None
+
+    return DailySong.objects.create(
+        room=room,
+        track=track,
+        mode=mode,
+        genre_key=genre_key,
+        genre_name=genre_name,
+        date=date,
+    )
 
 # Pack bundle constants
 PACK_BUNDLE_STAGE_POINTS = {
@@ -218,14 +359,94 @@ def _get_ordered_pack_tracks(pack):
     return list(pack.pack_tracks.select_related('track').order_by('order_in_pack', 'id'))
 
 
+def _sync_room_pack_state(room_pack, today=None):
+    today = today or _active_game_date()
+    if not room_pack:
+        return None
+    if room_pack.is_active and room_pack.is_complete_for_date(today):
+        room_pack.is_active = False
+        room_pack.completed_on = room_pack.final_active_date()
+        room_pack.save(update_fields=['is_active', 'completed_on'])
+    return room_pack
+
+
+def _sync_room_pack_states_for_room(room, today=None):
+    today = today or _active_game_date()
+    for room_pack in RoomPack.objects.filter(room=room, is_active=True).select_related('pack'):
+        _sync_room_pack_state(room_pack, today=today)
+
+
+def _get_active_room_pack(room, today=None):
+    today = today or _active_game_date()
+    _sync_room_pack_states_for_room(room, today=today)
+    return RoomPack.objects.filter(room=room, is_active=True).select_related('pack').first()
+
+
+def _get_room_pack(room, pack, today=None):
+    room_pack = RoomPack.objects.filter(room=room, pack=pack).select_related('pack').first()
+    if not room_pack:
+        return None
+    return _sync_room_pack_state(room_pack, today=today)
+
+
+def _ensure_active_room_pack(room, pack, today=None):
+    today = today or _active_game_date()
+    room_pack = _get_room_pack(room, pack, today=today)
+    if not room_pack:
+        return None, Response(
+            {'error': 'This pack is not owned by the room'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    if room_pack.completed_on:
+        return None, Response(
+            {'error': 'Pack already completed for this room'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    active_room_pack = _get_active_room_pack(room, today=today)
+    if not active_room_pack:
+        return None, Response(
+            {'error': 'Activate this pack before playing it'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if active_room_pack.id != room_pack.id:
+        return None, Response(
+            {
+                'error': (
+                    f'Another pack is already active in this room: '
+                    f'{active_room_pack.pack.name}'
+                )
+            },
+            status=status.HTTP_409_CONFLICT,
+        )
+
+    return room_pack, None
+
+
 def _get_daily_pack_track(room, pack, today):
     daily_track = PackDailyTrack.objects.filter(room=room, pack=pack, date=today).first()
     if daily_track:
         return daily_track
 
+    room_pack = _get_room_pack(room, pack, today=today)
     pack_tracks = _get_ordered_pack_tracks(pack)
     if not pack_tracks:
         return None
+
+    if room_pack and room_pack.activated_on:
+        day_index = (today - room_pack.activated_on).days
+        if day_index < 0 or day_index >= len(pack_tracks):
+            return None
+        track = pack_tracks[day_index].track
+        daily_track, _ = PackDailyTrack.objects.get_or_create(
+            room=room,
+            pack=pack,
+            date=today,
+            defaults={'track': track},
+        )
+        return daily_track
 
     used_track_ids = PackDailyTrack.objects.filter(
         room=room,
@@ -304,7 +525,10 @@ class RoomCreateView(APIView):
                     defaults={'coins_spent': 0, 'purchased_by': request.user}
                 )
 
-            response_serializer = RoomSerializer(room)
+            response_serializer = RoomSerializer(
+                room,
+                context={'request': request, 'active_game_date': _active_game_date()},
+            )
             return Response({
                 'room': response_serializer.data,
                 'message': 'Room created successfully'
@@ -344,7 +568,10 @@ class RoomJoinView(APIView):
         # Add user to room
         RoomUser.objects.create(room=room, user=request.user)
 
-        response_serializer = RoomSerializer(room)
+        response_serializer = RoomSerializer(
+            room,
+            context={'request': request, 'active_game_date': _active_game_date()},
+        )
         return Response({
             'room': response_serializer.data,
             'message': 'Joined room successfully'
@@ -406,7 +633,11 @@ class RoomDetailView(APIView):
 
     def get(self, request, room_id):
         room = get_object_or_404(Room, id=room_id)
-        serializer = RoomSerializer(room)
+        _sync_room_pack_states_for_room(room)
+        serializer = RoomSerializer(
+            room,
+            context={'request': request, 'active_game_date': _active_game_date()},
+        )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -437,7 +668,10 @@ class RoomRenameView(APIView):
             room.save()
 
             return Response({
-                'room': RoomSerializer(room).data,
+                'room': RoomSerializer(
+                    room,
+                    context={'request': request, 'active_game_date': _active_game_date()},
+                ).data,
                 'message': 'Room renamed successfully.'
             }, status=status.HTTP_200_OK)
 
@@ -457,7 +691,13 @@ class MyRoomsView(APIView):
         # Get all room_user entries for this user
         room_users = RoomUser.objects.filter(user=request.user).select_related('room')
         rooms = [ru.room for ru in room_users]
-        serializer = RoomSerializer(rooms, many=True)
+        for room in rooms:
+            _sync_room_pack_states_for_room(room)
+        serializer = RoomSerializer(
+            rooms,
+            many=True,
+            context={'request': request, 'active_game_date': _active_game_date()},
+        )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -478,8 +718,17 @@ class SongPackListView(APIView):
             return Response({'error': 'room_id is required'}, status=status.HTTP_400_BAD_REQUEST)
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
             return Response({'error': 'You must be in the room to view packs'}, status=status.HTTP_403_FORBIDDEN)
+        _sync_room_pack_states_for_room(room)
         packs = SongPack.objects.all()
-        serializer = SongPackListSerializer(packs, many=True, context={'request': request, 'room': room})
+        serializer = SongPackListSerializer(
+            packs,
+            many=True,
+            context={
+                'request': request,
+                'room': room,
+                'active_game_date': _active_game_date(),
+            },
+        )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -498,8 +747,16 @@ class SongPackDetailView(APIView):
             return Response({'error': 'room_id is required'}, status=status.HTTP_400_BAD_REQUEST)
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
             return Response({'error': 'You must be in the room to view this pack'}, status=status.HTTP_403_FORBIDDEN)
+        _sync_room_pack_states_for_room(room)
         pack = get_object_or_404(SongPack, id=pack_id)
-        serializer = SongPackDetailSerializer(pack, context={'request': request, 'room': room})
+        serializer = SongPackDetailSerializer(
+            pack,
+            context={
+                'request': request,
+                'room': room,
+                'active_game_date': _active_game_date(),
+            },
+        )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -519,9 +776,17 @@ class SongPackPurchaseView(APIView):
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
             return Response({'error': 'You must be in the room to purchase packs'}, status=status.HTTP_403_FORBIDDEN)
         pack = get_object_or_404(SongPack, id=pack_id)
+        _sync_room_pack_states_for_room(room)
 
         if RoomPack.objects.filter(room=room, pack=pack).exists():
-            serializer = SongPackDetailSerializer(pack, context={'request': request, 'room': room})
+            serializer = SongPackDetailSerializer(
+                pack,
+                context={
+                    'request': request,
+                    'room': room,
+                    'active_game_date': _active_game_date(),
+                },
+            )
             return Response({
                 'pack': serializer.data,
                 'coins': request.user.coins,
@@ -534,7 +799,14 @@ class SongPackPurchaseView(APIView):
                 pack=pack,
                 defaults={'coins_spent': 0, 'purchased_by': request.user}
             )
-            serializer = SongPackDetailSerializer(pack, context={'request': request, 'room': room})
+            serializer = SongPackDetailSerializer(
+                pack,
+                context={
+                    'request': request,
+                    'room': room,
+                    'active_game_date': _active_game_date(),
+                },
+            )
             return Response({
                 'pack': serializer.data,
                 'coins': request.user.coins,
@@ -563,12 +835,89 @@ class SongPackPurchaseView(APIView):
                 purchased_by=request.user
             )
 
-        serializer = SongPackDetailSerializer(pack, context={'request': request, 'room': room})
+        serializer = SongPackDetailSerializer(
+            pack,
+            context={
+                'request': request,
+                'room': room,
+                'active_game_date': _active_game_date(),
+            },
+        )
         return Response({
             'pack': serializer.data,
             'coins': request.user.coins,
             'message': 'Pack purchased successfully'
         }, status=status.HTTP_200_OK)
+
+
+class RoomPackActivateView(APIView):
+    """
+    Activate an owned room pack. Only one room pack can be active at a time.
+
+    POST /api/game/rooms/<room_id>/packs/<pack_id>/activate/
+    Headers: Authorization: Bearer <access_token>
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, room_id, pack_id):
+        room = get_object_or_404(Room, id=room_id)
+        pack = get_object_or_404(SongPack, id=pack_id)
+        today = _active_game_date()
+
+        if not RoomUser.objects.filter(room=room, user=request.user).exists():
+            return Response({'error': 'You must be in the room to activate packs'}, status=status.HTTP_403_FORBIDDEN)
+
+        room_pack = _get_room_pack(room, pack, today=today)
+        if not room_pack:
+            return Response({'error': 'This pack is not owned by the room'}, status=status.HTTP_403_FORBIDDEN)
+
+        if room_pack.completed_on:
+            return Response({'error': 'This pack is already completed for the room'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if room_pack.total_days <= 0:
+            return Response({'error': 'Pack has no tracks'}, status=status.HTTP_400_BAD_REQUEST)
+
+        active_room_pack = _get_active_room_pack(room, today=today)
+        if active_room_pack and active_room_pack.id != room_pack.id:
+            return Response(
+                {
+                    'error': (
+                        f'Another pack is already active in this room: '
+                        f'{active_room_pack.pack.name}'
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        if not room_pack.is_active:
+            room_pack.is_active = True
+            room_pack.activated_on = today
+            room_pack.completed_on = None
+            room_pack.save(update_fields=['is_active', 'activated_on', 'completed_on'])
+
+        pack_serializer = SongPackDetailSerializer(
+            pack,
+            context={
+                'request': request,
+                'room': room,
+                'active_game_date': today,
+            },
+        )
+        room_serializer = RoomSerializer(
+            room,
+            context={
+                'request': request,
+                'active_game_date': today,
+            },
+        )
+        return Response(
+            {
+                'pack': pack_serializer.data,
+                'room': room_serializer.data,
+                'message': 'Pack activated successfully',
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class MyPacksView(APIView):
@@ -586,8 +935,17 @@ class MyPacksView(APIView):
             return Response({'error': 'room_id is required'}, status=status.HTTP_400_BAD_REQUEST)
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
             return Response({'error': 'You must be in the room to view packs'}, status=status.HTTP_403_FORBIDDEN)
+        _sync_room_pack_states_for_room(room)
         packs = SongPack.objects.filter(room_purchases__room=room).distinct()
-        serializer = SongPackListSerializer(packs, many=True, context={'request': request, 'room': room})
+        serializer = SongPackListSerializer(
+            packs,
+            many=True,
+            context={
+                'request': request,
+                'room': room,
+                'active_game_date': _active_game_date(),
+            },
+        )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -608,8 +966,9 @@ class PackBundleSessionView(APIView):
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
             return Response({'error': 'You must be in the room to play this pack'}, status=status.HTTP_403_FORBIDDEN)
 
-        if not RoomPack.objects.filter(room=room, pack=pack).exists():
-            return Response({'error': 'This pack is not owned by the room'}, status=status.HTTP_403_FORBIDDEN)
+        _, error = _ensure_active_room_pack(room, pack, today=today)
+        if error:
+            return error
 
         daily_track = _get_daily_pack_track(room, pack, today)
         if not daily_track:
@@ -655,6 +1014,10 @@ class PackBundleSkipView(APIView):
 
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
             return Response({'error': 'You must be in the room to play this pack'}, status=status.HTTP_403_FORBIDDEN)
+
+        _, error = _ensure_active_room_pack(room, pack, today=today)
+        if error:
+            return error
 
         daily_track = _get_daily_pack_track(room, pack, today)
         session = PackBundleSession.objects.filter(
@@ -712,6 +1075,10 @@ class PackBundleGuessView(APIView):
 
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
             return Response({'error': 'You must be in the room to play this pack'}, status=status.HTTP_403_FORBIDDEN)
+
+        _, error = _ensure_active_room_pack(room, pack, today=today)
+        if error:
+            return error
 
         daily_track = _get_daily_pack_track(room, pack, today)
         session = PackBundleSession.objects.filter(
@@ -888,6 +1255,10 @@ class PackBundleRetryView(APIView):
                 status_code=status.HTTP_403_FORBIDDEN,
             )
 
+        _, error = _ensure_active_room_pack(room, pack, today=today)
+        if error:
+            return error
+
         serializer = DailyGameRetrySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         action = serializer.validated_data['action']
@@ -1049,8 +1420,9 @@ class PackBundleLeaderboardView(APIView):
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
             return Response({'error': 'You must be in the room to view leaderboard'}, status=status.HTTP_403_FORBIDDEN)
 
-        if not RoomPack.objects.filter(room=room, pack=pack).exists():
-            return Response({'error': 'This pack is not owned by the room'}, status=status.HTTP_403_FORBIDDEN)
+        _, error = _ensure_active_room_pack(room, pack, today=today)
+        if error:
+            return error
 
         daily_track = _get_daily_pack_track(room, pack, today)
         if not daily_track:
@@ -1117,8 +1489,9 @@ class PackBundleMessagesView(APIView):
                 'error': 'You must be in the room to view messages'
             }, status=status.HTTP_403_FORBIDDEN)
 
-        if not RoomPack.objects.filter(room=room, pack=pack).exists():
-            return Response({'error': 'This pack is not owned by the room'}, status=status.HTTP_403_FORBIDDEN)
+        _, error = _ensure_active_room_pack(room, pack, today=today)
+        if error:
+            return error
 
         daily_track = _get_daily_pack_track(room, pack, today)
         if not daily_track:
@@ -1151,8 +1524,9 @@ class PackBundleMessagesView(APIView):
                 'error': 'You must be in the room to post messages'
             }, status=status.HTTP_403_FORBIDDEN)
 
-        if not RoomPack.objects.filter(room=room, pack=pack).exists():
-            return Response({'error': 'This pack is not owned by the room'}, status=status.HTTP_403_FORBIDDEN)
+        _, error = _ensure_active_room_pack(room, pack, today=today)
+        if error:
+            return error
 
         daily_track = _get_daily_pack_track(room, pack, today)
         if not daily_track:
@@ -1162,16 +1536,35 @@ class PackBundleMessagesView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        message = PackBundleMessage.objects.create(
-            room=room,
-            pack=pack,
-            pack_daily_track=daily_track,
-            user=request.user,
-            message=serializer.validated_data['message']
-        )
+        client_message_id = serializer.validated_data.get('client_message_id')
+        message_text = serializer.validated_data['message']
+        if client_message_id:
+            message, created = _create_idempotent_message(
+                PackBundleMessage,
+                lookup={
+                    'room': room,
+                    'pack': pack,
+                    'pack_daily_track': daily_track,
+                    'user': request.user,
+                    'client_message_id': client_message_id,
+                },
+                defaults={'message': message_text},
+            )
+        else:
+            message = PackBundleMessage.objects.create(
+                room=room,
+                pack=pack,
+                pack_daily_track=daily_track,
+                user=request.user,
+                message=message_text,
+            )
+            created = True
 
         response_serializer = PackBundleMessageSerializer(message)
-        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+        return Response(
+            response_serializer.data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
 
 
 class TrackListView(APIView):
@@ -1221,6 +1614,9 @@ class RoomDailySongView(APIView):
     def get(self, request, room_id):
         room = get_object_or_404(Room, id=room_id)
         today = _active_game_date()
+        mode = _parse_daily_mode(request)
+        if mode is None:
+            return _invalid_daily_mode_response()
 
         # Check if user is in the room
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
@@ -1228,43 +1624,20 @@ class RoomDailySongView(APIView):
                 'error': 'You must be in the room to see the daily song'
             }, status=status.HTTP_403_FORBIDDEN)
 
-        # Check if today's song already exists
-        daily_song = DailySong.objects.filter(room=room, date=today).first()
-
-        if daily_song:
-            # Return existing song
-            serializer = TrackSerializer(daily_song.track)
-            return Response({
-                'track': serializer.data,
-                'date': today,
-                'message': 'Today\'s song'
-            }, status=status.HTTP_200_OK)
-
-        # No song for today - select a random one
-        # Get all tracks not used in this room yet
-        used_track_ids = DailySong.objects.filter(room=room).values_list('track_id', flat=True)
-        available_tracks = Track.objects.exclude(id__in=used_track_ids)
-
-        # If all tracks have been used, allow reusing tracks
-        if not available_tracks.exists():
-            available_tracks = Track.objects.all()
-
-        if not available_tracks.exists():
+        daily_song = _get_or_create_daily_song(room, today, mode)
+        if not daily_song:
             return Response({
                 'error': 'No tracks available. Please populate tracks using: python manage.py fetch_deezer_tracks'
             }, status=status.HTTP_404_NOT_FOUND)
 
-        # Select random track
-        track = random.choice(available_tracks)
-
-        # Create daily song entry
-        DailySong.objects.create(room=room, track=track, date=today)
-
-        serializer = TrackSerializer(track)
+        serializer = TrackSerializer(daily_song.track)
         return Response({
             'track': serializer.data,
+            'mode': daily_song.mode,
+            'genre_key': daily_song.genre_key,
+            'genre_name': daily_song.genre_name,
             'date': today,
-            'message': 'New song selected for today'
+            'message': 'Today\'s song'
         }, status=status.HTTP_200_OK)
 
 
@@ -1281,6 +1654,9 @@ class DailyGameView(APIView):
     def get(self, request, room_id):
         room = get_object_or_404(Room, id=room_id)
         today = _active_game_date()
+        mode = _parse_daily_mode(request)
+        if mode is None:
+            return _invalid_daily_mode_response()
 
         # Check if user is in the room
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
@@ -1288,35 +1664,11 @@ class DailyGameView(APIView):
                 'error': 'You must be in the room to play the game'
             }, status=status.HTTP_403_FORBIDDEN)
 
-        # Get or create today's song
-        daily_song = DailySong.objects.filter(room=room, date=today).first()
-
+        daily_song = _get_or_create_daily_song(room, today, mode)
         if not daily_song:
-            # Select random track for today
-            # Prefer tracks with deezer_id for fresh preview URLs
-            used_track_ids = DailySong.objects.filter(room=room).values_list('track_id', flat=True)
-
-            # First try to get tracks with deezer_id
-            available_tracks = Track.objects.filter(deezer_id__isnull=False).exclude(id__in=used_track_ids)
-
-            # If no unused tracks with deezer_id, use any track with deezer_id
-            if not available_tracks.exists():
-                available_tracks = Track.objects.filter(deezer_id__isnull=False)
-
-            # If still no tracks with deezer_id, fall back to any track
-            if not available_tracks.exists():
-                available_tracks = Track.objects.exclude(id__in=used_track_ids)
-
-            if not available_tracks.exists():
-                available_tracks = Track.objects.all()
-
-            if not available_tracks.exists():
-                return Response({
-                    'error': 'No tracks available. Please populate tracks using: python manage.py fetch_deezer_tracks'
-                }, status=status.HTTP_404_NOT_FOUND)
-
-            track = random.choice(available_tracks)
-            daily_song = DailySong.objects.create(room=room, track=track, date=today)
+            return Response({
+                'error': 'No tracks available. Please populate tracks using: python manage.py fetch_deezer_tracks'
+            }, status=status.HTTP_404_NOT_FOUND)
 
         # Get or create game session for this user
         game_session, created = DailyGameSession.objects.get_or_create(
@@ -1350,6 +1702,12 @@ class SkipSnippetView(APIView):
     def post(self, request, room_id):
         room = get_object_or_404(Room, id=room_id)
         today = _active_game_date()
+        mode = _parse_daily_mode(request)
+        if mode is None:
+            return _invalid_daily_mode_response()
+        mode = _parse_daily_mode(request)
+        if mode is None:
+            return _invalid_daily_mode_response()
 
         # Check if user is in the room
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
@@ -1358,7 +1716,7 @@ class SkipSnippetView(APIView):
             }, status=status.HTTP_403_FORBIDDEN)
 
         # Get today's song and user's session
-        daily_song = DailySong.objects.filter(room=room, date=today).first()
+        daily_song = _daily_song_filter(room, today, mode).first()
         if not daily_song:
             return Response({
                 'error': 'No song available for today'
@@ -1376,7 +1734,7 @@ class SkipSnippetView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if already completed
-        if game_session.completed_at:
+        if game_session.completed_at or game_session.correct_guess:
             return Response({
                 'error': 'Game already completed',
                 'current_snippet': game_session.current_snippet
@@ -1418,6 +1776,9 @@ class SubmitGuessView(APIView):
     def post(self, request, room_id):
         room = get_object_or_404(Room, id=room_id)
         today = _active_game_date()
+        mode = _parse_daily_mode(request)
+        if mode is None:
+            return _invalid_daily_mode_response()
 
         # Check if user is in the room
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
@@ -1433,7 +1794,7 @@ class SubmitGuessView(APIView):
         guessed_track_id = serializer.validated_data['track_id']
 
         # Get today's song and user's session
-        daily_song = DailySong.objects.filter(room=room, date=today).first()
+        daily_song = _daily_song_filter(room, today, mode).first()
         if not daily_song:
             return Response({
                 'error': 'No song available for today'
@@ -1451,7 +1812,7 @@ class SubmitGuessView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if already completed
-        if game_session.completed_at:
+        if game_session.completed_at or game_session.correct_guess:
             return Response({
                 'error': 'Game already completed',
                 'correct_answer': {
@@ -1712,6 +2073,9 @@ class DailyGameRetryView(APIView):
     def post(self, request, room_id):
         room = get_object_or_404(Room, id=room_id)
         today = _active_game_date()
+        mode = _parse_daily_mode(request)
+        if mode is None:
+            return _invalid_daily_mode_response()
 
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
             return error_response(
@@ -1724,7 +2088,7 @@ class DailyGameRetryView(APIView):
         serializer.is_valid(raise_exception=True)
         action = serializer.validated_data['action']
 
-        daily_song = DailySong.objects.filter(room=room, date=today).first()
+        daily_song = _daily_song_filter(room, today, mode).first()
         if not daily_song:
             return error_response(
                 code=ErrorCode.NO_SONG_AVAILABLE_TODAY,
@@ -1744,7 +2108,7 @@ class DailyGameRetryView(APIView):
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
 
-        if game_session.completed_at:
+        if game_session.completed_at or game_session.correct_guess:
             return error_response(
                 code=ErrorCode.GAME_ALREADY_COMPLETED,
                 message='Game already completed',
@@ -1883,6 +2247,9 @@ class LeaderboardView(APIView):
     def get(self, request, room_id):
         room = get_object_or_404(Room, id=room_id)
         today = _active_game_date()
+        mode = _parse_daily_mode(request)
+        if mode is None:
+            return _invalid_daily_mode_response()
 
         # Check if user is in the room
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
@@ -1891,7 +2258,7 @@ class LeaderboardView(APIView):
             }, status=status.HTTP_403_FORBIDDEN)
 
         # Get today's song
-        daily_song = DailySong.objects.filter(room=room, date=today).first()
+        daily_song = _daily_song_filter(room, today, mode).first()
         if not daily_song:
             return Response({
                 'error': 'No song available for today'
@@ -1925,6 +2292,9 @@ class LeaderboardView(APIView):
 
         return Response({
             'date': today,
+            'mode': mode,
+            'genre_key': daily_song.genre_key,
+            'genre_name': daily_song.genre_name,
             'leaderboard': leaderboard
         }, status=status.HTTP_200_OK)
 
@@ -1963,9 +2333,14 @@ class RoomMessagesView(APIView):
         # Limit max to 100 messages per request
         limit = min(limit, 100)
 
-        # Get messages for today only (daily-scoped chat)
-        today = _active_game_date()
-        messages = RoomMessage.objects.filter(room=room, created_at__date=today).select_related('user')[offset:offset + limit]
+        # Get messages for the active daily-chat window.
+        active_date = _active_game_date()
+        window_start, window_end = _active_game_window(active_date)
+        messages = RoomMessage.objects.filter(
+            room=room,
+            created_at__gte=window_start,
+            created_at__lt=window_end,
+        ).select_related('user')[offset:offset + limit]
 
         serializer = RoomMessageSerializer(messages, many=True)
         return Response({
@@ -1988,15 +2363,31 @@ class RoomMessagesView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        # Create message
-        message = RoomMessage.objects.create(
-            room=room,
-            user=request.user,
-            message=serializer.validated_data['message']
-        )
+        client_message_id = serializer.validated_data.get('client_message_id')
+        message_text = serializer.validated_data['message']
+        if client_message_id:
+            message, created = _create_idempotent_message(
+                RoomMessage,
+                lookup={
+                    'room': room,
+                    'user': request.user,
+                    'client_message_id': client_message_id,
+                },
+                defaults={'message': message_text},
+            )
+        else:
+            message = RoomMessage.objects.create(
+                room=room,
+                user=request.user,
+                message=message_text,
+            )
+            created = True
 
         response_serializer = RoomMessageSerializer(message)
-        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+        return Response(
+            response_serializer.data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
 
 
 HINT_COSTS = {
@@ -2024,6 +2415,9 @@ class DailyGameHintView(APIView):
     def post(self, request, room_id):
         room = get_object_or_404(Room, id=room_id)
         today = _active_game_date()
+        mode = _parse_daily_mode(request)
+        if mode is None:
+            return _invalid_daily_mode_response()
 
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
             return Response({'error': 'You must be in the room to use hints'}, status=status.HTTP_403_FORBIDDEN)
@@ -2035,7 +2429,7 @@ class DailyGameHintView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        daily_song = DailySong.objects.filter(room=room, date=today).select_related('track').first()
+        daily_song = _daily_song_filter(room, today, mode).select_related('track').first()
         if not daily_song:
             return Response({'error': 'No song available for today'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -2045,7 +2439,7 @@ class DailyGameHintView(APIView):
         if not game_session:
             return Response({'error': 'No active game session.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if game_session.completed_at:
+        if game_session.completed_at or game_session.correct_guess:
             return Response({'error': 'Game already completed.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if hint already purchased
@@ -2113,6 +2507,10 @@ class PackBundleHintView(APIView):
 
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
             return Response({'error': 'You must be in the room to use hints'}, status=status.HTTP_403_FORBIDDEN)
+
+        _, error = _ensure_active_room_pack(room, pack, today=today)
+        if error:
+            return error
 
         daily_track = _get_daily_pack_track(room, pack, today)
         if not daily_track:
@@ -2254,12 +2652,16 @@ class RoomHistoryListView(APIView):
         room = get_object_or_404(Room, id=room_id)
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
             return Response({'error': 'You must be in the room to view history'}, status=status.HTTP_403_FORBIDDEN)
+        mode = _parse_daily_mode(request)
+        if mode is None:
+            return _invalid_daily_mode_response()
 
         limit = min(int(request.query_params.get('limit', 30)), 100)
         offset = int(request.query_params.get('offset', 0))
 
         daily_songs = DailySong.objects.filter(
             room=room,
+            mode=mode,
         ).exclude(
             date=_active_game_date(),
         ).select_related('track').order_by('-date')
@@ -2281,6 +2683,9 @@ class RoomHistoryListView(APIView):
             session = session_map.get(ds.id)
             results.append({
                 'date': ds.date.isoformat(),
+                'mode': ds.mode,
+                'genre_key': ds.genre_key,
+                'genre_name': ds.genre_name,
                 'track': {
                     'id': str(ds.track.id),
                     'title': ds.track.title,
@@ -2297,6 +2702,7 @@ class RoomHistoryListView(APIView):
 
         return Response({
             'results': results,
+            'mode': mode,
             'limit': limit,
             'offset': offset,
             'total': total,
@@ -2318,6 +2724,9 @@ class RoomHistoryDetailView(APIView):
             parsed_date = date_type.fromisoformat(date)
         except ValueError:
             return Response({'error': 'Invalid date format. Use YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
+        mode = _parse_daily_mode(request)
+        if mode is None:
+            return _invalid_daily_mode_response()
 
         room = get_object_or_404(Room, id=room_id)
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
@@ -2326,7 +2735,11 @@ class RoomHistoryDetailView(APIView):
         if parsed_date >= _active_game_date():
             return Response({'error': 'This date is not yet in history.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        daily_song = DailySong.objects.filter(room=room, date=parsed_date).select_related('track').first()
+        daily_song = DailySong.objects.filter(
+            room=room,
+            date=parsed_date,
+            mode=mode,
+        ).select_related('track').first()
         if not daily_song:
             return Response({'error': 'No song found for this date.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -2351,13 +2764,18 @@ class RoomHistoryDetailView(APIView):
             for s in leaderboard_sessions
         ]
 
+        window_start, window_end = _active_game_window(parsed_date)
         messages = RoomMessage.objects.filter(
             room=room,
-            created_at__date=parsed_date,
+            created_at__gte=window_start,
+            created_at__lt=window_end,
         ).select_related('user').order_by('created_at')
 
         return Response({
             'date': parsed_date.isoformat(),
+            'mode': daily_song.mode,
+            'genre_key': daily_song.genre_key,
+            'genre_name': daily_song.genre_name,
             'track': {
                 'id': str(daily_song.track.id),
                 'title': daily_song.track.title,

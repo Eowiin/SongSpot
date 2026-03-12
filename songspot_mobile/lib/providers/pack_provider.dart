@@ -17,6 +17,30 @@ class PackProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
+  SongPack _syncInactivePack(SongPack pack) {
+    return pack.copyWith(
+      isActive: false,
+      canActivate: false,
+      clearCurrentDay: true,
+      clearRemainingDays: true,
+    );
+  }
+
+  List<SongPack> _replacePackInList(
+    List<SongPack> source,
+    SongPack updatedPack,
+  ) {
+    return source.map((pack) {
+      if (pack.id == updatedPack.id) {
+        return updatedPack;
+      }
+      if (pack.isActive) {
+        return _syncInactivePack(pack);
+      }
+      return pack;
+    }).toList();
+  }
+
   Future<void> loadPacks(String roomId) async {
     try {
       _isLoading = true;
@@ -114,6 +138,36 @@ class PackProvider with ChangeNotifier {
             .where((pack) => pack.id != updatedPack.id)
             .toList();
       }
+      _currentPack = updatedPack;
+      return response;
+    } catch (e) {
+      _errorMessage = e.toString();
+      return null;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<Map<String, dynamic>?> activatePack({
+    required String roomId,
+    required String packId,
+  }) async {
+    try {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+
+      final response = await _apiService.activatePack(
+        roomId: roomId,
+        packId: packId,
+      );
+      final packJson = response['pack'] as Map<String, dynamic>;
+      final updatedPack = SongPack.fromJson(packJson);
+
+      _packs = _replacePackInList(_packs, updatedPack);
+      _ownedPacks = _replacePackInList(_ownedPacks, updatedPack);
+
       _currentPack = updatedPack;
       return response;
     } catch (e) {

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../config/admob_config.dart';
 import '../../config/app_theme.dart';
 import '../../l10n/app_localizations.dart';
+import '../../models/message.dart';
 import '../../models/track.dart';
 import '../../models/pack_bundle.dart';
 import '../../providers/auth_provider.dart';
@@ -533,18 +534,30 @@ class _PackBundleContentState extends State<PackBundleContent>
   Future<void> _handleSendMessage() async {
     final message = _messageController.text.trim();
     if (message.isEmpty) return;
+    final currentUser = context.read<AuthProvider>().user;
+    if (currentUser == null) return;
 
-    final provider = context.read<PackBundleProvider>();
-    final success = await provider.sendMessage(
+    _messageController.clear();
+    _scrollToLatestChatMessage();
+    await context.read<PackBundleProvider>().sendMessage(
       roomId: widget.roomId,
       packId: widget.packId,
       message: message,
+      currentUser: currentUser,
     );
+  }
 
-    if (success && mounted) {
-      _messageController.clear();
-      _scrollToLatestChatMessage();
-    }
+  Future<void> _retryFailedMessage(Message message) async {
+    final currentUser = context.read<AuthProvider>().user;
+    if (currentUser == null) return;
+
+    _scrollToLatestChatMessage();
+    await context.read<PackBundleProvider>().retryMessage(
+      roomId: widget.roomId,
+      packId: widget.packId,
+      message: message,
+      currentUser: currentUser,
+    );
   }
 
   Future<void> _toggleResultPreview(Track track) async {
@@ -1359,6 +1372,7 @@ class _PackBundleContentState extends State<PackBundleContent>
           messages: provider.messages,
           currentUserId: context.watch<AuthProvider>().user?.id,
           maxMessages: 10,
+          onRetryFailedMessage: _retryFailedMessage,
         ),
         const SizedBox(height: 24),
       ],

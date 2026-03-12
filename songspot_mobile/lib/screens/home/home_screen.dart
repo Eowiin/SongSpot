@@ -8,7 +8,6 @@ import '../../l10n/app_localizations.dart';
 import '../../models/room.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/room_provider.dart';
-import '../../widgets/gradient_button.dart';
 import '../game/game_screen.dart';
 import '../settings/settings_screen.dart';
 
@@ -318,92 +317,57 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Title
                       const Icon(
                         Icons.music_note,
-                        size: 60,
+                        size: 40,
                         color: AppTheme.primaryColor,
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
                       Text(
                         l10n.appTitle,
                         style: Theme.of(context).textTheme.displayMedium,
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 40),
-
-                      // Create Room Button
-                      GradientButton(
-                        text: l10n.createRoom,
-                        onPressed: _handleCreateRoom,
-                        isLoading: context.watch<RoomProvider>().isLoading,
-                      ),
                       const SizedBox(height: 24),
 
-                      // Join Room Section
-                      Text(
-                        l10n.joinRoom,
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: 12),
                       Row(
                         children: [
                           Expanded(
-                            child: TextField(
-                              controller: _roomCodeController,
-                              decoration: InputDecoration(
-                                hintText: l10n.enterRoomCode,
-                                filled: true,
-                                fillColor: AppTheme.surfaceColor,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(
-                                    AppTheme.borderRadius,
-                                  ),
-                                  borderSide: BorderSide.none,
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                  vertical: 16,
-                                ),
-                              ),
-                              textCapitalization: TextCapitalization.characters,
-                              inputFormatters: [UpperCaseTextFormatter()],
+                            child: Text(
+                              l10n.myRooms,
+                              style: Theme.of(context).textTheme.headlineMedium,
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Container(
-                            height: 56,
-                            width: 56,
-                            decoration: BoxDecoration(
-                              gradient: AppTheme.primaryGradient,
-                              borderRadius: BorderRadius.circular(
-                                AppTheme.borderRadius,
-                              ),
-                            ),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: _handleJoinRoom,
+                          Tooltip(
+                            message: l10n.createRoom,
+                            child: Container(
+                              height: 40,
+                              width: 40,
+                              decoration: BoxDecoration(
+                                gradient: AppTheme.primaryGradient,
                                 borderRadius: BorderRadius.circular(
                                   AppTheme.borderRadius,
                                 ),
-                                child: const Icon(
-                                  Icons.arrow_forward,
-                                  color: Colors.white,
+                              ),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: _handleCreateRoom,
+                                  borderRadius: BorderRadius.circular(
+                                    AppTheme.borderRadius,
+                                  ),
+                                  child: const Icon(
+                                    Icons.add,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 40),
-
-                      // My Rooms Section
-                      Text(
-                        l10n.myRooms,
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
                       Consumer<RoomProvider>(
                         builder: (context, roomProvider, _) {
                           if (roomProvider.isLoading) {
@@ -497,7 +461,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                                 confirmDismiss: (_) => _handleRoomDismiss(room),
                                 child: Container(
-                                  margin: const EdgeInsets.only(bottom: 12),
+                                  margin: const EdgeInsets.only(bottom: 10),
                                   decoration: BoxDecoration(
                                     gradient: AppTheme.cardGradient,
                                     borderRadius: BorderRadius.circular(
@@ -514,7 +478,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                                 GameScreen(roomId: room.id),
                                           ),
                                         );
-                                        // Refresh rooms when returning from GameScreen
                                         if (context.mounted) {
                                           context
                                               .read<RoomProvider>()
@@ -525,11 +488,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                         AppTheme.cardBorderRadius,
                                       ),
                                       child: Padding(
-                                        padding: const EdgeInsets.all(16.0),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 14,
+                                          vertical: 12,
+                                        ),
                                         child: Row(
                                           children: [
                                             Container(
-                                              padding: const EdgeInsets.all(12),
+                                              width: 40,
+                                              height: 40,
                                               decoration: BoxDecoration(
                                                 color: AppTheme.primaryColor
                                                     .withValues(alpha: 0.2),
@@ -539,9 +506,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                               child: const Icon(
                                                 Icons.people,
                                                 color: AppTheme.primaryColor,
+                                                size: 20,
                                               ),
                                             ),
-                                            const SizedBox(width: 16),
+                                            const SizedBox(width: 12),
                                             Expanded(
                                               child: Column(
                                                 crossAxisAlignment:
@@ -551,13 +519,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                                     room.displayName,
                                                     style: Theme.of(
                                                       context,
-                                                    ).textTheme.titleLarge,
+                                                    ).textTheme.titleMedium,
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
                                                   ),
+                                                  const SizedBox(height: 2),
                                                   Text(
                                                     '${l10n.members(room.userCount)} • ${room.roomCode}',
                                                     style: Theme.of(
                                                       context,
-                                                    ).textTheme.bodyMedium,
+                                                    ).textTheme.bodySmall,
                                                   ),
                                                 ],
                                               ),
@@ -577,6 +549,72 @@ class _HomeScreenState extends State<HomeScreen> {
                           );
                         },
                       ),
+                      const SizedBox(height: 32),
+
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          gradient: AppTheme.cardGradient,
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.cardBorderRadius,
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _roomCodeController,
+                                decoration: InputDecoration(
+                                  hintText: l10n.enterRoomCode,
+                                  filled: true,
+                                  fillColor: AppTheme.surfaceColor,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(
+                                      AppTheme.borderRadius,
+                                    ),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 12,
+                                  ),
+                                  isDense: true,
+                                ),
+                                textCapitalization:
+                                    TextCapitalization.characters,
+                                inputFormatters: [UpperCaseTextFormatter()],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              height: 46,
+                              width: 46,
+                              decoration: BoxDecoration(
+                                gradient: AppTheme.primaryGradient,
+                                borderRadius: BorderRadius.circular(
+                                  AppTheme.borderRadius,
+                                ),
+                              ),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: _handleJoinRoom,
+                                  borderRadius: BorderRadius.circular(
+                                    AppTheme.borderRadius,
+                                  ),
+                                  child: const Icon(
+                                    Icons.arrow_forward,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 32),
                     ],
                   ),
                 ),

@@ -3,10 +3,9 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from game.models import Room, RoomPack, PackTrack
-import random
 
-from game.models import DailySong, Track
-from game.views import _get_daily_pack_track
+from game.models import DailySong, DAILY_MODE_MIX, DAILY_MODE_GENRE
+from game.views import _get_daily_pack_track, _get_or_create_daily_song
 
 
 class Command(BaseCommand):
@@ -25,16 +24,10 @@ class Command(BaseCommand):
 
         # Precreate daily songs for all rooms
         for room in Room.objects.all():
-            if DailySong.objects.filter(room=room, date=today).exists():
-                continue
-            used_track_ids = DailySong.objects.filter(room=room).values_list('track_id', flat=True)
-            available_tracks = Track.objects.exclude(id__in=used_track_ids)
-            if not available_tracks.exists():
-                available_tracks = Track.objects.all()
-            if not available_tracks.exists():
-                continue
-            track = random.choice(list(available_tracks))
-            DailySong.objects.create(room=room, track=track, date=today)
+            for mode in (DAILY_MODE_MIX, DAILY_MODE_GENRE):
+                if DailySong.objects.filter(room=room, date=today, mode=mode).exists():
+                    continue
+                _get_or_create_daily_song(room, today, mode)
 
         # Precreate daily pack tracks and optionally generate stems
         for room_pack in RoomPack.objects.select_related('room', 'pack'):

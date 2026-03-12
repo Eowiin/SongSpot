@@ -7,6 +7,7 @@ from django.dispatch import receiver
 
 from authentication.tasks import notify_daily_song_available_task, notify_room_message_task
 from .models import DailySong, RoomMessage
+from .models import DAILY_MODE_MIX
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ def _broadcast_room_message(instance: RoomMessage) -> None:
                 'type': 'chat_message',
                 'id': str(instance.id),
                 'message': instance.message,
+                'client_message_id': instance.client_message_id,
                 'user': {
                     'id': str(instance.user_id),
                     'username': instance.user.username,
@@ -48,7 +50,7 @@ def _broadcast_room_message(instance: RoomMessage) -> None:
 
 @receiver(post_save, sender=DailySong)
 def on_daily_song_created(sender, instance, created, **kwargs):
-    if created:
+    if created and instance.mode == DAILY_MODE_MIX:
         _dispatch_or_fallback(notify_daily_song_available_task, str(instance.id))
 
 

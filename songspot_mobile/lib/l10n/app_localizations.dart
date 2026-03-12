@@ -848,6 +848,150 @@ abstract class AppLocalizations {
   /// **'Coin Shop'**
   String get coinShopTitle;
 
+  /// Pack list screen title
+  ///
+  /// In en, this message translates to:
+  /// **'Song Packs'**
+  String get packListTitle;
+
+  /// Pack list heading
+  ///
+  /// In en, this message translates to:
+  /// **'Browse packs'**
+  String get packBrowseTitle;
+
+  /// Pack category filter for all packs
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get packFilterAll;
+
+  /// Pack list coin helper text
+  ///
+  /// In en, this message translates to:
+  /// **'Need more coins?'**
+  String get packNeedMoreCoins;
+
+  /// Pack list CTA to open coin shop
+  ///
+  /// In en, this message translates to:
+  /// **'Get Coins'**
+  String get packGetCoins;
+
+  /// Pack price label for free packs
+  ///
+  /// In en, this message translates to:
+  /// **'Free'**
+  String get packPriceFree;
+
+  /// Pack price label in coins
+  ///
+  /// In en, this message translates to:
+  /// **'{coins} coins'**
+  String packCoinsPrice(num coins);
+
+  /// Current active day progress for a pack
+  ///
+  /// In en, this message translates to:
+  /// **'Day {day} of {totalDays}'**
+  String packProgressDay(num day, num totalDays);
+
+  /// Pack state text when active
+  ///
+  /// In en, this message translates to:
+  /// **'In progress'**
+  String get packStateInProgress;
+
+  /// Pack state text when completed
+  ///
+  /// In en, this message translates to:
+  /// **'Finished in this room'**
+  String get packStateFinishedInRoom;
+
+  /// Pack state text when available to activate
+  ///
+  /// In en, this message translates to:
+  /// **'Ready now'**
+  String get packStateReadyNow;
+
+  /// Pack state text when blocked by another active pack
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable now'**
+  String get packStateAfterActivePack;
+
+  /// Pack status tag when active
+  ///
+  /// In en, this message translates to:
+  /// **'In Progress'**
+  String get packTagInProgress;
+
+  /// Pack status tag when completed
+  ///
+  /// In en, this message translates to:
+  /// **'Finished'**
+  String get packTagFinished;
+
+  /// Pack status tag when can activate
+  ///
+  /// In en, this message translates to:
+  /// **'Ready Now'**
+  String get packTagReadyNow;
+
+  /// Pack status tag when blocked by another active pack
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable'**
+  String get packTagAfterActivePack;
+
+  /// Primary pack action for free unowned packs
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock'**
+  String get packActionUnlock;
+
+  /// Primary pack action for paid unowned packs
+  ///
+  /// In en, this message translates to:
+  /// **'Buy'**
+  String get packActionBuy;
+
+  /// Disabled pack action label while pack is active
+  ///
+  /// In en, this message translates to:
+  /// **'In Progress'**
+  String get packActionInProgress;
+
+  /// Disabled pack action label when pack is completed
+  ///
+  /// In en, this message translates to:
+  /// **'Finished'**
+  String get packActionFinished;
+
+  /// Primary pack action to activate an owned pack
+  ///
+  /// In en, this message translates to:
+  /// **'Activate'**
+  String get packActionActivate;
+
+  /// Disabled pack action label when another pack is active
+  ///
+  /// In en, this message translates to:
+  /// **'Later'**
+  String get packActionLater;
+
+  /// Pack activation success message
+  ///
+  /// In en, this message translates to:
+  /// **'Pack activated successfully'**
+  String get packActivatedSuccessfully;
+
+  /// Pack purchase success message
+  ///
+  /// In en, this message translates to:
+  /// **'Pack unlocked. Activate it when you are ready.'**
+  String get packUnlockedActivateWhenReady;
+
   /// Shown when rewarded ad cannot be displayed
   ///
   /// In en, this message translates to:

@@ -1,9 +1,12 @@
 import uuid
 import random
 import string
+from datetime import timedelta
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.conf import settings
+from django.db.models import Q
+from django.utils import timezone
 
 
 class Track(models.Model):
@@ -91,6 +94,13 @@ CATEGORY_CHOICES = [
     ('afrobeats', 'Afrobeats'),
     ('jpop', 'J-pop'),
     ('bollywood', 'Bollywood'),
+]
+
+DAILY_MODE_MIX = 'mix'
+DAILY_MODE_GENRE = 'genre'
+DAILY_MODE_CHOICES = [
+    (DAILY_MODE_MIX, 'Daily Mix'),
+    (DAILY_MODE_GENRE, 'Daily Genre'),
 ]
 
 
@@ -276,6 +286,9 @@ class RoomPack(models.Model):
     )
     purchased_at = models.DateTimeField(auto_now_add=True)
     coins_spent = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=False)
+    activated_on = models.DateField(null=True, blank=True)
+    completed_on = models.DateField(null=True, blank=True)
 
     class Meta:
         db_table = 'room_packs'
@@ -284,15 +297,63 @@ class RoomPack(models.Model):
         indexes = [
             models.Index(fields=['room', 'pack']),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['room'],
+                condition=Q(is_active=True),
+                name='unique_active_room_pack_per_room',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.room.room_code} owns {self.pack.name}"
+
+    @property
+    def total_days(self):
+        return self.pack.pack_tracks.count()
+
+    def final_active_date(self):
+        if not self.activated_on:
+            return None
+        total_days = self.total_days
+        if total_days <= 0:
+            return self.activated_on
+        return self.activated_on + timedelta(days=total_days - 1)
+
+    def current_day(self, today=None):
+        if not self.activated_on:
+            return None
+        today = today or timezone.now().date()
+        if today < self.activated_on:
+            return 1
+        final_date = self.final_active_date()
+        if final_date and today > final_date:
+            return self.total_days
+        return (today - self.activated_on).days + 1
+
+    def remaining_days(self, today=None):
+        if not self.activated_on:
+            return None
+        today = today or timezone.now().date()
+        final_date = self.final_active_date()
+        if not final_date:
+            return 0
+        return max((final_date - today).days, 0)
+
+    def is_complete_for_date(self, today=None):
+        if not self.activated_on:
+            return False
+        today = today or timezone.now().date()
+        final_date = self.final_active_date()
+        if not final_date:
+            return True
+        return today > final_date
 
 
 class DailySong(models.Model):
     """
     Tracks which song is selected for each room each day.
-    One song per room per day.
+    One song per room per day and daily mode.
     """
     room = models.ForeignKey(
         Room,
@@ -304,20 +365,39 @@ class DailySong(models.Model):
         on_delete=models.CASCADE,
         related_name='daily_selections'
     )
+    mode = models.CharField(
+        max_length=10,
+        choices=DAILY_MODE_CHOICES,
+        default=DAILY_MODE_MIX,
+        help_text='Daily challenge mode for this selection',
+    )
+    genre_key = models.CharField(
+        max_length=20,
+        choices=CATEGORY_CHOICES,
+        blank=True,
+        null=True,
+        help_text='Category key for genre dailies',
+    )
+    genre_name = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text='Display name for genre dailies',
+    )
     date = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = 'daily_songs'
-        unique_together = [['room', 'date']]
+        unique_together = [['room', 'date', 'mode']]
         ordering = ['-date']
         indexes = [
-            models.Index(fields=['room', 'date']),
+            models.Index(fields=['room', 'date', 'mode']),
             models.Index(fields=['date']),
         ]
 
     def __str__(self):
-        return f"{self.room.room_code} - {self.track.title} on {self.date}"
+        return f"{self.room.room_code} - {self.mode} - {self.track.title} on {self.date}"
 
 
 class PackDailyTrack(models.Model):
@@ -573,6 +653,7 @@ class RoomMessage(models.Model):
         related_name='messages'
     )
     message = models.TextField(max_length=500)
+    client_message_id = models.CharField(max_length=64, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -580,6 +661,13 @@ class RoomMessage(models.Model):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['room', '-created_at']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['room', 'user', 'client_message_id'],
+                condition=Q(client_message_id__isnull=False),
+                name='room_message_client_id_unique',
+            ),
         ]
 
     def __str__(self):
@@ -612,6 +700,7 @@ class PackBundleMessage(models.Model):
         related_name='pack_bundle_messages'
     )
     message = models.TextField(max_length=500)
+    client_message_id = models.CharField(max_length=64, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -620,6 +709,13 @@ class PackBundleMessage(models.Model):
         indexes = [
             models.Index(fields=['pack_daily_track', 'created_at']),
             models.Index(fields=['room', 'pack']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['room', 'pack', 'pack_daily_track', 'user', 'client_message_id'],
+                condition=Q(client_message_id__isnull=False),
+                name='pack_bundle_message_client_id_unique',
+            ),
         ]
 
     def __str__(self):

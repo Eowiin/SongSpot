@@ -5,12 +5,18 @@ import 'track.dart';
 class DailySong extends Equatable {
   final String id;
   final Track track;
+  final String mode;
+  final String? genreKey;
+  final String? genreName;
   final String date;
   final DateTime createdAt;
 
   const DailySong({
     required this.id,
     required this.track,
+    this.mode = 'mix',
+    this.genreKey,
+    this.genreName,
     required this.date,
     required this.createdAt,
   });
@@ -19,13 +25,24 @@ class DailySong extends Equatable {
     return DailySong(
       id: json['id'].toString(),
       track: Track.fromJson(json['track'] as Map<String, dynamic>),
+      mode: json['mode'] as String? ?? 'mix',
+      genreKey: json['genre_key'] as String?,
+      genreName: json['genre_name'] as String?,
       date: json['date'] as String,
       createdAt: DateTime.parse(json['created_at'] as String),
     );
   }
 
   @override
-  List<Object?> get props => [id, track, date, createdAt];
+  List<Object?> get props => [
+    id,
+    track,
+    mode,
+    genreKey,
+    genreName,
+    date,
+    createdAt,
+  ];
 }
 
 class GameSession extends Equatable {

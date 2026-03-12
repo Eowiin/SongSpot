@@ -54,13 +54,23 @@ class PackTrackSerializer(serializers.ModelSerializer):
 class SongPackListSerializer(serializers.ModelSerializer):
     track_count = serializers.SerializerMethodField()
     is_owned = serializers.SerializerMethodField()
+    is_active = serializers.SerializerMethodField()
+    is_completed = serializers.SerializerMethodField()
+    can_activate = serializers.SerializerMethodField()
+    activated_on = serializers.SerializerMethodField()
+    completed_on = serializers.SerializerMethodField()
+    total_days = serializers.SerializerMethodField()
+    current_day = serializers.SerializerMethodField()
+    remaining_days = serializers.SerializerMethodField()
 
     class Meta:
         model = SongPack
         fields = (
             'id', 'name', 'description', 'icon_url', 'track_count',
             'category', 'price_coins', 'is_free', 'auto_unlock',
-            'is_owned', 'created_at',
+            'is_owned', 'is_active', 'is_completed', 'can_activate',
+            'activated_on', 'completed_on', 'total_days', 'current_day',
+            'remaining_days', 'created_at',
         )
         read_only_fields = ('id', 'created_at')
 
@@ -73,18 +83,82 @@ class SongPackListSerializer(serializers.ModelSerializer):
         if not request or not request.user.is_authenticated or not room:
             return False
         return RoomPack.objects.filter(room=room, pack=obj).exists()
+
+    def _room_pack(self, obj):
+        room = self.context.get('room')
+        if not room:
+            return None
+        return RoomPack.objects.filter(room=room, pack=obj).first()
+
+    def _today(self):
+        return self.context.get('active_game_date')
+
+    def get_is_active(self, obj):
+        room_pack = self._room_pack(obj)
+        return bool(room_pack and room_pack.is_active)
+
+    def get_is_completed(self, obj):
+        room_pack = self._room_pack(obj)
+        return bool(room_pack and room_pack.completed_on)
+
+    def get_can_activate(self, obj):
+        room = self.context.get('room')
+        room_pack = self._room_pack(obj)
+        if not room or not room_pack or room_pack.completed_on:
+            return False
+        if room_pack.is_active:
+            return False
+        if obj.pack_tracks.count() == 0:
+            return False
+        return not RoomPack.objects.filter(room=room, is_active=True).exclude(id=room_pack.id).exists()
+
+    def get_activated_on(self, obj):
+        room_pack = self._room_pack(obj)
+        return room_pack.activated_on if room_pack else None
+
+    def get_completed_on(self, obj):
+        room_pack = self._room_pack(obj)
+        return room_pack.completed_on if room_pack else None
+
+    def get_total_days(self, obj):
+        room_pack = self._room_pack(obj)
+        if not room_pack:
+            return obj.pack_tracks.count()
+        return room_pack.total_days
+
+    def get_current_day(self, obj):
+        room_pack = self._room_pack(obj)
+        if not room_pack or not room_pack.activated_on:
+            return None
+        return room_pack.current_day(self._today())
+
+    def get_remaining_days(self, obj):
+        room_pack = self._room_pack(obj)
+        if not room_pack or not room_pack.activated_on:
+            return None
+        return room_pack.remaining_days(self._today())
 
 
 class SongPackDetailSerializer(serializers.ModelSerializer):
     track_count = serializers.SerializerMethodField()
     is_owned = serializers.SerializerMethodField()
+    is_active = serializers.SerializerMethodField()
+    is_completed = serializers.SerializerMethodField()
+    can_activate = serializers.SerializerMethodField()
+    activated_on = serializers.SerializerMethodField()
+    completed_on = serializers.SerializerMethodField()
+    total_days = serializers.SerializerMethodField()
+    current_day = serializers.SerializerMethodField()
+    remaining_days = serializers.SerializerMethodField()
 
     class Meta:
         model = SongPack
         fields = (
             'id', 'name', 'description', 'icon_url', 'track_count',
             'category', 'price_coins', 'is_free', 'auto_unlock',
-            'is_owned', 'created_at',
+            'is_owned', 'is_active', 'is_completed', 'can_activate',
+            'activated_on', 'completed_on', 'total_days', 'current_day',
+            'remaining_days', 'created_at',
         )
         read_only_fields = ('id', 'created_at')
 
@@ -97,6 +171,60 @@ class SongPackDetailSerializer(serializers.ModelSerializer):
         if not request or not request.user.is_authenticated or not room:
             return False
         return RoomPack.objects.filter(room=room, pack=obj).exists()
+
+    def _room_pack(self, obj):
+        room = self.context.get('room')
+        if not room:
+            return None
+        return RoomPack.objects.filter(room=room, pack=obj).first()
+
+    def _today(self):
+        return self.context.get('active_game_date')
+
+    def get_is_active(self, obj):
+        room_pack = self._room_pack(obj)
+        return bool(room_pack and room_pack.is_active)
+
+    def get_is_completed(self, obj):
+        room_pack = self._room_pack(obj)
+        return bool(room_pack and room_pack.completed_on)
+
+    def get_can_activate(self, obj):
+        room = self.context.get('room')
+        room_pack = self._room_pack(obj)
+        if not room or not room_pack or room_pack.completed_on:
+            return False
+        if room_pack.is_active:
+            return False
+        if obj.pack_tracks.count() == 0:
+            return False
+        return not RoomPack.objects.filter(room=room, is_active=True).exclude(id=room_pack.id).exists()
+
+    def get_activated_on(self, obj):
+        room_pack = self._room_pack(obj)
+        return room_pack.activated_on if room_pack else None
+
+    def get_completed_on(self, obj):
+        room_pack = self._room_pack(obj)
+        return room_pack.completed_on if room_pack else None
+
+    def get_total_days(self, obj):
+        room_pack = self._room_pack(obj)
+        if not room_pack:
+            return obj.pack_tracks.count()
+        return room_pack.total_days
+
+    def get_current_day(self, obj):
+        room_pack = self._room_pack(obj)
+        if not room_pack or not room_pack.activated_on:
+            return None
+        return room_pack.current_day(self._today())
+
+    def get_remaining_days(self, obj):
+        room_pack = self._room_pack(obj)
+        if not room_pack or not room_pack.activated_on:
+            return None
+        return room_pack.remaining_days(self._today())
 
 
 class UserBasicSerializer(serializers.ModelSerializer):
@@ -119,14 +247,30 @@ class RoomSerializer(serializers.ModelSerializer):
     host_user = UserBasicSerializer(read_only=True)
     users = RoomUserSerializer(source='room_users', many=True, read_only=True)
     user_count = serializers.SerializerMethodField()
+    active_pack = serializers.SerializerMethodField()
 
     class Meta:
         model = Room
-        fields = ('id', 'room_code', 'name', 'host_user', 'users', 'user_count', 'created_at')
+        fields = ('id', 'room_code', 'name', 'host_user', 'users', 'user_count', 'active_pack', 'created_at')
         read_only_fields = ('id', 'room_code', 'host_user', 'created_at')
 
     def get_user_count(self, obj):
         return obj.room_users.count()
+
+    def get_active_pack(self, obj):
+        request = self.context.get('request')
+        room_pack = RoomPack.objects.filter(room=obj, is_active=True).select_related('pack').first()
+        if not room_pack:
+            return None
+        serializer = SongPackListSerializer(
+            room_pack.pack,
+            context={
+                'request': request,
+                'room': obj,
+                'active_game_date': self.context.get('active_game_date'),
+            },
+        )
+        return serializer.data
 
 
 class RoomCreateSerializer(serializers.ModelSerializer):
@@ -162,8 +306,16 @@ class DailySongSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = DailySong
-        fields = ('id', 'track', 'date', 'created_at')
-        read_only_fields = ('id', 'date', 'created_at')
+        fields = (
+            'id',
+            'track',
+            'mode',
+            'genre_key',
+            'genre_name',
+            'date',
+            'created_at',
+        )
+        read_only_fields = ('id', 'mode', 'genre_key', 'genre_name', 'date', 'created_at')
 
 
 class GameSessionSerializer(serializers.ModelSerializer):
@@ -332,7 +484,7 @@ class RoomMessageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = RoomMessage
-        fields = ('id', 'user', 'message', 'created_at')
+        fields = ('id', 'user', 'message', 'client_message_id', 'created_at')
         read_only_fields = ('id', 'user', 'created_at')
 
 
@@ -341,12 +493,17 @@ class PackBundleMessageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PackBundleMessage
-        fields = ('id', 'user', 'message', 'created_at')
+        fields = ('id', 'user', 'message', 'client_message_id', 'created_at')
         read_only_fields = ('id', 'user', 'created_at')
 
 
 class PostMessageSerializer(serializers.Serializer):
     message = serializers.CharField(max_length=500, required=True)
+    client_message_id = serializers.CharField(
+        max_length=64,
+        required=False,
+        allow_blank=False,
+    )
 
     def validate_message(self, value):
         if not value.strip():
@@ -354,6 +511,12 @@ class PostMessageSerializer(serializers.Serializer):
         if len(value) > 500:
             raise serializers.ValidationError("Message cannot exceed 500 characters.")
         return value.strip()
+
+    def validate_client_message_id(self, value):
+        cleaned = value.strip()
+        if not cleaned:
+            raise serializers.ValidationError("Client message ID cannot be empty.")
+        return cleaned
 
 
 class RoomBasicSerializer(serializers.ModelSerializer):

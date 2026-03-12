@@ -11,9 +11,9 @@ from authentication.models import User
 from .models import (
     Track, Room, RoomUser, DailySong, DailyGameSession,
     GuessAttempt, RoomMessage, SongPack, PackTrack, RoomPack,
-    PackDailyTrack, PackBundleSession
+    PackDailyTrack, PackBundleSession, PackBundleMessage
 )
-from .views import PACK_BUNDLE_STAGE_ORDER, _get_daily_pack_track
+from .views import PACK_BUNDLE_STAGE_ORDER, _active_game_date, _get_daily_pack_track
 
 
 class TrackModelTests(TestCase):
@@ -181,7 +181,13 @@ class PackBundleSessionTests(APITestCase):
             other_url='https://example.com/other.mp3',
             vocals_url='https://example.com/vocals.mp3',
         )
-        RoomPack.objects.create(room=self.room, pack=self.pack, purchased_by=self.user)
+        RoomPack.objects.create(
+            room=self.room,
+            pack=self.pack,
+            purchased_by=self.user,
+            is_active=True,
+            activated_on=_active_game_date(),
+        )
 
     def test_start_bundle_session(self):
         url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/'
@@ -300,6 +306,79 @@ class PackBundleSessionTests(APITestCase):
         response = self.client.post(self.join_url, data, format='json')
         # API returns 400 (validation) or 404 (not found) depending on implementation
         self.assertIn(response.status_code, [status.HTTP_400_BAD_REQUEST, status.HTTP_404_NOT_FOUND])
+
+
+class RoomPackActivationTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='packhost',
+            email='packhost@example.com',
+            password='testpass123',
+        )
+        self.room = Room.objects.create(host_user=self.user)
+        RoomUser.objects.create(room=self.room, user=self.user)
+        self.refresh = RefreshToken.for_user(self.user)
+        self.access_token = str(self.refresh.access_token)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
+
+        self.pack = SongPack.objects.create(name='Pack One', price_coins=0)
+        self.pack_two = SongPack.objects.create(name='Pack Two', price_coins=0)
+        self.track = Track.objects.create(
+            title='Pack Song',
+            artist='Pack Artist',
+            preview_url='https://example.com/preview.mp3',
+        )
+        self.track_two = Track.objects.create(
+            title='Second Song',
+            artist='Second Artist',
+            preview_url='https://example.com/preview-2.mp3',
+        )
+        PackTrack.objects.create(pack=self.pack, track=self.track, order_in_pack=1)
+        PackTrack.objects.create(pack=self.pack_two, track=self.track_two, order_in_pack=1)
+        RoomPack.objects.create(
+            room=self.room,
+            pack=self.pack,
+            purchased_by=self.user,
+            is_active=True,
+            activated_on=_active_game_date(),
+        )
+        RoomPack.objects.create(room=self.room, pack=self.pack_two, purchased_by=self.user)
+
+    def test_owned_pack_must_be_activated_before_play(self):
+        url = f'/api/game/rooms/{self.room.id}/packs/{self.pack_two.id}/bundle/'
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['error'], 'Activate this pack before playing it')
+
+    def test_can_activate_owned_pack(self):
+        url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/activate/'
+        response = self.client.post(url, {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['pack']['is_active'])
+        self.assertEqual(response.data['room']['active_pack']['id'], str(self.pack.id))
+
+    def test_cannot_activate_second_pack_while_one_is_active(self):
+        first_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/activate/'
+        second_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack_two.id}/activate/'
+        self.client.post(first_url, {}, format='json')
+        response = self.client.post(second_url, {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertIn('Another pack is already active', response.data['error'])
+
+    def test_active_pack_completes_after_its_final_day(self):
+        room_pack = RoomPack.objects.get(room=self.room, pack=self.pack)
+        room_pack.is_active = True
+        room_pack.activated_on = _active_game_date() - timedelta(days=1)
+        room_pack.save(update_fields=['is_active', 'activated_on'])
+
+        # One-track pack is complete on the day after its only active date.
+        url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/activate/'
+        response = self.client.post(url, {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data['error'],
+            'This pack is already completed for the room',
+        )
 
 
 class RoomLeaveViewTests(APITestCase):
@@ -494,6 +573,99 @@ class DailyGameViewTests(APITestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {str(other_refresh.access_token)}')
         response = self.client.get(self.daily_game_url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class DailyGameModeTests(APITestCase):
+    """Tests for multiple daily modes within the same room."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='modetester',
+            email='mode@example.com',
+            password='testpass123'
+        )
+        self.room = Room.objects.create(host_user=self.user)
+        RoomUser.objects.create(room=self.room, user=self.user)
+
+        self.mix_track = Track.objects.create(
+            title='Mix Song',
+            artist='Mix Artist',
+            preview_url='https://example.com/mix.mp3',
+            deezer_id=123456,
+        )
+        self.rock_track = Track.objects.create(
+            title='Rock Song',
+            artist='Rock Artist',
+            preview_url='https://example.com/rock.mp3',
+            genre='Rock',
+        )
+        self.rock_backup_track = Track.objects.create(
+            title='Rock Song 2',
+            artist='Rock Artist 2',
+            preview_url='https://example.com/rock2.mp3',
+            genre='Rock',
+        )
+        self.rock_pack = SongPack.objects.create(
+            name='Rock Pack',
+            price_coins=0,
+            category='rock',
+        )
+        PackTrack.objects.create(
+            pack=self.rock_pack,
+            track=self.rock_track,
+            order_in_pack=1,
+        )
+        PackTrack.objects.create(
+            pack=self.rock_pack,
+            track=self.rock_backup_track,
+            order_in_pack=2,
+        )
+
+        refresh = RefreshToken.for_user(self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {str(refresh.access_token)}')
+        self.base_url = f'/api/game/rooms/{self.room.id}/daily-game/'
+
+    def test_mix_and_genre_daily_can_exist_in_same_room(self):
+        mix_response = self.client.get(self.base_url, {'mode': 'mix'})
+        genre_response = self.client.get(self.base_url, {'mode': 'genre'})
+
+        self.assertEqual(mix_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(genre_response.status_code, status.HTTP_200_OK)
+        self.assertNotEqual(
+            mix_response.data['daily_song']['id'],
+            genre_response.data['daily_song']['id'],
+        )
+        self.assertNotEqual(
+            mix_response.data['daily_song']['track']['id'],
+            genre_response.data['daily_song']['track']['id'],
+        )
+        self.assertEqual(
+            DailySong.objects.filter(room=self.room, date=_active_game_date()).count(),
+            2,
+        )
+
+    def test_genre_daily_returns_mode_metadata(self):
+        response = self.client.get(self.base_url, {'mode': 'genre'})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['daily_song']['mode'], 'genre')
+        self.assertIsNotNone(response.data['daily_song']['genre_key'])
+        self.assertIsNotNone(response.data['daily_song']['genre_name'])
+
+    def test_genre_mode_guess_uses_genre_daily_song(self):
+        genre_session = self.client.get(self.base_url, {'mode': 'genre'})
+        daily_song_id = genre_session.data['daily_song']['id']
+        guess_url = f'/api/game/rooms/{self.room.id}/daily-game/guess/'
+
+        response = self.client.post(
+            guess_url,
+            {'track_id': str(self.rock_track.id), 'mode': 'genre'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        session = DailyGameSession.objects.get(room=self.room, user=self.user, daily_song_id=daily_song_id)
+        self.assertEqual(session.daily_song.mode, 'genre')
 
 
 class SkipSnippetViewTests(APITestCase):
@@ -1014,6 +1186,87 @@ class RoomMessagesViewTests(APITestCase):
         data = {'message': 'x' * 501}
         response = self.client.post(self.messages_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_post_message_is_idempotent_with_client_message_id(self):
+        """Test duplicate submits return the existing room message."""
+        data = {
+            'message': 'Hello everyone!',
+            'client_message_id': 'client-msg-1',
+        }
+
+        first = self.client.post(self.messages_url, data, format='json')
+        second = self.client.post(self.messages_url, data, format='json')
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+        self.assertEqual(first.data['id'], second.data['id'])
+        self.assertEqual(
+            RoomMessage.objects.filter(
+                room=self.room,
+                user=self.user,
+                client_message_id='client-msg-1',
+            ).count(),
+            1,
+        )
+
+
+class PackBundleMessagesViewTests(APITestCase):
+    """Tests for pack bundle messages endpoint."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='bundleuser',
+            email='bundle@example.com',
+            password='testpass123'
+        )
+        self.room = Room.objects.create(host_user=self.user)
+        RoomUser.objects.create(room=self.room, user=self.user)
+        self.pack = SongPack.objects.create(name='Stem Pack', price_coins=0)
+        self.track = Track.objects.create(
+            title='Pack Song',
+            artist='Pack Artist',
+            preview_url='https://example.com/preview.mp3'
+        )
+        PackTrack.objects.create(
+            pack=self.pack,
+            track=self.track,
+            order_in_pack=1,
+            drums_url='https://example.com/drums.mp3',
+            bass_url='https://example.com/bass.mp3',
+            other_url='https://example.com/other.mp3',
+            vocals_url='https://example.com/vocals.mp3',
+        )
+        RoomPack.objects.create(room=self.room, pack=self.pack, purchased_by=self.user)
+
+        self.messages_url = (
+            f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/messages/'
+        )
+        self.refresh = RefreshToken.for_user(self.user)
+        self.access_token = str(self.refresh.access_token)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
+
+    def test_post_message_is_idempotent_with_client_message_id(self):
+        """Test duplicate submits return the existing pack bundle message."""
+        data = {
+            'message': 'Bundle hello!',
+            'client_message_id': 'bundle-msg-1',
+        }
+
+        first = self.client.post(self.messages_url, data, format='json')
+        second = self.client.post(self.messages_url, data, format='json')
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+        self.assertEqual(first.data['id'], second.data['id'])
+        self.assertEqual(
+            PackBundleMessage.objects.filter(
+                room=self.room,
+                pack=self.pack,
+                user=self.user,
+                client_message_id='bundle-msg-1',
+            ).count(),
+            1,
+        )
 
 
 class SearchTracksViewTests(APITestCase):

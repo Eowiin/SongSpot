@@ -13,6 +13,7 @@ class ResultChatSection extends StatelessWidget {
   final int maxMessages;
   final double? maxHeight;
   final ScrollController? scrollController;
+  final ValueChanged<Message>? onRetryFailedMessage;
 
   const ResultChatSection({
     super.key,
@@ -24,6 +25,7 @@ class ResultChatSection extends StatelessWidget {
     this.maxMessages = 12,
     this.maxHeight,
     this.scrollController,
+    this.onRetryFailedMessage,
   });
 
   @override
@@ -68,6 +70,7 @@ class ResultChatSection extends StatelessWidget {
           itemBuilder: (context, index) => _ResultChatBubble(
             message: displayMessages[index],
             currentUserId: currentUserId,
+            onRetry: onRetryFailedMessage,
           ),
         ),
       );
@@ -78,6 +81,7 @@ class ResultChatSection extends StatelessWidget {
               (message) => _ResultChatBubble(
                 message: message,
                 currentUserId: currentUserId,
+                onRetry: onRetryFailedMessage,
               ),
             )
             .toList(),
@@ -98,62 +102,108 @@ class ResultChatSection extends StatelessWidget {
 class _ResultChatBubble extends StatelessWidget {
   final Message message;
   final String? currentUserId;
+  final ValueChanged<Message>? onRetry;
 
-  const _ResultChatBubble({required this.message, required this.currentUserId});
+  const _ResultChatBubble({
+    required this.message,
+    required this.currentUserId,
+    this.onRetry,
+  });
 
   @override
   Widget build(BuildContext context) {
     final isCurrentUser = message.user.id == currentUserId;
+    final footerColor = isCurrentUser ? Colors.white70 : AppTheme.textSecondary;
+    final showRetry = isCurrentUser && message.isFailed && onRetry != null;
+    final bubbleOpacity = message.isSending ? 0.82 : 1.0;
+    Widget? statusIndicator;
+    if (message.isSending) {
+      statusIndicator = SizedBox(
+        width: 10,
+        height: 10,
+        child: CircularProgressIndicator(
+          strokeWidth: 1.8,
+          valueColor: AlwaysStoppedAnimation<Color>(footerColor),
+        ),
+      );
+    } else if (showRetry) {
+      statusIndicator = GestureDetector(
+        onTap: () => onRetry?.call(message),
+        child: Icon(Icons.refresh_rounded, size: 13, color: footerColor),
+      );
+    } else if (message.isFailed) {
+      statusIndicator = Icon(Icons.error_outline, size: 12, color: footerColor);
+    }
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Align(
         alignment: isCurrentUser ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.7,
-          ),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            gradient: isCurrentUser ? AppTheme.primaryGradient : null,
-            color: isCurrentUser ? null : AppTheme.surfaceColor,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: isCurrentUser
-                ? CrossAxisAlignment.end
-                : CrossAxisAlignment.start,
-            children: [
-              if (!isCurrentUser) ...[
+        child: Opacity(
+          opacity: bubbleOpacity,
+          child: Container(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.7,
+            ),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              gradient: isCurrentUser ? AppTheme.primaryGradient : null,
+              color: isCurrentUser ? null : AppTheme.surfaceColor,
+              borderRadius: BorderRadius.circular(16),
+              border: message.isFailed
+                  ? Border.all(
+                      color: isCurrentUser
+                          ? Colors.white.withValues(alpha: 0.5)
+                          : AppTheme.errorColor.withValues(alpha: 0.5),
+                    )
+                  : null,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: isCurrentUser
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+              children: [
+                if (!isCurrentUser) ...[
+                  Text(
+                    message.user.username,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.primaryColor,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                ],
                 Text(
-                  message.user.username,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.primaryColor,
-                    fontSize: 12,
+                  message.message,
+                  textWidthBasis: TextWidthBasis.longestLine,
+                  style: TextStyle(
+                    color: isCurrentUser ? Colors.white : AppTheme.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 4),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isCurrentUser) ...[
+                      SizedBox(
+                        width: 16,
+                        child: Center(child: statusIndicator),
+                      ),
+                      const SizedBox(width: 6),
+                    ] else if (statusIndicator != null) ...[
+                      statusIndicator,
+                      const SizedBox(width: 6),
+                    ],
+                    Text(
+                      DateFormat.Hm().format(message.createdAt.toLocal()),
+                      style: TextStyle(fontSize: 10, color: footerColor),
+                    ),
+                  ],
+                ),
               ],
-              Text(
-                message.message,
-                textWidthBasis: TextWidthBasis.longestLine,
-                style: TextStyle(
-                  color: isCurrentUser ? Colors.white : AppTheme.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                DateFormat.Hm().format(message.createdAt.toLocal()),
-                style: TextStyle(
-                  fontSize: 10,
-                  color: isCurrentUser
-                      ? Colors.white70
-                      : AppTheme.textSecondary,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

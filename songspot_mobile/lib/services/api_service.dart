@@ -562,6 +562,18 @@ class ApiService {
     return response as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> activatePack({
+    required String roomId,
+    required String packId,
+  }) async {
+    final response = await post(
+      ApiConfig.packActivate(roomId, packId),
+      includeAuth: true,
+      body: {},
+    );
+    return response as Map<String, dynamic>;
+  }
+
   Future<List<dynamic>> getMyPacks({required String roomId}) async {
     final response = await get(
       ApiConfig.packsMy,
@@ -658,10 +670,14 @@ class ApiService {
     required String roomId,
     required String packId,
     required String message,
+    String? clientMessageId,
   }) async {
     final response = await post(
       ApiConfig.packBundleMessages(roomId, packId),
-      body: {'message': message},
+      body: {
+        'message': message,
+        if (clientMessageId != null) 'client_message_id': clientMessageId,
+      },
       includeAuth: true,
     );
     return response as Map<String, dynamic>;
@@ -770,26 +786,48 @@ class ApiService {
     );
   }
 
-  Future<Map<String, dynamic>> getDailySong(String roomId) async {
-    return await get(ApiConfig.roomsDailySong(roomId), includeAuth: true);
+  Future<Map<String, dynamic>> getDailySong(
+    String roomId, {
+    String mode = 'mix',
+  }) async {
+    return await get(
+      ApiConfig.roomsDailySong(roomId),
+      includeAuth: true,
+      queryParameters: {'mode': mode},
+    );
   }
 
   // Game methods
-  Future<Map<String, dynamic>> startGameSession(String roomId) async {
-    return await get(ApiConfig.dailyGame(roomId), includeAuth: true);
+  Future<Map<String, dynamic>> startGameSession(
+    String roomId, {
+    String mode = 'mix',
+  }) async {
+    return await get(
+      ApiConfig.dailyGame(roomId),
+      includeAuth: true,
+      queryParameters: {'mode': mode},
+    );
   }
 
-  Future<Map<String, dynamic>> skipSnippet(String roomId) async {
-    return await post(ApiConfig.dailyGameSkip(roomId), includeAuth: true);
+  Future<Map<String, dynamic>> skipSnippet(
+    String roomId, {
+    String mode = 'mix',
+  }) async {
+    return await post(
+      ApiConfig.dailyGameSkip(roomId),
+      includeAuth: true,
+      body: {'mode': mode},
+    );
   }
 
   Future<Map<String, dynamic>> submitGuess({
     required String roomId,
     required String trackId,
+    String mode = 'mix',
   }) async {
     return await post(
       ApiConfig.dailyGameGuess(roomId),
-      body: {'track_id': trackId},
+      body: {'track_id': trackId, 'mode': mode},
       includeAuth: true,
     );
   }
@@ -797,16 +835,24 @@ class ApiService {
   Future<Map<String, dynamic>> activateDailyRetry({
     required String roomId,
     required String action,
+    String mode = 'mix',
   }) async {
     return await post(
       ApiConfig.dailyGameRetry(roomId),
-      body: {'action': action},
+      body: {'action': action, 'mode': mode},
       includeAuth: true,
     );
   }
 
-  Future<Map<String, dynamic>> getLeaderboard(String roomId) async {
-    return await get(ApiConfig.dailyGameLeaderboard(roomId), includeAuth: true);
+  Future<Map<String, dynamic>> getLeaderboard(
+    String roomId, {
+    String mode = 'mix',
+  }) async {
+    return await get(
+      ApiConfig.dailyGameLeaderboard(roomId),
+      includeAuth: true,
+      queryParameters: {'mode': mode},
+    );
   }
 
   // Chat methods
@@ -825,10 +871,14 @@ class ApiService {
   Future<Map<String, dynamic>> sendMessage({
     required String roomId,
     required String message,
+    String? clientMessageId,
   }) async {
     return await post(
       ApiConfig.roomMessages(roomId),
-      body: {'message': message},
+      body: {
+        'message': message,
+        if (clientMessageId != null) 'client_message_id': clientMessageId,
+      },
       includeAuth: true,
     );
   }
@@ -888,10 +938,11 @@ class ApiService {
   Future<Map<String, dynamic>> purchaseDailyGameHint({
     required String roomId,
     required String hintType,
+    String mode = 'mix',
   }) async {
     return await post(
       ApiConfig.dailyGameHint(roomId),
-      body: {'hint_type': hintType},
+      body: {'hint_type': hintType, 'mode': mode},
       includeAuth: true,
     );
   }
@@ -992,21 +1043,28 @@ class ApiService {
     String roomId, {
     int limit = 30,
     int offset = 0,
+    String mode = 'mix',
   }) async {
     return await get(
       ApiConfig.roomHistory(roomId),
       includeAuth: true,
-      queryParameters: {'limit': limit.toString(), 'offset': offset.toString()},
+      queryParameters: {
+        'limit': limit.toString(),
+        'offset': offset.toString(),
+        'mode': mode,
+      },
     );
   }
 
   Future<Map<String, dynamic>> getRoomHistoryDetail(
     String roomId,
-    String date,
-  ) async {
+    String date, {
+    String mode = 'mix',
+  }) async {
     return await get(
       ApiConfig.roomHistoryDetail(roomId, date),
       includeAuth: true,
+      queryParameters: {'mode': mode},
     );
   }
 

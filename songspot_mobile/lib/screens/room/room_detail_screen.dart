@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../models/pack.dart';
 import '../../models/room.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/pack_provider.dart';
 import '../../providers/room_provider.dart';
+import '../../services/api_service.dart';
 import '../../widgets/gradient_button.dart';
 import '../game/game_screen.dart';
+import '../packs/pack_list_screen.dart';
 
 class RoomDetailScreen extends StatefulWidget {
   final Room room;
@@ -23,22 +27,69 @@ class RoomDetailScreen extends StatefulWidget {
 }
 
 class _RoomDetailScreenState extends State<RoomDetailScreen> {
+  final ApiService _apiService = ApiService();
+  bool _isInitialLoading = true;
+  bool _isRefreshing = false;
+  List<SongPack> _ownedPacks = const [];
+  String? _packsErrorMessage;
+
   @override
   void initState() {
     super.initState();
-    // Schedule the refresh after the build is complete
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _refreshRoom();
+      _refreshRoom(loadAsInitial: true);
     });
   }
 
-  Future<void> _refreshRoom() async {
-    await context.read<RoomProvider>().loadRoomDetails(widget.room.id);
+  Future<void> _refreshRoom({bool loadAsInitial = false}) async {
+    if (loadAsInitial) {
+      setState(() {
+        _isInitialLoading = true;
+      });
+    } else {
+      setState(() {
+        _isRefreshing = true;
+      });
+    }
+
+    final roomProvider = context.read<RoomProvider>();
+
+    try {
+      await Future.wait([
+        roomProvider.loadRoomDetails(widget.room.id),
+        _loadOwnedPacks(),
+      ]);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isInitialLoading = false;
+          _isRefreshing = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadOwnedPacks() async {
+    try {
+      final response = await _apiService.getMyPacks(roomId: widget.room.id);
+      if (!mounted) return;
+      setState(() {
+        _ownedPacks = response
+            .map((item) => SongPack.fromJson(item as Map<String, dynamic>))
+            .toList();
+        _packsErrorMessage = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _packsErrorMessage = e.toString().replaceFirst('Exception: ', '');
+      });
+    }
   }
 
   Future<void> _showRenameDialog() async {
     final roomProvider = context.read<RoomProvider>();
-    final room = roomProvider.currentRoom ?? widget.room;
+    final room = _room;
     final nameController = TextEditingController(text: room.name ?? '');
 
     final newName = await showDialog<String>(
@@ -134,7 +185,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
   }
 
   void _copyRoomCode() {
-    Clipboard.setData(ClipboardData(text: widget.room.roomCode));
+    Clipboard.setData(ClipboardData(text: _room.roomCode));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Room code copied to clipboard!'),
@@ -143,10 +194,101 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
     );
   }
 
+  Future<void> _openPackList() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => PackListScreen(roomId: widget.room.id)),
+    );
+    if (!mounted) return;
+    await _refreshRoom();
+  }
+
+  String _packPrimaryLabel(SongPack pack) {
+    if (pack.isActive) return 'Activated';
+    if (pack.isCompleted) return 'Used';
+    if (pack.canActivate) return 'Activate';
+    return 'Purchased';
+  }
+
+  bool _isPackActionEnabled(SongPack pack) {
+    if (pack.isActive) return false;
+    if (pack.isCompleted) return false;
+    return pack.canActivate;
+  }
+
+  String _packStatusCopy(SongPack pack) {
+    final activePack = _room.activePack;
+    if (pack.isActive) {
+      final currentDay = pack.currentDay;
+      final totalDays = pack.totalDays;
+      if (currentDay != null && totalDays > 0) {
+        return 'Activated • Day $currentDay of $totalDays';
+      }
+      return 'Activated';
+    }
+    if (pack.isCompleted) {
+      return 'Used in this room';
+    }
+    if (pack.canActivate) {
+      return 'Can activate now';
+    }
+    if (activePack != null && activePack.id != pack.id) {
+      return 'Available after active pack';
+    }
+    return 'Purchased for this room';
+  }
+
+  Future<void> _handlePackPrimaryAction(SongPack pack) async {
+    if (!_isPackActionEnabled(pack)) return;
+
+    final activateResponse = await context.read<PackProvider>().activatePack(
+      roomId: widget.room.id,
+      packId: pack.id,
+    );
+    if (!mounted) return;
+
+    if (activateResponse != null) {
+      final roomJson = activateResponse['room'] as Map<String, dynamic>?;
+      if (roomJson != null) {
+        context.read<RoomProvider>().setCurrentRoom(Room.fromJson(roomJson));
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            activateResponse['message'] as String? ??
+                'Pack activated successfully',
+          ),
+          backgroundColor: AppTheme.successColor,
+        ),
+      );
+      await _refreshRoom();
+      return;
+    }
+
+    final errorMessage = context.read<PackProvider>().errorMessage;
+    if (errorMessage != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage.replaceFirst('Exception: ', '')),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    }
+  }
+
+  Room get _room {
+    final providerRoom = context.read<RoomProvider>().currentRoom;
+    if (providerRoom != null && providerRoom.id == widget.room.id) {
+      return providerRoom;
+    }
+    return widget.room;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final roomProvider = context.watch<RoomProvider>();
-    final room = roomProvider.currentRoom ?? widget.room;
+    final providerRoom = context.watch<RoomProvider>().currentRoom;
+    final room = providerRoom != null && providerRoom.id == widget.room.id
+        ? providerRoom
+        : widget.room;
     final currentUserId = context.watch<AuthProvider>().user?.id;
     final isHost = currentUserId != null && room.isHost(currentUserId);
 
@@ -154,194 +296,636 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
       appBar: AppBar(title: Text(room.displayName)),
       body: Container(
         decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
-        child: roomProvider.isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : SingleChildScrollView(
-                padding: AppTheme.pagePadding,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Room Code Card
-                    Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        gradient: AppTheme.cardGradient,
-                        borderRadius: BorderRadius.circular(
-                          AppTheme.cardBorderRadius,
+        child: _isInitialLoading
+            ? const _RoomDetailSkeleton()
+            : RefreshIndicator(
+                onRefresh: _refreshRoom,
+                color: AppTheme.primaryColor,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: AppTheme.pagePadding,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (_isRefreshing)
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 16),
+                          child: LinearProgressIndicator(
+                            color: AppTheme.primaryColor,
+                            backgroundColor: AppTheme.surfaceColor,
+                          ),
+                        ),
+                      _buildOverviewCard(room: room, isHost: isHost),
+                      if (widget.showPlayButton) ...[
+                        const SizedBox(height: 20),
+                        GradientButton(
+                          text: 'Open Room',
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => GameScreen(roomId: room.id),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                      const SizedBox(height: 28),
+                      _buildSectionHeader(
+                        title: 'Stem Packs',
+                        subtitle:
+                            'Owned by this room. Only one pack can be active at a time.',
+                        action: TextButton(
+                          onPressed: _openPackList,
+                          child: const Text('Browse all'),
                         ),
                       ),
-                      child: Column(
-                        children: [
-                          Text(
-                            room.displayName,
-                            style: Theme.of(context).textTheme.headlineSmall,
-                            textAlign: TextAlign.center,
-                          ),
-                          if (isHost) ...[
-                            const SizedBox(height: 8),
-                            TextButton.icon(
-                              onPressed: _showRenameDialog,
-                              icon: const Icon(Icons.edit, size: 18),
-                              label: const Text('Edit room name'),
+                      const SizedBox(height: 12),
+                      if (_packsErrorMessage != null) ...[
+                        _ErrorBanner(message: _packsErrorMessage!),
+                        const SizedBox(height: 12),
+                      ],
+                      if (_ownedPacks.isEmpty)
+                        _buildEmptyPacksState()
+                      else
+                        ..._ownedPacks.map(_buildPackCard),
+                      const SizedBox(height: 28),
+                      _buildSectionHeader(
+                        title: 'Members (${room.userCount})',
+                        subtitle: 'Everyone currently inside this room.',
+                      ),
+                      const SizedBox(height: 12),
+                      ...room.users.map((roomUser) {
+                        final memberIsHost =
+                            room.hostUser.id == roomUser.user.id;
+                        final isCurrentUser = currentUserId == roomUser.user.id;
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            gradient: AppTheme.cardGradient,
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.cardBorderRadius,
                             ),
-                          ],
-                          const SizedBox(height: 8),
-                          const Icon(
-                            Icons.qr_code,
-                            size: 60,
-                            color: AppTheme.primaryColor,
                           ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Room Code',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                          child: Row(
                             children: [
-                              Text(
-                                room.roomCode,
-                                style: Theme.of(context).textTheme.displayLarge
-                                    ?.copyWith(
-                                      letterSpacing: 4,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                              CircleAvatar(
+                                backgroundColor: AppTheme.primaryColor,
+                                child: Text(
+                                  roomUser.user.username[0].toUpperCase(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
-                              const SizedBox(width: 12),
-                              IconButton(
-                                icon: const Icon(Icons.copy),
-                                onPressed: _copyRoomCode,
-                                color: AppTheme.primaryColor,
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      crossAxisAlignment:
+                                          WrapCrossAlignment.center,
+                                      children: [
+                                        Text(
+                                          roomUser.user.username,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.titleLarge,
+                                        ),
+                                        if (memberIsHost)
+                                          const _StatusTag(
+                                            label: 'HOST',
+                                            color: AppTheme.primaryColor,
+                                          ),
+                                        if (isCurrentUser)
+                                          const _StatusTag(
+                                            label: 'YOU',
+                                            color: AppTheme.accentColor,
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      roomUser.user.email,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyMedium,
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Share this code with friends to join',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Play Button
-                    if (widget.showPlayButton) ...[
-                      GradientButton(
-                        text: 'Play Today\'s Song',
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => GameScreen(roomId: room.id),
+                        );
+                      }),
+                      const SizedBox(height: 12),
+                      OutlinedButton(
+                        onPressed: _handleLeaveRoom,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppTheme.errorColor,
+                          side: const BorderSide(color: AppTheme.errorColor),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.borderRadius,
                             ),
-                          );
-                        },
+                          ),
+                        ),
+                        child: const Text('Leave Room'),
                       ),
-                      const SizedBox(height: 32),
                     ],
+                  ),
+                ),
+              ),
+      ),
+    );
+  }
 
-                    // Members Section
+  Widget _buildOverviewCard({required Room room, required bool isHost}) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: AppTheme.cardGradient,
+        borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+        border: Border.all(
+          color: AppTheme.primaryColor.withValues(alpha: 0.24),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  Icons.groups_rounded,
+                  color: AppTheme.primaryColor,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      'Members (${room.userCount})',
+                      room.displayName,
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
-                    const SizedBox(height: 16),
-                    ...room.users.map((roomUser) {
-                      final isHost = room.hostUser.id == roomUser.user.id;
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          gradient: AppTheme.cardGradient,
-                          borderRadius: BorderRadius.circular(
-                            AppTheme.cardBorderRadius,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              backgroundColor: AppTheme.primaryColor,
-                              child: Text(
-                                roomUser.user.username[0].toUpperCase(),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Text(
-                                        roomUser.user.username,
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.titleLarge,
-                                      ),
-                                      if (isHost) ...[
-                                        const SizedBox(width: 8),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 2,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: AppTheme.primaryColor,
-                                            borderRadius: BorderRadius.circular(
-                                              4,
-                                            ),
-                                          ),
-                                          child: const Text(
-                                            'HOST',
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                  Text(
-                                    roomUser.user.email,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodyMedium,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                    const SizedBox(height: 24),
-
-                    // Leave Room Button
-                    OutlinedButton(
-                      onPressed: _handleLeaveRoom,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppTheme.errorColor,
-                        side: const BorderSide(color: AppTheme.errorColor),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                            AppTheme.borderRadius,
-                          ),
-                        ),
-                      ),
-                      child: const Text('Leave Room'),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Invite friends with the code below, then switch between the daily modes inside the room.',
+                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
                 ),
               ),
+              if (isHost)
+                IconButton(
+                  onPressed: _showRenameDialog,
+                  icon: const Icon(Icons.edit_outlined),
+                  tooltip: 'Rename room',
+                ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: AppTheme.backgroundColor.withValues(alpha: 0.35),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Room code',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        room.roomCode,
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(
+                              letterSpacing: 3,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  onPressed: _copyRoomCode,
+                  icon: const Icon(Icons.copy_rounded, size: 18),
+                  label: const Text('Copy'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _InfoChip(
+                icon: Icons.person_outline,
+                label: 'Host: ${room.hostUser.username}',
+              ),
+              _InfoChip(
+                icon: Icons.people_outline,
+                label:
+                    '${room.userCount} member${room.userCount == 1 ? '' : 's'}',
+              ),
+              _InfoChip(
+                icon: Icons.library_music_outlined,
+                label:
+                    '${_ownedPacks.length} pack${_ownedPacks.length == 1 ? '' : 's'}',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader({
+    required String title,
+    required String subtitle,
+    Widget? action,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: Theme.of(context).textTheme.headlineMedium),
+              const SizedBox(height: 4),
+              Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
+            ],
+          ),
+        ),
+        if (action != null) action,
+      ],
+    );
+  }
+
+  Widget _buildEmptyPacksState() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: AppTheme.cardGradient,
+        borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+      ),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.library_music_outlined,
+            size: 42,
+            color: AppTheme.textSecondary,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'No stem packs in this room yet',
+            style: Theme.of(context).textTheme.titleLarge,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Open the pack browser to unlock a room pack and it will show up here.',
+            style: Theme.of(context).textTheme.bodyMedium,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton(
+            onPressed: _openPackList,
+            child: const Text('Browse stem packs'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPackCard(SongPack pack) {
+    final description = pack.description.isEmpty
+        ? 'Stem Pack'
+        : pack.description;
+    final isActionEnabled = _isPackActionEnabled(pack);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        gradient: AppTheme.cardGradient,
+        borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _PackArtwork(iconUrl: pack.iconUrl),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      pack.name,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _packStatusCopy(pack),
+                      style: Theme.of(context).textTheme.bodyMedium,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (description.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        description,
+                        style: Theme.of(context).textTheme.bodySmall,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _StatusTag(
+                          label: '${pack.trackCount} tracks',
+                          color: AppTheme.primaryColor,
+                        ),
+                        if (pack.category != null)
+                          _StatusTag(
+                            label: pack.category!,
+                            color: AppTheme.accentColor,
+                          ),
+                        _StatusTag(
+                          label: pack.isActive
+                              ? 'Activated'
+                              : pack.isCompleted
+                              ? 'Used'
+                              : pack.canActivate
+                              ? 'Ready'
+                              : 'Purchased',
+                          color: pack.isActive
+                              ? AppTheme.secondaryColor
+                              : pack.isCompleted
+                              ? AppTheme.textSecondary
+                              : pack.canActivate
+                              ? AppTheme.successColor
+                              : AppTheme.successColor,
+                        ),
+                        if (pack.isActive &&
+                            pack.currentDay != null &&
+                            pack.totalDays > 0)
+                          _StatusTag(
+                            label: 'Day ${pack.currentDay} / ${pack.totalDays}',
+                            color: AppTheme.primaryColor,
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton(
+                onPressed: isActionEnabled
+                    ? () => _handlePackPrimaryAction(pack)
+                    : null,
+                child: Text(_packPrimaryLabel(pack)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RoomDetailSkeleton extends StatelessWidget {
+  const _RoomDetailSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: AppTheme.pagePadding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _SkeletonCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: const [
+                _SkeletonLine(width: 180, height: 26),
+                SizedBox(height: 10),
+                _SkeletonLine(width: double.infinity, height: 14),
+                SizedBox(height: 8),
+                _SkeletonLine(width: 220, height: 14),
+                SizedBox(height: 20),
+                _SkeletonBlock(height: 88),
+                SizedBox(height: 14),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          const _SkeletonBlock(height: 52),
+          const SizedBox(height: 28),
+          const _SkeletonLine(width: 120, height: 22),
+          const SizedBox(height: 6),
+          const _SkeletonLine(width: 240, height: 14),
+          const SizedBox(height: 12),
+          const _SkeletonCard(child: _SkeletonBlock(height: 92)),
+          const SizedBox(height: 12),
+          const _SkeletonCard(child: _SkeletonBlock(height: 92)),
+          const SizedBox(height: 28),
+          const _SkeletonLine(width: 140, height: 22),
+          const SizedBox(height: 6),
+          const _SkeletonLine(width: 200, height: 14),
+          const SizedBox(height: 12),
+          const _SkeletonCard(child: _SkeletonBlock(height: 76)),
+          const SizedBox(height: 12),
+          const _SkeletonCard(child: _SkeletonBlock(height: 76)),
+        ],
+      ),
+    );
+  }
+}
+
+class _SkeletonCard extends StatelessWidget {
+  final Widget child;
+
+  const _SkeletonCard({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: AppTheme.cardGradient,
+        borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+      ),
+      child: child,
+    );
+  }
+}
+
+class _SkeletonLine extends StatelessWidget {
+  final double width;
+  final double height;
+
+  const _SkeletonLine({required this.width, required this.height});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceColor,
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+    );
+  }
+}
+
+class _SkeletonBlock extends StatelessWidget {
+  final double height;
+
+  const _SkeletonBlock({required this.height});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: height,
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceColor,
+        borderRadius: BorderRadius.circular(14),
+      ),
+    );
+  }
+}
+
+class _ErrorBanner extends StatelessWidget {
+  final String message;
+
+  const _ErrorBanner({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.errorColor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+      ),
+      child: Text(message, style: const TextStyle(color: AppTheme.errorColor)),
+    );
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _InfoChip({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceColor.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: AppTheme.textSecondary),
+          const SizedBox(width: 6),
+          Text(label, style: Theme.of(context).textTheme.bodyMedium),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusTag extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _StatusTag({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(color: color),
+      ),
+    );
+  }
+}
+
+class _PackArtwork extends StatelessWidget {
+  final String? iconUrl;
+
+  const _PackArtwork({this.iconUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    final placeholder = Container(
+      width: 52,
+      height: 52,
+      decoration: BoxDecoration(
+        color: AppTheme.primaryColor.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: const Icon(Icons.album_outlined, color: AppTheme.primaryColor),
+    );
+
+    if (iconUrl == null || iconUrl!.isEmpty) {
+      return placeholder;
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: SizedBox(
+        width: 52,
+        height: 52,
+        child: Image.network(
+          iconUrl!,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => placeholder,
+        ),
       ),
     );
   }
