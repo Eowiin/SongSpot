@@ -622,9 +622,6 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
   }
 
   Widget _buildPackCard(SongPack pack) {
-    final description = pack.description.isEmpty
-        ? 'Stem Pack'
-        : pack.description;
     final isActionEnabled = _isPackActionEnabled(pack);
 
     return Container(
@@ -636,40 +633,33 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
       child: Material(
         color: Colors.transparent,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               _PackArtwork(iconUrl: pack.iconUrl),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       pack.name,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _packStatusCopy(pack),
-                      style: Theme.of(context).textTheme.bodyMedium,
-                      maxLines: 2,
+                      style: Theme.of(context).textTheme.titleMedium,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (description.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        description,
-                        style: Theme.of(context).textTheme.bodySmall,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 4),
+                    Text(
+                      _packStatusCopy(pack),
+                      style: Theme.of(context).textTheme.bodySmall,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
                     Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
+                      spacing: 6,
+                      runSpacing: 6,
                       children: [
                         _StatusTag(
                           label: '${pack.trackCount} tracks',
@@ -709,11 +699,17 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                 ),
               ),
               const SizedBox(width: 12),
-              ElevatedButton(
-                onPressed: isActionEnabled
-                    ? () => _handlePackPrimaryAction(pack)
-                    : null,
-                child: Text(_packPrimaryLabel(pack)),
+              SizedBox(
+                height: 38,
+                child: ElevatedButton(
+                  onPressed: isActionEnabled
+                      ? () => _handlePackPrimaryAction(pack)
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                  ),
+                  child: Text(_packPrimaryLabel(pack)),
+                ),
               ),
             ],
           ),
@@ -903,11 +899,11 @@ class _PackArtwork extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final placeholder = Container(
-      width: 52,
-      height: 52,
+      width: 44,
+      height: 44,
       decoration: BoxDecoration(
         color: AppTheme.primaryColor.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: const Icon(Icons.album_outlined, color: AppTheme.primaryColor),
     );
@@ -917,10 +913,10 @@ class _PackArtwork extends StatelessWidget {
     }
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(12),
       child: SizedBox(
-        width: 52,
-        height: 52,
+        width: 44,
+        height: 44,
         child: Image.network(
           iconUrl!,
           fit: BoxFit.cover,
