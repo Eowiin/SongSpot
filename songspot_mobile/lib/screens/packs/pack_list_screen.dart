@@ -311,6 +311,13 @@ class _PackListScreenState extends State<PackListScreen> {
     final priceLabel = pack.isFree || pack.priceCoins == 0
         ? l10n.packPriceFree
         : l10n.packCoinsPrice(pack.priceCoins);
+    final metaParts = <String>['${pack.trackCount} tracks'];
+    if (pack.category != null) {
+      metaParts.add(_categoryLabels[pack.category!] ?? pack.category!);
+    }
+    if (!pack.isOwned) {
+      metaParts.add(priceLabel);
+    }
     final progressCopy = pack.isActive
         ? (pack.currentDay != null && pack.totalDays > 0
               ? l10n.packProgressDay(pack.currentDay!, pack.totalDays)
@@ -322,11 +329,17 @@ class _PackListScreenState extends State<PackListScreen> {
         : pack.isOwned
         ? l10n.packStateAfterActivePack
         : priceLabel;
+    final statusColor = pack.isActive
+        ? AppTheme.accentColor
+        : pack.canActivate
+        ? AppTheme.successColor
+        : AppTheme.textSecondary;
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         gradient: AppTheme.cardGradient,
         borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.12),
@@ -338,9 +351,9 @@ class _PackListScreenState extends State<PackListScreen> {
       child: Material(
         color: Colors.transparent,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildPackIcon(pack.iconUrl),
               const SizedBox(width: 12),
@@ -356,61 +369,22 @@ class _PackListScreenState extends State<PackListScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${pack.trackCount} tracks • $priceLabel',
-                      style: Theme.of(context).textTheme.bodySmall,
+                      metaParts.join(' • '),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.textSecondary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
                     Text(
                       progressCopy,
-                      style: Theme.of(context).textTheme.bodySmall,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: statusColor,
+                        fontWeight: FontWeight.w600,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        if (pack.category != null)
-                          _buildTag(
-                            context,
-                            _categoryLabels[pack.category!] ?? pack.category!,
-                            AppTheme.primaryColor,
-                          ),
-                        if (pack.isActive)
-                          _buildTag(
-                            context,
-                            l10n.packTagInProgress,
-                            AppTheme.accentColor,
-                          ),
-                        if (pack.isCompleted)
-                          _buildTag(
-                            context,
-                            l10n.packTagFinished,
-                            AppTheme.textSecondary,
-                          ),
-                        if (pack.canActivate)
-                          _buildTag(
-                            context,
-                            l10n.packTagReadyNow,
-                            AppTheme.successColor,
-                          ),
-                        if (pack.isOwned &&
-                            !pack.isActive &&
-                            !pack.isCompleted &&
-                            !pack.canActivate)
-                          _buildTag(
-                            context,
-                            l10n.packTagAfterActivePack,
-                            AppTheme.primaryColor,
-                          ),
-                        if (pack.isFree || pack.priceCoins == 0)
-                          _buildTag(
-                            context,
-                            l10n.packPriceFree,
-                            AppTheme.secondaryColor,
-                          ),
-                      ],
                     ),
                   ],
                 ),
@@ -520,20 +494,6 @@ class _PackListScreenState extends State<PackListScreen> {
         ),
       );
     }
-  }
-
-  Widget _buildTag(BuildContext context, String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(color: color),
-      ),
-    );
   }
 
   Widget _buildPackIcon(String? iconUrl) {

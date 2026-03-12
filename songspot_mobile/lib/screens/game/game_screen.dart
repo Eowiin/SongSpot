@@ -1093,44 +1093,19 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        ResultTrackCard(
+        _buildResultSummaryCard(
           title: track.title,
           artist: track.artist,
           coverUrl: track.coverUrl,
-          artworkSize: 132,
-          padding: const EdgeInsets.all(18),
-          onArtworkTap: () => _toggleResultPreview(track),
-          isArtworkPlaying: _isPreviewPlaying && _previewTrackId == track.id,
-          footer: isCorrect
-              ? Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppTheme.successColor.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.check_circle, color: AppTheme.successColor),
-                      const SizedBox(width: 8),
-                      Text(
-                        l10n.dailyResultPointsSnippet(
-                          session.pointsEarned ?? 0,
-                          session.currentSnippet,
-                        ),
-                        style: const TextStyle(
-                          color: AppTheme.successColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
-                  ),
+          onPlayTap: () => _toggleResultPreview(track),
+          isPlaying: _isPreviewPlaying && _previewTrackId == track.id,
+          statusText: isCorrect
+              ? l10n.dailyResultPointsSnippet(
+                  session.pointsEarned ?? 0,
+                  session.currentSnippet,
                 )
               : null,
+          statusColor: AppTheme.successColor,
         ),
         const SizedBox(height: 24),
         ResultLeaderboardSection(
@@ -2115,7 +2090,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildHistoryContent(HistoryDayDetail detail) {
-    final session = detail.mySession;
     final leaderboardRows = detail.leaderboard
         .map(
           (entry) => ResultLeaderboardRowData(
@@ -2131,14 +2105,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     return _buildSharedHistoryContent(
       track: detail.track,
       allowTrackPlayback: (detail.track.previewUrl?.trim().isNotEmpty ?? false),
-      footer: _buildHistoryStatusFooter(
-        isSuccess: session?.correctGuess,
-        successText: session == null
-            ? null
-            : '+${session.pointsEarned ?? 0} pts · Snippet ${session.currentSnippet}',
-        failureText: 'Not guessed',
-        emptyText: 'You didn\'t play this day',
-      ),
       leaderboardRows: leaderboardRows,
       leaderboardEmptyText: 'Nobody guessed this day',
       messages: _mapHistoryMessages(detail.messages),
@@ -2146,7 +2112,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildPackHistoryContent(PackHistoryDayDetail detail) {
-    final session = detail.mySession;
     final leaderboardRows = detail.leaderboard
         .map(
           (entry) => ResultLeaderboardRowData(
@@ -2162,14 +2127,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     return _buildSharedHistoryContent(
       track: detail.track,
       allowTrackPlayback: false,
-      footer: _buildHistoryStatusFooter(
-        isSuccess: session?.completed,
-        successText: session == null
-            ? null
-            : '+${session.pointsEarned} pts · Stage ${session.currentStage}',
-        failureText: 'Not completed',
-        emptyText: 'You didn\'t play this stage',
-      ),
       leaderboardRows: leaderboardRows,
       leaderboardEmptyText: 'Nobody finished this stage',
       messages: _mapHistoryMessages(detail.messages),
@@ -2179,7 +2136,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   Widget _buildSharedHistoryContent({
     required HistoryTrack track,
     required bool allowTrackPlayback,
-    required Widget footer,
     required List<ResultLeaderboardRowData> leaderboardRows,
     required String leaderboardEmptyText,
     required List<Message> messages,
@@ -2202,13 +2158,12 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
             title: track.title,
             artist: track.artist,
             coverUrl: track.coverUrl,
-            artworkSize: 160,
-            padding: const EdgeInsets.all(24),
+            artworkSize: 152,
+            padding: const EdgeInsets.all(22),
             onArtworkTap: allowTrackPlayback
                 ? () => _toggleResultPreview(_asPlayableTrack(track))
                 : null,
             isArtworkPlaying: allowTrackPlayback && _previewTrackId == track.id,
-            footer: footer,
           ),
           const SizedBox(height: 24),
           ResultLeaderboardSection(
@@ -2229,48 +2184,147 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildHistoryStatusFooter({
-    required bool? isSuccess,
-    required String? successText,
-    required String failureText,
-    required String emptyText,
+  Widget _buildResultSummaryCard({
+    required String title,
+    required String artist,
+    required String? coverUrl,
+    required Color statusColor,
+    String? statusText,
+    VoidCallback? onPlayTap,
+    bool isPlaying = false,
   }) {
-    if (isSuccess == null) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppTheme.surfaceColor,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          emptyText,
-          style: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
-          textAlign: TextAlign.center,
-        ),
-      );
-    }
-
-    final color = isSuccess ? AppTheme.successColor : AppTheme.errorColor;
-    final icon = isSuccess ? Icons.check_circle : Icons.cancel;
-
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(width: 8),
-          Text(
-            isSuccess ? successText! : failureText,
-            style: TextStyle(color: color, fontWeight: FontWeight.bold),
+        gradient: AppTheme.cardGradient,
+        borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.18),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
           ),
         ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildResultArtwork(
+            coverUrl: coverUrl,
+            onTap: onPlayTap,
+            isPlaying: isPlaying,
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    height: 1.05,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  artist,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppTheme.textSecondary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (statusText != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      statusText,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: statusColor,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResultArtwork({
+    required String? coverUrl,
+    required VoidCallback? onTap,
+    required bool isPlaying,
+  }) {
+    final artwork = ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: coverUrl != null
+          ? Image.network(
+              coverUrl,
+              width: 104,
+              height: 104,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) =>
+                  _buildResultArtworkFallback(),
+            )
+          : _buildResultArtworkFallback(),
+    );
+
+    if (onTap == null) return artwork;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          artwork,
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.5),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isPlaying ? Icons.stop_rounded : Icons.play_arrow_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResultArtworkFallback() {
+    return Container(
+      width: 104,
+      height: 104,
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: const Icon(
+        Icons.album_rounded,
+        size: 40,
+        color: AppTheme.primaryColor,
       ),
     );
   }

@@ -237,6 +237,12 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
     return 'Purchased for this room';
   }
 
+  Color _packStatusColor(SongPack pack) {
+    if (pack.isActive) return AppTheme.secondaryColor;
+    if (pack.canActivate) return AppTheme.successColor;
+    return AppTheme.textSecondary;
+  }
+
   Future<void> _handlePackPrimaryAction(SongPack pack) async {
     if (!_isPackActionEnabled(pack)) return;
 
@@ -538,22 +544,22 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
           ),
           const SizedBox(height: 14),
           Wrap(
-            spacing: 10,
-            runSpacing: 10,
+            spacing: 8,
+            runSpacing: 8,
             children: [
-              _InfoChip(
-                icon: Icons.person_outline,
-                label: 'Host: ${room.hostUser.username}',
-              ),
-              _InfoChip(
-                icon: Icons.people_outline,
+              _StatusTag(
                 label:
                     '${room.userCount} member${room.userCount == 1 ? '' : 's'}',
+                color: AppTheme.primaryColor,
               ),
-              _InfoChip(
-                icon: Icons.library_music_outlined,
+              _StatusTag(
                 label:
                     '${_ownedPacks.length} pack${_ownedPacks.length == 1 ? '' : 's'}',
+                color: AppTheme.secondaryColor,
+              ),
+              _StatusTag(
+                label: 'Host: ${room.hostUser.username}',
+                color: AppTheme.textSecondary,
               ),
             ],
           ),
@@ -629,13 +635,14 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
       decoration: BoxDecoration(
         gradient: AppTheme.cardGradient,
         borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
       ),
       child: Material(
         color: Colors.transparent,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _PackArtwork(iconUrl: pack.iconUrl),
               const SizedBox(width: 12),
@@ -651,49 +658,24 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      _packStatusCopy(pack),
-                      style: Theme.of(context).textTheme.bodySmall,
+                      pack.category != null
+                          ? '${pack.trackCount} tracks • ${pack.category}'
+                          : '${pack.trackCount} tracks',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.textSecondary,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        _StatusTag(
-                          label: '${pack.trackCount} tracks',
-                          color: AppTheme.primaryColor,
-                        ),
-                        if (pack.category != null)
-                          _StatusTag(
-                            label: pack.category!,
-                            color: AppTheme.accentColor,
-                          ),
-                        _StatusTag(
-                          label: pack.isActive
-                              ? 'Activated'
-                              : pack.isCompleted
-                              ? 'Used'
-                              : pack.canActivate
-                              ? 'Ready'
-                              : 'Purchased',
-                          color: pack.isActive
-                              ? AppTheme.secondaryColor
-                              : pack.isCompleted
-                              ? AppTheme.textSecondary
-                              : pack.canActivate
-                              ? AppTheme.successColor
-                              : AppTheme.successColor,
-                        ),
-                        if (pack.isActive &&
-                            pack.currentDay != null &&
-                            pack.totalDays > 0)
-                          _StatusTag(
-                            label: 'Day ${pack.currentDay} / ${pack.totalDays}',
-                            color: AppTheme.primaryColor,
-                          ),
-                      ],
+                    const SizedBox(height: 4),
+                    Text(
+                      _packStatusCopy(pack),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: _packStatusColor(pack),
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -839,32 +821,6 @@ class _ErrorBanner extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppTheme.borderRadius),
       ),
       child: Text(message, style: const TextStyle(color: AppTheme.errorColor)),
-    );
-  }
-}
-
-class _InfoChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-
-  const _InfoChip({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceColor.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: AppTheme.textSecondary),
-          const SizedBox(width: 6),
-          Text(label, style: Theme.of(context).textTheme.bodyMedium),
-        ],
-      ),
     );
   }
 }
