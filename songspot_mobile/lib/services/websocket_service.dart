@@ -35,6 +35,7 @@ class WebSocketService {
   WebSocketChannel? _channel;
   StreamSubscription? _streamSubscription;
   String? _currentRoomId;
+  String _currentMode = 'mix';
   bool _isConnected = false;
   bool _intentionalDisconnect = false;
   Timer? _reconnectTimer;
@@ -50,7 +51,7 @@ class WebSocketService {
   String? get currentRoomId => _currentRoomId;
 
   /// Connect to a room's chat WebSocket
-  Future<bool> connect(String roomId) async {
+  Future<bool> connect(String roomId, {String mode = 'mix'}) async {
     // Disconnect from any existing connection
     _intentionalDisconnect = true;
     await disconnect();
@@ -65,10 +66,11 @@ class WebSocketService {
         return false;
       }
 
-      final wsUri = ApiConfig.roomChatWebSocketUri(roomId, token);
+      final wsUri = ApiConfig.roomChatWebSocketUri(roomId, token, mode: mode);
       final headers = ApiConfig.webSocketHeaders;
 
       _currentRoomId = roomId;
+      _currentMode = mode;
       _channel = createWebSocketChannel(wsUri, headers: headers);
 
       // Wait for the HTTP upgrade to complete before reporting success.
@@ -192,6 +194,7 @@ class WebSocketService {
             WebSocketEvent(WebSocketEventType.leaderboardUpdated, {
               'room_id': json['room_id'] as String?,
               'user_id': json['user_id'] as String?,
+              'mode': json['mode'] as String?,
             }),
           );
           break;
@@ -282,7 +285,7 @@ class WebSocketService {
         _reconnectAttempts++;
         debugPrint('Attempting reconnect #$_reconnectAttempts');
         if (_currentRoomId != null) {
-          await connect(_currentRoomId!);
+          await connect(_currentRoomId!, mode: _currentMode);
         }
       },
     );

@@ -640,12 +640,18 @@ class RoomMessage(models.Model):
     """
     Simple message board for room discussion.
     Users can post messages visible to all room members.
+    Daily chats are scoped by mode so mix and genre do not share history.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     room = models.ForeignKey(
         Room,
         on_delete=models.CASCADE,
         related_name='messages'
+    )
+    mode = models.CharField(
+        max_length=16,
+        choices=DAILY_MODE_CHOICES,
+        default=DAILY_MODE_MIX,
     )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -660,18 +666,21 @@ class RoomMessage(models.Model):
         db_table = 'room_messages'
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['room', '-created_at']),
+            models.Index(fields=['room', 'mode', '-created_at']),
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['room', 'user', 'client_message_id'],
+                fields=['room', 'mode', 'user', 'client_message_id'],
                 condition=Q(client_message_id__isnull=False),
                 name='room_message_client_id_unique',
             ),
         ]
 
     def __str__(self):
-        return f"{self.user.username} in {self.room.room_code}: {self.message[:50]}"
+        return (
+            f"{self.user.username} in {self.room.room_code}"
+            f" [{self.mode}]: {self.message[:50]}"
+        )
 
 
 class PackBundleMessage(models.Model):

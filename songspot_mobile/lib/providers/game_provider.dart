@@ -363,7 +363,7 @@ class GameProvider with ChangeNotifier {
   }
 
   /// Connect to room chat WebSocket
-  Future<void> connectToChat(String roomId) async {
+  Future<void> connectToChat(String roomId, {String? mode}) async {
     // Cancel any existing subscription
     await _wsSubscription?.cancel();
 
@@ -371,9 +371,14 @@ class GameProvider with ChangeNotifier {
     _wsSubscription = _webSocketService.events.listen(_handleWebSocketEvent);
 
     // Connect to the room
-    final connected = await _webSocketService.connect(roomId);
+    final resolvedMode = mode ?? _currentMode;
+    final connected = await _webSocketService.connect(
+      roomId,
+      mode: resolvedMode,
+    );
     _isWebSocketConnected = connected;
     _currentChatRoomId = roomId;
+    _currentMode = resolvedMode;
     notifyListeners();
   }
 
@@ -456,12 +461,14 @@ class GameProvider with ChangeNotifier {
   /// Load messages (initial load via REST API)
   Future<void> loadMessages(
     String roomId, {
+    String? mode,
     int limit = 50,
     int offset = 0,
   }) async {
     try {
       final response = await _apiService.getMessages(
         roomId: roomId,
+        mode: mode ?? _currentMode,
         limit: limit,
         offset: offset,
       );
@@ -482,10 +489,12 @@ class GameProvider with ChangeNotifier {
   Future<void> sendMessage(
     String roomId,
     String message, {
+    String? mode,
     required User currentUser,
     String? clientMessageId,
   }) async {
     final resolvedClientMessageId = clientMessageId ?? _uuid.v4();
+    final resolvedMode = mode ?? _currentMode;
     _upsertLocalMessage(
       Message.pending(
         clientMessageId: resolvedClientMessageId,
@@ -511,6 +520,7 @@ class GameProvider with ChangeNotifier {
       final response = await _apiService.sendMessage(
         roomId: roomId,
         message: message,
+        mode: resolvedMode,
         clientMessageId: resolvedClientMessageId,
       );
       _reconcileIncomingMessage(Message.fromJson(response));
@@ -523,6 +533,7 @@ class GameProvider with ChangeNotifier {
   Future<void> retryMessage(
     String roomId,
     Message message, {
+    String? mode,
     required User currentUser,
   }) async {
     final clientMessageId = message.clientMessageId;
@@ -540,6 +551,7 @@ class GameProvider with ChangeNotifier {
     await sendMessage(
       roomId,
       message.message,
+      mode: mode,
       currentUser: currentUser,
       clientMessageId: clientMessageId,
     );

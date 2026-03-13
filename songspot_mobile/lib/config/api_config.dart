@@ -49,7 +49,11 @@ class ApiConfig {
     'Origin': webSocketOriginUri.toString(),
   };
 
-  static Uri roomChatWebSocketUri(String roomId, String token) {
+  static Uri roomChatWebSocketUri(
+    String roomId,
+    String token, {
+    String mode = 'mix',
+  }) {
     final port = wsBaseUri.hasPort && wsBaseUri.port > 0
         ? wsBaseUri.port
         : null;
@@ -58,7 +62,7 @@ class ApiConfig {
       host: wsBaseUri.host,
       port: port,
       path: '/ws/room/$roomId/chat/',
-      queryParameters: {'token': token},
+      queryParameters: {'token': token, 'mode': mode},
     );
   }
 

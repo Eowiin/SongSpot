@@ -11,7 +11,8 @@ from authentication.models import User
 from .models import (
     Track, Room, RoomUser, DailySong, DailyGameSession,
     GuessAttempt, RoomMessage, SongPack, PackTrack, RoomPack,
-    PackDailyTrack, PackBundleSession, PackBundleMessage
+    PackDailyTrack, PackBundleSession, PackBundleMessage,
+    DAILY_MODE_GENRE,
 )
 from .views import PACK_BUNDLE_STAGE_ORDER, _active_game_date, _get_daily_pack_track
 
@@ -1160,6 +1161,7 @@ class RoomMessagesViewTests(APITestCase):
         response = self.client.post(self.messages_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(RoomMessage.objects.filter(room=self.room, message='Hello everyone!').exists())
+        self.assertEqual(response.data['message'], 'Hello everyone!')
 
     def test_get_messages(self):
         """Test getting messages."""
@@ -1167,6 +1169,40 @@ class RoomMessagesViewTests(APITestCase):
         response = self.client.get(self.messages_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data['messages']), 1)
+
+    def test_get_messages_are_filtered_by_mode(self):
+        """Mix chat should not include genre chat messages."""
+        RoomMessage.objects.create(room=self.room, user=self.user, message='Mix message')
+        RoomMessage.objects.create(
+            room=self.room,
+            user=self.user,
+            mode=DAILY_MODE_GENRE,
+            message='Genre message',
+        )
+
+        response = self.client.get(self.messages_url, {'mode': 'mix'})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['messages']), 1)
+        self.assertEqual(response.data['messages'][0]['message'], 'Mix message')
+
+    def test_post_message_stores_requested_mode(self):
+        """Posting with a specific daily mode should persist it on the message."""
+        response = self.client.post(
+            self.messages_url,
+            {'message': 'Genre hello', 'mode': DAILY_MODE_GENRE},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            RoomMessage.objects.filter(
+                room=self.room,
+                user=self.user,
+                mode=DAILY_MODE_GENRE,
+                message='Genre hello',
+            ).exists()
+        )
 
     def test_post_message_non_member_fails(self):
         """Test that non-members cannot post messages."""
@@ -1207,6 +1243,39 @@ class RoomMessagesViewTests(APITestCase):
                 client_message_id='client-msg-1',
             ).count(),
             1,
+        )
+
+    def test_client_message_id_is_unique_per_mode(self):
+        """The same client message ID can be reused across mix and genre chats."""
+        data = {
+            'message': 'Hello everyone!',
+            'client_message_id': 'client-msg-1',
+        }
+
+        first = self.client.post(
+            self.messages_url,
+            {'message': data['message'], 'client_message_id': data['client_message_id'], 'mode': 'mix'},
+            format='json',
+        )
+        second = self.client.post(
+            self.messages_url,
+            {
+                'message': data['message'],
+                'client_message_id': data['client_message_id'],
+                'mode': DAILY_MODE_GENRE,
+            },
+            format='json',
+        )
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            RoomMessage.objects.filter(
+                room=self.room,
+                user=self.user,
+                client_message_id='client-msg-1',
+            ).count(),
+            2,
         )
 
 

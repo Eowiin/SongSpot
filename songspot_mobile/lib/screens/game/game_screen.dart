@@ -99,9 +99,11 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         mode: _activeDailyMode,
       );
       if (!mounted) return;
-      _gameProvider.connectToChat(widget.roomId);
+      await _gameProvider.connectToChat(widget.roomId, mode: _activeDailyMode);
       if (_gameProvider.currentSession?.isCompleted ?? false) {
-        unawaited(_gameProvider.loadMessages(widget.roomId));
+        unawaited(
+          _gameProvider.loadMessages(widget.roomId, mode: _activeDailyMode),
+        );
         _startResultRefreshTimer();
       }
       // Load room details for name and host info
@@ -391,7 +393,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     if (_completionAdAttemptsForActiveMode == 0) {
       // Refresh leaderboard and load messages once when game is completed
       gameProvider.loadLeaderboard(widget.roomId, mode: _activeDailyMode);
-      gameProvider.loadMessages(widget.roomId);
+      gameProvider.loadMessages(widget.roomId, mode: _activeDailyMode);
       _startResultRefreshTimer();
     }
 
@@ -501,9 +503,11 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     try {
       await _gameProvider.startGameSession(widget.roomId, mode: mode);
       await _gameProvider.loadLeaderboard(widget.roomId, mode: mode);
+      await _gameProvider.connectToChat(widget.roomId, mode: mode);
       if (!mounted) return;
       await _loadHistoryList(mode: mode);
       if (_gameProvider.currentSession?.isCompleted ?? false) {
+        await _gameProvider.loadMessages(widget.roomId, mode: mode);
         _startResultRefreshTimer();
       }
     } catch (e) {
@@ -904,6 +908,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     await context.read<GameProvider>().sendMessage(
       widget.roomId,
       message,
+      mode: _activeDailyMode,
       currentUser: currentUser,
     );
   }
@@ -916,6 +921,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     await context.read<GameProvider>().retryMessage(
       widget.roomId,
       message,
+      mode: _activeDailyMode,
       currentUser: currentUser,
     );
   }

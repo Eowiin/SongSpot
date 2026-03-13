@@ -30,7 +30,7 @@ def _broadcast_room_message(instance: RoomMessage) -> None:
 
     try:
         async_to_sync(channel_layer.group_send)(
-            f'chat_{instance.room_id}',
+            f'chat_{instance.room_id}_{instance.mode}',
             {
                 'type': 'chat_message',
                 'id': str(instance.id),

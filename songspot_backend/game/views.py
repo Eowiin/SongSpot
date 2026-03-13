@@ -118,22 +118,31 @@ def _max_room_creations_per_day():
     return max(1, int(getattr(settings, 'MAX_ROOM_CREATIONS_PER_DAY', 5)))
 
 
-def _broadcast_leaderboard_updated(room_id, user_id):
+def _daily_chat_group_name(room_id, mode):
+    return f'chat_{room_id}_{mode}'
+
+
+def _broadcast_leaderboard_updated(room_id, user_id, mode):
     channel_layer = get_channel_layer()
     if channel_layer is None:
         return
 
     try:
         async_to_sync(channel_layer.group_send)(
-            f'chat_{room_id}',
+            _daily_chat_group_name(room_id, mode),
             {
                 'type': 'leaderboard_updated',
                 'room_id': str(room_id),
                 'user_id': str(user_id),
+                'mode': mode,
             },
         )
     except Exception:
-        logger.exception('Failed to broadcast leaderboard_updated for room %s.', room_id)
+        logger.exception(
+            'Failed to broadcast leaderboard_updated for room %s mode %s.',
+            room_id,
+            mode,
+        )
 
 
 def _create_idempotent_message(model, *, lookup, defaults):
@@ -1752,7 +1761,7 @@ class SkipSnippetView(APIView):
         game_session.save()
 
         if game_session.current_snippet == MAX_DAILY_SNIPPET:
-            _broadcast_leaderboard_updated(room.id, request.user.id)
+            _broadcast_leaderboard_updated(room.id, request.user.id, mode)
 
         return Response({
             'current_snippet': game_session.current_snippet,
@@ -1906,7 +1915,7 @@ class SubmitGuessView(APIView):
                         transaction_type='bonus',
                     )
 
-            _broadcast_leaderboard_updated(room.id, request.user.id)
+            _broadcast_leaderboard_updated(room.id, request.user.id, mode)
 
             response_data = {
                 'is_correct': True,
@@ -1934,7 +1943,7 @@ class SubmitGuessView(APIView):
             game_session.save(update_fields=['guesses_made', 'current_snippet', 'awaiting_retry_unlock'])
 
             if game_session.current_snippet == MAX_DAILY_SNIPPET:
-                _broadcast_leaderboard_updated(room.id, request.user.id)
+                _broadcast_leaderboard_updated(room.id, request.user.id, mode)
 
             return Response({
                 'is_correct': False,
@@ -1992,7 +2001,7 @@ class SubmitGuessView(APIView):
                 played_date=today,
                 perfect_game=False
             )
-            _broadcast_leaderboard_updated(room.id, request.user.id)
+            _broadcast_leaderboard_updated(room.id, request.user.id, mode)
             return Response({
                 'is_correct': False,
                 'points_earned': 0,
@@ -2045,7 +2054,7 @@ class SubmitGuessView(APIView):
             played_date=today,
             perfect_game=False
         )
-        _broadcast_leaderboard_updated(room.id, request.user.id)
+        _broadcast_leaderboard_updated(room.id, request.user.id, mode)
 
         return Response({
             'is_correct': False,
@@ -2143,7 +2152,7 @@ class DailyGameRetryView(APIView):
                 played_date=today,
                 perfect_game=False,
             )
-            _broadcast_leaderboard_updated(room.id, request.user.id)
+            _broadcast_leaderboard_updated(room.id, request.user.id, mode)
 
             return Response(
                 {
@@ -2319,6 +2328,9 @@ class RoomMessagesView(APIView):
 
     def get(self, request, room_id):
         room = get_object_or_404(Room, id=room_id)
+        mode = _parse_daily_mode(request)
+        if mode is None:
+            return _invalid_daily_mode_response()
 
         # Check if user is in the room
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
@@ -2338,6 +2350,7 @@ class RoomMessagesView(APIView):
         window_start, window_end = _active_game_window(active_date)
         messages = RoomMessage.objects.filter(
             room=room,
+            mode=mode,
             created_at__gte=window_start,
             created_at__lt=window_end,
         ).select_related('user')[offset:offset + limit]
@@ -2351,6 +2364,9 @@ class RoomMessagesView(APIView):
 
     def post(self, request, room_id):
         room = get_object_or_404(Room, id=room_id)
+        mode = _parse_daily_mode(request)
+        if mode is None:
+            return _invalid_daily_mode_response()
 
         # Check if user is in the room
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
@@ -2370,6 +2386,7 @@ class RoomMessagesView(APIView):
                 RoomMessage,
                 lookup={
                     'room': room,
+                    'mode': mode,
                     'user': request.user,
                     'client_message_id': client_message_id,
                 },
@@ -2378,6 +2395,7 @@ class RoomMessagesView(APIView):
         else:
             message = RoomMessage.objects.create(
                 room=room,
+                mode=mode,
                 user=request.user,
                 message=message_text,
             )
@@ -2767,6 +2785,7 @@ class RoomHistoryDetailView(APIView):
         window_start, window_end = _active_game_window(parsed_date)
         messages = RoomMessage.objects.filter(
             room=room,
+            mode=daily_song.mode,
             created_at__gte=window_start,
             created_at__lt=window_end,
         ).select_related('user').order_by('created_at')

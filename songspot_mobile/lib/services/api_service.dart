@@ -858,12 +858,17 @@ class ApiService {
   // Chat methods
   Future<Map<String, dynamic>> getMessages({
     required String roomId,
+    String mode = 'mix',
     int limit = 50,
     int offset = 0,
   }) async {
     return await get(
       ApiConfig.roomMessages(roomId),
-      queryParameters: {'limit': limit.toString(), 'offset': offset.toString()},
+      queryParameters: {
+        'mode': mode,
+        'limit': limit.toString(),
+        'offset': offset.toString(),
+      },
       includeAuth: true,
     );
   }
@@ -871,12 +876,14 @@ class ApiService {
   Future<Map<String, dynamic>> sendMessage({
     required String roomId,
     required String message,
+    String mode = 'mix',
     String? clientMessageId,
   }) async {
     return await post(
       ApiConfig.roomMessages(roomId),
       body: {
         'message': message,
+        'mode': mode,
         if (clientMessageId != null) 'client_message_id': clientMessageId,
       },
       includeAuth: true,

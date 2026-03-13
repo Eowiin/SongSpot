@@ -4,10 +4,14 @@ WebSocket consumers for real-time features.
 
 import json
 import logging
+from urllib.parse import parse_qs
+
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth.models import AnonymousUser
 from django.db import IntegrityError, transaction
+
+from .models import DAILY_MODE_CHOICES, DAILY_MODE_MIX
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +20,7 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
     """
     WebSocket consumer for real-time room chat.
 
-    Connect: ws://host/ws/room/<room_id>/chat/?token=<jwt_token>
+    Connect: ws://host/ws/room/<room_id>/chat/?token=<jwt_token>&mode=mix
 
     Message format (send):
     {
@@ -41,7 +45,13 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.room_id = self.scope['url_route']['kwargs']['room_id']
         self.room_group_name = f'chat_{self.room_id}'
+        self.mode = self._resolve_mode()
         self.user = self.scope.get('user', AnonymousUser())
+
+        if self.mode is None:
+            await self.close(code=4000)
+            return
+        self.mode_group_name = f'{self.room_group_name}_{self.mode}'
 
         # Reject anonymous users
         if isinstance(self.user, AnonymousUser) or not self.user.is_authenticated:
@@ -69,17 +79,22 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
             self.room_group_name,
             self.channel_name
         )
+        await self.channel_layer.group_add(
+            self.mode_group_name,
+            self.channel_name,
+        )
 
         await self.accept()
         logger.info(
-            'WebSocket connect accepted user_id=%s room_id=%s',
+            'WebSocket connect accepted user_id=%s room_id=%s mode=%s',
             self.user.id,
             self.room_id,
+            self.mode,
         )
 
         # Send join notification to room
         await self.channel_layer.group_send(
-            self.room_group_name,
+            self.mode_group_name,
             {
                 'type': 'user_joined',
                 'user': self.serialize_user(self.user),
@@ -92,7 +107,7 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
             # Send leave notification
             if hasattr(self, 'user') and self.user.is_authenticated:
                 await self.channel_layer.group_send(
-                    self.room_group_name,
+                    self.mode_group_name,
                     {
                         'type': 'user_left',
                         'user': self.serialize_user(self.user),
@@ -103,6 +118,11 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
                 self.room_group_name,
                 self.channel_name
             )
+            if hasattr(self, 'mode_group_name'):
+                await self.channel_layer.group_discard(
+                    self.mode_group_name,
+                    self.channel_name,
+                )
 
     async def receive(self, text_data):
         """Handle incoming WebSocket messages."""
@@ -160,7 +180,7 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
         is_typing = data.get('is_typing', False)
 
         await self.channel_layer.group_send(
-            self.room_group_name,
+            self.mode_group_name,
             {
                 'type': 'typing_indicator',
                 'user': self.serialize_user(self.user),
@@ -243,6 +263,7 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
             if client_message_id:
                 lookup = {
                     'room': room,
+                    'mode': self.mode,
                     'user': self.user,
                     'client_message_id': client_message_id,
                 }
@@ -257,12 +278,27 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
             else:
                 message = RoomMessage.objects.create(
                     room=room,
+                    mode=self.mode,
                     user=self.user,
                     message=message_text
                 )
             return message
         except Room.DoesNotExist:
             return None
+
+    def _resolve_mode(self):
+        raw_query = self.scope.get('query_string', b'').decode()
+        query_params = parse_qs(raw_query)
+        mode = query_params.get('mode', [DAILY_MODE_MIX])[0].strip().lower()
+        supported_modes = {choice for choice, _label in DAILY_MODE_CHOICES}
+        if mode not in supported_modes:
+            logger.warning(
+                'WebSocket connect rejected invalid mode room_id=%s mode=%s',
+                self.room_id,
+                mode,
+            )
+            return None
+        return mode
 
     def serialize_user(self, user):
         """Serialize user for JSON response."""
