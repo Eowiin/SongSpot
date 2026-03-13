@@ -49,28 +49,8 @@ class CompactPlaybackPanel extends StatelessWidget {
           ),
         ],
         const SizedBox(height: 16),
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 220),
-          switchInCurve: Curves.easeOut,
-          switchOutCurve: Curves.easeIn,
-          transitionBuilder: (child, animation) {
-            return FadeTransition(
-              opacity: animation,
-              child: SizeTransition(
-                sizeFactor: animation,
-                axisAlignment: -1,
-                child: child,
-              ),
-            );
-          },
-          child: isPlaying
-              ? const _PlaybackWaveform(
-                  key: ValueKey('waveform'),
-                  isPlaying: true,
-                )
-              : const SizedBox(key: ValueKey('waveform_placeholder')),
-        ),
-        SizedBox(height: isPlaying ? 14 : 0),
+        _PlaybackWaveform(isPlaying: isPlaying),
+        const SizedBox(height: 14),
         _PlaybackControlButton(
           onPressed: onPressed,
           icon: isPlaying ? Icons.replay_rounded : idleIcon,
