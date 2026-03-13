@@ -8,6 +8,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/pack_provider.dart';
 import '../../providers/room_provider.dart';
 import '../../services/api_service.dart';
+import '../../widgets/daily_mode_card.dart';
 import '../../widgets/gradient_button.dart';
 import '../game/game_screen.dart';
 import '../packs/pack_list_screen.dart';
@@ -202,6 +203,94 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
     await _refreshRoom();
   }
 
+  Future<void> _showDailyModeContributionDialog(RoomDailyMode mode) async {
+    final auth = context.read<AuthProvider>().user;
+    final maxAmount = mode.remainingCoins;
+    final suggestedAmount = maxAmount > 20 ? 20 : maxAmount;
+    final controller = TextEditingController(
+      text: suggestedAmount > 0 ? '$suggestedAmount' : '',
+    );
+    final amount = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppTheme.surfaceColor,
+        title: Text('Contribute to ${mode.label}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${mode.remainingCoins} coins remaining. You currently have ${auth?.coins ?? 0} coins.',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: 'Coins to contribute',
+                filled: true,
+                fillColor: AppTheme.backgroundColor,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              final parsed = int.tryParse(controller.text.trim());
+              Navigator.pop(dialogContext, parsed);
+            },
+            child: const Text('Contribute'),
+          ),
+        ],
+      ),
+    );
+
+    if (amount == null || amount <= 0 || !mounted) return;
+    final response = await context.read<RoomProvider>().contributeToDailyMode(
+      roomId: widget.room.id,
+      mode: mode.mode,
+      amount: amount,
+    );
+    if (!mounted) return;
+
+    if (response == null) {
+      final errorMessage = context.read<RoomProvider>().errorMessage;
+      if (errorMessage != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage.replaceFirst('Exception: ', '')),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+      return;
+    }
+
+    final coins = response['coins'] as int?;
+    if (coins != null) {
+      context.read<AuthProvider>().updateCoinsBalance(coins);
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(response['message'] as String? ?? 'Contribution sent'),
+        backgroundColor: response['is_unlocked'] as bool? ?? false
+            ? AppTheme.successColor
+            : AppTheme.primaryColor,
+      ),
+    );
+  }
+
   String _packPrimaryLabel(SongPack pack) {
     if (pack.isActive) return 'Activated';
     if (pack.isCompleted) return 'Used';
@@ -335,6 +424,21 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                           },
                         ),
                       ],
+                      const SizedBox(height: 28),
+                      _buildSectionHeader(
+                        title: 'Daily Modes',
+                        subtitle:
+                            'Mix is always free. Contribute with your room to unlock extra daily lanes.',
+                      ),
+                      const SizedBox(height: 12),
+                      ...room.dailyModes.map(
+                        (mode) => DailyModeCard(
+                          mode: mode,
+                          onContribute: mode.isFree
+                              ? null
+                              : () => _showDailyModeContributionDialog(mode),
+                        ),
+                      ),
                       const SizedBox(height: 28),
                       _buildSectionHeader(
                         title: 'Stem Packs',

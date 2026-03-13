@@ -14,7 +14,9 @@ import '../../models/pack.dart';
 import '../../models/game_session.dart';
 import '../../models/message.dart';
 import '../../models/user.dart';
+import '../../models/room.dart';
 import '../../widgets/compact_playback_panel.dart';
+import '../../widgets/daily_mode_card.dart';
 import '../../widgets/result_chat_section.dart';
 import '../../widgets/result_leaderboard_section.dart';
 import '../../widgets/result_track_card.dart';
@@ -23,6 +25,7 @@ import '../../widgets/gradient_button.dart';
 import '../../services/api_service.dart';
 import '../../services/admob_service.dart';
 import '../../services/audio_service.dart';
+import '../../services/websocket_service.dart';
 import '../../models/history_day.dart';
 import '../packs/pack_bundle_screen.dart';
 import '../packs/pack_list_screen.dart';
@@ -42,6 +45,8 @@ enum _GameScreenMenuAction { roomDetails, packs }
 class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   static const String _dailyModeMix = 'mix';
   static const String _dailyModeGenre = 'genre';
+  static const String _dailyModeDecade = 'decade';
+  static const String _dailyModeHardcore = 'hardcore';
   static const String _roomModePack = 'pack';
   static const List<double> _snippetTimelineWeights = [1, 1, 2, 3, 4, 5];
   final _titleController = TextEditingController();
@@ -56,6 +61,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   bool _isPreviewPlaying = false;
   int _previewPlaybackRequestId = 0;
   String? _previewTrackId;
+  StreamSubscription<WebSocketEvent>? _roomModeSubscription;
 
   // History
   final _apiService = ApiService();
@@ -89,6 +95,9 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     final authProvider = context.read<AuthProvider>();
     _lastKnownMessageCount = _gameProvider.messages.length;
     _gameProvider.addListener(_handleGameProviderUpdate);
+    _roomModeSubscription = _gameProvider.webSocketEvents.listen(
+      _handleRoomModeEvent,
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _gameProvider.startGameSession(
         widget.roomId,
@@ -119,6 +128,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _resultRefreshTimer?.cancel();
     _skipFeedbackTimer?.cancel();
+    _roomModeSubscription?.cancel();
     _gameProvider.removeListener(_handleGameProviderUpdate);
     _gameProvider.disconnectFromChat();
     _titleController.dispose();
@@ -158,6 +168,33 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     _lastKnownMessageCount = count;
     if (_pendingChatAutoScroll && newMessagesArrived) {
       _scrollToLatestChatMessage();
+    }
+  }
+
+  void _handleRoomModeEvent(WebSocketEvent event) {
+    if (event.type != WebSocketEventType.roomModeUpdated || !mounted) return;
+    final data = event.data as Map<String, dynamic>;
+    final roomId = data['room_id'] as String?;
+    if (roomId != widget.roomId) return;
+
+    final rawModes = data['daily_modes'] as List<dynamic>? ?? const [];
+    final dailyModes = rawModes
+        .map((item) => RoomDailyMode.fromJson(item as Map<String, dynamic>))
+        .toList();
+    context.read<RoomProvider>().updateRoomDailyModes(
+      widget.roomId,
+      dailyModes,
+    );
+
+    final actorUserId = data['actor_user_id'] as String?;
+    final currentUserId = context.read<AuthProvider>().user?.id;
+    final activityMessage = data['activity_message'] as String?;
+    if (activityMessage != null &&
+        activityMessage.isNotEmpty &&
+        actorUserId != currentUserId) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(activityMessage)));
     }
   }
 
@@ -459,13 +496,240 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   int get _completionAdAttemptsForActiveMode =>
       _completionAdAttemptsByMode[_activeDailyMode] ?? 0;
 
+  List<RoomDailyMode> _availableDailyModes(Room? room) {
+    final dailyModes = room?.dailyModes
+        .where((mode) => mode.isEnabled)
+        .toList();
+    if (dailyModes != null && dailyModes.isNotEmpty) {
+      return dailyModes;
+    }
+    return const [
+      RoomDailyMode(
+        mode: _dailyModeMix,
+        label: 'Daily Mix',
+        subtitle: 'Fully random song for everyone today',
+        costCoins: 0,
+        isFree: true,
+        isEnabled: true,
+        isUnlocked: true,
+        progressCoins: 0,
+        remainingCoins: 0,
+        contributorCount: 0,
+      ),
+    ];
+  }
+
+  RoomDailyMode? _dailyModeStatus(Room? room, String mode) {
+    for (final item in _availableDailyModes(room)) {
+      if (item.mode == mode) return item;
+    }
+    return null;
+  }
+
+  IconData _dailyModeIcon(String mode) {
+    switch (mode) {
+      case _dailyModeGenre:
+        return Icons.graphic_eq;
+      case _dailyModeDecade:
+        return Icons.history_edu;
+      case _dailyModeHardcore:
+        return Icons.whatshot;
+      default:
+        return Icons.shuffle;
+    }
+  }
+
+  Color _dailyModeAccent(String mode) {
+    switch (mode) {
+      case _dailyModeGenre:
+        return AppTheme.accentColor;
+      case _dailyModeDecade:
+        return AppTheme.secondaryColor;
+      case _dailyModeHardcore:
+        return AppTheme.errorColor;
+      default:
+        return AppTheme.primaryColor;
+    }
+  }
+
   String _dailyModeSubtitle(String mode, {String? genreName}) {
     if (mode == _dailyModeGenre) {
       return genreName != null && genreName.isNotEmpty
           ? 'Today\'s lane: $genreName'
           : 'Fixed genre for everyone today';
     }
+    if (mode == _dailyModeDecade) {
+      return genreName != null && genreName.isNotEmpty
+          ? 'Today\'s lane: $genreName'
+          : 'Fixed decade for everyone today';
+    }
+    if (mode == _dailyModeHardcore) {
+      return 'Same daily song, but no hints and no retries';
+    }
     return 'Fully random song for everyone today';
+  }
+
+  bool _isHardcoreMode(String mode) => mode == _dailyModeHardcore;
+
+  bool _activeModeSupportsHints() => !_isHardcoreMode(_activeDailyMode);
+
+  bool _activeModeSupportsRetries() => !_isHardcoreMode(_activeDailyMode);
+
+  Future<void> _showModeContributionDialog(RoomDailyMode mode) async {
+    final auth = context.read<AuthProvider>().user;
+    final suggested = mode.remainingCoins > 20 ? 20 : mode.remainingCoins;
+    final controller = TextEditingController(
+      text: suggested > 0 ? '$suggested' : '',
+    );
+    final amount = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppTheme.surfaceColor,
+        title: Text('Contribute to ${mode.label}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${mode.remainingCoins} coins remaining. You currently have ${auth?.coins ?? 0} coins.',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Coins to contribute',
+                filled: true,
+                fillColor: AppTheme.backgroundColor,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(
+                dialogContext,
+                int.tryParse(controller.text.trim()),
+              );
+            },
+            child: const Text('Contribute'),
+          ),
+        ],
+      ),
+    );
+
+    if (amount == null || amount <= 0 || !mounted) return;
+    final response = await context.read<RoomProvider>().contributeToDailyMode(
+      roomId: widget.roomId,
+      mode: mode.mode,
+      amount: amount,
+    );
+    if (!mounted) return;
+
+    if (response == null) {
+      final errorMessage = context.read<RoomProvider>().errorMessage;
+      if (errorMessage != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage.replaceFirst('Exception: ', '')),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+      return;
+    }
+
+    final coins = response['coins'] as int?;
+    if (coins != null) {
+      context.read<AuthProvider>().updateCoinsBalance(coins);
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(response['message'] as String? ?? 'Contribution sent'),
+        backgroundColor: response['is_unlocked'] as bool? ?? false
+            ? AppTheme.successColor
+            : AppTheme.primaryColor,
+      ),
+    );
+  }
+
+  Future<void> _openModesSheet() async {
+    final room = context.read<RoomProvider>().currentRoom;
+    if (room == null) return;
+    final modes = _availableDailyModes(room);
+    await showModalBottomSheet<void>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
+      showDragHandle: true,
+      backgroundColor: AppTheme.surfaceColor,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Daily Modes',
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Close',
+                        onPressed: () => Navigator.of(sheetContext).pop(),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Unlock extra lanes for this room without replacing Daily Mix.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 18),
+                  ...modes.map(
+                    (mode) => DailyModeCard(
+                      mode: mode,
+                      onPlay: mode.isPlayable
+                          ? () async {
+                              Navigator.pop(sheetContext);
+                              if (mode.mode != _activeDailyMode) {
+                                await _switchDailyMode(mode.mode);
+                              }
+                            }
+                          : null,
+                      onContribute: mode.isFree || mode.isUnlocked
+                          ? null
+                          : () async {
+                              Navigator.pop(sheetContext);
+                              await _showModeContributionDialog(mode);
+                            },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _switchDailyMode(String mode) async {
@@ -1206,8 +1470,12 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   Widget _buildDailyModeSwitcher(GameSession? session) {
     final isBusy =
         context.watch<GameProvider>().isLoading || _completionAdInProgress;
-    final activePack = context.watch<RoomProvider>().currentRoom?.activePack;
-    final activeGenreName = session?.dailySong.mode == _dailyModeGenre
+    final room = context.watch<RoomProvider>().currentRoom;
+    final activePack = room?.activePack;
+    final playableModes = _availableDailyModes(
+      room,
+    ).where((mode) => mode.isPlayable).toList();
+    final activeGenreName = session?.dailySong.mode != _dailyModeMix
         ? session?.dailySong.genreName
         : null;
     String subtitle;
@@ -1220,7 +1488,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     } else {
       subtitle = _dailyModeSubtitle(
         _activeDailyMode,
-        genreName: _activeDailyMode == _dailyModeGenre ? activeGenreName : null,
+        genreName: _activeDailyMode == _dailyModeMix ? null : activeGenreName,
       );
     }
     return Container(
@@ -1235,33 +1503,38 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: _ModePillButton(
-                  label: 'Daily Mix',
-                  icon: Icons.shuffle,
-                  isSelected: _activeRoomMode == _dailyModeMix,
-                  accent: AppTheme.primaryColor,
-                  onTap: isBusy ? null : () => _switchDailyMode(_dailyModeMix),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _ModePillButton(
-                  label: 'Daily Genre',
-                  icon: Icons.graphic_eq,
-                  isSelected: _activeRoomMode == _dailyModeGenre,
-                  accent: AppTheme.accentColor,
-                  onTap: isBusy
-                      ? null
-                      : () => _switchDailyMode(_dailyModeGenre),
-                ),
-              ),
-              if (activePack != null) ...[
-                const SizedBox(width: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Row(
+              children: [
                 Expanded(
-                  child: _ModePillButton(
+                  child: Text(
+                    subtitle,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                TextButton(
+                  onPressed: _openModesSheet,
+                  child: const Text('Modes'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final modeButtons = <Widget>[
+                ...playableModes.map(
+                  (mode) => _ModePillButton(
+                    label: mode.label,
+                    icon: _dailyModeIcon(mode.mode),
+                    isSelected: _activeRoomMode == mode.mode,
+                    accent: _dailyModeAccent(mode.mode),
+                    onTap: isBusy ? null : () => _switchDailyMode(mode.mode),
+                  ),
+                ),
+                if (activePack != null)
+                  _ModePillButton(
                     label: 'Pack',
                     icon: Icons.library_music_rounded,
                     isSelected: _activeRoomMode == _roomModePack,
@@ -1270,14 +1543,23 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                         ? null
                         : _selectActivePackMode,
                   ),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 10),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+              ];
+              final columns = constraints.maxWidth >= 520
+                  ? 3
+                  : constraints.maxWidth >= 320
+                  ? 2
+                  : 1;
+              final itemWidth =
+                  (constraints.maxWidth - ((columns - 1) * 8)) / columns;
+
+              return Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: modeButtons
+                    .map((button) => SizedBox(width: itemWidth, child: button))
+                    .toList(),
+              );
+            },
           ),
         ],
       ),
@@ -1294,6 +1576,18 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         setState(() {
           _activeRoomMode = _activeDailyMode;
         });
+      });
+    }
+    final activeModeStatus = room == null
+        ? null
+        : _dailyModeStatus(room, _activeDailyMode);
+    if (_activeRoomMode != _roomModePack &&
+        activeModeStatus != null &&
+        !activeModeStatus.isPlayable &&
+        _activeDailyMode != _dailyModeMix) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        unawaited(_switchDailyMode(_dailyModeMix));
       });
     }
 
@@ -1518,13 +1812,46 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
             ],
 
             if (session.currentSnippet >= 6 && !session.isCompleted) ...[
-              _buildRetryCard(session),
-              const SizedBox(height: 24),
+              if (_activeModeSupportsRetries()) ...[
+                _buildRetryCard(session),
+                const SizedBox(height: 24),
+              ],
             ],
 
-            _buildHintsSection(context, gameProvider),
+            if (_activeModeSupportsHints())
+              _buildHintsSection(context, gameProvider)
+            else
+              _buildHardcoreRulesCard(),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildHardcoreRulesCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.errorColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+        border: Border.all(color: AppTheme.errorColor.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Hardcore rules',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: AppTheme.errorColor,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'This lane disables hints and retry unlocks. One run only.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ],
       ),
     );
   }
@@ -1565,9 +1892,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
           left: 0,
           right: 0,
           child: LinearProgressIndicator(
-            color: _activeDailyMode == _dailyModeGenre
-                ? AppTheme.accentColor
-                : AppTheme.primaryColor,
+            color: _dailyModeAccent(_activeDailyMode),
             backgroundColor: AppTheme.surfaceColor,
           ),
         ),

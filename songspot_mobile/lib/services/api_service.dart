@@ -774,6 +774,18 @@ class ApiService {
     return await get(ApiConfig.roomsDetail(roomId), includeAuth: true);
   }
 
+  Future<Map<String, dynamic>> contributeToDailyMode({
+    required String roomId,
+    required String mode,
+    required int amount,
+  }) async {
+    return await post(
+      ApiConfig.roomsDailyModeContribute(roomId),
+      body: {'mode': mode, 'amount': amount},
+      includeAuth: true,
+    );
+  }
+
   Future<void> leaveRoom(String roomId) async {
     await post(ApiConfig.roomsLeave(roomId), includeAuth: true);
   }

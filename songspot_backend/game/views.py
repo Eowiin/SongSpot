@@ -1,5 +1,3 @@
-from datetime import datetime, time, timedelta, timezone as dt_timezone
-
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from rest_framework import status
@@ -17,34 +15,25 @@ import random
 logger = logging.getLogger(__name__)
 
 
-def _active_game_date():
-    """
-    Returns the 'active' date for daily game content.
-    The day rolls over at 12:00 UTC when the cron pre-generates new content.
-      - Before 12:00 UTC → yesterday's date (yesterday's song is still active)
-      - From 12:00 UTC   → today's date
-    """
-    now = timezone.now()
-    if now.hour < 12:
-        return (now - timedelta(days=1)).date()
-    return now.date()
-
-
-def _active_game_window(active_date):
-    """
-    Returns the UTC datetime window for a given active game date.
-    Active day D spans from D 12:00 UTC to D+1 12:00 UTC.
-    """
-    start = datetime.combine(active_date, time(hour=12, tzinfo=dt_timezone.utc))
-    end = start + timedelta(days=1)
-    return start, end
-
-
 from .models import (
     Track, SongPack, Room, RoomUser, RoomPack,
     DailySong, PackTrack, PackDailyTrack, PackBundleSession, PackBundleAttempt,
     DailyGameSession, GuessAttempt, RoomMessage, PackBundleMessage, PackBundleStemJob,
-    DAILY_MODE_MIX, DAILY_MODE_GENRE,
+    DAILY_MODE_MIX, DAILY_MODE_GENRE, DAILY_MODE_DECADE, DAILY_MODE_HARDCORE,
+    RoomDailyModeState, RoomDailyModeContribution,
+)
+from .daily_modes import (
+    active_game_date,
+    active_game_window,
+    daily_mode_cost,
+    daily_mode_label,
+    daily_mode_subtitle,
+    enabled_daily_modes,
+    is_daily_mode_accessible,
+    is_daily_mode_enabled,
+    is_daily_mode_free,
+    serialize_room_daily_modes,
+    supported_daily_modes,
 )
 from .serializers import (
     TrackSerializer,
@@ -53,6 +42,7 @@ from .serializers import (
     RoomSerializer,
     RoomCreateSerializer,
     RoomRenameSerializer,
+    RoomDailyModeContributionSerializer,
     JoinRoomSerializer,
     GameSessionSerializer,
     SubmitGuessSerializer,
@@ -82,12 +72,18 @@ COIN_REWARD_MAX = 8
 STREAK_BONUS_INTERVAL = 7
 STREAK_BONUS_COINS = 50
 MAX_DAILY_SNIPPET = 6
-SUPPORTED_DAILY_MODES = {DAILY_MODE_MIX, DAILY_MODE_GENRE}
+SUPPORTED_DAILY_MODES = supported_daily_modes()
 DAILY_GENRE_ROTATION = [
     ('rock', 'Rock'),
     ('pop', 'Pop'),
     ('hiphop', 'Hip-Hop'),
     ('rnb', 'R&B'),
+]
+DAILY_DECADE_ROTATION = [
+    ('1970s', 1970, 1979),
+    ('1980s', 1980, 1989),
+    ('1990s', 1990, 1999),
+    ('2000s', 2000, 2009),
 ]
 DAILY_GENRE_FALLBACK_ALIASES = {
     'rock': ['rock', 'alternative'],
@@ -120,6 +116,14 @@ def _max_room_creations_per_day():
 
 def _daily_chat_group_name(room_id, mode):
     return f'chat_{room_id}_{mode}'
+
+
+def _active_game_date():
+    return active_game_date()
+
+
+def _active_game_window(active_date):
+    return active_game_window(active_date)
 
 
 def _broadcast_leaderboard_updated(room_id, user_id, mode):
@@ -178,6 +182,19 @@ def _retry_state_payload(game_session):
     }
 
 
+def _is_hardcore_mode(mode):
+    return mode == DAILY_MODE_HARDCORE
+
+
+def _mode_rule_restricted_response(message, *, reason):
+    return error_response(
+        code=ErrorCode.MODE_RULE_RESTRICTED,
+        message=message,
+        status_code=status.HTTP_400_BAD_REQUEST,
+        reason=reason,
+    )
+
+
 def _parse_daily_mode(request, *, default=DAILY_MODE_MIX):
     mode = request.query_params.get('mode')
     if mode is None and hasattr(request, 'data'):
@@ -198,6 +215,57 @@ def _invalid_daily_mode_response():
     )
 
 
+def _daily_mode_locked_response(mode):
+    return Response(
+        {
+            'error': (
+                f'{daily_mode_label(mode)} is locked for this room. '
+                'Contribute coins to unlock it first.'
+            )
+        },
+        status=status.HTTP_403_FORBIDDEN,
+    )
+
+
+def _ensure_daily_mode_access(room, mode, active_date):
+    if not is_daily_mode_enabled(mode):
+        return _invalid_daily_mode_response()
+    if is_daily_mode_accessible(room, mode, active_date):
+        return None
+    return _daily_mode_locked_response(mode)
+
+
+def _get_or_create_room_daily_mode_state(room, mode):
+    state, _created = RoomDailyModeState.objects.get_or_create(
+        room=room,
+        mode=mode,
+    )
+    return state
+
+
+def _broadcast_room_mode_updated(room, *, activity_message, actor_user_id=None):
+    channel_layer = get_channel_layer()
+    if channel_layer is None:
+        return
+
+    try:
+        async_to_sync(channel_layer.group_send)(
+            f'chat_{room.id}',
+            {
+                'type': 'room_mode_updated',
+                'room_id': str(room.id),
+                'daily_modes': serialize_room_daily_modes(room, _active_game_date()),
+                'activity_message': activity_message,
+                'actor_user_id': str(actor_user_id) if actor_user_id else None,
+            },
+        )
+    except Exception:
+        logger.exception(
+            'Failed to broadcast room_mode_updated for room %s.',
+            room.id,
+        )
+
+
 def _daily_genre_for_date(target_date):
     start_index = target_date.toordinal() % len(DAILY_GENRE_ROTATION)
     for offset in range(len(DAILY_GENRE_ROTATION)):
@@ -205,6 +273,17 @@ def _daily_genre_for_date(target_date):
         if _genre_track_queryset(genre_key).exists():
             return genre_key, genre_name
     return DAILY_GENRE_ROTATION[start_index]
+
+
+def _daily_decade_for_date(target_date):
+    start_index = target_date.toordinal() % len(DAILY_DECADE_ROTATION)
+    for offset in range(len(DAILY_DECADE_ROTATION)):
+        decade_label, start_year, end_year = DAILY_DECADE_ROTATION[
+            (start_index + offset) % len(DAILY_DECADE_ROTATION)
+        ]
+        if _decade_track_queryset(start_year, end_year).exists():
+            return decade_label, start_year, end_year
+    return DAILY_DECADE_ROTATION[start_index]
 
 
 def _daily_song_filter(room, date, mode):
@@ -233,6 +312,13 @@ def _genre_track_queryset(genre_key):
     return Track.objects.filter(query).distinct()
 
 
+def _decade_track_queryset(start_year, end_year):
+    return Track.objects.filter(
+        release_year__gte=start_year,
+        release_year__lte=end_year,
+    ).distinct()
+
+
 def _choose_track_from_queryset(queryset, excluded_ids=()):
     candidates = queryset.exclude(id__in=excluded_ids)
     candidates_with_deezer = candidates.filter(deezer_id__isnull=False)
@@ -256,6 +342,18 @@ def _select_daily_track(room, date, mode):
         if track is None:
             return None, genre_key, genre_name
         return track, genre_key, genre_name
+
+    if mode == DAILY_MODE_DECADE:
+        decade_label, start_year, end_year = _daily_decade_for_date(date)
+        base_queryset = _decade_track_queryset(start_year, end_year)
+        used_track_ids = set(_used_track_ids_for_mode(room, mode))
+
+        track = _choose_track_from_queryset(base_queryset, excluded_ids | used_track_ids)
+        if track is None:
+            track = _choose_track_from_queryset(base_queryset, excluded_ids)
+        if track is None:
+            return None, decade_label, decade_label
+        return track, decade_label, decade_label
 
     used_track_ids = set(_used_track_ids_for_mode(room, mode))
     base_queryset = Track.objects.all()
@@ -648,6 +746,142 @@ class RoomDetailView(APIView):
             context={'request': request, 'active_game_date': _active_game_date()},
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class RoomDailyModeContributionView(APIView):
+    """
+    Contribute coins toward unlocking a paid daily mode for the room.
+
+    POST /api/game/rooms/<room_id>/daily-modes/contribute/
+    Body: {"mode": "genre", "amount": 20}
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, room_id):
+        room = get_object_or_404(Room, id=room_id)
+        today = _active_game_date()
+
+        if not RoomUser.objects.filter(room=room, user=request.user).exists():
+            return Response(
+                {'error': 'You must be in the room to contribute to daily modes'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = RoomDailyModeContributionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        mode = serializer.validated_data['mode']
+        requested_amount = serializer.validated_data['amount']
+
+        if mode == DAILY_MODE_MIX or is_daily_mode_free(mode):
+            return Response(
+                {'error': 'Daily Mix does not require coins'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not is_daily_mode_enabled(mode):
+            return _invalid_daily_mode_response()
+
+        state = _get_or_create_room_daily_mode_state(room, mode)
+        if state.unlocked_for_date == today:
+            return Response(
+                {'error': f'{daily_mode_label(mode)} is already unlocked for this room'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        cost = daily_mode_cost(mode)
+        remaining_before = max(cost - state.progress_coins, 0)
+        effective_amount = min(requested_amount, remaining_before)
+        if effective_amount <= 0:
+            return Response(
+                {'error': f'{daily_mode_label(mode)} is already fully funded'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if request.user.coins < effective_amount:
+            return error_response(
+                code=ErrorCode.INSUFFICIENT_COINS,
+                message='Insufficient coins',
+                status_code=status.HTTP_400_BAD_REQUEST,
+                params={'required_coins': effective_amount},
+                coins=request.user.coins,
+            )
+
+        with transaction.atomic():
+            if not request.user.spend_coins(
+                effective_amount,
+                reason=f'{daily_mode_label(mode)} contribution in room {room.room_code}',
+            ):
+                return error_response(
+                    code=ErrorCode.INSUFFICIENT_COINS,
+                    message='Insufficient coins',
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    params={'required_coins': effective_amount},
+                    coins=request.user.coins,
+                )
+
+            state = RoomDailyModeState.objects.select_for_update().get(id=state.id)
+            contribution, created = RoomDailyModeContribution.objects.get_or_create(
+                state=state,
+                user=request.user,
+                defaults={'amount': effective_amount},
+            )
+            if not created:
+                contribution.amount += effective_amount
+                contribution.save(update_fields=['amount', 'updated_at'])
+
+            state.progress_coins += effective_amount
+            unlocked = state.progress_coins >= cost
+            contributor_count = state.contributions.count()
+            if unlocked:
+                state.progress_coins = 0
+                state.unlocked_for_date = today
+                state.last_unlocked_at = timezone.now()
+                state.last_unlock_contributor_count = contributor_count
+                state.save(
+                    update_fields=[
+                        'progress_coins',
+                        'unlocked_for_date',
+                        'last_unlocked_at',
+                        'last_unlock_contributor_count',
+                        'updated_at',
+                    ]
+                )
+                state.contributions.all().delete()
+            else:
+                state.save(update_fields=['progress_coins', 'updated_at'])
+
+        room_data = RoomSerializer(
+            room,
+            context={'request': request, 'active_game_date': today},
+        ).data
+        activity_message = (
+            f'{request.user.username} unlocked {daily_mode_label(mode)} for this room.'
+            if unlocked
+            else f'{request.user.username} contributed {effective_amount} coins to {daily_mode_label(mode)}.'
+        )
+        _broadcast_room_mode_updated(
+            room,
+            activity_message=activity_message,
+            actor_user_id=request.user.id,
+        )
+        return Response(
+            {
+                'room': room_data,
+                'mode': mode,
+                'contributed_coins': effective_amount,
+                'coins': request.user.coins,
+                'is_unlocked': unlocked,
+                'message': (
+                    f'{daily_mode_label(mode)} unlocked for this room'
+                    if unlocked
+                    else (
+                        f'Contributed {effective_amount} coins to {daily_mode_label(mode)} '
+                        f'({max(remaining_before - effective_amount, 0)} remaining)'
+                    )
+                ),
+                'activity_message': activity_message,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class RoomRenameView(APIView):
@@ -1633,6 +1867,10 @@ class RoomDailySongView(APIView):
                 'error': 'You must be in the room to see the daily song'
             }, status=status.HTTP_403_FORBIDDEN)
 
+        access_error = _ensure_daily_mode_access(room, mode, today)
+        if access_error:
+            return access_error
+
         daily_song = _get_or_create_daily_song(room, today, mode)
         if not daily_song:
             return Response({
@@ -1672,6 +1910,10 @@ class DailyGameView(APIView):
             return Response({
                 'error': 'You must be in the room to play the game'
             }, status=status.HTTP_403_FORBIDDEN)
+
+        access_error = _ensure_daily_mode_access(room, mode, today)
+        if access_error:
+            return access_error
 
         daily_song = _get_or_create_daily_song(room, today, mode)
         if not daily_song:
@@ -1723,6 +1965,10 @@ class SkipSnippetView(APIView):
             return Response({
                 'error': 'You must be in the room to play the game'
             }, status=status.HTTP_403_FORBIDDEN)
+
+        access_error = _ensure_daily_mode_access(room, mode, today)
+        if access_error:
+            return access_error
 
         # Get today's song and user's session
         daily_song = _daily_song_filter(room, today, mode).first()
@@ -1794,6 +2040,10 @@ class SubmitGuessView(APIView):
             return Response({
                 'error': 'You must be in the room to play the game'
             }, status=status.HTTP_403_FORBIDDEN)
+
+        access_error = _ensure_daily_mode_access(room, mode, today)
+        if access_error:
+            return access_error
 
         # Validate input
         serializer = SubmitGuessSerializer(data=request.data)
@@ -1953,6 +2203,40 @@ class SubmitGuessView(APIView):
                 **_retry_state_payload(game_session),
             }, status=status.HTTP_200_OK)
 
+        if _is_hardcore_mode(mode):
+            game_session.correct_guess = False
+            game_session.points_earned = 0
+            game_session.completed_at = timezone.now()
+            game_session.awaiting_retry_unlock = False
+            game_session.save(update_fields=[
+                'guesses_made',
+                'correct_guess',
+                'points_earned',
+                'completed_at',
+                'awaiting_retry_unlock',
+            ])
+
+            update_user_stats(
+                request.user,
+                points=0,
+                won=False,
+                played_date=today,
+                perfect_game=False,
+            )
+            _broadcast_leaderboard_updated(room.id, request.user.id, mode)
+
+            return Response({
+                'is_correct': False,
+                'points_earned': 0,
+                'game_over': True,
+                'message': 'Hardcore mode gives one run only. No more chances.',
+                'correct_answer': {
+                    'title': daily_song.track.title,
+                    'artist': daily_song.track.artist,
+                },
+                **_retry_state_payload(game_session),
+            }, status=status.HTTP_200_OK)
+
         # At max snippet: consume available retry credit first.
         if game_session.retry_credits > 0:
             game_session.retry_credits -= 1
@@ -2091,6 +2375,16 @@ class DailyGameRetryView(APIView):
                 code=ErrorCode.MUST_BE_IN_ROOM_TO_PLAY_GAME,
                 message='You must be in the room to play the game',
                 status_code=status.HTTP_403_FORBIDDEN,
+            )
+
+        access_error = _ensure_daily_mode_access(room, mode, today)
+        if access_error:
+            return access_error
+
+        if _is_hardcore_mode(mode):
+            return _mode_rule_restricted_response(
+                'Hardcore mode does not allow retries.',
+                reason='hardcore_retry_disabled',
             )
 
         serializer = DailyGameRetrySerializer(data=request.data)
@@ -2266,6 +2560,10 @@ class LeaderboardView(APIView):
                 'error': 'You must be in the room to view the leaderboard'
             }, status=status.HTTP_403_FORBIDDEN)
 
+        access_error = _ensure_daily_mode_access(room, mode, today)
+        if access_error:
+            return access_error
+
         # Get today's song
         daily_song = _daily_song_filter(room, today, mode).first()
         if not daily_song:
@@ -2328,6 +2626,7 @@ class RoomMessagesView(APIView):
 
     def get(self, request, room_id):
         room = get_object_or_404(Room, id=room_id)
+        active_date = _active_game_date()
         mode = _parse_daily_mode(request)
         if mode is None:
             return _invalid_daily_mode_response()
@@ -2338,6 +2637,10 @@ class RoomMessagesView(APIView):
                 'error': 'You must be in the room to view messages'
             }, status=status.HTTP_403_FORBIDDEN)
 
+        access_error = _ensure_daily_mode_access(room, mode, active_date)
+        if access_error:
+            return access_error
+
         # Get pagination parameters
         limit = int(request.query_params.get('limit', 50))
         offset = int(request.query_params.get('offset', 0))
@@ -2346,7 +2649,6 @@ class RoomMessagesView(APIView):
         limit = min(limit, 100)
 
         # Get messages for the active daily-chat window.
-        active_date = _active_game_date()
         window_start, window_end = _active_game_window(active_date)
         messages = RoomMessage.objects.filter(
             room=room,
@@ -2373,6 +2675,10 @@ class RoomMessagesView(APIView):
             return Response({
                 'error': 'You must be in the room to post messages'
             }, status=status.HTTP_403_FORBIDDEN)
+
+        access_error = _ensure_daily_mode_access(room, mode, _active_game_date())
+        if access_error:
+            return access_error
 
         # Validate message
         serializer = PostMessageSerializer(data=request.data)
@@ -2439,6 +2745,16 @@ class DailyGameHintView(APIView):
 
         if not RoomUser.objects.filter(room=room, user=request.user).exists():
             return Response({'error': 'You must be in the room to use hints'}, status=status.HTTP_403_FORBIDDEN)
+
+        access_error = _ensure_daily_mode_access(room, mode, today)
+        if access_error:
+            return access_error
+
+        if _is_hardcore_mode(mode):
+            return _mode_rule_restricted_response(
+                'Hardcore mode does not allow hints.',
+                reason='hardcore_hints_disabled',
+            )
 
         hint_type = request.data.get('hint_type', '').strip()
         if hint_type not in HINT_COSTS:
