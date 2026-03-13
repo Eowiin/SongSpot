@@ -225,8 +225,13 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
             const SizedBox(height: 12),
             TextField(
               controller: controller,
-              keyboardType: TextInputType.number,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: false,
+                signed: false,
+              ),
               autofocus: true,
+              textInputAction: TextInputAction.done,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: InputDecoration(
                 labelText: 'Coins to contribute',
                 filled: true,

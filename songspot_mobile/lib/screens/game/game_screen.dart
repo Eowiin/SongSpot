@@ -597,7 +597,12 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
             TextField(
               controller: controller,
               autofocus: true,
-              keyboardType: TextInputType.number,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: false,
+                signed: false,
+              ),
+              textInputAction: TextInputAction.done,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: InputDecoration(
                 labelText: 'Coins to contribute',
                 filled: true,
@@ -667,6 +672,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     final room = context.read<RoomProvider>().currentRoom;
     if (room == null) return;
     final modes = _availableDailyModes(room);
+    final scrollController = ScrollController();
     await showModalBottomSheet<void>(
       context: context,
       useRootNavigator: true,
@@ -679,7 +685,10 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
-            child: SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(sheetContext).size.height * 0.78,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -704,23 +713,58 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 18),
-                  ...modes.map(
-                    (mode) => DailyModeCard(
-                      mode: mode,
-                      onPlay: mode.isPlayable
-                          ? () async {
-                              Navigator.pop(sheetContext);
-                              if (mode.mode != _activeDailyMode) {
-                                await _switchDailyMode(mode.mode);
-                              }
-                            }
-                          : null,
-                      onContribute: mode.isFree || mode.isUnlocked
-                          ? null
-                          : () async {
-                              Navigator.pop(sheetContext);
-                              await _showModeContributionDialog(mode);
-                            },
+                  Expanded(
+                    child: Scrollbar(
+                      controller: scrollController,
+                      thumbVisibility: true,
+                      child: SingleChildScrollView(
+                        controller: scrollController,
+                        padding: const EdgeInsets.only(right: 4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: modes
+                              .map(
+                                (mode) => DailyModeCard(
+                                  mode: mode,
+                                  onPlay: mode.isPlayable
+                                      ? () async {
+                                          Navigator.pop(sheetContext);
+                                          if (mode.mode != _activeDailyMode) {
+                                            await _switchDailyMode(mode.mode);
+                                          }
+                                        }
+                                      : null,
+                                  onContribute: mode.isFree || mode.isUnlocked
+                                      ? null
+                                      : () async {
+                                          Navigator.pop(sheetContext);
+                                          await _showModeContributionDialog(
+                                            mode,
+                                          );
+                                        },
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.swipe_vertical_rounded,
+                          size: 16,
+                          color: AppTheme.textSecondary.withValues(alpha: 0.85),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Scroll to see all modes',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -730,6 +774,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         );
       },
     );
+    scrollController.dispose();
   }
 
   Future<void> _switchDailyMode(String mode) async {
@@ -1544,11 +1589,14 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                         : _selectActivePackMode,
                   ),
               ];
-              final columns = constraints.maxWidth >= 520
+              final maxColumns = constraints.maxWidth >= 520
                   ? 3
                   : constraints.maxWidth >= 320
                   ? 2
                   : 1;
+              final columns = modeButtons.length < maxColumns
+                  ? modeButtons.length
+                  : maxColumns;
               final itemWidth =
                   (constraints.maxWidth - ((columns - 1) * 8)) / columns;
 
