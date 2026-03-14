@@ -22,14 +22,14 @@ DAILY_MODE_CONFIG = {
         'enabled': True,
     },
     DAILY_MODE_GENRE: {
-        'label': 'Daily Genre',
+        'label': 'Genre Mode',
         'subtitle': 'Same genre for everyone in the room today',
         'cost_coins': 60,
         'free': False,
         'enabled': True,
     },
     DAILY_MODE_DECADE: {
-        'label': 'Daily Decade',
+        'label': 'Decade Mode',
         'subtitle': 'Same decade for everyone in the room today',
         'cost_coins': 60,
         'free': False,

@@ -3,7 +3,7 @@
 ## Current State
 
 - `Daily Mix` is the free default mode.
-- `Genre`, `Decade`, and `Hardcore` are room-wide coin-funded modes.
+- `Genre Mode`, `Decade Mode`, and `Hardcore` are room-wide coin-funded modes.
 - A correct daily guess currently awards `5` to `8` coins depending on snippet.
 - Paid modes can be unlocked by room contribution and stay available until the next daily reset.
 
@@ -33,7 +33,7 @@ At `5-8` coins per good daily win:
 
 The current names are understandable in code, but not ideal from a product point of view.
 
-`Daily Genre` and `Daily Decade` sound like permanent daily entitlements, while they are actually optional room-wide activations for the current day.
+`Daily Genre` and `Daily Decade` sounded like permanent daily entitlements, while they are actually optional room-wide activations for the current day.
 
 ### Recommended User-Facing Naming
 
