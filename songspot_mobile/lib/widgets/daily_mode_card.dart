@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../config/app_theme.dart';
+import '../config/daily_mode_localization.dart';
+import '../l10n/app_localizations.dart';
 import '../models/room.dart';
 
 class DailyModeCard extends StatelessWidget {
@@ -17,6 +19,7 @@ class DailyModeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final accent = _modeAccent(mode.mode);
     final progressMax = mode.costCoins <= 0 ? 1 : mode.costCoins;
     final progressValue = mode.progressCoins.clamp(0, progressMax).toDouble();
@@ -51,19 +54,21 @@ class DailyModeCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      mode.label,
+                      dailyModeLocalizedLabel(l10n, mode.mode),
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      mode.subtitle,
+                      dailyModeLocalizedSubtitle(l10n, mode.mode),
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
                 ),
               ),
               Text(
-                mode.isFree ? 'Free' : '${mode.costCoins} coins',
+                mode.isFree
+                    ? l10n.dailyModeFree
+                    : l10n.dailyModeCoinsCost(mode.costCoins),
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
                   color: mode.isUnlocked ? AppTheme.successColor : accent,
                   fontWeight: FontWeight.w700,
@@ -85,8 +90,12 @@ class DailyModeCard extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               mode.isUnlocked
-                  ? 'Unlocked for this room until next reset'
-                  : '${mode.progressCoins}/${mode.costCoins} coins • ${mode.contributorCount} contributor${mode.contributorCount == 1 ? '' : 's'}',
+                  ? l10n.dailyModeUnlockedUntilReset
+                  : l10n.dailyModeContributionProgress(
+                      mode.progressCoins,
+                      mode.costCoins,
+                      mode.contributorCount,
+                    ),
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
@@ -99,7 +108,9 @@ class DailyModeCard extends StatelessWidget {
                     onPressed: onPlay,
                     icon: const Icon(Icons.play_arrow),
                     label: Text(
-                      mode.isUnlocked || mode.isFree ? 'Play' : 'Preview',
+                      mode.isUnlocked || mode.isFree
+                          ? l10n.dailyModePlay
+                          : l10n.dailyModePreview,
                     ),
                   ),
                 ),
@@ -112,10 +123,10 @@ class DailyModeCard extends StatelessWidget {
                     icon: const Icon(Icons.monetization_on_outlined),
                     label: Text(
                       mode.isUnlocked
-                          ? 'Unlocked'
+                          ? l10n.dailyModeUnlocked
                           : mode.remainingCoins > 0
-                          ? 'Contribute'
-                          : 'Funded',
+                          ? l10n.dailyModeContribute
+                          : l10n.dailyModeFunded,
                     ),
                   ),
                 ),

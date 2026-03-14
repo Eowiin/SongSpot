@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/daily_mode_localization.dart';
+import '../../l10n/app_localizations.dart';
 import '../../models/pack.dart';
 import '../../models/room.dart';
 import '../../providers/auth_provider.dart';
@@ -204,6 +206,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
   }
 
   Future<void> _showDailyModeContributionDialog(RoomDailyMode mode) async {
+    final l10n = AppLocalizations.of(context);
     final auth = context.read<AuthProvider>().user;
     final maxAmount = mode.remainingCoins;
     final suggestedAmount = maxAmount > 20 ? 20 : maxAmount;
@@ -214,13 +217,20 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: AppTheme.surfaceColor,
-        title: Text('Contribute to ${mode.label}'),
+        title: Text(
+          l10n.dailyModeContributeTitle(
+            dailyModeLocalizedLabel(l10n, mode.mode),
+          ),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '${mode.remainingCoins} coins remaining. You currently have ${auth?.coins ?? 0} coins.',
+              l10n.dailyModeCoinsRemainingYouHave(
+                mode.remainingCoins,
+                auth?.coins ?? 0,
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -233,7 +243,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
               textInputAction: TextInputAction.done,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: InputDecoration(
-                labelText: 'Coins to contribute',
+                labelText: l10n.dailyModeCoinsToContribute,
                 filled: true,
                 fillColor: AppTheme.backgroundColor,
                 border: OutlineInputBorder(
@@ -247,14 +257,14 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
+            child: Text(l10n.commonCancel),
           ),
           TextButton(
             onPressed: () {
               final parsed = int.tryParse(controller.text.trim());
               Navigator.pop(dialogContext, parsed);
             },
-            child: const Text('Contribute'),
+            child: Text(l10n.dailyModeContribute),
           ),
         ],
       ),
@@ -288,7 +298,13 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(response['message'] as String? ?? 'Contribution sent'),
+        content: Text(
+          response['is_unlocked'] as bool? ?? false
+              ? l10n.dailyModeUnlockedForRoom(
+                  dailyModeLocalizedLabel(l10n, mode.mode),
+                )
+              : l10n.dailyModeContributionSent,
+        ),
         backgroundColor: response['is_unlocked'] as bool? ?? false
             ? AppTheme.successColor
             : AppTheme.primaryColor,
@@ -385,6 +401,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final providerRoom = context.watch<RoomProvider>().currentRoom;
     final room = providerRoom != null && providerRoom.id == widget.room.id
         ? providerRoom
@@ -431,9 +448,8 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                       ],
                       const SizedBox(height: 28),
                       _buildSectionHeader(
-                        title: 'Daily Modes',
-                        subtitle:
-                            'Mix is always free. Contribute with your room to unlock extra daily lanes.',
+                        title: l10n.dailyModesTitle,
+                        subtitle: l10n.dailyModesRoomIntro,
                       ),
                       const SizedBox(height: 12),
                       ...room.dailyModes.map(

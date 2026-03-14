@@ -1232,6 +1232,208 @@ abstract class AppLocalizations {
   /// **'Artist'**
   String get gameHintArtist;
 
+  /// Generic cancel button label
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get commonCancel;
+
+  /// Generic close label or tooltip
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get commonClose;
+
+  /// Label for the pack mode pill in the game switcher
+  ///
+  /// In en, this message translates to:
+  /// **'Pack'**
+  String get packModeLabel;
+
+  /// Title for the mode section or modes sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Daily Modes'**
+  String get dailyModesTitle;
+
+  /// Short label for the button that opens the modes sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Modes'**
+  String get dailyModesShortLabel;
+
+  /// Intro text for the modes sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock extra lanes for this room without replacing Daily Mix.'**
+  String get dailyModesIntro;
+
+  /// Intro text for the room details modes section
+  ///
+  /// In en, this message translates to:
+  /// **'Mix is always free. Contribute with your room to unlock extra daily lanes.'**
+  String get dailyModesRoomIntro;
+
+  /// Hint shown below the modes list to indicate scrolling
+  ///
+  /// In en, this message translates to:
+  /// **'Scroll to see all modes'**
+  String get dailyModesScrollHint;
+
+  /// Label for the mix mode
+  ///
+  /// In en, this message translates to:
+  /// **'Daily Mix'**
+  String get dailyModeMixLabel;
+
+  /// Label for the genre mode
+  ///
+  /// In en, this message translates to:
+  /// **'Genre Mode'**
+  String get dailyModeGenreLabel;
+
+  /// Label for the decade mode
+  ///
+  /// In en, this message translates to:
+  /// **'Decade Mode'**
+  String get dailyModeDecadeLabel;
+
+  /// Label for the hardcore mode
+  ///
+  /// In en, this message translates to:
+  /// **'Hardcore'**
+  String get dailyModeHardcoreLabel;
+
+  /// Subtitle for the mix mode
+  ///
+  /// In en, this message translates to:
+  /// **'Fully random song for everyone today'**
+  String get dailyModeMixSubtitle;
+
+  /// Subtitle for the genre mode
+  ///
+  /// In en, this message translates to:
+  /// **'Fixed genre for everyone today'**
+  String get dailyModeGenreSubtitle;
+
+  /// Subtitle for the decade mode
+  ///
+  /// In en, this message translates to:
+  /// **'Fixed decade for everyone today'**
+  String get dailyModeDecadeSubtitle;
+
+  /// Subtitle for the hardcore mode
+  ///
+  /// In en, this message translates to:
+  /// **'Same daily song, but no hints and no retries'**
+  String get dailyModeHardcoreSubtitle;
+
+  /// Subtitle when a specific daily lane is active
+  ///
+  /// In en, this message translates to:
+  /// **'Today\'s lane: {name}'**
+  String dailyModeLaneSubtitle(String name);
+
+  /// Price label for a free mode
+  ///
+  /// In en, this message translates to:
+  /// **'Free'**
+  String get dailyModeFree;
+
+  /// Price label for a paid mode
+  ///
+  /// In en, this message translates to:
+  /// **'{coins} coins'**
+  String dailyModeCoinsCost(num coins);
+
+  /// Status text shown when a mode is unlocked
+  ///
+  /// In en, this message translates to:
+  /// **'Unlocked for this room until next reset'**
+  String get dailyModeUnlockedUntilReset;
+
+  /// Funding progress text for a mode card
+  ///
+  /// In en, this message translates to:
+  /// **'{progress}/{total} coins • {contributors} contributors'**
+  String dailyModeContributionProgress(
+    num progress,
+    num total,
+    num contributors,
+  );
+
+  /// Primary action label for a playable mode
+  ///
+  /// In en, this message translates to:
+  /// **'Play'**
+  String get dailyModePlay;
+
+  /// Primary action label for a previewable mode
+  ///
+  /// In en, this message translates to:
+  /// **'Preview'**
+  String get dailyModePreview;
+
+  /// Action/status label for an unlocked mode
+  ///
+  /// In en, this message translates to:
+  /// **'Unlocked'**
+  String get dailyModeUnlocked;
+
+  /// Action label to contribute to a mode
+  ///
+  /// In en, this message translates to:
+  /// **'Contribute'**
+  String get dailyModeContribute;
+
+  /// Status label when a mode is funded
+  ///
+  /// In en, this message translates to:
+  /// **'Funded'**
+  String get dailyModeFunded;
+
+  /// Dialog title for contributing to a mode
+  ///
+  /// In en, this message translates to:
+  /// **'Contribute to {mode}'**
+  String dailyModeContributeTitle(String mode);
+
+  /// Helper text showing remaining funding and the user's balance
+  ///
+  /// In en, this message translates to:
+  /// **'{remaining} coins remaining. You currently have {coins} coins.'**
+  String dailyModeCoinsRemainingYouHave(num remaining, num coins);
+
+  /// Input label for the contribution amount
+  ///
+  /// In en, this message translates to:
+  /// **'Coins to contribute'**
+  String get dailyModeCoinsToContribute;
+
+  /// Snackbar shown when a contribution succeeds without unlocking the mode
+  ///
+  /// In en, this message translates to:
+  /// **'Contribution sent'**
+  String get dailyModeContributionSent;
+
+  /// Snackbar shown when a mode becomes unlocked
+  ///
+  /// In en, this message translates to:
+  /// **'{mode} unlocked for this room'**
+  String dailyModeUnlockedForRoom(String mode);
+
+  /// Title for the hardcore rules card
+  ///
+  /// In en, this message translates to:
+  /// **'Hardcore rules'**
+  String get dailyModeHardcoreRulesTitle;
+
+  /// Body copy for the hardcore rules card
+  ///
+  /// In en, this message translates to:
+  /// **'This lane disables hints and retry unlocks. One run only.'**
+  String get dailyModeHardcoreRulesBody;
+
   /// Error when submitting without selecting an autocomplete result
   ///
   /// In en, this message translates to:

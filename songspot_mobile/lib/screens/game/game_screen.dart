@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../config/app_theme.dart';
 import '../../config/admob_config.dart';
+import '../../config/daily_mode_localization.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/game_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -506,8 +507,8 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     return const [
       RoomDailyMode(
         mode: _dailyModeMix,
-        label: 'Daily Mix',
-        subtitle: 'Fully random song for everyone today',
+        label: '',
+        subtitle: '',
         costCoins: 0,
         isFree: true,
         isEnabled: true,
@@ -553,20 +554,11 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   }
 
   String _dailyModeSubtitle(String mode, {String? genreName}) {
-    if (mode == _dailyModeGenre) {
-      return genreName != null && genreName.isNotEmpty
-          ? 'Today\'s lane: $genreName'
-          : 'Fixed genre for everyone today';
-    }
-    if (mode == _dailyModeDecade) {
-      return genreName != null && genreName.isNotEmpty
-          ? 'Today\'s lane: $genreName'
-          : 'Fixed decade for everyone today';
-    }
-    if (mode == _dailyModeHardcore) {
-      return 'Same daily song, but no hints and no retries';
-    }
-    return 'Fully random song for everyone today';
+    return dailyModeLocalizedSubtitle(
+      AppLocalizations.of(context),
+      mode,
+      laneName: genreName,
+    );
   }
 
   bool _isHardcoreMode(String mode) => mode == _dailyModeHardcore;
@@ -576,6 +568,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   bool _activeModeSupportsRetries() => !_isHardcoreMode(_activeDailyMode);
 
   Future<void> _showModeContributionDialog(RoomDailyMode mode) async {
+    final l10n = AppLocalizations.of(context);
     final auth = context.read<AuthProvider>().user;
     final suggested = mode.remainingCoins > 20 ? 20 : mode.remainingCoins;
     final controller = TextEditingController(
@@ -585,13 +578,20 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: AppTheme.surfaceColor,
-        title: Text('Contribute to ${mode.label}'),
+        title: Text(
+          l10n.dailyModeContributeTitle(
+            dailyModeLocalizedLabel(l10n, mode.mode),
+          ),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '${mode.remainingCoins} coins remaining. You currently have ${auth?.coins ?? 0} coins.',
+              l10n.dailyModeCoinsRemainingYouHave(
+                mode.remainingCoins,
+                auth?.coins ?? 0,
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -604,7 +604,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
               textInputAction: TextInputAction.done,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: InputDecoration(
-                labelText: 'Coins to contribute',
+                labelText: l10n.dailyModeCoinsToContribute,
                 filled: true,
                 fillColor: AppTheme.backgroundColor,
                 border: OutlineInputBorder(
@@ -618,7 +618,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
+            child: Text(l10n.commonCancel),
           ),
           TextButton(
             onPressed: () {
@@ -627,7 +627,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                 int.tryParse(controller.text.trim()),
               );
             },
-            child: const Text('Contribute'),
+            child: Text(l10n.dailyModeContribute),
           ),
         ],
       ),
@@ -660,7 +660,13 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(response['message'] as String? ?? 'Contribution sent'),
+        content: Text(
+          response['is_unlocked'] as bool? ?? false
+              ? l10n.dailyModeUnlockedForRoom(
+                  dailyModeLocalizedLabel(l10n, mode.mode),
+                )
+              : l10n.dailyModeContributionSent,
+        ),
         backgroundColor: response['is_unlocked'] as bool? ?? false
             ? AppTheme.successColor
             : AppTheme.primaryColor,
@@ -671,6 +677,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   Future<void> _openModesSheet() async {
     final room = context.read<RoomProvider>().currentRoom;
     if (room == null) return;
+    final l10n = AppLocalizations.of(context);
     final modes = _availableDailyModes(room);
     final scrollController = ScrollController();
     await showModalBottomSheet<void>(
@@ -696,12 +703,12 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                     children: [
                       Expanded(
                         child: Text(
-                          'Daily Modes',
+                          l10n.dailyModesTitle,
                           style: Theme.of(context).textTheme.headlineSmall,
                         ),
                       ),
                       IconButton(
-                        tooltip: 'Close',
+                        tooltip: l10n.commonClose,
                         onPressed: () => Navigator.of(sheetContext).pop(),
                         icon: const Icon(Icons.close_rounded),
                       ),
@@ -709,7 +716,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Unlock extra lanes for this room without replacing Daily Mix.',
+                    l10n.dailyModesIntro,
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 18),
@@ -761,7 +768,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          'Scroll to see all modes',
+                          l10n.dailyModesScrollHint,
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],
@@ -1560,7 +1567,9 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                 ),
                 TextButton(
                   onPressed: _openModesSheet,
-                  child: const Text('Modes'),
+                  child: Text(
+                    AppLocalizations.of(context).dailyModesShortLabel,
+                  ),
                 ),
               ],
             ),
@@ -1571,7 +1580,10 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
               final modeButtons = <Widget>[
                 ...playableModes.map(
                   (mode) => _ModePillButton(
-                    label: mode.label,
+                    label: dailyModeLocalizedLabel(
+                      AppLocalizations.of(context),
+                      mode.mode,
+                    ),
                     icon: _dailyModeIcon(mode.mode),
                     isSelected: _activeRoomMode == mode.mode,
                     accent: _dailyModeAccent(mode.mode),
@@ -1580,7 +1592,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                 ),
                 if (activePack != null)
                   _ModePillButton(
-                    label: 'Pack',
+                    label: AppLocalizations.of(context).packModeLabel,
                     icon: Icons.library_music_rounded,
                     isSelected: _activeRoomMode == _roomModePack,
                     accent: AppTheme.secondaryColor,
@@ -1652,7 +1664,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         backgroundColor: const Color(0xFF0F0F1E),
         appBar: AppBar(
           title: room == null
-              ? const Text('Daily Mix')
+              ? Text(AppLocalizations.of(context).dailyModeMixLabel)
               : Text(room.displayName, overflow: TextOverflow.ellipsis),
           actions: [
             IconButton(
@@ -1888,7 +1900,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Hardcore rules',
+            AppLocalizations.of(context).dailyModeHardcoreRulesTitle,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: AppTheme.errorColor,
               fontWeight: FontWeight.w700,
@@ -1896,7 +1908,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
           ),
           const SizedBox(height: 6),
           Text(
-            'This lane disables hints and retry unlocks. One run only.',
+            AppLocalizations.of(context).dailyModeHardcoreRulesBody,
             style: Theme.of(context).textTheme.bodyMedium,
           ),
         ],
