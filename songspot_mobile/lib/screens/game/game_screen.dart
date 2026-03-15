@@ -2086,10 +2086,10 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
               Positioned(
                 top: 10,
                 left: 0,
-                width: boundaries[session.currentSnippet],
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOut,
+                  duration: const Duration(milliseconds: 320),
+                  curve: Curves.easeInOutCubic,
+                  width: boundaries[session.currentSnippet],
                   height: _skipFeedbackActive ? 5 : 4,
                   decoration: BoxDecoration(
                     color: AppTheme.primaryColor,
