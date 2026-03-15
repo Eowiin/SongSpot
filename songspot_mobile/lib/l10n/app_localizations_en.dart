@@ -747,6 +747,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dailyModeCoinsToContribute => 'Coins to contribute';
 
   @override
+  String dailyModeContributionQuickAmount(num amount) {
+    return '+$amount';
+  }
+
+  @override
+  String get dailyModeContributionFill => 'Fill';
+
+  @override
+  String get dailyModeContributionRemainingLabel => 'Remaining';
+
+  @override
+  String get dailyModeContributionBalanceLabel => 'Your balance';
+
+  @override
+  String dailyModeContributionLeft(num remaining) {
+    return '$remaining left';
+  }
+
+  @override
   String get dailyModeContributionSent => 'Contribution sent';
 
   @override

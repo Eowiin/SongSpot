@@ -570,66 +570,167 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   Future<void> _showModeContributionDialog(RoomDailyMode mode) async {
     final l10n = AppLocalizations.of(context);
     final auth = context.read<AuthProvider>().user;
-    final suggested = mode.remainingCoins > 20 ? 20 : mode.remainingCoins;
+    final availableCoins = auth?.coins ?? 0;
+    final maxAmount = mode.remainingCoins < availableCoins
+        ? mode.remainingCoins
+        : availableCoins;
+    final quickPicks = _modeContributionQuickPicks(
+      remainingCoins: mode.remainingCoins,
+      availableCoins: availableCoins,
+    );
+    final suggested = quickPicks.isNotEmpty
+        ? quickPicks.first.amount
+        : maxAmount;
     final controller = TextEditingController(
       text: suggested > 0 ? '$suggested' : '',
     );
+    var selectedAmount = suggested;
     final amount = await showDialog<int>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppTheme.surfaceColor,
-        title: Text(
-          l10n.dailyModeContributeTitle(
-            dailyModeLocalizedLabel(l10n, mode.mode),
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              l10n.dailyModeCoinsRemainingYouHave(
-                mode.remainingCoins,
-                auth?.coins ?? 0,
-              ),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          scrollable: true,
+          backgroundColor: AppTheme.surfaceColor,
+          title: Text(
+            l10n.dailyModeContributeTitle(
+              dailyModeLocalizedLabel(l10n, mode.mode),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              autofocus: true,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: false,
-                signed: false,
-              ),
-              textInputAction: TextInputAction.done,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: InputDecoration(
-                labelText: l10n.dailyModeCoinsToContribute,
-                filled: true,
-                fillColor: AppTheme.backgroundColor,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.dailyModeCoinsRemainingYouHave(
+                  mode.remainingCoins,
+                  availableCoins,
                 ),
               ),
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  minHeight: 8,
+                  value: mode.costCoins <= 0
+                      ? 0
+                      : mode.progressCoins.clamp(0, mode.costCoins) /
+                            mode.costCoins,
+                  color: _dailyModeAccent(mode.mode),
+                  backgroundColor: AppTheme.backgroundColor,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Text(
+                    '${mode.progressCoins}/${mode.costCoins}',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: _dailyModeAccent(mode.mode),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  _ModeContributionPill(
+                    icon: mode.isUnlocked
+                        ? Icons.check_circle_outline
+                        : Icons.monetization_on_outlined,
+                    label: mode.isUnlocked
+                        ? l10n.dailyModeUnlocked
+                        : l10n.dailyModeContributionLeft(mode.remainingCoins),
+                  ),
+                ],
+              ),
+              if (quickPicks.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: quickPicks.map((pick) {
+                    final selected = pick.amount == selectedAmount;
+                    return FilterChip(
+                      label: Text(
+                        pick.isFill
+                            ? l10n.dailyModeContributionFill
+                            : l10n.dailyModeContributionQuickAmount(
+                                pick.amount,
+                              ),
+                      ),
+                      selected: selected,
+                      onSelected: (_) {
+                        setDialogState(() {
+                          selectedAmount = pick.amount;
+                          controller.text = '${pick.amount}';
+                          controller.selection = TextSelection.collapsed(
+                            offset: controller.text.length,
+                          );
+                        });
+                      },
+                      selectedColor: _dailyModeAccent(
+                        mode.mode,
+                      ).withValues(alpha: 0.24),
+                      side: BorderSide(
+                        color: selected
+                            ? _dailyModeAccent(mode.mode).withValues(alpha: 0.6)
+                            : AppTheme.textSecondary.withValues(alpha: 0.18),
+                      ),
+                      avatar: Icon(
+                        pick.isFill
+                            ? Icons.auto_fix_high_rounded
+                            : Icons.add_rounded,
+                        size: 18,
+                        color: selected
+                            ? _dailyModeAccent(mode.mode)
+                            : AppTheme.textSecondary,
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: false,
+                  signed: false,
+                ),
+                textInputAction: TextInputAction.done,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onChanged: (value) {
+                  setDialogState(() {
+                    final parsed = int.tryParse(value.trim()) ?? 0;
+                    selectedAmount = parsed <= 0
+                        ? 0
+                        : parsed > maxAmount
+                        ? maxAmount
+                        : parsed;
+                  });
+                },
+                decoration: InputDecoration(
+                  labelText: l10n.dailyModeCoinsToContribute,
+                  filled: true,
+                  fillColor: AppTheme.backgroundColor,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(l10n.commonCancel),
+            ),
+            TextButton(
+              onPressed: selectedAmount > 0
+                  ? () => Navigator.pop(dialogContext, selectedAmount)
+                  : null,
+              child: Text(l10n.dailyModeContribute),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(l10n.commonCancel),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(
-                dialogContext,
-                int.tryParse(controller.text.trim()),
-              );
-            },
-            child: Text(l10n.dailyModeContribute),
-          ),
-        ],
       ),
     );
 
@@ -658,27 +759,13 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     if (coins != null) {
       context.read<AuthProvider>().updateCoinsBalance(coins);
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          response['is_unlocked'] as bool? ?? false
-              ? l10n.dailyModeUnlockedForRoom(
-                  dailyModeLocalizedLabel(l10n, mode.mode),
-                )
-              : l10n.dailyModeContributionSent,
-        ),
-        backgroundColor: response['is_unlocked'] as bool? ?? false
-            ? AppTheme.successColor
-            : AppTheme.primaryColor,
-      ),
-    );
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
   }
 
   Future<void> _openModesSheet() async {
-    final room = context.read<RoomProvider>().currentRoom;
-    if (room == null) return;
+    final initialRoom = context.read<RoomProvider>().currentRoom;
+    if (initialRoom == null) return;
     final l10n = AppLocalizations.of(context);
-    final modes = _availableDailyModes(room);
     final scrollController = ScrollController();
     await showModalBottomSheet<void>(
       context: context,
@@ -688,98 +775,104 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       enableDrag: true,
       showDragHandle: true,
       backgroundColor: AppTheme.surfaceColor,
-      builder: (sheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(sheetContext).size.height * 0.78,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          l10n.dailyModesTitle,
-                          style: Theme.of(context).textTheme.headlineSmall,
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: l10n.commonClose,
-                        onPressed: () => Navigator.of(sheetContext).pop(),
-                        icon: const Icon(Icons.close_rounded),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    l10n.dailyModesIntro,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 18),
-                  Expanded(
-                    child: Scrollbar(
-                      controller: scrollController,
-                      thumbVisibility: true,
-                      child: SingleChildScrollView(
-                        controller: scrollController,
-                        padding: const EdgeInsets.only(right: 4),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: modes
-                              .map(
-                                (mode) => DailyModeCard(
-                                  mode: mode,
-                                  onPlay: mode.isPlayable
-                                      ? () async {
-                                          Navigator.pop(sheetContext);
-                                          if (mode.mode != _activeDailyMode) {
-                                            await _switchDailyMode(mode.mode);
-                                          }
-                                        }
-                                      : null,
-                                  onContribute: mode.isFree || mode.isUnlocked
-                                      ? null
-                                      : () async {
-                                          Navigator.pop(sheetContext);
-                                          await _showModeContributionDialog(
-                                            mode,
-                                          );
-                                        },
-                                ),
-                              )
-                              .toList(),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Center(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+      builder: (sheetContext) => Consumer<RoomProvider>(
+        builder: (context, roomProvider, _) {
+          final room = roomProvider.currentRoom ?? initialRoom;
+          final modes = _availableDailyModes(room);
+
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(sheetContext).size.height * 0.78,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
                       children: [
-                        Icon(
-                          Icons.swipe_vertical_rounded,
-                          size: 16,
-                          color: AppTheme.textSecondary.withValues(alpha: 0.85),
+                        Expanded(
+                          child: Text(
+                            l10n.dailyModesTitle,
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
                         ),
-                        const SizedBox(width: 6),
-                        Text(
-                          l10n.dailyModesScrollHint,
-                          style: Theme.of(context).textTheme.bodySmall,
+                        IconButton(
+                          tooltip: l10n.commonClose,
+                          onPressed: () => Navigator.of(sheetContext).pop(),
+                          icon: const Icon(Icons.close_rounded),
                         ),
                       ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.dailyModesIntro,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 18),
+                    Expanded(
+                      child: Scrollbar(
+                        controller: scrollController,
+                        thumbVisibility: true,
+                        child: SingleChildScrollView(
+                          controller: scrollController,
+                          padding: const EdgeInsets.only(right: 4),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: modes
+                                .map(
+                                  (mode) => DailyModeCard(
+                                    mode: mode,
+                                    onPlay: mode.isPlayable
+                                        ? () async {
+                                            Navigator.pop(sheetContext);
+                                            if (mode.mode != _activeDailyMode) {
+                                              await _switchDailyMode(mode.mode);
+                                            }
+                                          }
+                                        : null,
+                                    onContribute: mode.isFree || mode.isUnlocked
+                                        ? null
+                                        : () async {
+                                            await _showModeContributionDialog(
+                                              mode,
+                                            );
+                                          },
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Center(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.swipe_vertical_rounded,
+                            size: 16,
+                            color: AppTheme.textSecondary.withValues(
+                              alpha: 0.85,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            l10n.dailyModesScrollHint,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
     scrollController.dispose();
   }
@@ -2318,6 +2411,24 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     }
   }
 
+  List<_ModeContributionQuickPick> _modeContributionQuickPicks({
+    required int remainingCoins,
+    required int availableCoins,
+  }) {
+    final maxAmount = remainingCoins < availableCoins
+        ? remainingCoins
+        : availableCoins;
+    if (maxAmount <= 0) return const [];
+
+    final picks = <_ModeContributionQuickPick>[];
+    for (final candidate in [10, 20]) {
+      if (candidate <= 0 || candidate >= maxAmount) continue;
+      picks.add(_ModeContributionQuickPick(amount: candidate));
+    }
+    picks.add(_ModeContributionQuickPick(amount: maxAmount, isFill: true));
+    return picks;
+  }
+
   // ── Date row ────────────────────────────────────────────────────────────
 
   Widget _buildDateRow() {
@@ -2802,6 +2913,45 @@ class _ModePillButton extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ModeContributionPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _ModeContributionPill({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppTheme.backgroundColor.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppTheme.textSecondary),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: AppTheme.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModeContributionQuickPick {
+  final int amount;
+  final bool isFill;
+
+  const _ModeContributionQuickPick({required this.amount, this.isFill = false});
 }
 
 /// Countdown widget showing time remaining until the next daily song (12:00 UTC).

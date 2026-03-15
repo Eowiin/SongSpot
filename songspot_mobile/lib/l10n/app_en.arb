@@ -743,6 +743,26 @@
   },
   "dailyModeCoinsToContribute": "Coins to contribute",
   "@dailyModeCoinsToContribute": { "description": "Input label for the contribution amount" },
+  "dailyModeContributionQuickAmount": "+{amount}",
+  "@dailyModeContributionQuickAmount": {
+    "description": "Quick contribution chip label for a fixed amount",
+    "placeholders": {
+      "amount": { "type": "num" }
+    }
+  },
+  "dailyModeContributionFill": "Fill",
+  "@dailyModeContributionFill": { "description": "Quick contribution chip label to fully fund the remaining amount the user can afford" },
+  "dailyModeContributionRemainingLabel": "Remaining",
+  "@dailyModeContributionRemainingLabel": { "description": "Short label for remaining room funding in the contribution sheet" },
+  "dailyModeContributionBalanceLabel": "Your balance",
+  "@dailyModeContributionBalanceLabel": { "description": "Short label for the user's current coin balance in the contribution sheet" },
+  "dailyModeContributionLeft": "{remaining} left",
+  "@dailyModeContributionLeft": {
+    "description": "Short label showing how much funding remains",
+    "placeholders": {
+      "remaining": { "type": "num" }
+    }
+  },
   "dailyModeContributionSent": "Contribution sent",
   "@dailyModeContributionSent": { "description": "Snackbar shown when a contribution succeeds without unlocking the mode" },
   "dailyModeUnlockedForRoom": "{mode} unlocked for this room",

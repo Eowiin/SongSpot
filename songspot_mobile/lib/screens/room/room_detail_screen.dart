@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -208,65 +210,274 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
   Future<void> _showDailyModeContributionDialog(RoomDailyMode mode) async {
     final l10n = AppLocalizations.of(context);
     final auth = context.read<AuthProvider>().user;
-    final maxAmount = mode.remainingCoins;
-    final suggestedAmount = maxAmount > 20 ? 20 : maxAmount;
+    final accent = _dailyModeAccent(mode.mode);
+    final maxAmount = math.min(mode.remainingCoins, auth?.coins ?? 0);
+    final quickPicks = _suggestedContributionQuickPicks(
+      remainingCoins: mode.remainingCoins,
+      availableCoins: auth?.coins ?? 0,
+    );
+    final suggestedAmount = quickPicks.isNotEmpty
+        ? quickPicks.first.amount
+        : maxAmount;
     final controller = TextEditingController(
       text: suggestedAmount > 0 ? '$suggestedAmount' : '',
     );
-    final amount = await showDialog<int>(
+    var selectedAmount = suggestedAmount;
+
+    final amount = await showModalBottomSheet<int>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppTheme.surfaceColor,
-        title: Text(
-          l10n.dailyModeContributeTitle(
-            dailyModeLocalizedLabel(l10n, mode.mode),
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              l10n.dailyModeCoinsRemainingYouHave(
-                mode.remainingCoins,
-                auth?.coins ?? 0,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: AppTheme.surfaceColor,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) {
+          final progressMax = mode.costCoins <= 0 ? 1 : mode.costCoins;
+          final progressValue = mode.progressCoins
+              .clamp(0, progressMax)
+              .toDouble();
+
+          return SafeArea(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                8,
+                20,
+                20 + MediaQuery.of(sheetContext).viewInsets.bottom,
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: false,
-                signed: false,
-              ),
-              autofocus: true,
-              textInputAction: TextInputAction.done,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: InputDecoration(
-                labelText: l10n.dailyModeCoinsToContribute,
-                filled: true,
-                fillColor: AppTheme.backgroundColor,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: accent.withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Icon(
+                            _dailyModeIcon(mode.mode),
+                            color: accent,
+                            size: 28,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                l10n.dailyModeContributeTitle(
+                                  dailyModeLocalizedLabel(l10n, mode.mode),
+                                ),
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.headlineSmall,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                dailyModeLocalizedSubtitle(l10n, mode.mode),
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(sheetContext),
+                          tooltip: l10n.commonClose,
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ContributionStatCard(
+                            label: l10n.dailyModeContributionRemainingLabel,
+                            value: mode.remainingCoins > 0
+                                ? l10n.dailyModeCoinsCost(mode.remainingCoins)
+                                : l10n.dailyModeFunded,
+                            accent: accent,
+                            icon: Icons.monetization_on_outlined,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _ContributionStatCard(
+                            label: l10n.dailyModeContributionBalanceLabel,
+                            value: l10n.dailyModeCoinsCost(auth?.coins ?? 0),
+                            accent: AppTheme.primaryColor,
+                            icon: Icons.account_balance_wallet_outlined,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(999),
+                      child: LinearProgressIndicator(
+                        minHeight: 10,
+                        value: progressValue / progressMax,
+                        color: accent,
+                        backgroundColor: AppTheme.backgroundColor,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Text(
+                          '${mode.progressCoins}/${mode.costCoins}',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: accent,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                        const Spacer(),
+                        _ContributionMetricPill(
+                          icon: Icons.groups_2_outlined,
+                          label: '${mode.contributorCount}',
+                        ),
+                        const SizedBox(width: 8),
+                        _ContributionMetricPill(
+                          icon: mode.isUnlocked
+                              ? Icons.check_circle_outline
+                              : Icons.monetization_on_outlined,
+                          label: mode.isUnlocked
+                              ? l10n.dailyModeUnlocked
+                              : l10n.dailyModeContributionLeft(
+                                  mode.remainingCoins,
+                                ),
+                        ),
+                      ],
+                    ),
+                    if (mode.isUnlocked) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        l10n.dailyModeUnlockedUntilReset,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                    if (!mode.isUnlocked) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        l10n.dailyModeContributionProgress(
+                          mode.progressCoins,
+                          mode.costCoins,
+                          mode.contributorCount,
+                        ),
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                    const SizedBox(height: 18),
+                    if (quickPicks.isNotEmpty) ...[
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: quickPicks.map((pick) {
+                          final selected = pick.amount == selectedAmount;
+                          return FilterChip(
+                            label: Text(
+                              pick.isFill
+                                  ? l10n.dailyModeContributionFill
+                                  : l10n.dailyModeContributionQuickAmount(
+                                      pick.amount,
+                                    ),
+                            ),
+                            selected: selected,
+                            onSelected: (_) {
+                              setSheetState(() {
+                                selectedAmount = pick.amount;
+                                controller.text = '${pick.amount}';
+                                controller.selection = TextSelection.collapsed(
+                                  offset: controller.text.length,
+                                );
+                              });
+                            },
+                            selectedColor: accent.withValues(alpha: 0.24),
+                            side: BorderSide(
+                              color: selected
+                                  ? accent.withValues(alpha: 0.6)
+                                  : AppTheme.textSecondary.withValues(
+                                      alpha: 0.18,
+                                    ),
+                            ),
+                            avatar: Icon(
+                              pick.isFill
+                                  ? Icons.auto_fix_high_rounded
+                                  : Icons.add_rounded,
+                              size: 18,
+                              color: selected ? accent : AppTheme.textSecondary,
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    Text(
+                      l10n.dailyModeCoinsRemainingYouHave(
+                        mode.remainingCoins,
+                        auth?.coins ?? 0,
+                      ),
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: controller,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: false,
+                        signed: false,
+                      ),
+                      autofocus: true,
+                      textInputAction: TextInputAction.done,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      onChanged: (value) {
+                        setSheetState(() {
+                          final parsed = int.tryParse(value.trim()) ?? 0;
+                          selectedAmount = parsed <= 0
+                              ? 0
+                              : parsed > maxAmount
+                              ? maxAmount
+                              : parsed;
+                        });
+                      },
+                      decoration: InputDecoration(
+                        labelText: l10n.dailyModeCoinsToContribute,
+                        filled: true,
+                        fillColor: AppTheme.backgroundColor,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: selectedAmount > 0
+                          ? () => Navigator.pop(sheetContext, selectedAmount)
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: accent,
+                        disabledBackgroundColor: AppTheme.surfaceColor,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: Text(
+                        selectedAmount > 0
+                            ? '${l10n.dailyModeContribute} • ${l10n.dailyModeCoinsCost(selectedAmount)}'
+                            : l10n.dailyModeContribute,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(l10n.commonCancel),
-          ),
-          TextButton(
-            onPressed: () {
-              final parsed = int.tryParse(controller.text.trim());
-              Navigator.pop(dialogContext, parsed);
-            },
-            child: Text(l10n.dailyModeContribute),
-          ),
-        ],
+          );
+        },
       ),
     );
 
@@ -296,20 +507,114 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
       context.read<AuthProvider>().updateCoinsBalance(coins);
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          response['is_unlocked'] as bool? ?? false
-              ? l10n.dailyModeUnlockedForRoom(
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+    if (response['is_unlocked'] as bool? ?? false) {
+      await _showDailyModeUnlockedDialog(mode);
+    }
+  }
+
+  List<_ContributionQuickPick> _suggestedContributionQuickPicks({
+    required int remainingCoins,
+    required int availableCoins,
+  }) {
+    final maxAmount = math.min(remainingCoins, availableCoins);
+    if (maxAmount <= 0) return const [];
+
+    final suggestions = <_ContributionQuickPick>[];
+    for (final candidate in [10, 20]) {
+      if (candidate <= 0 || candidate >= maxAmount) continue;
+      suggestions.add(_ContributionQuickPick(amount: candidate));
+    }
+    suggestions.add(_ContributionQuickPick(amount: maxAmount, isFill: true));
+    return suggestions;
+  }
+
+  Future<void> _showDailyModeUnlockedDialog(RoomDailyMode mode) async {
+    if (!mounted) return;
+
+    final l10n = AppLocalizations.of(context);
+    final accent = _dailyModeAccent(mode.mode);
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [accent.withValues(alpha: 0.24), AppTheme.surfaceColor],
+            ),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: accent.withValues(alpha: 0.34)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.16),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.auto_awesome, color: accent, size: 34),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                dailyModeLocalizedLabel(l10n, mode.mode),
+                style: Theme.of(context).textTheme.headlineSmall,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                l10n.dailyModeUnlockedForRoom(
                   dailyModeLocalizedLabel(l10n, mode.mode),
-                )
-              : l10n.dailyModeContributionSent,
+                ),
+                style: Theme.of(context).textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: Text(l10n.commonClose),
+                ),
+              ),
+            ],
+          ),
         ),
-        backgroundColor: response['is_unlocked'] as bool? ?? false
-            ? AppTheme.successColor
-            : AppTheme.primaryColor,
       ),
     );
+  }
+
+  IconData _dailyModeIcon(String mode) {
+    switch (mode) {
+      case 'genre':
+        return Icons.graphic_eq;
+      case 'decade':
+        return Icons.history_edu;
+      case 'hardcore':
+        return Icons.whatshot;
+      default:
+        return Icons.shuffle;
+    }
+  }
+
+  Color _dailyModeAccent(String mode) {
+    switch (mode) {
+      case 'genre':
+        return AppTheme.accentColor;
+      case 'decade':
+        return AppTheme.secondaryColor;
+      case 'hardcore':
+        return AppTheme.errorColor;
+      default:
+        return AppTheme.primaryColor;
+    }
   }
 
   String _packPrimaryLabel(SongPack pack) {
@@ -970,6 +1275,87 @@ class _StatusTag extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ContributionStatCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color accent;
+  final IconData icon;
+
+  const _ContributionStatCard({
+    required this.label,
+    required this.value,
+    required this.accent,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.backgroundColor.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: accent.withValues(alpha: 0.22)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: accent, size: 18),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(label, style: Theme.of(context).textTheme.bodySmall),
+        ],
+      ),
+    );
+  }
+}
+
+class _ContributionMetricPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _ContributionMetricPill({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppTheme.backgroundColor.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppTheme.textSecondary),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: AppTheme.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ContributionQuickPick {
+  final int amount;
+  final bool isFill;
+
+  const _ContributionQuickPick({required this.amount, this.isFill = false});
 }
 
 class _PackArtwork extends StatelessWidget {

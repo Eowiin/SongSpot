@@ -1410,6 +1410,36 @@ abstract class AppLocalizations {
   /// **'Coins to contribute'**
   String get dailyModeCoinsToContribute;
 
+  /// Quick contribution chip label for a fixed amount
+  ///
+  /// In en, this message translates to:
+  /// **'+{amount}'**
+  String dailyModeContributionQuickAmount(num amount);
+
+  /// Quick contribution chip label to fully fund the remaining amount the user can afford
+  ///
+  /// In en, this message translates to:
+  /// **'Fill'**
+  String get dailyModeContributionFill;
+
+  /// Short label for remaining room funding in the contribution sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Remaining'**
+  String get dailyModeContributionRemainingLabel;
+
+  /// Short label for the user's current coin balance in the contribution sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Your balance'**
+  String get dailyModeContributionBalanceLabel;
+
+  /// Short label showing how much funding remains
+  ///
+  /// In en, this message translates to:
+  /// **'{remaining} left'**
+  String dailyModeContributionLeft(num remaining);
+
   /// Snackbar shown when a contribution succeeds without unlocking the mode
   ///
   /// In en, this message translates to:

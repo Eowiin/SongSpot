@@ -65,13 +65,23 @@ class DailyModeCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Text(
-                mode.isFree
-                    ? l10n.dailyModeFree
-                    : l10n.dailyModeCoinsCost(mode.costCoins),
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: mode.isUnlocked ? AppTheme.successColor : accent,
-                  fontWeight: FontWeight.w700,
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  mode.isFree
+                      ? l10n.dailyModeFree
+                      : l10n.dailyModeCoinsCost(mode.costCoins),
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: mode.isUnlocked ? AppTheme.successColor : accent,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],
@@ -88,16 +98,38 @@ class DailyModeCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            Text(
-              mode.isUnlocked
-                  ? l10n.dailyModeUnlockedUntilReset
-                  : l10n.dailyModeContributionProgress(
-                      mode.progressCoins,
-                      mode.costCoins,
-                      mode.contributorCount,
-                    ),
-              style: Theme.of(context).textTheme.bodySmall,
+            Row(
+              children: [
+                Text(
+                  '${mode.progressCoins}/${mode.costCoins}',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: accent,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Spacer(),
+                _ModeInfoPill(
+                  icon: Icons.groups_2_outlined,
+                  label: '${mode.contributorCount}',
+                ),
+                const SizedBox(width: 8),
+                _ModeInfoPill(
+                  icon: mode.isUnlocked
+                      ? Icons.check_circle_outline
+                      : Icons.monetization_on_outlined,
+                  label: mode.isUnlocked
+                      ? l10n.dailyModeUnlocked
+                      : l10n.dailyModeContributionLeft(mode.remainingCoins),
+                ),
+              ],
             ),
+            if (mode.isUnlocked) ...[
+              const SizedBox(height: 6),
+              Text(
+                l10n.dailyModeUnlockedUntilReset,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
           ],
           const SizedBox(height: 14),
           Row(
@@ -131,6 +163,38 @@ class DailyModeCard extends StatelessWidget {
                   ),
                 ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModeInfoPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _ModeInfoPill({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppTheme.backgroundColor.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppTheme.textSecondary),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: AppTheme.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),
