@@ -68,8 +68,11 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   final _apiService = ApiService();
   String? _selectedHistoryDate; // null = active game (today)
   Map<String, HistoryDay> _historyMap = {};
+  final Map<String, Map<String, HistoryDay>> _historyCacheByMode = {};
   Map<String, PackHistoryDay> _packHistoryMap = {};
   HistoryDayDetail? _historyDetail;
+  final Map<String, Map<String, HistoryDayDetail>> _historyDetailCacheByMode =
+      {};
   PackHistoryDayDetail? _packHistoryDetail;
   bool _historyDetailLoading = false;
   bool _packHistoryDetailLoading = false;
@@ -84,6 +87,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   Timer? _skipFeedbackTimer;
   bool _skipFeedbackActive = false;
   bool _isModeSwitching = false;
+  bool _isModeRefreshing = false;
   GameSession? _modeTransitionSession;
   List<LeaderboardEntry> _modeTransitionLeaderboard = const [];
 
@@ -100,25 +104,24 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       _handleRoomModeEvent,
     );
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _gameProvider.startGameSession(
+      final restored = _gameProvider.restoreCachedModeState(
         widget.roomId,
         mode: _activeDailyMode,
       );
-      await _gameProvider.loadLeaderboard(
-        widget.roomId,
-        mode: _activeDailyMode,
-      );
-      if (!mounted) return;
-      await _gameProvider.connectToChat(widget.roomId, mode: _activeDailyMode);
-      if (_gameProvider.currentSession?.isCompleted ?? false) {
-        unawaited(
-          _gameProvider.loadMessages(widget.roomId, mode: _activeDailyMode),
-        );
-        _startResultRefreshTimer();
+      if (restored && mounted) {
+        setState(() {
+          _historyMap = _cachedHistoryMapForMode(_activeDailyMode);
+        });
       }
+      if (mounted) {
+        setState(() {
+          _isModeSwitching = !restored;
+          _isModeRefreshing = restored;
+        });
+      }
+      await _refreshDailyMode(mode: _activeDailyMode, useCachedState: restored);
       // Load room details for name and host info
       roomProvider.loadRoomDetails(widget.roomId);
-      _loadHistoryList(mode: _activeDailyMode);
       final adsDisabled = authProvider.user?.hasNoAds ?? false;
       unawaited(AdMobService().preloadInterstitial(adsDisabled: adsDisabled));
     });
@@ -894,52 +897,34 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     await _previewAudioService.stop();
     if (!mounted) return;
 
+    final restored = _gameProvider.restoreCachedModeState(
+      widget.roomId,
+      mode: mode,
+    );
+    final cachedHistory = _cachedHistoryMapForMode(mode);
     setState(() {
       _activeDailyMode = mode;
       _activeRoomMode = mode;
       _selectedHistoryDate = null;
-      _historyMap = {};
+      _historyMap = cachedHistory;
       _historyDetail = null;
       _selectedTrack = null;
       _titleController.clear();
       _isPreviewPlaying = false;
       _previewTrackId = null;
-      _isModeSwitching = true;
-      _modeTransitionSession = previousSession;
-      _modeTransitionLeaderboard = previousLeaderboard;
+      _historyDetailLoading = false;
+      _packHistoryDetailLoading = false;
+      _isModeSwitching = !restored;
+      _isModeRefreshing = restored;
+      _modeTransitionSession = restored ? null : previousSession;
+      _modeTransitionLeaderboard = restored ? const [] : previousLeaderboard;
     });
 
-    try {
-      await _gameProvider.startGameSession(widget.roomId, mode: mode);
-      await _gameProvider.loadLeaderboard(widget.roomId, mode: mode);
-      await _gameProvider.connectToChat(widget.roomId, mode: mode);
-      if (!mounted) return;
-      await _loadHistoryList(mode: mode);
-      if (_gameProvider.currentSession?.isCompleted ?? false) {
-        await _gameProvider.loadMessages(widget.roomId, mode: mode);
-        _startResultRefreshTimer();
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _activeDailyMode = previousMode;
-        _activeRoomMode = previousMode;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
-          backgroundColor: AppTheme.errorColor,
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isModeSwitching = false;
-          _modeTransitionSession = null;
-          _modeTransitionLeaderboard = const [];
-        });
-      }
-    }
+    await _refreshDailyMode(
+      mode: mode,
+      useCachedState: restored,
+      previousMode: previousMode,
+    );
   }
 
   Future<void> _selectActivePackMode() async {
@@ -1188,19 +1173,40 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     return now.hour < 12 ? base.subtract(const Duration(days: 1)) : base;
   }
 
-  Future<void> _loadHistoryList({String? mode}) async {
+  Future<void> _loadHistoryList({
+    String? mode,
+    bool preferCache = false,
+    bool refreshInBackground = false,
+  }) async {
+    final resolvedMode = mode ?? _activeDailyMode;
+    final cachedHistory = _historyCacheByMode[resolvedMode];
+    if (preferCache && cachedHistory != null && mounted) {
+      setState(() {
+        _historyMap = Map<String, HistoryDay>.from(cachedHistory);
+      });
+      if (!refreshInBackground) {
+        return;
+      }
+    }
+
     try {
       final data = await _apiService.getRoomHistory(
         widget.roomId,
         limit: 31,
-        mode: mode ?? _activeDailyMode,
+        mode: resolvedMode,
       );
-      if (!mounted) return;
       final days = (data['results'] as List)
           .map((j) => HistoryDay.fromJson(j as Map<String, dynamic>))
           .toList();
+      final historyMap = {for (final day in days) day.date: day};
+      _historyCacheByMode[resolvedMode] = historyMap;
+      if (!mounted ||
+          resolvedMode != _activeDailyMode ||
+          _activeRoomMode == _roomModePack) {
+        return;
+      }
       setState(() {
-        _historyMap = {for (final d in days) d.date: d};
+        _historyMap = Map<String, HistoryDay>.from(historyMap);
       });
       if (_showHistorySelector &&
           _activeRoomMode != _roomModePack &&
@@ -1257,12 +1263,17 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     final activePack = context.read<RoomProvider>().currentRoom?.activePack;
     final showingPackHistory =
         _activeRoomMode == _roomModePack && activePack != null;
+    final resolvedMode = _activeDailyMode;
+    final cachedHistoryDetail = showingPackHistory
+        ? null
+        : _historyDetailCacheByMode[resolvedMode]?[dateStr];
 
     setState(() {
       _selectedHistoryDate = dateStr;
-      _historyDetail = null;
+      _historyDetail = cachedHistoryDetail;
       _packHistoryDetail = null;
-      _historyDetailLoading = !showingPackHistory;
+      _historyDetailLoading =
+          !showingPackHistory && cachedHistoryDetail == null;
       _packHistoryDetailLoading = showingPackHistory;
     });
     _scrollDateRowToDate(dateStr);
@@ -1286,11 +1297,21 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       final data = await _apiService.getRoomHistoryDetail(
         widget.roomId,
         dateStr,
-        mode: _activeDailyMode,
+        mode: resolvedMode,
       );
+      final historyDetail = HistoryDayDetail.fromJson(data);
+      _historyDetailCacheByMode.putIfAbsent(
+        resolvedMode,
+        () => <String, HistoryDayDetail>{},
+      )[dateStr] = historyDetail;
       if (mounted) {
+        if (_activeDailyMode != resolvedMode ||
+            _selectedHistoryDate != dateStr ||
+            _activeRoomMode == _roomModePack) {
+          return;
+        }
         setState(() {
-          _historyDetail = HistoryDayDetail.fromJson(data);
+          _historyDetail = historyDetail;
           _historyDetailLoading = false;
           _packHistoryDetailLoading = false;
         });
@@ -1614,7 +1635,10 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
 
   Widget _buildDailyModeSwitcher(GameSession? session) {
     final isBusy =
-        context.watch<GameProvider>().isLoading || _completionAdInProgress;
+        context.watch<GameProvider>().isLoading ||
+        _completionAdInProgress ||
+        _isModeSwitching ||
+        _isModeRefreshing;
     final room = context.watch<RoomProvider>().currentRoom;
     final activePack = room?.activePack;
     final playableModes = _availableDailyModes(
@@ -1855,6 +1879,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
 
     if (session.isCompleted) {
       if (!_isModeSwitching &&
+          !_isModeRefreshing &&
           !_completionRecordedForActiveMode &&
           !_completionAdInProgress) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -2035,11 +2060,15 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildModeTransitionContainer(Widget child) {
-    if (!_isModeSwitching) return child;
+    if (!_isModeSwitching && !_isModeRefreshing) return child;
+
+    final content = _isModeSwitching
+        ? AbsorbPointer(child: Opacity(opacity: 0.62, child: child))
+        : child;
 
     return Stack(
       children: [
-        AbsorbPointer(child: Opacity(opacity: 0.62, child: child)),
+        content,
         Positioned(
           top: 0,
           left: 0,
@@ -2051,6 +2080,72 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         ),
       ],
     );
+  }
+
+  Future<void> _refreshDailyMode({
+    required String mode,
+    required bool useCachedState,
+    String? previousMode,
+  }) async {
+    try {
+      final historyFuture = _loadHistoryList(
+        mode: mode,
+        preferCache: useCachedState,
+        refreshInBackground: true,
+      );
+      final sessionFuture = _gameProvider.startGameSession(
+        widget.roomId,
+        mode: mode,
+        clearVisibleState: !useCachedState,
+      );
+      final leaderboardFuture = _gameProvider.loadLeaderboard(
+        widget.roomId,
+        mode: mode,
+        silent: useCachedState,
+      );
+      final chatFuture = _gameProvider.connectToChat(widget.roomId, mode: mode);
+
+      await Future.wait([
+        sessionFuture,
+        leaderboardFuture,
+        chatFuture,
+        historyFuture,
+      ]);
+      if (!mounted) return;
+      if (_gameProvider.currentSession?.isCompleted ?? false) {
+        await _gameProvider.loadMessages(widget.roomId, mode: mode);
+        _startResultRefreshTimer();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      if (!useCachedState && previousMode != null) {
+        _gameProvider.restoreCachedModeState(widget.roomId, mode: previousMode);
+        setState(() {
+          _activeDailyMode = previousMode;
+          _activeRoomMode = previousMode;
+          _historyMap = _cachedHistoryMapForMode(previousMode);
+        });
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isModeSwitching = false;
+          _isModeRefreshing = false;
+          _modeTransitionSession = null;
+          _modeTransitionLeaderboard = const [];
+        });
+      }
+    }
+  }
+
+  Map<String, HistoryDay> _cachedHistoryMapForMode(String mode) {
+    return Map<String, HistoryDay>.from(_historyCacheByMode[mode] ?? const {});
   }
 
   Widget _buildSnippetTimeline(GameSession session) {

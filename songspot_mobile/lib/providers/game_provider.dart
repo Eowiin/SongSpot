@@ -9,16 +9,49 @@ import '../services/api_service.dart';
 import '../services/audio_service.dart';
 import '../services/websocket_service.dart';
 
+class CachedModeState {
+  final GameSession? session;
+  final List<LeaderboardEntry> leaderboard;
+  final List<Message> messages;
+  final Map<String, String> hintValues;
+  final String gameDate;
+  final DateTime cachedAt;
+
+  const CachedModeState({
+    required this.session,
+    required this.leaderboard,
+    required this.messages,
+    required this.hintValues,
+    required this.gameDate,
+    required this.cachedAt,
+  });
+}
+
 class GameProvider with ChangeNotifier {
-  final ApiService _apiService = ApiService();
-  final AudioService _audioService = AudioService();
-  final WebSocketService _webSocketService = WebSocketService();
-  final Uuid _uuid = const Uuid();
+  GameProvider({
+    ApiService? apiService,
+    AudioService? audioService,
+    WebSocketService? webSocketService,
+    Uuid? uuid,
+    DateTime Function()? nowProvider,
+  }) : _apiService = apiService ?? ApiService(),
+       _audioService = audioService ?? AudioService(),
+       _webSocketService = webSocketService ?? WebSocketService(),
+       _uuid = uuid ?? const Uuid(),
+       _nowProvider = nowProvider ?? DateTime.now;
+
+  final ApiService _apiService;
+  final AudioService _audioService;
+  final WebSocketService _webSocketService;
+  final Uuid _uuid;
+  final DateTime Function() _nowProvider;
   final Map<String, Timer> _pendingMessageTimeouts = {};
+  final Map<String, CachedModeState> _cachedModeStates = {};
   static const Duration _pendingMessageTimeout = Duration(seconds: 15);
 
   StreamSubscription<WebSocketEvent>? _wsSubscription;
 
+  String? _currentRoomId;
   GameSession? _currentSession;
   List<LeaderboardEntry> _leaderboard = [];
   List<Message> _messages = [];
@@ -46,23 +79,66 @@ class GameProvider with ChangeNotifier {
   List<String> get typingUsernames =>
       _typingUsers.entries.where((e) => e.value).map((e) => e.key).toList();
 
+  bool restoreCachedModeState(String roomId, {required String mode}) {
+    final cacheKey = _modeCacheKey(roomId, mode);
+    final cachedState = _cachedModeStates[cacheKey];
+    if (cachedState == null) {
+      return false;
+    }
+
+    if (cachedState.gameDate != _activeGameDateString()) {
+      _cachedModeStates.remove(cacheKey);
+      return false;
+    }
+
+    _currentRoomId = roomId;
+    _currentMode = mode;
+    _currentSession = cachedState.session;
+    _leaderboard = List<LeaderboardEntry>.from(cachedState.leaderboard);
+    _messages = List<Message>.from(cachedState.messages);
+    _hintValues = Map<String, String>.from(cachedState.hintValues);
+    _currentChatRoomId = null;
+    _clearPendingMessageTimeouts();
+    _typingUsers.clear();
+    _isLoading = false;
+    _isWebSocketConnected = false;
+    _errorMessage = null;
+    _guessResult = null;
+    notifyListeners();
+    return true;
+  }
+
+  @visibleForTesting
+  CachedModeState? debugCachedModeState(String roomId, {required String mode}) {
+    return _cachedModeStates[_modeCacheKey(roomId, mode)];
+  }
+
   /// Start or get current game session
-  Future<void> startGameSession(String roomId, {String mode = 'mix'}) async {
+  Future<void> startGameSession(
+    String roomId, {
+    String mode = 'mix',
+    bool clearVisibleState = true,
+  }) async {
     try {
+      _currentRoomId = roomId;
       _currentMode = mode;
-      // Clear previous session immediately to avoid showing stale data
-      _currentSession = null;
-      _leaderboard = [];
-      _messages = [];
-      _clearPendingMessageTimeouts();
-      _hintValues = {};
-      _isLoading = true;
       _errorMessage = null;
       _guessResult = null;
-      notifyListeners();
+      if (clearVisibleState) {
+        // Clear previous session immediately to avoid showing stale data
+        _currentSession = null;
+        _leaderboard = [];
+        _messages = [];
+        _clearPendingMessageTimeouts();
+        _typingUsers.clear();
+        _hintValues = {};
+        _isLoading = true;
+        notifyListeners();
+      }
 
       final response = await _apiService.startGameSession(roomId, mode: mode);
       _currentSession = GameSession.fromJson(response);
+      _hintValues = {};
 
       // Restore any already-purchased hints (re-fetch values without charging)
       for (final hintType in _currentSession!.hintsUsed) {
@@ -82,7 +158,7 @@ class GameProvider with ChangeNotifier {
       await _loadAudioWithRefresh(_currentSession!);
 
       _isLoading = false;
-      notifyListeners();
+      _notifyStateChanged(persist: true);
     } catch (e) {
       _errorMessage = 'Failed to load game: $e';
       _isLoading = false;
@@ -113,6 +189,7 @@ class GameProvider with ChangeNotifier {
     final updatedTrack = Track.fromJson(trackJson);
     final updatedSession = _copySessionWithTrack(session, updatedTrack);
     _currentSession = updatedSession;
+    _persistCurrentModeState();
     await _audioService.loadAudio(updatedTrack.previewUrl);
     return updatedSession;
   }
@@ -151,7 +228,7 @@ class GameProvider with ChangeNotifier {
       _currentSession = _currentSession!.copyWith(currentSnippet: newSnippet);
 
       _isLoading = false;
-      notifyListeners();
+      _notifyStateChanged(persist: true);
     } catch (e) {
       _errorMessage = e.toString();
       _isLoading = false;
@@ -233,7 +310,7 @@ class GameProvider with ChangeNotifier {
       }
 
       _isLoading = false;
-      notifyListeners();
+      _notifyStateChanged(persist: true);
       return response;
     } catch (e) {
       _errorMessage = e.toString();
@@ -287,7 +364,7 @@ class GameProvider with ChangeNotifier {
 
       _guessResult = response['message'] as String?;
       _isLoading = false;
-      notifyListeners();
+      _notifyStateChanged(persist: true);
       return response;
     } catch (e) {
       _errorMessage = e.toString();
@@ -322,7 +399,7 @@ class GameProvider with ChangeNotifier {
       _currentSession = _currentSession!.copyWith(hintsUsed: updatedHints);
     }
 
-    notifyListeners();
+    _notifyStateChanged(persist: true);
     return response;
   }
 
@@ -352,7 +429,7 @@ class GameProvider with ChangeNotifier {
       if (!silent) {
         _isLoading = false;
       }
-      notifyListeners();
+      _notifyStateChanged(persist: true);
     } catch (e) {
       _errorMessage = e.toString();
       if (!silent) {
@@ -366,12 +443,19 @@ class GameProvider with ChangeNotifier {
   Future<void> connectToChat(String roomId, {String? mode}) async {
     // Cancel any existing subscription
     await _wsSubscription?.cancel();
+    _wsSubscription = null;
+    _typingUsers.clear();
+    _isWebSocketConnected = false;
 
     // Subscribe to WebSocket events
     _wsSubscription = _webSocketService.events.listen(_handleWebSocketEvent);
 
     // Connect to the room
     final resolvedMode = mode ?? _currentMode;
+    _currentRoomId = roomId;
+    _currentChatRoomId = roomId;
+    _currentMode = resolvedMode;
+    notifyListeners();
     final connected = await _webSocketService.connect(
       roomId,
       mode: resolvedMode,
@@ -390,8 +474,9 @@ class GameProvider with ChangeNotifier {
     _isWebSocketConnected = false;
     _currentChatRoomId = null;
     _typingUsers.clear();
-    _markAllPendingMessagesFailed('Connection lost. Tap retry.');
-    notifyListeners();
+    _notifyStateChanged(
+      persist: _markAllPendingMessagesFailed('Connection lost. Tap retry.'),
+    );
   }
 
   void _handleWebSocketEvent(WebSocketEvent event) {
@@ -403,8 +488,9 @@ class GameProvider with ChangeNotifier {
 
       case WebSocketEventType.disconnected:
         _isWebSocketConnected = false;
-        _markAllPendingMessagesFailed('Connection lost. Tap retry.');
-        notifyListeners();
+        _notifyStateChanged(
+          persist: _markAllPendingMessagesFailed('Connection lost. Tap retry.'),
+        );
         break;
 
       case WebSocketEventType.message:
@@ -454,10 +540,11 @@ class GameProvider with ChangeNotifier {
 
       case WebSocketEventType.error:
         _errorMessage = event.data?.toString();
-        _markAllPendingMessagesFailed(
-          _errorMessage ?? 'Message failed to send.',
+        _notifyStateChanged(
+          persist: _markAllPendingMessagesFailed(
+            _errorMessage ?? 'Message failed to send.',
+          ),
         );
-        notifyListeners();
         break;
     }
   }
@@ -482,7 +569,7 @@ class GameProvider with ChangeNotifier {
           .toList();
       _messages = _mergeServerMessages(serverMessages);
 
-      notifyListeners();
+      _notifyStateChanged(persist: true);
     } catch (e) {
       _errorMessage = e.toString();
       notifyListeners();
@@ -506,7 +593,7 @@ class GameProvider with ChangeNotifier {
         message: message,
       ),
     );
-    notifyListeners();
+    _notifyStateChanged(persist: true);
 
     if (_isWebSocketConnected) {
       _schedulePendingMessageTimeout(resolvedClientMessageId);
@@ -550,7 +637,7 @@ class GameProvider with ChangeNotifier {
         clearFailureReason: true,
       ),
     );
-    notifyListeners();
+    _notifyStateChanged(persist: true);
 
     await sendMessage(
       roomId,
@@ -615,7 +702,7 @@ class GameProvider with ChangeNotifier {
     if (message.clientMessageId != null) {
       _cancelPendingMessageTimeout(message.clientMessageId!);
     }
-    notifyListeners();
+    _notifyStateChanged(persist: true);
   }
 
   void _markMessageFailed(String clientMessageId, String errorMessage) {
@@ -631,10 +718,10 @@ class GameProvider with ChangeNotifier {
       failureReason: errorMessage,
     );
     _cancelPendingMessageTimeout(clientMessageId);
-    notifyListeners();
+    _notifyStateChanged(persist: true);
   }
 
-  void _markAllPendingMessagesFailed(String errorMessage) {
+  bool _markAllPendingMessagesFailed(String errorMessage) {
     var hasChanges = false;
     for (var i = 0; i < _messages.length; i += 1) {
       if (_messages[i].isSending) {
@@ -649,6 +736,7 @@ class GameProvider with ChangeNotifier {
     if (hasChanges) {
       _clearPendingMessageTimeouts();
     }
+    return hasChanges;
   }
 
   void _schedulePendingMessageTimeout(String clientMessageId) {
@@ -730,9 +818,13 @@ class GameProvider with ChangeNotifier {
   /// Reset game state
   void reset() {
     _clearPendingMessageTimeouts();
+    _currentRoomId = null;
     _currentSession = null;
     _leaderboard = [];
     _messages = [];
+    _hintValues = {};
+    _typingUsers.clear();
+    _isWebSocketConnected = false;
     _errorMessage = null;
     _guessResult = null;
     notifyListeners();
@@ -745,5 +837,40 @@ class GameProvider with ChangeNotifier {
     _webSocketService.dispose();
     _audioService.dispose();
     super.dispose();
+  }
+
+  String _modeCacheKey(String roomId, String mode) => '$roomId::$mode';
+
+  String _activeGameDateString() {
+    final now = _nowProvider().toUtc();
+    final base = DateTime.utc(now.year, now.month, now.day);
+    final activeDate = now.hour < 12
+        ? base.subtract(const Duration(days: 1))
+        : base;
+    return activeDate.toIso8601String().split('T').first;
+  }
+
+  void _persistCurrentModeState() {
+    final roomId = _currentRoomId;
+    final session = _currentSession;
+    if (roomId == null || session == null) {
+      return;
+    }
+
+    _cachedModeStates[_modeCacheKey(roomId, _currentMode)] = CachedModeState(
+      session: session,
+      leaderboard: List<LeaderboardEntry>.from(_leaderboard),
+      messages: List<Message>.from(_messages),
+      hintValues: Map<String, String>.from(_hintValues),
+      gameDate: session.dailySong.date,
+      cachedAt: _nowProvider().toUtc(),
+    );
+  }
+
+  void _notifyStateChanged({bool persist = false}) {
+    if (persist) {
+      _persistCurrentModeState();
+    }
+    notifyListeners();
   }
 }
