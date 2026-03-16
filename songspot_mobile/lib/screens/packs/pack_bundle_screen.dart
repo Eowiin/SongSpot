@@ -119,6 +119,7 @@ class _PackBundleContentState extends State<PackBundleContent>
         if (provider.loadedPackId == widget.packId &&
             provider.session != null) {
           _syncStemsPollingState();
+          _syncPreparedStems();
           _maybePreloadRetryAd(provider.session);
           return;
         }
@@ -128,6 +129,7 @@ class _PackBundleContentState extends State<PackBundleContent>
           packId: widget.packId,
         );
         _syncStemsPollingState();
+        _syncPreparedStems();
         _maybePreloadRetryAd(provider.session);
         if (provider.session?.isCompleted == true) {
           await provider.loadLeaderboard(
@@ -166,6 +168,7 @@ class _PackBundleContentState extends State<PackBundleContent>
     final newMessagesArrived = count > _lastKnownMessageCount;
     _lastKnownMessageCount = count;
     _syncStemsPollingState();
+    _syncPreparedStems();
     _maybePreloadRetryAd(provider?.session);
     if (newMessagesArrived && provider?.session?.isCompleted == true) {
       _scrollToLatestChatMessage();
@@ -204,6 +207,23 @@ class _PackBundleContentState extends State<PackBundleContent>
       _startStemsPolling();
     } else {
       _stopStemsPolling();
+    }
+  }
+
+  void _syncPreparedStems() {
+    if (!mounted || _isStemPlaybackActive) return;
+    final provider = context.read<PackBundleProvider>();
+    if (provider.stemsStatus == 'generating') return;
+    final stems = provider.stems.map((stem) => stem.url).toList();
+    if (stems.isEmpty) return;
+    unawaited(_prepareStemsSilently(stems));
+  }
+
+  Future<void> _prepareStemsSilently(List<String> stems) async {
+    try {
+      await _stemAudioService.prepareStems(stems);
+    } catch (_) {
+      // Ignore preload failures; playback will retry explicitly on tap.
     }
   }
 
