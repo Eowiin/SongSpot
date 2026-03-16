@@ -1,5 +1,6 @@
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from datetime import timedelta
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -28,6 +29,7 @@ from .daily_modes import (
     daily_mode_cost,
     daily_mode_label,
     daily_mode_subtitle,
+    daily_mode_unlock_days,
     enabled_daily_modes,
     is_daily_mode_accessible,
     is_daily_mode_enabled,
@@ -781,7 +783,7 @@ class RoomDailyModeContributionView(APIView):
             return _invalid_daily_mode_response()
 
         state = _get_or_create_room_daily_mode_state(room, mode)
-        if state.unlocked_for_date == today:
+        if is_daily_mode_accessible(room, mode, today, state_map={mode: state}):
             return Response(
                 {'error': f'{daily_mode_label(mode)} is already unlocked for this room'},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -834,12 +836,16 @@ class RoomDailyModeContributionView(APIView):
             if unlocked:
                 state.progress_coins = 0
                 state.unlocked_for_date = today
+                state.unlocked_until_date = (
+                    today + timedelta(days=daily_mode_unlock_days(mode) - 1)
+                )
                 state.last_unlocked_at = timezone.now()
                 state.last_unlock_contributor_count = contributor_count
                 state.save(
                     update_fields=[
                         'progress_coins',
                         'unlocked_for_date',
+                        'unlocked_until_date',
                         'last_unlocked_at',
                         'last_unlock_contributor_count',
                         'updated_at',

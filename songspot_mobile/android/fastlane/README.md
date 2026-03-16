@@ -23,13 +23,21 @@ For _fastlane_ installation instructions, see [Installing _fastlane_](https://do
 
 Build and upload to internal testing track.
 
+### android beta
+
+```sh
+[bundle exec] fastlane android beta
+```
+
+Build and upload to internal testing track for beta validation.
+
 ### android closed_testing
 
 ```sh
 [bundle exec] fastlane android closed_testing
 ```
 
-Promote internal track to closed testing (alpha) — no build
+Promote internal track to closed testing (alpha) - no build
 
 ### android production
 
@@ -37,7 +45,7 @@ Promote internal track to closed testing (alpha) — no build
 [bundle exec] fastlane android production
 ```
 
-Promote closed testing (alpha) track to production — no build
+Promote closed testing (alpha) track to production - no build
 
 ### android play_store
 

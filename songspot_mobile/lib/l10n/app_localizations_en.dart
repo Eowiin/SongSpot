@@ -706,8 +706,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get dailyModeUnlockedUntilReset =>
-      'Unlocked for this room until next reset';
+  String get dailyModeUnlockedUntilReset => 'Unlocked for this room for 7 days';
 
   @override
   String dailyModeContributionProgress(

@@ -24,21 +24,24 @@ DAILY_MODE_CONFIG = {
     DAILY_MODE_GENRE: {
         'label': 'Genre Mode',
         'subtitle': 'Same genre for everyone in the room today',
-        'cost_coins': 60,
+        'cost_coins': 180,
+        'unlock_days': 7,
         'free': False,
         'enabled': True,
     },
     DAILY_MODE_DECADE: {
         'label': 'Decade Mode',
         'subtitle': 'Same decade for everyone in the room today',
-        'cost_coins': 60,
+        'cost_coins': 180,
+        'unlock_days': 7,
         'free': False,
         'enabled': True,
     },
     DAILY_MODE_HARDCORE: {
         'label': 'Hardcore',
         'subtitle': 'Same daily song, but no hints and no retries',
-        'cost_coins': 80,
+        'cost_coins': 240,
+        'unlock_days': 7,
         'free': False,
         'enabled': True,
     },
@@ -87,6 +90,10 @@ def daily_mode_cost(mode):
     return int(DAILY_MODE_CONFIG.get(mode, {}).get('cost_coins', 0))
 
 
+def daily_mode_unlock_days(mode):
+    return max(1, int(DAILY_MODE_CONFIG.get(mode, {}).get('unlock_days', 1)))
+
+
 def daily_mode_label(mode):
     return DAILY_MODE_CONFIG.get(mode, {}).get('label', mode.title())
 
@@ -111,7 +118,12 @@ def is_room_daily_mode_unlocked(room, mode, active_date, *, state_map=None):
         )
     else:
         state = state_map.get(mode)
-    return bool(state and state.unlocked_for_date == active_date)
+    return bool(
+        state
+        and state.unlocked_for_date
+        and state.unlocked_until_date
+        and state.unlocked_for_date <= active_date <= state.unlocked_until_date
+    )
 
 
 def is_daily_mode_accessible(room, mode, active_date, *, state_map=None):
@@ -134,8 +146,6 @@ def serialize_room_daily_modes(room, active_date):
             'contributions'
         )
     }
-    _window_start, unlocked_until = active_game_window(active_date)
-
     payload = []
     for mode in enabled_daily_modes():
         cost = daily_mode_cost(mode)
@@ -151,14 +161,19 @@ def serialize_room_daily_modes(room, active_date):
             progress_coins = 0
             remaining_coins = 0
             contributor_count = 0
+            unlocked_until = None
         elif unlocked:
             progress_coins = cost
             remaining_coins = 0
             contributor_count = state.last_unlock_contributor_count if state else 0
+            _window_start, unlocked_until = active_game_window(
+                state.unlocked_until_date
+            )
         else:
             progress_coins = state.progress_coins if state else 0
             remaining_coins = max(cost - progress_coins, 0)
             contributor_count = state.contributions.count() if state else 0
+            unlocked_until = None
 
         payload.append(
             {
@@ -169,7 +184,9 @@ def serialize_room_daily_modes(room, active_date):
                 'is_free': is_free,
                 'is_enabled': True,
                 'is_unlocked': unlocked,
-                'unlocked_until': unlocked_until.isoformat() if unlocked else None,
+                'unlocked_until': unlocked_until.isoformat()
+                if unlocked_until is not None
+                else None,
                 'progress_coins': progress_coins,
                 'remaining_coins': remaining_coins,
                 'contributor_count': contributor_count,

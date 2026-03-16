@@ -705,7 +705,7 @@
       "coins": { "type": "num" }
     }
   },
-  "dailyModeUnlockedUntilReset": "Unlocked for this room until next reset",
+  "dailyModeUnlockedUntilReset": "Unlocked for this room for 7 days",
   "@dailyModeUnlockedUntilReset": { "description": "Status text shown when a mode is unlocked" },
   "dailyModeContributionProgress": "{progress}/{total} coins • {contributors} contributors",
   "@dailyModeContributionProgress": {

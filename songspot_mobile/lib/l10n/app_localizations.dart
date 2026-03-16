@@ -1349,7 +1349,7 @@ abstract class AppLocalizations {
   /// Status text shown when a mode is unlocked
   ///
   /// In en, this message translates to:
-  /// **'Unlocked for this room until next reset'**
+  /// **'Unlocked for this room for 7 days'**
   String get dailyModeUnlockedUntilReset;
 
   /// Funding progress text for a mode card

@@ -1360,10 +1360,14 @@ class _PackBundleContentState extends State<PackBundleContent>
         .map(
           (entry) => ResultLeaderboardRowData(
             title: entry.user.username,
-            subtitle: l10n.packStageCompletedAt(
-              entry.stageNumber,
-              DateFormat.Hm().format(entry.completedAt.toLocal()),
-            ),
+            subtitle: entry.pointsEarned > 0
+                ? l10n.packStageCompletedAt(
+                    entry.stageNumber,
+                    DateFormat.Hm().format(entry.completedAt.toLocal()),
+                  )
+                : l10n.dailyResultNotGuessedAt(
+                    DateFormat.Hm().format(entry.completedAt.toLocal()),
+                  ),
             scoreText: '${entry.pointsEarned}',
           ),
         )

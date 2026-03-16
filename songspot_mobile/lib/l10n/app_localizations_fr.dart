@@ -717,7 +717,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get dailyModeUnlockedUntilReset =>
-      'Débloqué pour ce salon jusqu\'à la prochaine réinitialisation';
+      'Débloqué pour ce salon pendant 7 jours';
 
   @override
   String dailyModeContributionProgress(

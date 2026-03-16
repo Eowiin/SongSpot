@@ -223,7 +223,7 @@
   "dailyModeLaneSubtitle": "Piste du jour : {name}",
   "dailyModeFree": "Gratuit",
   "dailyModeCoinsCost": "{coins} pièces",
-  "dailyModeUnlockedUntilReset": "Débloqué pour ce salon jusqu'à la prochaine réinitialisation",
+  "dailyModeUnlockedUntilReset": "Débloqué pour ce salon pendant 7 jours",
   "dailyModeContributionProgress": "{progress}/{total} pièces • {contributors} contributeurs",
   "dailyModePlay": "Jouer",
   "dailyModePreview": "Aperçu",

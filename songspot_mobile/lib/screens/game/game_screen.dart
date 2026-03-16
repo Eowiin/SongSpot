@@ -2713,9 +2713,12 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         .map(
           (entry) => ResultLeaderboardRowData(
             title: entry.username,
-            subtitle:
-                'Stage ${entry.stageNumber}'
-                ' · ${DateFormat.Hm().format(entry.completedAt.toLocal())}',
+            subtitle: entry.pointsEarned > 0
+                ? 'Stage ${entry.stageNumber}'
+                      ' · ${DateFormat.Hm().format(entry.completedAt.toLocal())}'
+                : AppLocalizations.of(context).dailyResultNotGuessedAt(
+                    DateFormat.Hm().format(entry.completedAt.toLocal()),
+                  ),
             scoreText: '${entry.pointsEarned}',
           ),
         )

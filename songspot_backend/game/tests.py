@@ -8,6 +8,7 @@ from rest_framework.test import APITestCase
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from authentication.models import User
+from .daily_modes import is_daily_mode_accessible
 from .models import (
     Track, Room, RoomUser, DailySong, DailyGameSession,
     GuessAttempt, RoomMessage, SongPack, PackTrack, RoomPack,
@@ -627,6 +628,7 @@ class DailyGameModeTests(APITestCase):
             room=self.room,
             mode=DAILY_MODE_GENRE,
             unlocked_for_date=_active_game_date(),
+            unlocked_until_date=_active_game_date() + timedelta(days=6),
             last_unlock_contributor_count=1,
         )
 
@@ -720,7 +722,7 @@ class RoomDailyModeContributionTests(APITestCase):
         )
         self.assertEqual(
             genre_mode['remaining_coins'],
-            80,
+            140,
         )
 
     def test_multiple_users_can_complete_unlock(self):
@@ -737,7 +739,7 @@ class RoomDailyModeContributionTests(APITestCase):
         )
         second = self.client.post(
             self.url,
-            {'mode': 'genre', 'amount': 50},
+            {'mode': 'genre', 'amount': 110},
             format='json',
         )
 
@@ -745,8 +747,31 @@ class RoomDailyModeContributionTests(APITestCase):
         self.assertTrue(second.data['is_unlocked'])
         state = RoomDailyModeState.objects.get(room=self.room, mode='genre')
         self.assertEqual(state.unlocked_for_date, _active_game_date())
+        self.assertEqual(
+            state.unlocked_until_date,
+            _active_game_date() + timedelta(days=6),
+        )
         self.assertEqual(state.progress_coins, 0)
         self.assertEqual(state.last_unlock_contributor_count, 2)
+
+    def test_unlock_remains_accessible_for_full_week(self):
+        response = self.client.post(
+            self.url,
+            {'mode': 'genre', 'amount': 180},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['is_unlocked'])
+        future_date = _active_game_date() + timedelta(days=6)
+        expired_date = _active_game_date() + timedelta(days=7)
+
+        self.assertTrue(
+            is_daily_mode_accessible(self.room, 'genre', future_date),
+        )
+        self.assertFalse(
+            is_daily_mode_accessible(self.room, 'genre', expired_date),
+        )
 
     def test_insufficient_coins_returns_error(self):
         self.user.coins = 10
@@ -895,6 +920,7 @@ class SubmitGuessViewTests(APITestCase):
             room=self.room,
             mode=DAILY_MODE_HARDCORE,
             unlocked_for_date=_active_game_date(),
+            unlocked_until_date=_active_game_date() + timedelta(days=6),
             last_unlock_contributor_count=1,
         )
         hardcore_song = DailySong.objects.create(
@@ -1332,6 +1358,7 @@ class RoomMessagesViewTests(APITestCase):
             room=self.room,
             mode=DAILY_MODE_GENRE,
             unlocked_for_date=_active_game_date(),
+            unlocked_until_date=_active_game_date() + timedelta(days=6),
             last_unlock_contributor_count=1,
         )
 

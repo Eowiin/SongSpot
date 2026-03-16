@@ -256,6 +256,7 @@ class RoomDailyModeState(models.Model):
     )
     progress_coins = models.PositiveIntegerField(default=0)
     unlocked_for_date = models.DateField(null=True, blank=True)
+    unlocked_until_date = models.DateField(null=True, blank=True)
     last_unlocked_at = models.DateTimeField(null=True, blank=True)
     last_unlock_contributor_count = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
