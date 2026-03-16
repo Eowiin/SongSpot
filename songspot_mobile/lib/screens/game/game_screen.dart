@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../config/app_theme.dart';
 import '../../config/admob_config.dart';
+import '../../config/daily_mode_localization.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/game_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -14,7 +15,9 @@ import '../../models/pack.dart';
 import '../../models/game_session.dart';
 import '../../models/message.dart';
 import '../../models/user.dart';
+import '../../models/room.dart';
 import '../../widgets/compact_playback_panel.dart';
+import '../../widgets/daily_mode_card.dart';
 import '../../widgets/result_chat_section.dart';
 import '../../widgets/result_leaderboard_section.dart';
 import '../../widgets/result_track_card.dart';
@@ -23,6 +26,7 @@ import '../../widgets/gradient_button.dart';
 import '../../services/api_service.dart';
 import '../../services/admob_service.dart';
 import '../../services/audio_service.dart';
+import '../../services/websocket_service.dart';
 import '../../models/history_day.dart';
 import '../packs/pack_bundle_screen.dart';
 import '../packs/pack_list_screen.dart';
@@ -42,6 +46,8 @@ enum _GameScreenMenuAction { roomDetails, packs }
 class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   static const String _dailyModeMix = 'mix';
   static const String _dailyModeGenre = 'genre';
+  static const String _dailyModeDecade = 'decade';
+  static const String _dailyModeHardcore = 'hardcore';
   static const String _roomModePack = 'pack';
   static const List<double> _snippetTimelineWeights = [1, 1, 2, 3, 4, 5];
   final _titleController = TextEditingController();
@@ -56,6 +62,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   bool _isPreviewPlaying = false;
   int _previewPlaybackRequestId = 0;
   String? _previewTrackId;
+  StreamSubscription<WebSocketEvent>? _roomModeSubscription;
 
   // History
   final _apiService = ApiService();
@@ -89,6 +96,9 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     final authProvider = context.read<AuthProvider>();
     _lastKnownMessageCount = _gameProvider.messages.length;
     _gameProvider.addListener(_handleGameProviderUpdate);
+    _roomModeSubscription = _gameProvider.webSocketEvents.listen(
+      _handleRoomModeEvent,
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _gameProvider.startGameSession(
         widget.roomId,
@@ -119,6 +129,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _resultRefreshTimer?.cancel();
     _skipFeedbackTimer?.cancel();
+    _roomModeSubscription?.cancel();
     _gameProvider.removeListener(_handleGameProviderUpdate);
     _gameProvider.disconnectFromChat();
     _titleController.dispose();
@@ -158,6 +169,33 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     _lastKnownMessageCount = count;
     if (_pendingChatAutoScroll && newMessagesArrived) {
       _scrollToLatestChatMessage();
+    }
+  }
+
+  void _handleRoomModeEvent(WebSocketEvent event) {
+    if (event.type != WebSocketEventType.roomModeUpdated || !mounted) return;
+    final data = event.data as Map<String, dynamic>;
+    final roomId = data['room_id'] as String?;
+    if (roomId != widget.roomId) return;
+
+    final rawModes = data['daily_modes'] as List<dynamic>? ?? const [];
+    final dailyModes = rawModes
+        .map((item) => RoomDailyMode.fromJson(item as Map<String, dynamic>))
+        .toList();
+    context.read<RoomProvider>().updateRoomDailyModes(
+      widget.roomId,
+      dailyModes,
+    );
+
+    final actorUserId = data['actor_user_id'] as String?;
+    final currentUserId = context.read<AuthProvider>().user?.id;
+    final activityMessage = data['activity_message'] as String?;
+    if (activityMessage != null &&
+        activityMessage.isNotEmpty &&
+        actorUserId != currentUserId) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(activityMessage)));
     }
   }
 
@@ -459,13 +497,384 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   int get _completionAdAttemptsForActiveMode =>
       _completionAdAttemptsByMode[_activeDailyMode] ?? 0;
 
-  String _dailyModeSubtitle(String mode, {String? genreName}) {
-    if (mode == _dailyModeGenre) {
-      return genreName != null && genreName.isNotEmpty
-          ? 'Today\'s lane: $genreName'
-          : 'Fixed genre for everyone today';
+  List<RoomDailyMode> _availableDailyModes(Room? room) {
+    final dailyModes = room?.dailyModes
+        .where((mode) => mode.isEnabled)
+        .toList();
+    if (dailyModes != null && dailyModes.isNotEmpty) {
+      return dailyModes;
     }
-    return 'Fully random song for everyone today';
+    return const [
+      RoomDailyMode(
+        mode: _dailyModeMix,
+        label: '',
+        subtitle: '',
+        costCoins: 0,
+        isFree: true,
+        isEnabled: true,
+        isUnlocked: true,
+        progressCoins: 0,
+        remainingCoins: 0,
+        contributorCount: 0,
+      ),
+    ];
+  }
+
+  RoomDailyMode? _dailyModeStatus(Room? room, String mode) {
+    for (final item in _availableDailyModes(room)) {
+      if (item.mode == mode) return item;
+    }
+    return null;
+  }
+
+  IconData _dailyModeIcon(String mode) {
+    switch (mode) {
+      case _dailyModeGenre:
+        return Icons.graphic_eq;
+      case _dailyModeDecade:
+        return Icons.history_edu;
+      case _dailyModeHardcore:
+        return Icons.whatshot;
+      default:
+        return Icons.shuffle;
+    }
+  }
+
+  Color _dailyModeAccent(String mode) {
+    switch (mode) {
+      case _dailyModeGenre:
+        return AppTheme.accentColor;
+      case _dailyModeDecade:
+        return AppTheme.secondaryColor;
+      case _dailyModeHardcore:
+        return AppTheme.errorColor;
+      default:
+        return AppTheme.primaryColor;
+    }
+  }
+
+  String _dailyModeSubtitle(String mode, {String? genreName}) {
+    return dailyModeLocalizedSubtitle(
+      AppLocalizations.of(context),
+      mode,
+      laneName: genreName,
+    );
+  }
+
+  bool _isHardcoreMode(String mode) => mode == _dailyModeHardcore;
+
+  bool _activeModeSupportsHints() => !_isHardcoreMode(_activeDailyMode);
+
+  bool _activeModeSupportsRetries() => !_isHardcoreMode(_activeDailyMode);
+
+  Future<void> _showModeContributionDialog(RoomDailyMode mode) async {
+    final l10n = AppLocalizations.of(context);
+    final auth = context.read<AuthProvider>().user;
+    final availableCoins = auth?.coins ?? 0;
+    final maxAmount = mode.remainingCoins < availableCoins
+        ? mode.remainingCoins
+        : availableCoins;
+    final quickPicks = _modeContributionQuickPicks(
+      remainingCoins: mode.remainingCoins,
+      availableCoins: availableCoins,
+    );
+    final suggested = quickPicks.isNotEmpty
+        ? quickPicks.first.amount
+        : maxAmount;
+    final controller = TextEditingController(
+      text: suggested > 0 ? '$suggested' : '',
+    );
+    var selectedAmount = suggested;
+    final amount = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          scrollable: true,
+          backgroundColor: AppTheme.surfaceColor,
+          title: Text(
+            l10n.dailyModeContributeTitle(
+              dailyModeLocalizedLabel(l10n, mode.mode),
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.dailyModeCoinsRemainingYouHave(
+                  mode.remainingCoins,
+                  availableCoins,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  minHeight: 8,
+                  value: mode.costCoins <= 0
+                      ? 0
+                      : mode.progressCoins.clamp(0, mode.costCoins) /
+                            mode.costCoins,
+                  color: _dailyModeAccent(mode.mode),
+                  backgroundColor: AppTheme.backgroundColor,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Text(
+                    '${mode.progressCoins}/${mode.costCoins}',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: _dailyModeAccent(mode.mode),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  _ModeContributionPill(
+                    icon: mode.isUnlocked
+                        ? Icons.check_circle_outline
+                        : Icons.monetization_on_outlined,
+                    label: mode.isUnlocked
+                        ? l10n.dailyModeUnlocked
+                        : l10n.dailyModeContributionLeft(mode.remainingCoins),
+                  ),
+                ],
+              ),
+              if (quickPicks.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: quickPicks.map((pick) {
+                    final selected = pick.amount == selectedAmount;
+                    return FilterChip(
+                      label: Text(
+                        pick.isFill
+                            ? l10n.dailyModeContributionFill
+                            : l10n.dailyModeContributionQuickAmount(
+                                pick.amount,
+                              ),
+                      ),
+                      selected: selected,
+                      onSelected: (_) {
+                        setDialogState(() {
+                          selectedAmount = pick.amount;
+                          controller.text = '${pick.amount}';
+                          controller.selection = TextSelection.collapsed(
+                            offset: controller.text.length,
+                          );
+                        });
+                      },
+                      selectedColor: _dailyModeAccent(
+                        mode.mode,
+                      ).withValues(alpha: 0.24),
+                      side: BorderSide(
+                        color: selected
+                            ? _dailyModeAccent(mode.mode).withValues(alpha: 0.6)
+                            : AppTheme.textSecondary.withValues(alpha: 0.18),
+                      ),
+                      avatar: Icon(
+                        pick.isFill
+                            ? Icons.auto_fix_high_rounded
+                            : Icons.add_rounded,
+                        size: 18,
+                        color: selected
+                            ? _dailyModeAccent(mode.mode)
+                            : AppTheme.textSecondary,
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: false,
+                  signed: false,
+                ),
+                textInputAction: TextInputAction.done,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onChanged: (value) {
+                  setDialogState(() {
+                    final parsed = int.tryParse(value.trim()) ?? 0;
+                    selectedAmount = parsed <= 0
+                        ? 0
+                        : parsed > maxAmount
+                        ? maxAmount
+                        : parsed;
+                  });
+                },
+                decoration: InputDecoration(
+                  labelText: l10n.dailyModeCoinsToContribute,
+                  filled: true,
+                  fillColor: AppTheme.backgroundColor,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(l10n.commonCancel),
+            ),
+            TextButton(
+              onPressed: selectedAmount > 0
+                  ? () => Navigator.pop(dialogContext, selectedAmount)
+                  : null,
+              child: Text(l10n.dailyModeContribute),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (amount == null || amount <= 0 || !mounted) return;
+    final response = await context.read<RoomProvider>().contributeToDailyMode(
+      roomId: widget.roomId,
+      mode: mode.mode,
+      amount: amount,
+    );
+    if (!mounted) return;
+
+    if (response == null) {
+      final errorMessage = context.read<RoomProvider>().errorMessage;
+      if (errorMessage != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage.replaceFirst('Exception: ', '')),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+      return;
+    }
+
+    final coins = response['coins'] as int?;
+    if (coins != null) {
+      context.read<AuthProvider>().updateCoinsBalance(coins);
+    }
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+  }
+
+  Future<void> _openModesSheet() async {
+    final initialRoom = context.read<RoomProvider>().currentRoom;
+    if (initialRoom == null) return;
+    final l10n = AppLocalizations.of(context);
+    final scrollController = ScrollController();
+    await showModalBottomSheet<void>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
+      showDragHandle: true,
+      backgroundColor: AppTheme.surfaceColor,
+      builder: (sheetContext) => Consumer<RoomProvider>(
+        builder: (context, roomProvider, _) {
+          final room = roomProvider.currentRoom ?? initialRoom;
+          final modes = _availableDailyModes(room);
+
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(sheetContext).size.height * 0.78,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            l10n.dailyModesTitle,
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: l10n.commonClose,
+                          onPressed: () => Navigator.of(sheetContext).pop(),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.dailyModesIntro,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 18),
+                    Expanded(
+                      child: Scrollbar(
+                        controller: scrollController,
+                        thumbVisibility: true,
+                        child: SingleChildScrollView(
+                          controller: scrollController,
+                          padding: const EdgeInsets.only(right: 4),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: modes
+                                .map(
+                                  (mode) => DailyModeCard(
+                                    mode: mode,
+                                    onPlay: mode.isPlayable
+                                        ? () async {
+                                            Navigator.pop(sheetContext);
+                                            if (mode.mode != _activeDailyMode) {
+                                              await _switchDailyMode(mode.mode);
+                                            }
+                                          }
+                                        : null,
+                                    onContribute: mode.isFree || mode.isUnlocked
+                                        ? null
+                                        : () async {
+                                            await _showModeContributionDialog(
+                                              mode,
+                                            );
+                                          },
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Center(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.swipe_vertical_rounded,
+                            size: 16,
+                            color: AppTheme.textSecondary.withValues(
+                              alpha: 0.85,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            l10n.dailyModesScrollHint,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    scrollController.dispose();
   }
 
   Future<void> _switchDailyMode(String mode) async {
@@ -1206,8 +1615,12 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   Widget _buildDailyModeSwitcher(GameSession? session) {
     final isBusy =
         context.watch<GameProvider>().isLoading || _completionAdInProgress;
-    final activePack = context.watch<RoomProvider>().currentRoom?.activePack;
-    final activeGenreName = session?.dailySong.mode == _dailyModeGenre
+    final room = context.watch<RoomProvider>().currentRoom;
+    final activePack = room?.activePack;
+    final playableModes = _availableDailyModes(
+      room,
+    ).where((mode) => mode.isPlayable).toList();
+    final activeGenreName = session?.dailySong.mode != _dailyModeMix
         ? session?.dailySong.genreName
         : null;
     String subtitle;
@@ -1220,7 +1633,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     } else {
       subtitle = _dailyModeSubtitle(
         _activeDailyMode,
-        genreName: _activeDailyMode == _dailyModeGenre ? activeGenreName : null,
+        genreName: _activeDailyMode == _dailyModeMix ? null : activeGenreName,
       );
     }
     return Container(
@@ -1235,34 +1648,44 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: _ModePillButton(
-                  label: 'Daily Mix',
-                  icon: Icons.shuffle,
-                  isSelected: _activeRoomMode == _dailyModeMix,
-                  accent: AppTheme.primaryColor,
-                  onTap: isBusy ? null : () => _switchDailyMode(_dailyModeMix),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _ModePillButton(
-                  label: 'Daily Genre',
-                  icon: Icons.graphic_eq,
-                  isSelected: _activeRoomMode == _dailyModeGenre,
-                  accent: AppTheme.accentColor,
-                  onTap: isBusy
-                      ? null
-                      : () => _switchDailyMode(_dailyModeGenre),
-                ),
-              ),
-              if (activePack != null) ...[
-                const SizedBox(width: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Row(
+              children: [
                 Expanded(
-                  child: _ModePillButton(
-                    label: 'Pack',
+                  child: Text(
+                    subtitle,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                TextButton(
+                  onPressed: _openModesSheet,
+                  child: Text(
+                    AppLocalizations.of(context).dailyModesShortLabel,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final modeButtons = <Widget>[
+                ...playableModes.map(
+                  (mode) => _ModePillButton(
+                    label: dailyModeLocalizedLabel(
+                      AppLocalizations.of(context),
+                      mode.mode,
+                    ),
+                    icon: _dailyModeIcon(mode.mode),
+                    isSelected: _activeRoomMode == mode.mode,
+                    accent: _dailyModeAccent(mode.mode),
+                    onTap: isBusy ? null : () => _switchDailyMode(mode.mode),
+                  ),
+                ),
+                if (activePack != null)
+                  _ModePillButton(
+                    label: AppLocalizations.of(context).packModeLabel,
                     icon: Icons.library_music_rounded,
                     isSelected: _activeRoomMode == _roomModePack,
                     accent: AppTheme.secondaryColor,
@@ -1270,14 +1693,26 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                         ? null
                         : _selectActivePackMode,
                   ),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 10),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+              ];
+              final maxColumns = constraints.maxWidth >= 520
+                  ? 3
+                  : constraints.maxWidth >= 320
+                  ? 2
+                  : 1;
+              final columns = modeButtons.length < maxColumns
+                  ? modeButtons.length
+                  : maxColumns;
+              final itemWidth =
+                  (constraints.maxWidth - ((columns - 1) * 8)) / columns;
+
+              return Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: modeButtons
+                    .map((button) => SizedBox(width: itemWidth, child: button))
+                    .toList(),
+              );
+            },
           ),
         ],
       ),
@@ -1296,6 +1731,18 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         });
       });
     }
+    final activeModeStatus = room == null
+        ? null
+        : _dailyModeStatus(room, _activeDailyMode);
+    if (_activeRoomMode != _roomModePack &&
+        activeModeStatus != null &&
+        !activeModeStatus.isPlayable &&
+        _activeDailyMode != _dailyModeMix) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        unawaited(_switchDailyMode(_dailyModeMix));
+      });
+    }
 
     return PopScope(
       canPop: false,
@@ -1310,7 +1757,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         backgroundColor: const Color(0xFF0F0F1E),
         appBar: AppBar(
           title: room == null
-              ? const Text('Daily Mix')
+              ? Text(AppLocalizations.of(context).dailyModeMixLabel)
               : Text(room.displayName, overflow: TextOverflow.ellipsis),
           actions: [
             IconButton(
@@ -1518,13 +1965,46 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
             ],
 
             if (session.currentSnippet >= 6 && !session.isCompleted) ...[
-              _buildRetryCard(session),
-              const SizedBox(height: 24),
+              if (_activeModeSupportsRetries()) ...[
+                _buildRetryCard(session),
+                const SizedBox(height: 24),
+              ],
             ],
 
-            _buildHintsSection(context, gameProvider),
+            if (_activeModeSupportsHints())
+              _buildHintsSection(context, gameProvider)
+            else
+              _buildHardcoreRulesCard(),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildHardcoreRulesCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.errorColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+        border: Border.all(color: AppTheme.errorColor.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            AppLocalizations.of(context).dailyModeHardcoreRulesTitle,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: AppTheme.errorColor,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            AppLocalizations.of(context).dailyModeHardcoreRulesBody,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ],
       ),
     );
   }
@@ -1565,9 +2045,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
           left: 0,
           right: 0,
           child: LinearProgressIndicator(
-            color: _activeDailyMode == _dailyModeGenre
-                ? AppTheme.accentColor
-                : AppTheme.primaryColor,
+            color: _dailyModeAccent(_activeDailyMode),
             backgroundColor: AppTheme.surfaceColor,
           ),
         ),
@@ -1608,10 +2086,10 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
               Positioned(
                 top: 10,
                 left: 0,
-                width: boundaries[session.currentSnippet],
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOut,
+                  duration: const Duration(milliseconds: 320),
+                  curve: Curves.easeInOutCubic,
+                  width: boundaries[session.currentSnippet],
                   height: _skipFeedbackActive ? 5 : 4,
                   decoration: BoxDecoration(
                     color: AppTheme.primaryColor,
@@ -1931,6 +2409,24 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         ),
       );
     }
+  }
+
+  List<_ModeContributionQuickPick> _modeContributionQuickPicks({
+    required int remainingCoins,
+    required int availableCoins,
+  }) {
+    final maxAmount = remainingCoins < availableCoins
+        ? remainingCoins
+        : availableCoins;
+    if (maxAmount <= 0) return const [];
+
+    final picks = <_ModeContributionQuickPick>[];
+    for (final candidate in [10, 20]) {
+      if (candidate <= 0 || candidate >= maxAmount) continue;
+      picks.add(_ModeContributionQuickPick(amount: candidate));
+    }
+    picks.add(_ModeContributionQuickPick(amount: maxAmount, isFill: true));
+    return picks;
   }
 
   // ── Date row ────────────────────────────────────────────────────────────
@@ -2417,6 +2913,45 @@ class _ModePillButton extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ModeContributionPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _ModeContributionPill({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppTheme.backgroundColor.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppTheme.textSecondary),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: AppTheme.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModeContributionQuickPick {
+  final int amount;
+  final bool isFill;
+
+  const _ModeContributionQuickPick({required this.amount, this.isFill = false});
 }
 
 /// Countdown widget showing time remaining until the next daily song (12:00 UTC).

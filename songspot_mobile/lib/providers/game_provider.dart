@@ -419,6 +419,10 @@ class GameProvider with ChangeNotifier {
         }
         break;
 
+      case WebSocketEventType.roomModeUpdated:
+        notifyListeners();
+        break;
+
       case WebSocketEventType.userJoined:
         // Could show a notification or update UI
         debugPrint('User joined: ${(event.data as User).username}');

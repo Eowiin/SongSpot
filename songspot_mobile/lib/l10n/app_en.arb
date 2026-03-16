@@ -657,6 +657,126 @@
   "gameHintArtist": "Artist",
   "@gameHintArtist": { "description": "Hint chip label for artist" },
 
+  "commonCancel": "Cancel",
+  "@commonCancel": { "description": "Generic cancel button label" },
+  "commonClose": "Close",
+  "@commonClose": { "description": "Generic close label or tooltip" },
+  "packModeLabel": "Pack",
+  "@packModeLabel": { "description": "Label for the pack mode pill in the game switcher" },
+  "dailyModesTitle": "Daily Modes",
+  "@dailyModesTitle": { "description": "Title for the mode section or modes sheet" },
+  "dailyModesShortLabel": "Modes",
+  "@dailyModesShortLabel": { "description": "Short label for the button that opens the modes sheet" },
+  "dailyModesIntro": "Unlock extra lanes for this room without replacing Daily Mix.",
+  "@dailyModesIntro": { "description": "Intro text for the modes sheet" },
+  "dailyModesRoomIntro": "Mix is always free. Contribute with your room to unlock extra daily lanes.",
+  "@dailyModesRoomIntro": { "description": "Intro text for the room details modes section" },
+  "dailyModesScrollHint": "Scroll to see all modes",
+  "@dailyModesScrollHint": { "description": "Hint shown below the modes list to indicate scrolling" },
+  "dailyModeMixLabel": "Daily Mix",
+  "@dailyModeMixLabel": { "description": "Label for the mix mode" },
+  "dailyModeGenreLabel": "Genre Mode",
+  "@dailyModeGenreLabel": { "description": "Label for the genre mode" },
+  "dailyModeDecadeLabel": "Decade Mode",
+  "@dailyModeDecadeLabel": { "description": "Label for the decade mode" },
+  "dailyModeHardcoreLabel": "Hardcore",
+  "@dailyModeHardcoreLabel": { "description": "Label for the hardcore mode" },
+  "dailyModeMixSubtitle": "Fully random song for everyone today",
+  "@dailyModeMixSubtitle": { "description": "Subtitle for the mix mode" },
+  "dailyModeGenreSubtitle": "Fixed genre for everyone today",
+  "@dailyModeGenreSubtitle": { "description": "Subtitle for the genre mode" },
+  "dailyModeDecadeSubtitle": "Fixed decade for everyone today",
+  "@dailyModeDecadeSubtitle": { "description": "Subtitle for the decade mode" },
+  "dailyModeHardcoreSubtitle": "Same daily song, but no hints and no retries",
+  "@dailyModeHardcoreSubtitle": { "description": "Subtitle for the hardcore mode" },
+  "dailyModeLaneSubtitle": "Today's lane: {name}",
+  "@dailyModeLaneSubtitle": {
+    "description": "Subtitle when a specific daily lane is active",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "dailyModeFree": "Free",
+  "@dailyModeFree": { "description": "Price label for a free mode" },
+  "dailyModeCoinsCost": "{coins} coins",
+  "@dailyModeCoinsCost": {
+    "description": "Price label for a paid mode",
+    "placeholders": {
+      "coins": { "type": "num" }
+    }
+  },
+  "dailyModeUnlockedUntilReset": "Unlocked for this room until next reset",
+  "@dailyModeUnlockedUntilReset": { "description": "Status text shown when a mode is unlocked" },
+  "dailyModeContributionProgress": "{progress}/{total} coins • {contributors} contributors",
+  "@dailyModeContributionProgress": {
+    "description": "Funding progress text for a mode card",
+    "placeholders": {
+      "progress": { "type": "num" },
+      "total": { "type": "num" },
+      "contributors": { "type": "num" }
+    }
+  },
+  "dailyModePlay": "Play",
+  "@dailyModePlay": { "description": "Primary action label for a playable mode" },
+  "dailyModePreview": "Preview",
+  "@dailyModePreview": { "description": "Primary action label for a previewable mode" },
+  "dailyModeUnlocked": "Unlocked",
+  "@dailyModeUnlocked": { "description": "Action/status label for an unlocked mode" },
+  "dailyModeContribute": "Contribute",
+  "@dailyModeContribute": { "description": "Action label to contribute to a mode" },
+  "dailyModeFunded": "Funded",
+  "@dailyModeFunded": { "description": "Status label when a mode is funded" },
+  "dailyModeContributeTitle": "Contribute to {mode}",
+  "@dailyModeContributeTitle": {
+    "description": "Dialog title for contributing to a mode",
+    "placeholders": {
+      "mode": { "type": "String" }
+    }
+  },
+  "dailyModeCoinsRemainingYouHave": "{remaining} coins remaining. You currently have {coins} coins.",
+  "@dailyModeCoinsRemainingYouHave": {
+    "description": "Helper text showing remaining funding and the user's balance",
+    "placeholders": {
+      "remaining": { "type": "num" },
+      "coins": { "type": "num" }
+    }
+  },
+  "dailyModeCoinsToContribute": "Coins to contribute",
+  "@dailyModeCoinsToContribute": { "description": "Input label for the contribution amount" },
+  "dailyModeContributionQuickAmount": "+{amount}",
+  "@dailyModeContributionQuickAmount": {
+    "description": "Quick contribution chip label for a fixed amount",
+    "placeholders": {
+      "amount": { "type": "num" }
+    }
+  },
+  "dailyModeContributionFill": "Fill",
+  "@dailyModeContributionFill": { "description": "Quick contribution chip label to fully fund the remaining amount the user can afford" },
+  "dailyModeContributionRemainingLabel": "Remaining",
+  "@dailyModeContributionRemainingLabel": { "description": "Short label for remaining room funding in the contribution sheet" },
+  "dailyModeContributionBalanceLabel": "Your balance",
+  "@dailyModeContributionBalanceLabel": { "description": "Short label for the user's current coin balance in the contribution sheet" },
+  "dailyModeContributionLeft": "{remaining} left",
+  "@dailyModeContributionLeft": {
+    "description": "Short label showing how much funding remains",
+    "placeholders": {
+      "remaining": { "type": "num" }
+    }
+  },
+  "dailyModeContributionSent": "Contribution sent",
+  "@dailyModeContributionSent": { "description": "Snackbar shown when a contribution succeeds without unlocking the mode" },
+  "dailyModeUnlockedForRoom": "{mode} unlocked for this room",
+  "@dailyModeUnlockedForRoom": {
+    "description": "Snackbar shown when a mode becomes unlocked",
+    "placeholders": {
+      "mode": { "type": "String" }
+    }
+  },
+  "dailyModeHardcoreRulesTitle": "Hardcore rules",
+  "@dailyModeHardcoreRulesTitle": { "description": "Title for the hardcore rules card" },
+  "dailyModeHardcoreRulesBody": "This lane disables hints and retry unlocks. One run only.",
+  "@dailyModeHardcoreRulesBody": { "description": "Body copy for the hardcore rules card" },
+
   "gameSelectSongFromResults": "Please select a song from the search results",
   "@gameSelectSongFromResults": { "description": "Error when submitting without selecting an autocomplete result" },
 

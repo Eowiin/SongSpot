@@ -12,6 +12,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.db import IntegrityError, transaction
 
 from .models import DAILY_MODE_CHOICES, DAILY_MODE_MIX
+from .daily_modes import active_game_date, is_daily_mode_accessible
 
 logger = logging.getLogger(__name__)
 
@@ -63,15 +64,24 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
             await self.close(code=4001)  # Unauthorized
             return
 
-        # Check if user is a member of the room
-        is_member = await self.is_room_member()
-        if not is_member:
+        # Check if user is a member of the room and the requested live mode is accessible.
+        membership_ok, mode_ok = await self.check_room_access()
+        if not membership_ok:
             logger.warning(
                 'WebSocket connect rejected non-member user_id=%s room_id=%s',
                 self.user.id,
                 self.room_id,
             )
             await self.close(code=4003)  # Forbidden
+            return
+        if not mode_ok:
+            logger.warning(
+                'WebSocket connect rejected locked mode user_id=%s room_id=%s mode=%s',
+                self.user.id,
+                self.room_id,
+                self.mode,
+            )
+            await self.close(code=4004)
             return
 
         # Join room group
@@ -238,20 +248,34 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
             'type': 'leaderboard_updated',
             'room_id': event.get('room_id'),
             'user_id': event.get('user_id'),
+            'mode': event.get('mode'),
+        }))
+
+    async def room_mode_updated(self, event):
+        """Notify clients that room-wide daily mode funding or unlock state changed."""
+        await self.send(text_data=json.dumps({
+            'type': 'room_mode_updated',
+            'room_id': event.get('room_id'),
+            'daily_modes': event.get('daily_modes', []),
+            'activity_message': event.get('activity_message'),
+            'actor_user_id': event.get('actor_user_id'),
         }))
 
     # Database operations
 
     @database_sync_to_async
-    def is_room_member(self):
-        """Check if the user is a member of the room."""
+    def check_room_access(self):
+        """Check if the user is a member of the room and may access the requested mode."""
         from .models import Room, RoomUser
 
         try:
             room = Room.objects.get(id=self.room_id)
-            return RoomUser.objects.filter(room=room, user=self.user).exists()
+            is_member = RoomUser.objects.filter(room=room, user=self.user).exists()
+            if not is_member:
+                return False, False
+            return True, is_daily_mode_accessible(room, self.mode, active_game_date())
         except Room.DoesNotExist:
-            return False
+            return False, False
 
     @database_sync_to_async
     def save_message(self, message_text, client_message_id=None):
@@ -260,6 +284,8 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
 
         try:
             room = Room.objects.get(id=self.room_id)
+            if not is_daily_mode_accessible(room, self.mode, active_game_date()):
+                return None
             if client_message_id:
                 lookup = {
                     'room': room,

@@ -12,7 +12,9 @@ from .models import (
     Track, Room, RoomUser, DailySong, DailyGameSession,
     GuessAttempt, RoomMessage, SongPack, PackTrack, RoomPack,
     PackDailyTrack, PackBundleSession, PackBundleMessage,
+    RoomDailyModeState,
     DAILY_MODE_GENRE,
+    DAILY_MODE_HARDCORE,
 )
 from .views import PACK_BUNDLE_STAGE_ORDER, _active_game_date, _get_daily_pack_track
 
@@ -621,6 +623,12 @@ class DailyGameModeTests(APITestCase):
             track=self.rock_backup_track,
             order_in_pack=2,
         )
+        RoomDailyModeState.objects.create(
+            room=self.room,
+            mode=DAILY_MODE_GENRE,
+            unlocked_for_date=_active_game_date(),
+            last_unlock_contributor_count=1,
+        )
 
         refresh = RefreshToken.for_user(self.user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {str(refresh.access_token)}')
@@ -667,6 +675,107 @@ class DailyGameModeTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         session = DailyGameSession.objects.get(room=self.room, user=self.user, daily_song_id=daily_song_id)
         self.assertEqual(session.daily_song.mode, 'genre')
+
+
+class RoomDailyModeContributionTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='contributor1',
+            email='contributor1@example.com',
+            password='testpass123',
+            coins=200,
+        )
+        self.other_user = User.objects.create_user(
+            username='contributor2',
+            email='contributor2@example.com',
+            password='testpass123',
+            coins=200,
+        )
+        self.room = Room.objects.create(host_user=self.user)
+        RoomUser.objects.create(room=self.room, user=self.user)
+        RoomUser.objects.create(room=self.room, user=self.other_user)
+        self.url = f'/api/game/rooms/{self.room.id}/daily-modes/contribute/'
+        refresh = RefreshToken.for_user(self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {str(refresh.access_token)}')
+
+    def test_partial_contribution_updates_progress_and_balance(self):
+        response = self.client.post(
+            self.url,
+            {'mode': 'genre', 'amount': 40},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.coins, 160)
+        self.assertFalse(response.data['is_unlocked'])
+        self.assertEqual(response.data['contributed_coins'], 40)
+        genre_mode = next(
+            item for item in response.data['room']['daily_modes']
+            if item['mode'] == 'genre'
+        )
+        self.assertEqual(
+            genre_mode['progress_coins'],
+            40,
+        )
+        self.assertEqual(
+            genre_mode['remaining_coins'],
+            80,
+        )
+
+    def test_multiple_users_can_complete_unlock(self):
+        first = self.client.post(
+            self.url,
+            {'mode': 'genre', 'amount': 70},
+            format='json',
+        )
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+
+        other_refresh = RefreshToken.for_user(self.other_user)
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f'Bearer {str(other_refresh.access_token)}'
+        )
+        second = self.client.post(
+            self.url,
+            {'mode': 'genre', 'amount': 50},
+            format='json',
+        )
+
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+        self.assertTrue(second.data['is_unlocked'])
+        state = RoomDailyModeState.objects.get(room=self.room, mode='genre')
+        self.assertEqual(state.unlocked_for_date, _active_game_date())
+        self.assertEqual(state.progress_coins, 0)
+        self.assertEqual(state.last_unlock_contributor_count, 2)
+
+    def test_insufficient_coins_returns_error(self):
+        self.user.coins = 10
+        self.user.save(update_fields=['coins'])
+
+        response = self.client.post(
+            self.url,
+            {'mode': 'genre', 'amount': 40},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['error_code'], 'INSUFFICIENT_COINS')
+
+    def test_locked_mode_cannot_be_played_until_unlocked(self):
+        track = Track.objects.create(
+            title='Locked Song',
+            artist='Locked Artist',
+            preview_url='https://example.com/locked.mp3',
+            genre='Rock',
+        )
+        SongPack.objects.create(name='Rock Pack 2', price_coins=0, category='rock')
+        response = self.client.get(
+            f'/api/game/rooms/{self.room.id}/daily-game/',
+            {'mode': 'genre'},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn('locked', response.data['error'].lower())
 
 
 class SkipSnippetViewTests(APITestCase):
@@ -735,7 +844,7 @@ class SkipSnippetViewTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['current_snippet'], 6)
-        mock_broadcast.assert_called_once_with(self.room.id, self.user.id)
+        mock_broadcast.assert_called_once_with(self.room.id, self.user.id, 'mix')
 
 
 class SubmitGuessViewTests(APITestCase):
@@ -776,9 +885,30 @@ class SubmitGuessViewTests(APITestCase):
 
         self.guess_url = f'/api/game/rooms/{self.room.id}/daily-game/guess/'
         self.retry_url = f'/api/game/rooms/{self.room.id}/daily-game/retry/'
+        self.hint_url = f'/api/game/rooms/{self.room.id}/daily-game/hint/'
         self.refresh = RefreshToken.for_user(self.user)
         self.access_token = str(self.refresh.access_token)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
+
+    def _unlock_hardcore_session(self):
+        RoomDailyModeState.objects.create(
+            room=self.room,
+            mode=DAILY_MODE_HARDCORE,
+            unlocked_for_date=_active_game_date(),
+            last_unlock_contributor_count=1,
+        )
+        hardcore_song = DailySong.objects.create(
+            room=self.room,
+            track=self.correct_track,
+            mode=DAILY_MODE_HARDCORE,
+            date=_active_game_date(),
+        )
+        return DailyGameSession.objects.create(
+            room=self.room,
+            user=self.user,
+            daily_song=hardcore_song,
+            current_snippet=6,
+        )
 
     def test_correct_guess_first_snippet(self):
         """Test correct guess on first snippet awards 6 points."""
@@ -821,7 +951,7 @@ class SubmitGuessViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(response.data['is_correct'])
         self.assertEqual(response.data['current_snippet'], 6)
-        mock_broadcast.assert_called_once_with(self.room.id, self.user.id)
+        mock_broadcast.assert_called_once_with(self.room.id, self.user.id, 'mix')
 
     def test_wrong_guess_at_max_snippet(self):
         """Test wrong guess at max snippet prompts retry flow first."""
@@ -870,6 +1000,50 @@ class SubmitGuessViewTests(APITestCase):
         self.assertEqual(response.data['points_earned'], 0)
         self.assertIn('correct_answer', response.data)
 
+    def test_hardcore_wrong_guess_at_final_snippet_ends_run(self):
+        """Hardcore mode should not offer retry unlocks after a failed final guess."""
+        self._unlock_hardcore_session()
+
+        response = self.client.post(
+            self.guess_url,
+            {'track_id': str(self.wrong_track.id), 'mode': DAILY_MODE_HARDCORE},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data['is_correct'])
+        self.assertTrue(response.data['game_over'])
+        self.assertFalse(response.data['retry_available'])
+        self.assertIsNone(response.data['next_retry_requirement'])
+
+    def test_hardcore_retry_unlock_is_rejected(self):
+        """Hardcore mode should reject retry activation entirely."""
+        self._unlock_hardcore_session()
+
+        response = self.client.post(
+            self.retry_url,
+            {'action': 'ad', 'mode': DAILY_MODE_HARDCORE},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['error_code'], 'MODE_RULE_RESTRICTED')
+        self.assertEqual(response.data['reason'], 'hardcore_retry_disabled')
+
+    def test_hardcore_hint_purchase_is_rejected(self):
+        """Hardcore mode should reject hint purchases."""
+        self._unlock_hardcore_session()
+
+        response = self.client.post(
+            self.hint_url,
+            {'hint_type': 'genre', 'mode': DAILY_MODE_HARDCORE},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['error_code'], 'MODE_RULE_RESTRICTED')
+        self.assertEqual(response.data['reason'], 'hardcore_hints_disabled')
+
     def test_guess_after_completion_fails(self):
         """Test guessing after already completing fails."""
         self.game_session.correct_guess = True
@@ -900,7 +1074,7 @@ class SubmitGuessViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data['game_over'])
         self.assertEqual(response.data['points_earned'], 0)
-        mock_broadcast.assert_called_once_with(self.room.id, self.user.id)
+        mock_broadcast.assert_called_once_with(self.room.id, self.user.id, 'mix')
 
 
 class LeaderboardViewTests(APITestCase):
@@ -1154,6 +1328,12 @@ class RoomMessagesViewTests(APITestCase):
         self.refresh = RefreshToken.for_user(self.user)
         self.access_token = str(self.refresh.access_token)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
+        RoomDailyModeState.objects.create(
+            room=self.room,
+            mode=DAILY_MODE_GENRE,
+            unlocked_for_date=_active_game_date(),
+            last_unlock_contributor_count=1,
+        )
 
     def test_post_message_success(self):
         """Test posting a message."""

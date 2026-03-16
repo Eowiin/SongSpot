@@ -17,7 +17,8 @@ class GameHistoryDetailScreen extends StatefulWidget {
   });
 
   @override
-  State<GameHistoryDetailScreen> createState() => _GameHistoryDetailScreenState();
+  State<GameHistoryDetailScreen> createState() =>
+      _GameHistoryDetailScreenState();
 }
 
 class _GameHistoryDetailScreenState extends State<GameHistoryDetailScreen> {
@@ -34,7 +35,10 @@ class _GameHistoryDetailScreenState extends State<GameHistoryDetailScreen> {
 
   Future<void> _load() async {
     try {
-      final data = await _apiService.getRoomHistoryDetail(widget.roomId, widget.date);
+      final data = await _apiService.getRoomHistoryDetail(
+        widget.roomId,
+        widget.date,
+      );
       if (mounted) {
         setState(() {
           _detail = HistoryDayDetail.fromJson(data);
@@ -42,15 +46,27 @@ class _GameHistoryDetailScreenState extends State<GameHistoryDetailScreen> {
         });
       }
     } on ApiException catch (e) {
-      if (mounted) setState(() { _error = e.message; _isLoading = false; });
+      if (mounted) {
+        setState(() {
+          _error = e.message;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _isLoading = false; });
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final dateLabel = DateFormat('EEEE, MMM d yyyy').format(DateTime.parse(widget.date));
+    final dateLabel = DateFormat(
+      'EEEE, MMM d yyyy',
+    ).format(DateTime.parse(widget.date));
 
     return Scaffold(
       body: Container(
@@ -68,31 +84,51 @@ class _GameHistoryDetailScreenState extends State<GameHistoryDetailScreen> {
                       color: AppTheme.textPrimary,
                     ),
                     Flexible(
-                      child: Text(dateLabel, style: Theme.of(context).textTheme.headlineMedium),
+                      child: Text(
+                        dateLabel,
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
                     ),
                   ],
                 ),
               ),
               Expanded(
                 child: _isLoading
-                    ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor))
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          color: AppTheme.primaryColor,
+                        ),
+                      )
                     : _error != null
-                        ? Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(32),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.error_outline, color: AppTheme.errorColor, size: 48),
-                                  const SizedBox(height: 16),
-                                  Text(_error!, style: const TextStyle(color: AppTheme.errorColor), textAlign: TextAlign.center),
-                                  const SizedBox(height: 16),
-                                  TextButton(onPressed: _load, child: const Text('Retry')),
-                                ],
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.error_outline,
+                                color: AppTheme.errorColor,
+                                size: 48,
                               ),
-                            ),
-                          )
-                        : _buildContent(_detail!),
+                              const SizedBox(height: 16),
+                              Text(
+                                _error!,
+                                style: const TextStyle(
+                                  color: AppTheme.errorColor,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 16),
+                              TextButton(
+                                onPressed: _load,
+                                child: const Text('Retry'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : _buildContent(_detail!),
               ),
             ],
           ),
@@ -127,20 +163,25 @@ class _GameHistoryDetailScreenState extends State<GameHistoryDetailScreen> {
                           width: 180,
                           height: 180,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _albumPlaceholder(),
+                          errorBuilder: (context, error, stackTrace) =>
+                              _albumPlaceholder(),
                         )
                       : _albumPlaceholder(),
                 ),
                 const SizedBox(height: 16),
                 Text(
                   detail.track.title,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   detail.track.artist,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppTheme.textSecondary),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppTheme.textSecondary,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
@@ -148,7 +189,10 @@ class _GameHistoryDetailScreenState extends State<GameHistoryDetailScreen> {
                 // My result badge
                 if (session != null)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: session.correctGuess
                           ? AppTheme.successColor.withValues(alpha: 0.2)
@@ -159,8 +203,12 @@ class _GameHistoryDetailScreenState extends State<GameHistoryDetailScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          session.correctGuess ? Icons.check_circle : Icons.cancel,
-                          color: session.correctGuess ? AppTheme.successColor : AppTheme.errorColor,
+                          session.correctGuess
+                              ? Icons.check_circle
+                              : Icons.cancel,
+                          color: session.correctGuess
+                              ? AppTheme.successColor
+                              : AppTheme.errorColor,
                         ),
                         const SizedBox(width: 8),
                         Text(
@@ -168,7 +216,9 @@ class _GameHistoryDetailScreenState extends State<GameHistoryDetailScreen> {
                               ? '+${session.pointsEarned ?? 0} points (Snippet ${session.currentSnippet})'
                               : 'Not guessed',
                           style: TextStyle(
-                            color: session.correctGuess ? AppTheme.successColor : AppTheme.errorColor,
+                            color: session.correctGuess
+                                ? AppTheme.successColor
+                                : AppTheme.errorColor,
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
                           ),
@@ -178,14 +228,19 @@ class _GameHistoryDetailScreenState extends State<GameHistoryDetailScreen> {
                   )
                 else
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: AppTheme.surfaceColor,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
                       'You didn\'t play this day',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.textSecondary,
+                      ),
                     ),
                   ),
               ],
@@ -215,17 +270,24 @@ class _GameHistoryDetailScreenState extends State<GameHistoryDetailScreen> {
               final rank = entry.key + 1;
               final e = entry.value;
               Color rankColor;
-              if (rank == 1) rankColor = const Color(0xFFFFD700);
-              else if (rank == 2) rankColor = const Color(0xFFC0C0C0);
-              else if (rank == 3) rankColor = const Color(0xFFCD7F32);
-              else rankColor = AppTheme.textSecondary;
+              if (rank == 1) {
+                rankColor = const Color(0xFFFFD700);
+              } else if (rank == 2) {
+                rankColor = const Color(0xFFC0C0C0);
+              } else if (rank == 3) {
+                rankColor = const Color(0xFFCD7F32);
+              } else {
+                rankColor = AppTheme.textSecondary;
+              }
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: AppTheme.surfaceColor,
-                  borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+                  borderRadius: BorderRadius.circular(
+                    AppTheme.cardBorderRadius,
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -239,7 +301,11 @@ class _GameHistoryDetailScreenState extends State<GameHistoryDetailScreen> {
                       child: Center(
                         child: Text(
                           '$rank',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: rankColor),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: rankColor,
+                          ),
                         ),
                       ),
                     ),
@@ -248,23 +314,33 @@ class _GameHistoryDetailScreenState extends State<GameHistoryDetailScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(e.username, style: Theme.of(context).textTheme.titleMedium),
+                          Text(
+                            e.username,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
                           Text(
                             'Snippet ${e.snippetNumber}${e.completedAt != null ? ' · ${DateFormat.Hm().format(e.completedAt!.toLocal())}' : ''}',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: AppTheme.textSecondary),
                           ),
                         ],
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         gradient: AppTheme.primaryGradient,
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text(
                         '${e.pointsEarned}',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ],
@@ -282,9 +358,18 @@ class _GameHistoryDetailScreenState extends State<GameHistoryDetailScreen> {
               padding: const EdgeInsets.symmetric(vertical: 24),
               child: Column(
                 children: [
-                  const Icon(Icons.chat_bubble_outline, size: 40, color: AppTheme.textSecondary),
+                  const Icon(
+                    Icons.chat_bubble_outline,
+                    size: 40,
+                    color: AppTheme.textSecondary,
+                  ),
                   const SizedBox(height: 8),
-                  Text('No messages that day', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary)),
+                  Text(
+                    'No messages that day',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
                 ],
               ),
             )
@@ -294,30 +379,46 @@ class _GameHistoryDetailScreenState extends State<GameHistoryDetailScreen> {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Align(
-                  alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                  alignment: isMe
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
                   child: Container(
-                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.75,
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
-                      color: isMe ? AppTheme.primaryColor.withValues(alpha: 0.2) : AppTheme.surfaceColor,
+                      color: isMe
+                          ? AppTheme.primaryColor.withValues(alpha: 0.2)
+                          : AppTheme.surfaceColor,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
-                      crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                      crossAxisAlignment: isMe
+                          ? CrossAxisAlignment.end
+                          : CrossAxisAlignment.start,
                       children: [
                         if (!isMe)
                           Text(
                             msg.username,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
                                   color: AppTheme.primaryColor,
                                   fontWeight: FontWeight.w600,
                                 ),
                           ),
-                        Text(msg.message, style: Theme.of(context).textTheme.bodyMedium),
+                        Text(
+                          msg.message,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
                         const SizedBox(height: 2),
                         Text(
                           DateFormat.Hm().format(msg.createdAt.toLocal()),
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppTheme.textSecondary),
                         ),
                       ],
                     ),

@@ -649,6 +649,148 @@ class AppLocalizationsFr extends AppLocalizations {
   String get gameHintArtist => 'Artiste';
 
   @override
+  String get commonCancel => 'Annuler';
+
+  @override
+  String get commonClose => 'Fermer';
+
+  @override
+  String get packModeLabel => 'Pack';
+
+  @override
+  String get dailyModesTitle => 'Modes du jour';
+
+  @override
+  String get dailyModesShortLabel => 'Modes';
+
+  @override
+  String get dailyModesIntro =>
+      'Débloquez des pistes supplémentaires pour ce salon sans remplacer Daily Mix.';
+
+  @override
+  String get dailyModesRoomIntro =>
+      'Mix est toujours gratuit. Contribuez avec votre salon pour débloquer des pistes quotidiennes supplémentaires.';
+
+  @override
+  String get dailyModesScrollHint => 'Faites défiler pour voir tous les modes';
+
+  @override
+  String get dailyModeMixLabel => 'Daily Mix';
+
+  @override
+  String get dailyModeGenreLabel => 'Mode Genre';
+
+  @override
+  String get dailyModeDecadeLabel => 'Mode Décennie';
+
+  @override
+  String get dailyModeHardcoreLabel => 'Hardcore';
+
+  @override
+  String get dailyModeMixSubtitle =>
+      'Chanson entièrement aléatoire pour tout le monde aujourd\'hui';
+
+  @override
+  String get dailyModeGenreSubtitle =>
+      'Genre fixe pour tout le monde aujourd\'hui';
+
+  @override
+  String get dailyModeDecadeSubtitle =>
+      'Décennie fixe pour tout le monde aujourd\'hui';
+
+  @override
+  String get dailyModeHardcoreSubtitle =>
+      'Même chanson du jour, mais sans indices ni retries';
+
+  @override
+  String dailyModeLaneSubtitle(String name) {
+    return 'Piste du jour : $name';
+  }
+
+  @override
+  String get dailyModeFree => 'Gratuit';
+
+  @override
+  String dailyModeCoinsCost(num coins) {
+    return '$coins pièces';
+  }
+
+  @override
+  String get dailyModeUnlockedUntilReset =>
+      'Débloqué pour ce salon jusqu\'à la prochaine réinitialisation';
+
+  @override
+  String dailyModeContributionProgress(
+    num progress,
+    num total,
+    num contributors,
+  ) {
+    return '$progress/$total pièces • $contributors contributeurs';
+  }
+
+  @override
+  String get dailyModePlay => 'Jouer';
+
+  @override
+  String get dailyModePreview => 'Aperçu';
+
+  @override
+  String get dailyModeUnlocked => 'Débloqué';
+
+  @override
+  String get dailyModeContribute => 'Contribuer';
+
+  @override
+  String get dailyModeFunded => 'Financé';
+
+  @override
+  String dailyModeContributeTitle(String mode) {
+    return 'Contribuer à $mode';
+  }
+
+  @override
+  String dailyModeCoinsRemainingYouHave(num remaining, num coins) {
+    return '$remaining pièces restantes. Vous avez actuellement $coins pièces.';
+  }
+
+  @override
+  String get dailyModeCoinsToContribute => 'Pièces à contribuer';
+
+  @override
+  String dailyModeContributionQuickAmount(num amount) {
+    return '+$amount';
+  }
+
+  @override
+  String get dailyModeContributionFill => 'Compléter';
+
+  @override
+  String get dailyModeContributionRemainingLabel => 'Reste';
+
+  @override
+  String get dailyModeContributionBalanceLabel => 'Votre solde';
+
+  @override
+  String dailyModeContributionLeft(num remaining) {
+    return '$remaining restantes';
+  }
+
+  @override
+  String get dailyModeContributionSent => 'Contribution envoyée';
+
+  @override
+  String dailyModeUnlockedForRoom(String mode) {
+    return '$mode débloqué pour ce salon';
+  }
+
+  @override
+  String get dailyModeHardcoreRulesTitle => 'Règles Hardcore';
+
+  @override
+  String get dailyModeHardcoreRulesBody =>
+      'Cette piste désactive les indices et les retries. Une seule tentative.';
+
+  @override
   String get gameSelectSongFromResults =>
       'Veuillez sélectionner une chanson dans les résultats de recherche';
 

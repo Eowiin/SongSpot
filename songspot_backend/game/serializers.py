@@ -4,8 +4,10 @@ from django.contrib.auth import get_user_model
 from .models import (
     Track, SongPack, PackTrack, Room, RoomUser, RoomPack,
     DailySong, PackDailyTrack, PackBundleSession, PackBundleAttempt,
-    DailyGameSession, GuessAttempt, RoomMessage, PackBundleMessage
+    DailyGameSession, GuessAttempt, RoomMessage, PackBundleMessage,
+    RoomDailyModeState,
 )
+from .daily_modes import serialize_room_daily_modes
 
 User = get_user_model()
 
@@ -248,10 +250,21 @@ class RoomSerializer(serializers.ModelSerializer):
     users = RoomUserSerializer(source='room_users', many=True, read_only=True)
     user_count = serializers.SerializerMethodField()
     active_pack = serializers.SerializerMethodField()
+    daily_modes = serializers.SerializerMethodField()
 
     class Meta:
         model = Room
-        fields = ('id', 'room_code', 'name', 'host_user', 'users', 'user_count', 'active_pack', 'created_at')
+        fields = (
+            'id',
+            'room_code',
+            'name',
+            'host_user',
+            'users',
+            'user_count',
+            'active_pack',
+            'daily_modes',
+            'created_at',
+        )
         read_only_fields = ('id', 'room_code', 'host_user', 'created_at')
 
     def get_user_count(self, obj):
@@ -271,6 +284,10 @@ class RoomSerializer(serializers.ModelSerializer):
             },
         )
         return serializer.data
+
+    def get_daily_modes(self, obj):
+        active_game_date = self.context.get('active_game_date')
+        return serialize_room_daily_modes(obj, active_game_date)
 
 
 class RoomCreateSerializer(serializers.ModelSerializer):
@@ -299,6 +316,15 @@ class JoinRoomSerializer(serializers.Serializer):
         except Room.DoesNotExist:
             raise serializers.ValidationError("Room not found.")
         return value.upper()
+
+
+class RoomDailyModeContributionSerializer(serializers.Serializer):
+    mode = serializers.ChoiceField(
+        choices=tuple(
+            choice for choice in RoomDailyModeState._meta.get_field('mode').choices
+        )
+    )
+    amount = serializers.IntegerField(min_value=1)
 
 
 class DailySongSerializer(serializers.ModelSerializer):

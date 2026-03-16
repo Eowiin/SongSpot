@@ -14,6 +14,7 @@ enum WebSocketEventType {
   disconnected,
   message,
   leaderboardUpdated,
+  roomModeUpdated,
   userJoined,
   userLeft,
   typing,
@@ -195,6 +196,17 @@ class WebSocketService {
               'room_id': json['room_id'] as String?,
               'user_id': json['user_id'] as String?,
               'mode': json['mode'] as String?,
+            }),
+          );
+          break;
+
+        case 'room_mode_updated':
+          _eventController.add(
+            WebSocketEvent(WebSocketEventType.roomModeUpdated, {
+              'room_id': json['room_id'] as String?,
+              'daily_modes': json['daily_modes'] as List<dynamic>? ?? const [],
+              'activity_message': json['activity_message'] as String?,
+              'actor_user_id': json['actor_user_id'] as String?,
             }),
           );
           break;
