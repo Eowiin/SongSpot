@@ -957,6 +957,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get backendInvalidRetryActionUnknown => 'Invalid retry action.';
 
   @override
+  String get backendModeRuleRestricted =>
+      'This action is not allowed in the current game mode.';
+
+  @override
+  String get backendModeRuleRestrictedHardcoreRetryDisabled =>
+      'Hardcore mode does not allow retries.';
+
+  @override
+  String get backendModeRuleRestrictedHardcoreHintsDisabled =>
+      'Hardcore mode does not allow hints.';
+
+  @override
   String get backendGameAlreadyCompleted => 'Game already completed.';
 
   @override

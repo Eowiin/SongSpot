@@ -969,6 +969,18 @@ class AppLocalizationsFr extends AppLocalizations {
       'Action de seconde chance invalide.';
 
   @override
+  String get backendModeRuleRestricted =>
+      'Cette action n\'est pas autorisee dans le mode de jeu actuel.';
+
+  @override
+  String get backendModeRuleRestrictedHardcoreRetryDisabled =>
+      'Le mode hardcore n\'autorise pas les nouvelles tentatives.';
+
+  @override
+  String get backendModeRuleRestrictedHardcoreHintsDisabled =>
+      'Le mode hardcore n\'autorise pas les indices.';
+
+  @override
   String get backendGameAlreadyCompleted => 'Partie déjà terminée.';
 
   @override

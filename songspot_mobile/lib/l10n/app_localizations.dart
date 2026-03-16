@@ -1746,6 +1746,24 @@ abstract class AppLocalizations {
   /// **'Invalid retry action.'**
   String get backendInvalidRetryActionUnknown;
 
+  /// Backend generic mode rule restriction error
+  ///
+  /// In en, this message translates to:
+  /// **'This action is not allowed in the current game mode.'**
+  String get backendModeRuleRestricted;
+
+  /// Backend hardcore mode retry restriction error
+  ///
+  /// In en, this message translates to:
+  /// **'Hardcore mode does not allow retries.'**
+  String get backendModeRuleRestrictedHardcoreRetryDisabled;
+
+  /// Backend hardcore mode hint restriction error
+  ///
+  /// In en, this message translates to:
+  /// **'Hardcore mode does not allow hints.'**
+  String get backendModeRuleRestrictedHardcoreHintsDisabled;
+
   /// Backend game already completed error
   ///
   /// In en, this message translates to:

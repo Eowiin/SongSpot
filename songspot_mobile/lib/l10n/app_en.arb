@@ -980,6 +980,15 @@
   "backendInvalidRetryActionUnknown": "Invalid retry action.",
   "@backendInvalidRetryActionUnknown": { "description": "Backend invalid retry action without expected value" },
 
+  "backendModeRuleRestricted": "This action is not allowed in the current game mode.",
+  "@backendModeRuleRestricted": { "description": "Backend generic mode rule restriction error" },
+
+  "backendModeRuleRestrictedHardcoreRetryDisabled": "Hardcore mode does not allow retries.",
+  "@backendModeRuleRestrictedHardcoreRetryDisabled": { "description": "Backend hardcore mode retry restriction error" },
+
+  "backendModeRuleRestrictedHardcoreHintsDisabled": "Hardcore mode does not allow hints.",
+  "@backendModeRuleRestrictedHardcoreHintsDisabled": { "description": "Backend hardcore mode hint restriction error" },
+
   "backendGameAlreadyCompleted": "Game already completed.",
   "@backendGameAlreadyCompleted": { "description": "Backend game already completed error" },
 

@@ -106,6 +106,7 @@ class ApiService {
   String? _localizeBackendCode({
     required String code,
     required Map<String, dynamic> params,
+    String? reason,
     required AppLocalizations l10n,
   }) {
     switch (code) {
@@ -149,6 +150,14 @@ class ApiService {
           return l10n.backendInvalidRetryAction(expected);
         }
         return l10n.backendInvalidRetryActionUnknown;
+      case 'MODE_RULE_RESTRICTED':
+        switch (reason) {
+          case 'hardcore_retry_disabled':
+            return l10n.backendModeRuleRestrictedHardcoreRetryDisabled;
+          case 'hardcore_hints_disabled':
+            return l10n.backendModeRuleRestrictedHardcoreHintsDisabled;
+        }
+        return l10n.backendModeRuleRestricted;
       case 'INSUFFICIENT_COINS':
         final required = _numParam(params, 'required_coins', fallback: 0);
         if (required > 0) {
@@ -231,6 +240,12 @@ class ApiService {
     if (cleaned == 'No song available for today') {
       return l10n.backendNoSongAvailableToday;
     }
+    if (cleaned == 'Hardcore mode does not allow retries.') {
+      return l10n.backendModeRuleRestrictedHardcoreRetryDisabled;
+    }
+    if (cleaned == 'Hardcore mode does not allow hints.') {
+      return l10n.backendModeRuleRestrictedHardcoreHintsDisabled;
+    }
     if (cleaned == 'This pack is not owned by the room') {
       return l10n.backendPackNotOwnedByRoom;
     }
@@ -291,6 +306,7 @@ class ApiService {
       String? rawMessage;
       String? errorCode;
       Map<String, dynamic>? errorParams;
+      String? errorReason;
 
       try {
         final body = jsonDecode(response.body);
@@ -298,6 +314,10 @@ class ApiService {
           final extractedCode = body['error_code'];
           if (extractedCode is String && extractedCode.trim().isNotEmpty) {
             errorCode = extractedCode.trim();
+          }
+          final extractedReason = body['reason'];
+          if (extractedReason is String && extractedReason.trim().isNotEmpty) {
+            errorReason = extractedReason.trim();
           }
           final extractedParams = body['params'];
           if (extractedParams is Map) {
@@ -312,6 +332,7 @@ class ApiService {
               final localizedByCode = _localizeBackendCode(
                 code: errorCode,
                 params: errorParams ?? const {},
+                reason: errorReason,
                 l10n: l10n,
               );
               if (localizedByCode != null && localizedByCode.isNotEmpty) {
