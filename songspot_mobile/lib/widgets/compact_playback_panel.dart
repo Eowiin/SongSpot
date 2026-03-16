@@ -108,7 +108,7 @@ class _PlaybackControlButton extends StatelessWidget {
 class _PlaybackWaveform extends StatefulWidget {
   final bool isPlaying;
 
-  const _PlaybackWaveform({super.key, required this.isPlaying});
+  const _PlaybackWaveform({required this.isPlaying});
 
   @override
   State<_PlaybackWaveform> createState() => _PlaybackWaveformState();

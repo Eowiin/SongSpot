@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework.test import APITestCase, APIClient
@@ -59,6 +60,7 @@ class RegisterViewTests(APITestCase):
     """Tests for user registration endpoint."""
 
     def setUp(self):
+        cache.clear()
         self.register_url = '/api/auth/register/'
 
     def test_register_user_success(self):
@@ -117,6 +119,7 @@ class LoginViewTests(APITestCase):
     """Tests for user login endpoint."""
 
     def setUp(self):
+        cache.clear()
         self.login_url = '/api/auth/login/'
         self.user = User.objects.create_user(
             username='testuser',
@@ -168,6 +171,7 @@ class LogoutViewTests(APITestCase):
     """Tests for user logout endpoint."""
 
     def setUp(self):
+        cache.clear()
         self.logout_url = '/api/auth/logout/'
         self.user = User.objects.create_user(
             username='testuser',
@@ -205,6 +209,7 @@ class RefreshTokenViewTests(APITestCase):
     """Tests for token refresh endpoint."""
 
     def setUp(self):
+        cache.clear()
         self.refresh_url = '/api/auth/token/refresh/'
         self.user = User.objects.create_user(
             username='testuser',
@@ -241,6 +246,7 @@ class UserProfileViewTests(APITestCase):
     """Tests for user profile endpoint."""
 
     def setUp(self):
+        cache.clear()
         self.profile_url = '/api/auth/profile/'
         self.user = User.objects.create_user(
             username='testuser',
@@ -306,8 +312,13 @@ class RoomMessageNotificationTaskTests(TestCase):
             date=_active_game_date(),
         )
 
+    @patch('authentication.tasks.notify_room_message_task.delay')
     @patch('authentication.tasks.send_push_to_users')
-    def test_only_users_with_correct_guess_receive_room_message_push(self, mock_send_push):
+    def test_only_users_with_correct_guess_receive_room_message_push(
+        self,
+        mock_send_push,
+        mock_delay,
+    ):
         DailyGameSession.objects.create(
             room=self.room,
             user=self.sender,
@@ -336,12 +347,18 @@ class RoomMessageNotificationTaskTests(TestCase):
         mock_send_push.return_value = {'success_count': 1, 'failure_count': 0}
         notify_room_message_task(str(message.id))
 
+        mock_delay.assert_called_once_with(str(message.id))
         mock_send_push.assert_called_once()
         recipient_ids = mock_send_push.call_args.args[0]
         self.assertEqual(recipient_ids, [str(self.guessed_user.id)])
 
+    @patch('authentication.tasks.notify_room_message_task.delay')
     @patch('authentication.tasks.send_push_to_users')
-    def test_no_push_when_no_other_user_has_correct_guess(self, mock_send_push):
+    def test_no_push_when_no_other_user_has_correct_guess(
+        self,
+        mock_send_push,
+        mock_delay,
+    ):
         DailyGameSession.objects.create(
             room=self.room,
             user=self.sender,
@@ -363,5 +380,6 @@ class RoomMessageNotificationTaskTests(TestCase):
 
         result = notify_room_message_task(str(message.id))
 
+        mock_delay.assert_called_once_with(str(message.id))
         mock_send_push.assert_not_called()
         self.assertEqual(result, {'success_count': 0, 'failure_count': 0, 'skipped': True})
