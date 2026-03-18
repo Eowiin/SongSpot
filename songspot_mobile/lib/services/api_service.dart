@@ -166,6 +166,8 @@ class ApiService {
         return l10n.backendInsufficientCoins;
       case 'INVALID_CREDENTIALS':
         return l10n.backendInvalidCredentials;
+      case 'PASSWORD_RESET_UNAVAILABLE':
+        return l10n.backendPasswordResetUnavailable;
       case 'REFRESH_TOKEN_REQUIRED':
         return l10n.backendRefreshTokenRequired;
       case 'INVALID_OR_EXPIRED_REFRESH_TOKEN':
@@ -289,6 +291,9 @@ class ApiService {
     }
     if (cleaned == 'No active account found with the given credentials') {
       return l10n.backendInvalidCredentials;
+    }
+    if (cleaned == 'Password reset email is currently unavailable.') {
+      return l10n.backendPasswordResetUnavailable;
     }
 
     return cleaned;
@@ -729,6 +734,16 @@ class ApiService {
     return await post(
       ApiConfig.authLogin,
       body: {'email': email, 'password': password},
+    );
+  }
+
+  Future<Map<String, dynamic>> requestPasswordReset({
+    required String email,
+    required String locale,
+  }) async {
+    return await post(
+      ApiConfig.authPasswordResetRequest,
+      body: {'email': email, 'locale': locale},
     );
   }
 

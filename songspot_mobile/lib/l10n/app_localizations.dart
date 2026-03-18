@@ -230,6 +230,24 @@ abstract class AppLocalizations {
   /// **'Password'**
   String get passwordLabel;
 
+  /// Forgot password link on the login screen
+  ///
+  /// In en, this message translates to:
+  /// **'Forgot password?'**
+  String get forgotPasswordLink;
+
+  /// Prompt shown when forgot password is tapped without a valid email
+  ///
+  /// In en, this message translates to:
+  /// **'Enter your email address first.'**
+  String get forgotPasswordEnterEmail;
+
+  /// Success message after requesting a password reset email
+  ///
+  /// In en, this message translates to:
+  /// **'If an account exists for this email, a reset email has been sent.'**
+  String get forgotPasswordEmailSent;
+
   /// Login button
   ///
   /// In en, this message translates to:
@@ -289,6 +307,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Login'**
   String get loginLink;
+
+  /// Fallback login failure message
+  ///
+  /// In en, this message translates to:
+  /// **'Login failed'**
+  String get loginFailed;
+
+  /// Fallback registration failure message
+  ///
+  /// In en, this message translates to:
+  /// **'Registration failed'**
+  String get registrationFailed;
 
   /// Settings screen title
   ///
@@ -763,6 +793,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Invalid email address'**
   String get invalidEmail;
+
+  /// Username minimum length validation
+  ///
+  /// In en, this message translates to:
+  /// **'Username must be at least 3 characters'**
+  String get usernameMinLength;
+
+  /// Password minimum length validation
+  ///
+  /// In en, this message translates to:
+  /// **'Password must be at least 8 characters'**
+  String get passwordMinLength;
 
   /// Passwords mismatch error
   ///
@@ -1865,6 +1907,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Invalid email or password.'**
   String get backendInvalidCredentials;
+
+  /// Backend password reset email unavailable error
+  ///
+  /// In en, this message translates to:
+  /// **'Password reset email is currently unavailable.'**
+  String get backendPasswordResetUnavailable;
 
   /// Backend missing refresh token error
   ///

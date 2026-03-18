@@ -62,9 +62,14 @@ platform :android do
         "appbundle",
         "--release",
         "--build-number=#{build_number}",
+        "--split-debug-info=build/debug-info",
         "--dart-define=SENTRY_DSN=#{ENV['SENTRY_DSN'] || ''}",
         "--dart-define=SENTRY_ENVIRONMENT=#{ENV['SENTRY_ENVIRONMENT'] || 'production'}"
       )
+
+      UI.user_error!("SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT must be set") unless
+        ENV['SENTRY_AUTH_TOKEN'] && ENV['SENTRY_ORG'] && ENV['SENTRY_PROJECT']
+      sh("dart", "run", "sentry_dart_plugin")
     end
     File.expand_path("../../build/app/outputs/bundle/release/app-release.aab", __dir__)
   end

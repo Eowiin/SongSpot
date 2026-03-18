@@ -127,6 +127,7 @@ The app connects to the following backend endpoints:
 ### Authentication
 - `POST /api/auth/register/` - User registration
 - `POST /api/auth/login/` - User login
+- `POST /api/auth/password-reset/request/` - Send password reset email
 - `POST /api/auth/logout/` - Logout
 - `POST /api/auth/token/refresh/` - Refresh access token
 - `GET /api/auth/profile/` - Get user profile

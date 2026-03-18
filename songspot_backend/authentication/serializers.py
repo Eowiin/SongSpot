@@ -13,6 +13,12 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         model = User
         fields = ('email', 'username', 'password', 'password_confirm')
 
+    def validate_email(self, value):
+        value = User.normalize_email_value(value)
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError('This email address is already in use.')
+        return value
+
     def validate(self, attrs):
         if attrs['password'] != attrs['password_confirm']:
             raise serializers.ValidationError({"password": "Password fields didn't match."})
@@ -63,6 +69,9 @@ class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
     password = serializers.CharField(required=True, write_only=True)
 
+    def validate_email(self, value):
+        return User.normalize_email_value(value)
+
 
 class PushDeviceRegisterSerializer(serializers.ModelSerializer):
     class Meta:
@@ -102,10 +111,26 @@ class ChangeEmailSerializer(serializers.Serializer):
     new_email = serializers.EmailField(required=True)
 
     def validate_new_email(self, value):
-        value = value.lower().strip()
-        if User.objects.filter(email=value).exists():
+        value = User.normalize_email_value(value)
+        current_user = self.context.get('user')
+        existing = User.objects.filter(email__iexact=value)
+        if current_user is not None:
+            existing = existing.exclude(pk=current_user.pk)
+        if existing.exists():
             raise serializers.ValidationError('This email address is already in use.')
         return value
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True)
+    locale = serializers.CharField(required=False, allow_blank=True, max_length=10)
+
+    def validate_email(self, value):
+        return User.normalize_email_value(value)
+
+    def validate_locale(self, value):
+        value = (value or '').strip().lower()
+        return 'fr' if value.startswith('fr') else 'en'
 
 
 class ChangePasswordSerializer(serializers.Serializer):

@@ -88,6 +88,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get passwordLabel => 'Password';
 
   @override
+  String get forgotPasswordLink => 'Forgot password?';
+
+  @override
+  String get forgotPasswordEnterEmail => 'Enter your email address first.';
+
+  @override
+  String get forgotPasswordEmailSent =>
+      'If an account exists for this email, a reset email has been sent.';
+
+  @override
   String get loginButton => 'Login';
 
   @override
@@ -116,6 +126,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get loginLink => 'Login';
+
+  @override
+  String get loginFailed => 'Login failed';
+
+  @override
+  String get registrationFailed => 'Registration failed';
 
   @override
   String get settingsTitle => 'Settings';
@@ -375,6 +391,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get invalidEmail => 'Invalid email address';
+
+  @override
+  String get usernameMinLength => 'Username must be at least 3 characters';
+
+  @override
+  String get passwordMinLength => 'Password must be at least 8 characters';
 
   @override
   String get passwordsDoNotMatch => 'Passwords do not match';
@@ -1018,6 +1040,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get backendInvalidCredentials => 'Invalid email or password.';
+
+  @override
+  String get backendPasswordResetUnavailable =>
+      'Password reset email is currently unavailable.';
 
   @override
   String get backendRefreshTokenRequired => 'Refresh token is required.';

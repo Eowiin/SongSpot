@@ -31,17 +31,24 @@ platform :ios do
     # Build Flutter before Xcode archive (generates Generated.xcconfig + framework).
     # Running in unbundled env avoids Bundler intercepting `pod` when fastlane is
     # invoked with `bundle exec`.
-    Dir.chdir("..") do
-      sentry_defines = [
+    Dir.chdir("../..") do
+      UI.user_error!("SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT must be set") unless
+        ENV['SENTRY_AUTH_TOKEN'] && ENV['SENTRY_ORG'] && ENV['SENTRY_PROJECT']
+
+      flutter_args = [
+        "flutter", "build", "ios", "--release", "--no-codesign",
+        "--split-debug-info=build/debug-info",
         "--dart-define=SENTRY_DSN=#{ENV['SENTRY_DSN'] || ''}",
         "--dart-define=SENTRY_ENVIRONMENT=#{ENV['SENTRY_ENVIRONMENT'] || 'production'}"
       ]
       if defined?(Bundler)
         Bundler.with_unbundled_env do
-          sh("flutter", "build", "ios", "--release", "--no-codesign", *sentry_defines)
+          sh(*flutter_args)
         end
+        sh("dart", "run", "sentry_dart_plugin")
       else
-        sh("flutter", "build", "ios", "--release", "--no-codesign", *sentry_defines)
+        sh(*flutter_args)
+        sh("dart", "run", "sentry_dart_plugin")
       end
     end
 

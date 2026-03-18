@@ -25,6 +25,9 @@
   "loginSubtitle": "Connectez-vous pour continuer à jouer",
   "emailLabel": "Email",
   "passwordLabel": "Mot de passe",
+  "forgotPasswordLink": "Mot de passe oublié ?",
+  "forgotPasswordEnterEmail": "Entrez d'abord votre adresse email.",
+  "forgotPasswordEmailSent": "Si un compte existe pour cet email, un email de réinitialisation a été envoyé.",
   "loginButton": "Connexion",
   "noAccountPrompt": "Pas encore de compte ?",
   "registerLink": "S'inscrire",
@@ -36,6 +39,8 @@
   "registerButton": "Créer un compte",
   "alreadyHaveAccount": "Déjà un compte ?",
   "loginLink": "Connexion",
+  "loginFailed": "Connexion impossible",
+  "registrationFailed": "Inscription impossible",
 
   "settingsTitle": "Paramètres",
   "settingsSectionAccount": "Compte",
@@ -123,6 +128,8 @@
 
   "invalidPassword": "Mot de passe invalide",
   "invalidEmail": "Adresse email invalide",
+  "usernameMinLength": "Le nom d'utilisateur doit contenir au moins 3 caractères",
+  "passwordMinLength": "Le mot de passe doit contenir au moins 8 caractères",
   "passwordsDoNotMatch": "Les mots de passe ne correspondent pas",
   "fieldRequired": "Ce champ est obligatoire",
 
@@ -310,6 +317,7 @@
   "backendNoSongFoundForDate": "Aucune chanson trouvée pour cette date.",
   "backendNoPackTrackForDate": "Aucune piste de pack trouvée pour cette date.",
   "backendInvalidCredentials": "Email ou mot de passe invalide.",
+  "backendPasswordResetUnavailable": "L'email de réinitialisation du mot de passe est indisponible pour le moment.",
   "backendRefreshTokenRequired": "Le jeton de rafraîchissement est requis.",
   "backendInvalidOrExpiredRefreshToken": "Le jeton de rafraîchissement est invalide ou expiré.",
   "backendInvalidToken": "Jeton invalide.",

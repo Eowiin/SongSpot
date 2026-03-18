@@ -72,6 +72,15 @@
   "passwordLabel": "Password",
   "@passwordLabel": { "description": "Password input label" },
 
+  "forgotPasswordLink": "Forgot password?",
+  "@forgotPasswordLink": { "description": "Forgot password link on the login screen" },
+
+  "forgotPasswordEnterEmail": "Enter your email address first.",
+  "@forgotPasswordEnterEmail": { "description": "Prompt shown when forgot password is tapped without a valid email" },
+
+  "forgotPasswordEmailSent": "If an account exists for this email, a reset email has been sent.",
+  "@forgotPasswordEmailSent": { "description": "Success message after requesting a password reset email" },
+
   "loginButton": "Login",
   "@loginButton": { "description": "Login button" },
 
@@ -101,6 +110,12 @@
 
   "loginLink": "Login",
   "@loginLink": { "description": "Link to login" },
+
+  "loginFailed": "Login failed",
+  "@loginFailed": { "description": "Fallback login failure message" },
+
+  "registrationFailed": "Registration failed",
+  "@registrationFailed": { "description": "Fallback registration failure message" },
 
   "settingsTitle": "Settings",
   "@settingsTitle": { "description": "Settings screen title" },
@@ -365,6 +380,12 @@
 
   "invalidEmail": "Invalid email address",
   "@invalidEmail": { "description": "Invalid email error" },
+
+  "usernameMinLength": "Username must be at least 3 characters",
+  "@usernameMinLength": { "description": "Username minimum length validation" },
+
+  "passwordMinLength": "Password must be at least 8 characters",
+  "@passwordMinLength": { "description": "Password minimum length validation" },
 
   "passwordsDoNotMatch": "Passwords do not match",
   "@passwordsDoNotMatch": { "description": "Passwords mismatch error" },
@@ -1039,6 +1060,9 @@
 
   "backendInvalidCredentials": "Invalid email or password.",
   "@backendInvalidCredentials": { "description": "Backend invalid credentials error" },
+
+  "backendPasswordResetUnavailable": "Password reset email is currently unavailable.",
+  "@backendPasswordResetUnavailable": { "description": "Backend password reset email unavailable error" },
 
   "backendRefreshTokenRequired": "Refresh token is required.",
   "@backendRefreshTokenRequired": { "description": "Backend missing refresh token error" },

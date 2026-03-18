@@ -90,6 +90,16 @@ class AppLocalizationsFr extends AppLocalizations {
   String get passwordLabel => 'Mot de passe';
 
   @override
+  String get forgotPasswordLink => 'Mot de passe oublié ?';
+
+  @override
+  String get forgotPasswordEnterEmail => 'Entrez d\'abord votre adresse email.';
+
+  @override
+  String get forgotPasswordEmailSent =>
+      'Si un compte existe pour cet email, un email de réinitialisation a été envoyé.';
+
+  @override
   String get loginButton => 'Connexion';
 
   @override
@@ -118,6 +128,12 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get loginLink => 'Connexion';
+
+  @override
+  String get loginFailed => 'Connexion impossible';
+
+  @override
+  String get registrationFailed => 'Inscription impossible';
 
   @override
   String get settingsTitle => 'Paramètres';
@@ -379,6 +395,14 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get invalidEmail => 'Adresse email invalide';
+
+  @override
+  String get usernameMinLength =>
+      'Le nom d\'utilisateur doit contenir au moins 3 caractères';
+
+  @override
+  String get passwordMinLength =>
+      'Le mot de passe doit contenir au moins 8 caractères';
 
   @override
   String get passwordsDoNotMatch => 'Les mots de passe ne correspondent pas';
@@ -1037,6 +1061,10 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get backendInvalidCredentials => 'Email ou mot de passe invalide.';
+
+  @override
+  String get backendPasswordResetUnavailable =>
+      'L\'email de réinitialisation du mot de passe est indisponible pour le moment.';
 
   @override
   String get backendRefreshTokenRequired =>

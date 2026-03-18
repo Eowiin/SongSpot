@@ -12,6 +12,9 @@ This API provides JWT-based authentication for the SongSpot mobile application. 
 - **JWT Refresh Token:** Valid for 90 days
 - **Token Rotation:** Refresh tokens are automatically rotated on each refresh for enhanced security
 - **Token Blacklisting:** Old refresh tokens are blacklisted when rotated or during logout
+- **Password Reset Links:** Temporary, signed, and invalidated after a successful password change/reset
+- **Password Reset Abuse Protection:** `3/hour` per IP plus a per-email cooldown
+- **Email Normalization:** Emails are stored in lowercase and treated case-insensitively for login and uniqueness
 
 ## Authentication Endpoints
 
@@ -139,7 +142,46 @@ Content-Type: application/json
 
 ---
 
-### 4. Get User Profile
+### 4. Request Password Reset Email
+
+**Endpoint:** `POST /api/auth/password-reset/request/`
+
+**Headers:**
+```
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com",
+  "locale": "en"
+}
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "message": "If an account exists for that email address, a password reset email has been sent."
+}
+```
+
+**Notes:**
+- The response is intentionally generic and does not reveal whether the email exists.
+- The email contains a temporary reset link hosted by the backend at `/reset-password/<uidb64>/<token>/`.
+- Repeat requests are suppressed during the cooldown window even if the response still returns `200 OK`.
+- The link lifetime is controlled by `PASSWORD_RESET_TIMEOUT`.
+
+**Error Response (429 Too Many Requests):**
+```json
+{
+  "detail": "Request was throttled. Expected available in 3600 seconds."
+}
+```
+
+---
+
+### 5. Get User Profile
 
 **Endpoint:** `GET /api/auth/profile/`
 
@@ -176,7 +218,7 @@ Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
 
 ---
 
-### 5. Logout
+### 6. Logout
 
 **Endpoint:** `POST /api/auth/logout/`
 

@@ -40,7 +40,7 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
       final apiService = ApiService();
       await apiService.changeEmail(
         currentPassword: _passwordController.text.trim(),
-        newEmail: _emailController.text.trim(),
+        newEmail: _emailController.text.trim().toLowerCase(),
       );
 
       if (!mounted) return;
@@ -86,7 +86,10 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
                       ),
                     ),
                     Flexible(
-                      child: Text(l10n.changeEmailTitle, style: Theme.of(context).textTheme.headlineMedium),
+                      child: Text(
+                        l10n.changeEmailTitle,
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
                     ),
                   ],
                 ),
@@ -104,10 +107,15 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
                           controller: _passwordController,
                           hintText: l10n.changeEmailCurrentPassword,
                           labelText: l10n.changeEmailCurrentPassword,
-                          prefixIcon: const Icon(Icons.lock_outline, color: AppTheme.textSecondary),
+                          prefixIcon: const Icon(
+                            Icons.lock_outline,
+                            color: AppTheme.textSecondary,
+                          ),
                           obscureText: true,
                           validator: (v) {
-                            if (v == null || v.isEmpty) return l10n.fieldRequired;
+                            if (v == null || v.isEmpty) {
+                              return l10n.fieldRequired;
+                            }
                             return null;
                           },
                         ),
@@ -116,10 +124,15 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
                           controller: _emailController,
                           hintText: l10n.changeEmailNewEmail,
                           labelText: l10n.changeEmailNewEmail,
-                          prefixIcon: const Icon(Icons.email_outlined, color: AppTheme.textSecondary),
+                          prefixIcon: const Icon(
+                            Icons.email_outlined,
+                            color: AppTheme.textSecondary,
+                          ),
                           keyboardType: TextInputType.emailAddress,
                           validator: (v) {
-                            if (v == null || v.isEmpty) return l10n.fieldRequired;
+                            if (v == null || v.isEmpty) {
+                              return l10n.fieldRequired;
+                            }
                             if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v)) {
                               return l10n.invalidEmail;
                             }

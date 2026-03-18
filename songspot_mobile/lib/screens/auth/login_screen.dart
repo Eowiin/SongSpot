@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/api_service.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/gradient_button.dart';
 import 'register_screen.dart';
@@ -16,9 +18,11 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _apiService = ApiService();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isSendingResetEmail = false;
 
   @override
   void dispose() {
@@ -29,9 +33,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _handleLogin() async {
     if (_formKey.currentState!.validate()) {
+      final l10n = AppLocalizations.of(context);
       final authProvider = context.read<AuthProvider>();
       final success = await authProvider.login(
-        email: _emailController.text.trim(),
+        email: _emailController.text.trim().toLowerCase(),
         password: _passwordController.text,
       );
 
@@ -42,7 +47,7 @@ class _LoginScreenState extends State<LoginScreen> {
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(authProvider.errorMessage ?? 'Login failed'),
+            content: Text(authProvider.errorMessage ?? l10n.loginFailed),
             backgroundColor: AppTheme.errorColor,
           ),
         );
@@ -50,8 +55,51 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _handlePasswordReset() async {
+    final l10n = AppLocalizations.of(context);
+    final email = _emailController.text.trim().toLowerCase();
+    if (email.isEmpty || !email.contains('@')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.forgotPasswordEnterEmail),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSendingResetEmail = true);
+    try {
+      await _apiService.requestPasswordReset(
+        email: email,
+        locale: Localizations.localeOf(context).languageCode,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.forgotPasswordEmailSent),
+          backgroundColor: AppTheme.successColor,
+        ),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSendingResetEmail = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return Scaffold(
       body: Container(
         constraints: const BoxConstraints.expand(),
@@ -79,7 +127,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Guess the song with your friends!',
+                    l10n.loginSubtitle,
                     style: Theme.of(context).textTheme.bodyMedium,
                     textAlign: TextAlign.center,
                   ),
@@ -88,16 +136,19 @@ class _LoginScreenState extends State<LoginScreen> {
                   // Email field
                   CustomTextField(
                     controller: _emailController,
-                    hintText: 'Enter your email',
-                    labelText: 'Email',
+                    hintText: l10n.emailLabel,
+                    labelText: l10n.emailLabel,
                     keyboardType: TextInputType.emailAddress,
-                    prefixIcon: const Icon(Icons.email, color: AppTheme.textSecondary),
+                    prefixIcon: const Icon(
+                      Icons.email,
+                      color: AppTheme.textSecondary,
+                    ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter your email';
+                        return l10n.fieldRequired;
                       }
                       if (!value.contains('@')) {
-                        return 'Please enter a valid email';
+                        return l10n.invalidEmail;
                       }
                       return null;
                     },
@@ -107,13 +158,18 @@ class _LoginScreenState extends State<LoginScreen> {
                   // Password field
                   CustomTextField(
                     controller: _passwordController,
-                    hintText: 'Enter your password',
-                    labelText: 'Password',
+                    hintText: l10n.passwordLabel,
+                    labelText: l10n.passwordLabel,
                     obscureText: _obscurePassword,
-                    prefixIcon: const Icon(Icons.lock, color: AppTheme.textSecondary),
+                    prefixIcon: const Icon(
+                      Icons.lock,
+                      color: AppTheme.textSecondary,
+                    ),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                        _obscurePassword
+                            ? Icons.visibility
+                            : Icons.visibility_off,
                         color: AppTheme.textSecondary,
                       ),
                       onPressed: () {
@@ -124,10 +180,23 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter your password';
+                        return l10n.fieldRequired;
                       }
                       return null;
                     },
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: _isSendingResetEmail
+                          ? null
+                          : _handlePasswordReset,
+                      child: Text(
+                        _isSendingResetEmail
+                            ? l10n.loading
+                            : l10n.forgotPasswordLink,
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 32),
 
@@ -135,7 +204,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   Consumer<AuthProvider>(
                     builder: (context, authProvider, _) {
                       return GradientButton(
-                        text: 'Login',
+                        text: l10n.loginButton,
                         isLoading: authProvider.status == AuthStatus.loading,
                         onPressed: _handleLogin,
                       );
@@ -148,7 +217,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        "Don't have an account? ",
+                        '${l10n.noAccountPrompt} ',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       TextButton(
@@ -159,8 +228,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           );
                         },
-                        child: const Text(
-                          'Register',
+                        child: Text(
+                          l10n.registerLink,
                           style: TextStyle(
                             color: AppTheme.primaryColor,
                             fontWeight: FontWeight.w600,
