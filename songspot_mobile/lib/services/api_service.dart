@@ -106,6 +106,7 @@ class ApiService {
   String? _localizeBackendCode({
     required String code,
     required Map<String, dynamic> params,
+    String? reason,
     required AppLocalizations l10n,
   }) {
     switch (code) {
@@ -149,6 +150,14 @@ class ApiService {
           return l10n.backendInvalidRetryAction(expected);
         }
         return l10n.backendInvalidRetryActionUnknown;
+      case 'MODE_RULE_RESTRICTED':
+        switch (reason) {
+          case 'hardcore_retry_disabled':
+            return l10n.backendModeRuleRestrictedHardcoreRetryDisabled;
+          case 'hardcore_hints_disabled':
+            return l10n.backendModeRuleRestrictedHardcoreHintsDisabled;
+        }
+        return l10n.backendModeRuleRestricted;
       case 'INSUFFICIENT_COINS':
         final required = _numParam(params, 'required_coins', fallback: 0);
         if (required > 0) {
@@ -157,6 +166,8 @@ class ApiService {
         return l10n.backendInsufficientCoins;
       case 'INVALID_CREDENTIALS':
         return l10n.backendInvalidCredentials;
+      case 'PASSWORD_RESET_UNAVAILABLE':
+        return l10n.backendPasswordResetUnavailable;
       case 'REFRESH_TOKEN_REQUIRED':
         return l10n.backendRefreshTokenRequired;
       case 'INVALID_OR_EXPIRED_REFRESH_TOKEN':
@@ -231,6 +242,12 @@ class ApiService {
     if (cleaned == 'No song available for today') {
       return l10n.backendNoSongAvailableToday;
     }
+    if (cleaned == 'Hardcore mode does not allow retries.') {
+      return l10n.backendModeRuleRestrictedHardcoreRetryDisabled;
+    }
+    if (cleaned == 'Hardcore mode does not allow hints.') {
+      return l10n.backendModeRuleRestrictedHardcoreHintsDisabled;
+    }
     if (cleaned == 'This pack is not owned by the room') {
       return l10n.backendPackNotOwnedByRoom;
     }
@@ -275,6 +292,9 @@ class ApiService {
     if (cleaned == 'No active account found with the given credentials') {
       return l10n.backendInvalidCredentials;
     }
+    if (cleaned == 'Password reset email is currently unavailable.') {
+      return l10n.backendPasswordResetUnavailable;
+    }
 
     return cleaned;
   }
@@ -291,6 +311,7 @@ class ApiService {
       String? rawMessage;
       String? errorCode;
       Map<String, dynamic>? errorParams;
+      String? errorReason;
 
       try {
         final body = jsonDecode(response.body);
@@ -298,6 +319,10 @@ class ApiService {
           final extractedCode = body['error_code'];
           if (extractedCode is String && extractedCode.trim().isNotEmpty) {
             errorCode = extractedCode.trim();
+          }
+          final extractedReason = body['reason'];
+          if (extractedReason is String && extractedReason.trim().isNotEmpty) {
+            errorReason = extractedReason.trim();
           }
           final extractedParams = body['params'];
           if (extractedParams is Map) {
@@ -312,6 +337,7 @@ class ApiService {
               final localizedByCode = _localizeBackendCode(
                 code: errorCode,
                 params: errorParams ?? const {},
+                reason: errorReason,
                 l10n: l10n,
               );
               if (localizedByCode != null && localizedByCode.isNotEmpty) {
@@ -711,6 +737,16 @@ class ApiService {
     );
   }
 
+  Future<Map<String, dynamic>> requestPasswordReset({
+    required String email,
+    required String locale,
+  }) async {
+    return await post(
+      ApiConfig.authPasswordResetRequest,
+      body: {'email': email, 'locale': locale},
+    );
+  }
+
   Future<void> logout() async {
     final refreshToken = await _storageService.getRefreshToken();
     if (refreshToken != null) {
@@ -772,6 +808,18 @@ class ApiService {
 
   Future<Map<String, dynamic>> getRoomDetails(String roomId) async {
     return await get(ApiConfig.roomsDetail(roomId), includeAuth: true);
+  }
+
+  Future<Map<String, dynamic>> contributeToDailyMode({
+    required String roomId,
+    required String mode,
+    required int amount,
+  }) async {
+    return await post(
+      ApiConfig.roomsDailyModeContribute(roomId),
+      body: {'mode': mode, 'amount': amount},
+      includeAuth: true,
+    );
   }
 
   Future<void> leaveRoom(String roomId) async {
@@ -858,12 +906,17 @@ class ApiService {
   // Chat methods
   Future<Map<String, dynamic>> getMessages({
     required String roomId,
+    String mode = 'mix',
     int limit = 50,
     int offset = 0,
   }) async {
     return await get(
       ApiConfig.roomMessages(roomId),
-      queryParameters: {'limit': limit.toString(), 'offset': offset.toString()},
+      queryParameters: {
+        'mode': mode,
+        'limit': limit.toString(),
+        'offset': offset.toString(),
+      },
       includeAuth: true,
     );
   }
@@ -871,12 +924,14 @@ class ApiService {
   Future<Map<String, dynamic>> sendMessage({
     required String roomId,
     required String message,
+    String mode = 'mix',
     String? clientMessageId,
   }) async {
     return await post(
       ApiConfig.roomMessages(roomId),
       body: {
         'message': message,
+        'mode': mode,
         if (clientMessageId != null) 'client_message_id': clientMessageId,
       },
       includeAuth: true,

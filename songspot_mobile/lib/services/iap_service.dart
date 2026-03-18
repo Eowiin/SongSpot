@@ -133,18 +133,22 @@ class IAPService {
       onCoinsAdded?.call(coinsAdded, totalCoins);
     } catch (e) {
       debugPrint('IAP: Verification error: $e');
-      onError?.call('Purchase verification failed. Your coins will be credited shortly.');
+      onError?.call(
+        'Purchase verification failed. Your coins will be credited shortly.',
+      );
     } finally {
       _processingTransactions.remove(txId);
     }
   }
 
   String _friendlyError(IAPError? error) {
-    final msg = error?.message?.toLowerCase() ?? '';
+    final msg = (error?.message ?? '').toLowerCase();
     if (msg.contains('cancel') || msg.contains('user cancel')) {
       return 'Purchase was cancelled.';
     }
-    if (msg.contains('network') || msg.contains('connection') || msg.contains('internet')) {
+    if (msg.contains('network') ||
+        msg.contains('connection') ||
+        msg.contains('internet')) {
       return 'Payment failed. Please check your connection and try again.';
     }
     if (msg.contains('already owned') || msg.contains('item already')) {

@@ -1,11 +1,75 @@
 default_platform(:android)
 
 platform :android do
+  private_lane :next_play_store_build_number do
+    tracks = %w[internal alpha beta production]
+    version_codes = tracks.flat_map do |track|
+      begin
+        google_play_track_version_codes(
+          package_name: "com.songspot.app",
+          track: track,
+          json_key: "fastlane/google-play-key.json"
+        )
+      rescue => e
+        UI.message("Skipping Play track #{track} while resolving version code: #{e.message}")
+        []
+      end
+    end
+
+    latest_version_code = version_codes.compact.map(&:to_i).max || 0
+    latest_version_code + 1
+  end
+
+  private_lane :play_store_upload_options do |options|
+    require "fileutils"
+
+    release_notes = options[:release_notes] || localized_release_notes
+    metadata_path = File.expand_path(
+      "../../build/fastlane/play_store_metadata/#{Time.now.utc.strftime('%Y%m%d%H%M%S')}",
+      __dir__
+    )
+
+    release_notes.each do |locale, text|
+      changelog_dir = File.join(metadata_path, locale, "changelogs")
+      FileUtils.mkdir_p(changelog_dir)
+      File.write(File.join(changelog_dir, "default.txt"), "#{text}\n")
+    end
+
+    {
+      json_key: "fastlane/google-play-key.json",
+      metadata_path: metadata_path,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    }
+  end
+
+  private_lane :localized_release_notes do
+    {
+      "en-US" => (ENV["RELEASE_NOTES_EN"] || "Bug fixes and performance improvements").strip,
+      "fr-FR" => (ENV["RELEASE_NOTES_FR"] || "Corrections de bugs et ameliorations des performances").strip
+    }
+  end
+
   private_lane :build_aab do
+    build_number = next_play_store_build_number
+    UI.message("Using Android versionCode #{build_number}")
+
     Dir.chdir("../..") do
-      sh("flutter", "build", "appbundle", "--release",
-         "--dart-define=SENTRY_DSN=#{ENV['SENTRY_DSN'] || ''}",
-         "--dart-define=SENTRY_ENVIRONMENT=#{ENV['SENTRY_ENVIRONMENT'] || 'production'}")
+      sh(
+        "flutter",
+        "build",
+        "appbundle",
+        "--release",
+        "--build-number=#{build_number}",
+        "--split-debug-info=build/debug-info",
+        "--dart-define=SENTRY_DSN=#{ENV['SENTRY_DSN'] || ''}",
+        "--dart-define=SENTRY_ENVIRONMENT=#{ENV['SENTRY_ENVIRONMENT'] || 'production'}"
+      )
+
+      UI.user_error!("SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT must be set") unless
+        ENV['SENTRY_AUTH_TOKEN'] && ENV['SENTRY_ORG'] && ENV['SENTRY_PROJECT']
+      sh("dart", "run", "sentry_dart_plugin")
     end
     File.expand_path("../../build/app/outputs/bundle/release/app-release.aab", __dir__)
   end
@@ -13,40 +77,53 @@ platform :android do
   desc "Build and upload to internal testing track."
   lane :internal do
     aab_path = build_aab
+    release_notes = localized_release_notes
+    upload_options = play_store_upload_options(release_notes: release_notes)
     upload_to_play_store(
       track: "internal",
       aab: aab_path,
-      json_key: "fastlane/google-play-key.json",
-      release_status: "draft"
+      release_status: "completed",
+      **upload_options
     )
   end
 
-  desc "Promote internal track to closed testing (alpha) — no build"
+  desc "Build and upload to internal testing track for beta validation."
+  lane :beta do
+    internal
+  end
+
+  desc "Promote internal track to closed testing (alpha) - no build"
   lane :closed_testing do
+    release_notes = localized_release_notes
+    upload_options = play_store_upload_options(release_notes: release_notes)
     upload_to_play_store(
       track: "internal",
       track_promote_to: "alpha",
-      json_key: "fastlane/google-play-key.json"
+      **upload_options
     )
   end
 
-  desc "Promote closed testing (alpha) track to production — no build"
+  desc "Promote closed testing (alpha) track to production - no build"
   lane :production do
+    release_notes = localized_release_notes
+    upload_options = play_store_upload_options(release_notes: release_notes)
     upload_to_play_store(
       track: "alpha",
       track_promote_to: "production",
-      json_key: "fastlane/google-play-key.json"
+      **upload_options
     )
   end
 
   desc "Build and release directly to Play Store production."
   lane :play_store do
     aab_path = build_aab
+    release_notes = localized_release_notes
+    upload_options = play_store_upload_options(release_notes: release_notes)
     upload_to_play_store(
       track: "production",
       aab: aab_path,
-      json_key: "fastlane/google-play-key.json",
-      release_status: "completed"
+      release_status: "completed",
+      **upload_options
     )
   end
 end

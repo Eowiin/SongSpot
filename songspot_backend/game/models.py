@@ -98,9 +98,13 @@ CATEGORY_CHOICES = [
 
 DAILY_MODE_MIX = 'mix'
 DAILY_MODE_GENRE = 'genre'
+DAILY_MODE_DECADE = 'decade'
+DAILY_MODE_HARDCORE = 'hardcore'
 DAILY_MODE_CHOICES = [
     (DAILY_MODE_MIX, 'Daily Mix'),
     (DAILY_MODE_GENRE, 'Daily Genre'),
+    (DAILY_MODE_DECADE, 'Daily Decade'),
+    (DAILY_MODE_HARDCORE, 'Hardcore'),
 ]
 
 
@@ -235,6 +239,70 @@ class Room(models.Model):
         if self.name:
             return f"{self.name} ({self.room_code})"
         return f"Room {self.room_code} (Host: {self.host_user.username})"
+
+
+class RoomDailyModeState(models.Model):
+    """
+    Aggregated funding and unlock state for room-wide daily premium modes.
+    """
+    room = models.ForeignKey(
+        Room,
+        on_delete=models.CASCADE,
+        related_name='daily_mode_states',
+    )
+    mode = models.CharField(
+        max_length=20,
+        choices=DAILY_MODE_CHOICES,
+    )
+    progress_coins = models.PositiveIntegerField(default=0)
+    unlocked_for_date = models.DateField(null=True, blank=True)
+    unlocked_until_date = models.DateField(null=True, blank=True)
+    last_unlocked_at = models.DateTimeField(null=True, blank=True)
+    last_unlock_contributor_count = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'room_daily_mode_states'
+        unique_together = [['room', 'mode']]
+        ordering = ['room_id', 'mode']
+        indexes = [
+            models.Index(fields=['room', 'mode']),
+        ]
+
+    def __str__(self):
+        return f"{self.room.room_code} - {self.mode}"
+
+
+class RoomDailyModeContribution(models.Model):
+    """
+    Per-user contribution totals for the current room-mode funding cycle.
+    Resets when the room unlocks that mode.
+    """
+    state = models.ForeignKey(
+        RoomDailyModeState,
+        on_delete=models.CASCADE,
+        related_name='contributions',
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='daily_mode_contributions',
+    )
+    amount = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'room_daily_mode_contributions'
+        unique_together = [['state', 'user']]
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['state', 'user']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} -> {self.state.mode} ({self.amount})"
 
 
 class RoomUser(models.Model):
@@ -640,12 +708,18 @@ class RoomMessage(models.Model):
     """
     Simple message board for room discussion.
     Users can post messages visible to all room members.
+    Daily chats are scoped by mode so mix and genre do not share history.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     room = models.ForeignKey(
         Room,
         on_delete=models.CASCADE,
         related_name='messages'
+    )
+    mode = models.CharField(
+        max_length=16,
+        choices=DAILY_MODE_CHOICES,
+        default=DAILY_MODE_MIX,
     )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -660,18 +734,21 @@ class RoomMessage(models.Model):
         db_table = 'room_messages'
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['room', '-created_at']),
+            models.Index(fields=['room', 'mode', '-created_at']),
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['room', 'user', 'client_message_id'],
+                fields=['room', 'mode', 'user', 'client_message_id'],
                 condition=Q(client_message_id__isnull=False),
                 name='room_message_client_id_unique',
             ),
         ]
 
     def __str__(self):
-        return f"{self.user.username} in {self.room.room_code}: {self.message[:50]}"
+        return (
+            f"{self.user.username} in {self.room.room_code}"
+            f" [{self.mode}]: {self.message[:50]}"
+        )
 
 
 class PackBundleMessage(models.Model):

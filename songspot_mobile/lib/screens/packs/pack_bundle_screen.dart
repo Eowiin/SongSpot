@@ -119,6 +119,7 @@ class _PackBundleContentState extends State<PackBundleContent>
         if (provider.loadedPackId == widget.packId &&
             provider.session != null) {
           _syncStemsPollingState();
+          _syncPreparedStems();
           _maybePreloadRetryAd(provider.session);
           return;
         }
@@ -128,6 +129,7 @@ class _PackBundleContentState extends State<PackBundleContent>
           packId: widget.packId,
         );
         _syncStemsPollingState();
+        _syncPreparedStems();
         _maybePreloadRetryAd(provider.session);
         if (provider.session?.isCompleted == true) {
           await provider.loadLeaderboard(
@@ -166,6 +168,7 @@ class _PackBundleContentState extends State<PackBundleContent>
     final newMessagesArrived = count > _lastKnownMessageCount;
     _lastKnownMessageCount = count;
     _syncStemsPollingState();
+    _syncPreparedStems();
     _maybePreloadRetryAd(provider?.session);
     if (newMessagesArrived && provider?.session?.isCompleted == true) {
       _scrollToLatestChatMessage();
@@ -204,6 +207,23 @@ class _PackBundleContentState extends State<PackBundleContent>
       _startStemsPolling();
     } else {
       _stopStemsPolling();
+    }
+  }
+
+  void _syncPreparedStems() {
+    if (!mounted || _isStemPlaybackActive) return;
+    final provider = context.read<PackBundleProvider>();
+    if (provider.stemsStatus == 'generating') return;
+    final stems = provider.stems.map((stem) => stem.url).toList();
+    if (stems.isEmpty) return;
+    unawaited(_prepareStemsSilently(stems));
+  }
+
+  Future<void> _prepareStemsSilently(List<String> stems) async {
+    try {
+      await _stemAudioService.prepareStems(stems);
+    } catch (_) {
+      // Ignore preload failures; playback will retry explicitly on tap.
     }
   }
 
@@ -358,6 +378,7 @@ class _PackBundleContentState extends State<PackBundleContent>
 
   Future<void> _submitGuess() async {
     final l10n = AppLocalizations.of(context);
+    final provider = context.read<PackBundleProvider>();
     if (_selectedTrack == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -372,7 +393,6 @@ class _PackBundleContentState extends State<PackBundleContent>
       setState(() => _isStemPlaybackActive = false);
     }
     await _stemAudioService.stop();
-    final provider = context.read<PackBundleProvider>();
     final response = await provider.submitGuess(
       roomId: widget.roomId,
       packId: widget.packId,
@@ -481,6 +501,7 @@ class _PackBundleContentState extends State<PackBundleContent>
     if (_completionRecorded || _completionAdInProgress) return;
 
     final provider = context.read<PackBundleProvider>();
+    final authProvider = context.read<AuthProvider>();
     if (_completionAdAttempts == 0) {
       await provider.loadLeaderboard(
         roomId: widget.roomId,
@@ -507,7 +528,7 @@ class _PackBundleContentState extends State<PackBundleContent>
       return;
     }
 
-    final adsDisabled = context.read<AuthProvider>().user?.hasNoAds ?? false;
+    final adsDisabled = authProvider.user?.hasNoAds ?? false;
     final shown = await AdMobService().tryShowInterstitialForRoomCompletion(
       adsDisabled: adsDisabled,
       completionScope: 'pack_${widget.packId}',
@@ -915,7 +936,7 @@ class _PackBundleContentState extends State<PackBundleContent>
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
         decoration: BoxDecoration(
-          color: AppTheme.primaryColor.withOpacity(0.15),
+          color: AppTheme.primaryColor.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(AppTheme.borderRadius),
           border: Border.all(color: AppTheme.primaryColor, width: 1),
         ),
@@ -944,10 +965,10 @@ class _PackBundleContentState extends State<PackBundleContent>
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
         decoration: BoxDecoration(
-          color: AppTheme.surfaceColor.withOpacity(0.4),
+          color: AppTheme.surfaceColor.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(AppTheme.borderRadius),
           border: Border.all(
-            color: AppTheme.textSecondary.withOpacity(0.3),
+            color: AppTheme.textSecondary.withValues(alpha: 0.3),
             width: 1,
           ),
         ),
@@ -1001,6 +1022,8 @@ class _PackBundleContentState extends State<PackBundleContent>
     PackBundleProvider provider,
     String hintType,
   ) async {
+    final authProvider = context.read<AuthProvider>();
+    final messenger = ScaffoldMessenger.of(context);
     try {
       final response = await provider.purchaseHint(
         roomId: widget.roomId,
@@ -1009,11 +1032,11 @@ class _PackBundleContentState extends State<PackBundleContent>
       );
       final newCoins = response['coins'] as int;
       if (mounted) {
-        context.read<AuthProvider>().updateCoinsBalance(newCoins);
+        authProvider.updateCoinsBalance(newCoins);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(
             content: Text(e.toString().replaceFirst('Exception: ', '')),
             backgroundColor: Colors.redAccent,
@@ -1337,10 +1360,14 @@ class _PackBundleContentState extends State<PackBundleContent>
         .map(
           (entry) => ResultLeaderboardRowData(
             title: entry.user.username,
-            subtitle: l10n.packStageCompletedAt(
-              entry.stageNumber,
-              DateFormat.Hm().format(entry.completedAt.toLocal()),
-            ),
+            subtitle: entry.pointsEarned > 0
+                ? l10n.packStageCompletedAt(
+                    entry.stageNumber,
+                    DateFormat.Hm().format(entry.completedAt.toLocal()),
+                  )
+                : l10n.dailyResultNotGuessedAt(
+                    DateFormat.Hm().format(entry.completedAt.toLocal()),
+                  ),
             scoreText: '${entry.pointsEarned}',
           ),
         )

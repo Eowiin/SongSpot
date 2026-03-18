@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/gradient_button.dart';
@@ -33,9 +34,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _handleRegister() async {
     if (_formKey.currentState!.validate()) {
+      final l10n = AppLocalizations.of(context);
       final authProvider = context.read<AuthProvider>();
       final success = await authProvider.register(
-        email: _emailController.text.trim(),
+        email: _emailController.text.trim().toLowerCase(),
         username: _usernameController.text.trim(),
         password: _passwordController.text,
         passwordConfirm: _confirmPasswordController.text,
@@ -48,7 +50,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(authProvider.errorMessage ?? 'Registration failed'),
+            content: Text(authProvider.errorMessage ?? l10n.registrationFailed),
             backgroundColor: AppTheme.errorColor,
           ),
         );
@@ -58,6 +60,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -78,13 +82,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 children: [
                   const SizedBox(height: 20),
                   Text(
-                    'Create Account',
+                    l10n.registerTitle,
                     style: Theme.of(context).textTheme.displayLarge,
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Join the music guessing fun!',
+                    l10n.registerSubtitle,
                     style: Theme.of(context).textTheme.bodyMedium,
                     textAlign: TextAlign.center,
                   ),
@@ -93,16 +97,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   // Email field
                   CustomTextField(
                     controller: _emailController,
-                    hintText: 'Enter your email',
-                    labelText: 'Email',
+                    hintText: l10n.emailLabel,
+                    labelText: l10n.emailLabel,
                     keyboardType: TextInputType.emailAddress,
-                    prefixIcon: const Icon(Icons.email, color: AppTheme.textSecondary),
+                    prefixIcon: const Icon(
+                      Icons.email,
+                      color: AppTheme.textSecondary,
+                    ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter your email';
+                        return l10n.fieldRequired;
                       }
                       if (!value.contains('@')) {
-                        return 'Please enter a valid email';
+                        return l10n.invalidEmail;
                       }
                       return null;
                     },
@@ -112,15 +119,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   // Username field
                   CustomTextField(
                     controller: _usernameController,
-                    hintText: 'Choose a username',
-                    labelText: 'Username',
-                    prefixIcon: const Icon(Icons.person, color: AppTheme.textSecondary),
+                    hintText: l10n.usernameLabel,
+                    labelText: l10n.usernameLabel,
+                    prefixIcon: const Icon(
+                      Icons.person,
+                      color: AppTheme.textSecondary,
+                    ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter a username';
+                        return l10n.fieldRequired;
                       }
                       if (value.length < 3) {
-                        return 'Username must be at least 3 characters';
+                        return l10n.usernameMinLength;
                       }
                       return null;
                     },
@@ -130,13 +140,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   // Password field
                   CustomTextField(
                     controller: _passwordController,
-                    hintText: 'Create a password',
-                    labelText: 'Password',
+                    hintText: l10n.passwordLabel,
+                    labelText: l10n.passwordLabel,
                     obscureText: _obscurePassword,
-                    prefixIcon: const Icon(Icons.lock, color: AppTheme.textSecondary),
+                    prefixIcon: const Icon(
+                      Icons.lock,
+                      color: AppTheme.textSecondary,
+                    ),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                        _obscurePassword
+                            ? Icons.visibility
+                            : Icons.visibility_off,
                         color: AppTheme.textSecondary,
                       ),
                       onPressed: () {
@@ -147,10 +162,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter a password';
+                        return l10n.fieldRequired;
                       }
                       if (value.length < 8) {
-                        return 'Password must be at least 8 characters';
+                        return l10n.passwordMinLength;
                       }
                       return null;
                     },
@@ -160,13 +175,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   // Confirm Password field
                   CustomTextField(
                     controller: _confirmPasswordController,
-                    hintText: 'Confirm your password',
-                    labelText: 'Confirm Password',
+                    hintText: l10n.confirmPasswordLabel,
+                    labelText: l10n.confirmPasswordLabel,
                     obscureText: _obscureConfirmPassword,
-                    prefixIcon: const Icon(Icons.lock, color: AppTheme.textSecondary),
+                    prefixIcon: const Icon(
+                      Icons.lock,
+                      color: AppTheme.textSecondary,
+                    ),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
+                        _obscureConfirmPassword
+                            ? Icons.visibility
+                            : Icons.visibility_off,
                         color: AppTheme.textSecondary,
                       ),
                       onPressed: () {
@@ -177,10 +197,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please confirm your password';
+                        return l10n.fieldRequired;
                       }
                       if (value != _passwordController.text) {
-                        return 'Passwords do not match';
+                        return l10n.passwordsDoNotMatch;
                       }
                       return null;
                     },
@@ -191,11 +211,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Consumer<AuthProvider>(
                     builder: (context, authProvider, _) {
                       return GradientButton(
-                        text: 'Create Account',
+                        text: l10n.registerButton,
                         isLoading: authProvider.status == AuthStatus.loading,
                         onPressed: _handleRegister,
                       );
                     },
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '${l10n.alreadyHaveAccount} ',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: Text(
+                          l10n.loginLink,
+                          style: const TextStyle(
+                            color: AppTheme.primaryColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

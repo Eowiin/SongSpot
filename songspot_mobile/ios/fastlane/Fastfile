@@ -11,23 +11,44 @@ platform :ios do
     )
   end
 
+  private_lane :localized_release_notes do
+    {
+      "en-US" => (ENV["RELEASE_NOTES_EN"] || "Bug fixes and performance improvements").strip,
+      "fr-FR" => (ENV["RELEASE_NOTES_FR"] || "Corrections de bugs et ameliorations des performances").strip
+    }
+  end
+
+  private_lane :localized_testflight_build_info do |options|
+    notes = options[:release_notes] || localized_release_notes
+    notes.each_with_object({}) do |(locale, text), build_info|
+      build_info[locale] = { whats_new: text }
+    end
+  end
+
   private_lane :build_ipa do
     setup_asc_key
 
     # Build Flutter before Xcode archive (generates Generated.xcconfig + framework).
     # Running in unbundled env avoids Bundler intercepting `pod` when fastlane is
     # invoked with `bundle exec`.
-    Dir.chdir("..") do
-      sentry_defines = [
+    Dir.chdir("../..") do
+      UI.user_error!("SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT must be set") unless
+        ENV['SENTRY_AUTH_TOKEN'] && ENV['SENTRY_ORG'] && ENV['SENTRY_PROJECT']
+
+      flutter_args = [
+        "flutter", "build", "ios", "--release", "--no-codesign",
+        "--split-debug-info=build/debug-info",
         "--dart-define=SENTRY_DSN=#{ENV['SENTRY_DSN'] || ''}",
         "--dart-define=SENTRY_ENVIRONMENT=#{ENV['SENTRY_ENVIRONMENT'] || 'production'}"
       ]
       if defined?(Bundler)
         Bundler.with_unbundled_env do
-          sh("flutter", "build", "ios", "--release", "--no-codesign", *sentry_defines)
+          sh(*flutter_args)
         end
+        sh("dart", "run", "sentry_dart_plugin")
       else
-        sh("flutter", "build", "ios", "--release", "--no-codesign", *sentry_defines)
+        sh(*flutter_args)
+        sh("dart", "run", "sentry_dart_plugin")
       end
     end
 
@@ -48,6 +69,7 @@ platform :ios do
       output_name: "Runner",
       export_options: {
         signingStyle: "automatic",
+        signingCertificate: "Apple Distribution",
         teamID: "WM42CA5NH5"
       }
     )
@@ -58,6 +80,7 @@ platform :ios do
     destination = options[:destination]
     ipa_path = options[:ipa]
     changelog = options[:changelog]
+    localized_build_info = options[:localized_build_info] || {}
     app_store_options = options[:app_store_options] || {}
 
     UI.user_error!("ipa path is required") if ipa_path.nil?
@@ -69,7 +92,8 @@ platform :ios do
     when :testflight
       upload_to_testflight(
         ipa: ipa_path,
-        changelog: changelog
+        changelog: changelog,
+        localized_build_info: localized_build_info
       )
     when :app_store
       upload_to_app_store(
@@ -81,18 +105,21 @@ platform :ios do
   desc "Build and distribute to TestFlight."
   lane :testflight do
     ipa_path = build_ipa
-    generic_notes = "Bug fixes and performance improvements"
+    release_notes = localized_release_notes
     upload_to_store(
       destination: :testflight,
       ipa: ipa_path,
-      changelog: generic_notes
+      changelog: release_notes["en-US"],
+      localized_build_info: localized_testflight_build_info(
+        release_notes: release_notes
+      )
     )
   end
 
-  desc "Build and release directly to App Store."
+  desc "Build and submit to App Store review with manual release."
   lane :app_store do
     ipa_path = build_ipa
-    generic_notes = "Bug fixes and performance improvements"
+    release_notes = localized_release_notes
     upload_to_store(
       destination: :app_store,
       ipa: ipa_path,
@@ -100,13 +127,9 @@ platform :ios do
         skip_metadata: true,
         skip_screenshots: true,
         precheck_include_in_app_purchases: false,
-        release_notes: {
-          "en-US" => generic_notes,
-          "fr-FR" => generic_notes
-        },
+        release_notes: release_notes,
         submit_for_review: true,
-        automatic_release: true,
-        phased_release: false
+        automatic_release: false
       }
     )
   end

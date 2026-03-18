@@ -49,28 +49,8 @@ class CompactPlaybackPanel extends StatelessWidget {
           ),
         ],
         const SizedBox(height: 16),
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 220),
-          switchInCurve: Curves.easeOut,
-          switchOutCurve: Curves.easeIn,
-          transitionBuilder: (child, animation) {
-            return FadeTransition(
-              opacity: animation,
-              child: SizeTransition(
-                sizeFactor: animation,
-                axisAlignment: -1,
-                child: child,
-              ),
-            );
-          },
-          child: isPlaying
-              ? const _PlaybackWaveform(
-                  key: ValueKey('waveform'),
-                  isPlaying: true,
-                )
-              : const SizedBox(key: ValueKey('waveform_placeholder')),
-        ),
-        SizedBox(height: isPlaying ? 14 : 0),
+        _PlaybackWaveform(isPlaying: isPlaying),
+        const SizedBox(height: 14),
         _PlaybackControlButton(
           onPressed: onPressed,
           icon: isPlaying ? Icons.replay_rounded : idleIcon,
@@ -99,27 +79,24 @@ class _PlaybackControlButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(999),
-        child: Ink(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            gradient: AppTheme.primaryGradient,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.primaryColor.withValues(alpha: 0.3),
-                blurRadius: 16,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Icon(icon, color: Colors.white, size: 28),
+    return GestureDetector(
+      onTap: onPressed,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          gradient: AppTheme.primaryGradient,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.primaryColor.withValues(alpha: 0.3),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
+        child: Icon(icon, color: Colors.white, size: 28),
       ),
     );
   }
@@ -128,7 +105,7 @@ class _PlaybackControlButton extends StatelessWidget {
 class _PlaybackWaveform extends StatefulWidget {
   final bool isPlaying;
 
-  const _PlaybackWaveform({super.key, required this.isPlaying});
+  const _PlaybackWaveform({required this.isPlaying});
 
   @override
   State<_PlaybackWaveform> createState() => _PlaybackWaveformState();

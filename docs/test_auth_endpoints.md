@@ -40,7 +40,20 @@ Expected: 200 OK with user data and tokens
 
 Save the access token for the next tests!
 
-### Test 3: Get User Profile (Protected Endpoint)
+### Test 3: Request Password Reset Email
+
+```bash
+curl -X POST http://localhost:8000/api/auth/password-reset/request/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "TEST@EXAMPLE.COM",
+    "locale": "en"
+  }'
+```
+
+Expected: 200 OK with a generic success message. The email is normalized to lowercase server-side.
+
+### Test 4: Get User Profile (Protected Endpoint)
 
 ```bash
 # Replace YOUR_ACCESS_TOKEN with the token from register/login
@@ -50,7 +63,7 @@ curl -X GET http://localhost:8000/api/auth/profile/ \
 
 Expected: 200 OK with user profile data
 
-### Test 4: Refresh Token
+### Test 5: Refresh Token
 
 ```bash
 # Replace YOUR_REFRESH_TOKEN with the refresh token from register/login
@@ -63,7 +76,7 @@ curl -X POST http://localhost:8000/api/auth/token/refresh/ \
 
 Expected: 200 OK with new access and refresh tokens
 
-### Test 5: Logout
+### Test 6: Logout
 
 ```bash
 # Replace YOUR_ACCESS_TOKEN and YOUR_REFRESH_TOKEN
@@ -77,7 +90,7 @@ curl -X POST http://localhost:8000/api/auth/logout/ \
 
 Expected: 200 OK with logout confirmation message
 
-### Test 6: Try Using Blacklisted Token (Should Fail)
+### Test 7: Try Using Blacklisted Token (Should Fail)
 
 Try using the refresh token from Test 5 again:
 
@@ -90,3 +103,10 @@ curl -X POST http://localhost:8000/api/auth/token/refresh/ \
 ```
 
 Expected: 401 Unauthorized - token has been blacklisted
+
+### Password Reset Security Notes
+
+- The password reset endpoint is throttled more strictly than login/register.
+- Current protection is `3/hour` per IP.
+- A second request for the same normalized email is silently suppressed during the cooldown window.
+- Reset links are temporary; the timeout is controlled by `PASSWORD_RESET_TIMEOUT`.

@@ -96,7 +96,10 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                       ),
                     ),
                     Flexible(
-                      child: Text(l10n.changePasswordTitle, style: Theme.of(context).textTheme.headlineMedium),
+                      child: Text(
+                        l10n.changePasswordTitle,
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
                     ),
                   ],
                 ),
@@ -114,10 +117,15 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                           controller: _currentController,
                           hintText: l10n.changePasswordCurrent,
                           labelText: l10n.changePasswordCurrent,
-                          prefixIcon: const Icon(Icons.lock_outline, color: AppTheme.textSecondary),
+                          prefixIcon: const Icon(
+                            Icons.lock_outline,
+                            color: AppTheme.textSecondary,
+                          ),
                           obscureText: true,
                           validator: (v) {
-                            if (v == null || v.isEmpty) return l10n.fieldRequired;
+                            if (v == null || v.isEmpty) {
+                              return l10n.fieldRequired;
+                            }
                             return null;
                           },
                         ),
@@ -126,11 +134,18 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                           controller: _newController,
                           hintText: l10n.changePasswordNew,
                           labelText: l10n.changePasswordNew,
-                          prefixIcon: const Icon(Icons.lock_outline, color: AppTheme.textSecondary),
+                          prefixIcon: const Icon(
+                            Icons.lock_outline,
+                            color: AppTheme.textSecondary,
+                          ),
                           obscureText: true,
                           validator: (v) {
-                            if (v == null || v.isEmpty) return l10n.fieldRequired;
-                            if (v.length < 8) return 'Password must be at least 8 characters';
+                            if (v == null || v.isEmpty) {
+                              return l10n.fieldRequired;
+                            }
+                            if (v.length < 8) {
+                              return l10n.passwordMinLength;
+                            }
                             return null;
                           },
                         ),
@@ -139,11 +154,18 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                           controller: _confirmController,
                           hintText: l10n.changePasswordConfirm,
                           labelText: l10n.changePasswordConfirm,
-                          prefixIcon: const Icon(Icons.lock_outline, color: AppTheme.textSecondary),
+                          prefixIcon: const Icon(
+                            Icons.lock_outline,
+                            color: AppTheme.textSecondary,
+                          ),
                           obscureText: true,
                           validator: (v) {
-                            if (v == null || v.isEmpty) return l10n.fieldRequired;
-                            if (v != _newController.text) return l10n.passwordsDoNotMatch;
+                            if (v == null || v.isEmpty) {
+                              return l10n.fieldRequired;
+                            }
+                            if (v != _newController.text) {
+                              return l10n.passwordsDoNotMatch;
+                            }
                             return null;
                           },
                         ),

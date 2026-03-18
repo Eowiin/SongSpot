@@ -15,6 +15,14 @@ class RoomProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
+  void _syncRoom(Room room) {
+    _currentRoom = room;
+    final index = _myRooms.indexWhere((r) => r.id == room.id);
+    if (index != -1) {
+      _myRooms[index] = room;
+    }
+  }
+
   /// Create a new room
   Future<Room?> createRoom() async {
     try {
@@ -25,7 +33,7 @@ class RoomProvider with ChangeNotifier {
       final response = await _apiService.createRoom();
       final room = Room.fromJson(response['room'] as Map<String, dynamic>);
 
-      _currentRoom = room;
+      _syncRoom(room);
       await loadMyRooms();
 
       _isLoading = false;
@@ -49,7 +57,7 @@ class RoomProvider with ChangeNotifier {
       final response = await _apiService.joinRoom(roomCode);
       final room = Room.fromJson(response['room'] as Map<String, dynamic>);
 
-      _currentRoom = room;
+      _syncRoom(room);
       await loadMyRooms();
 
       _isLoading = false;
@@ -92,7 +100,7 @@ class RoomProvider with ChangeNotifier {
       notifyListeners();
 
       final response = await _apiService.getRoomDetails(roomId);
-      _currentRoom = Room.fromJson(response);
+      _syncRoom(Room.fromJson(response));
 
       _isLoading = false;
       notifyListeners();
@@ -156,13 +164,7 @@ class RoomProvider with ChangeNotifier {
       final response = await _apiService.renameRoom(roomId, name);
       final room = Room.fromJson(response['room'] as Map<String, dynamic>);
 
-      _currentRoom = room;
-
-      // Update the room in myRooms list
-      final index = _myRooms.indexWhere((r) => r.id == roomId);
-      if (index != -1) {
-        _myRooms[index] = room;
-      }
+      _syncRoom(room);
 
       notifyListeners();
       return room;
@@ -175,7 +177,49 @@ class RoomProvider with ChangeNotifier {
 
   /// Set current room
   void setCurrentRoom(Room room) {
-    _currentRoom = room;
+    _syncRoom(room);
+    notifyListeners();
+  }
+
+  void updateRoomDailyModes(String roomId, List<RoomDailyMode> dailyModes) {
+    final current = _currentRoom;
+    if (current != null && current.id == roomId) {
+      _currentRoom = current.copyWith(dailyModes: dailyModes);
+    }
+    final index = _myRooms.indexWhere((room) => room.id == roomId);
+    if (index != -1) {
+      _myRooms[index] = _myRooms[index].copyWith(dailyModes: dailyModes);
+    }
+    notifyListeners();
+  }
+
+  Future<Map<String, dynamic>?> contributeToDailyMode({
+    required String roomId,
+    required String mode,
+    required int amount,
+  }) async {
+    try {
+      _errorMessage = null;
+      final response = await _apiService.contributeToDailyMode(
+        roomId: roomId,
+        mode: mode,
+        amount: amount,
+      );
+      final roomJson = response['room'] as Map<String, dynamic>?;
+      if (roomJson != null) {
+        _syncRoom(Room.fromJson(roomJson));
+      }
+      notifyListeners();
+      return response;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return null;
+    }
+  }
+
+  void clearCurrentRoom() {
+    _currentRoom = null;
     notifyListeners();
   }
 

@@ -5,6 +5,7 @@ from .views import (
     LogoutView,
     RefreshTokenView,
     UserProfileView,
+    PasswordResetRequestView,
     PushDeviceRegisterView,
     PushDeviceUnregisterView,
     NoAdsPassActivateView,
@@ -22,6 +23,7 @@ app_name = 'authentication'
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
     path('login/', LoginView.as_view(), name='login'),
+    path('password-reset/request/', PasswordResetRequestView.as_view(), name='password_reset_request'),
     path('logout/', LogoutView.as_view(), name='logout'),
     path('token/refresh/', RefreshTokenView.as_view(), name='token_refresh'),
     path('profile/', UserProfileView.as_view(), name='profile'),

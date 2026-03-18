@@ -230,6 +230,24 @@ abstract class AppLocalizations {
   /// **'Password'**
   String get passwordLabel;
 
+  /// Forgot password link on the login screen
+  ///
+  /// In en, this message translates to:
+  /// **'Forgot password?'**
+  String get forgotPasswordLink;
+
+  /// Prompt shown when forgot password is tapped without a valid email
+  ///
+  /// In en, this message translates to:
+  /// **'Enter your email address first.'**
+  String get forgotPasswordEnterEmail;
+
+  /// Success message after requesting a password reset email
+  ///
+  /// In en, this message translates to:
+  /// **'If an account exists for this email, a reset email has been sent.'**
+  String get forgotPasswordEmailSent;
+
   /// Login button
   ///
   /// In en, this message translates to:
@@ -289,6 +307,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Login'**
   String get loginLink;
+
+  /// Fallback login failure message
+  ///
+  /// In en, this message translates to:
+  /// **'Login failed'**
+  String get loginFailed;
+
+  /// Fallback registration failure message
+  ///
+  /// In en, this message translates to:
+  /// **'Registration failed'**
+  String get registrationFailed;
 
   /// Settings screen title
   ///
@@ -764,6 +794,18 @@ abstract class AppLocalizations {
   /// **'Invalid email address'**
   String get invalidEmail;
 
+  /// Username minimum length validation
+  ///
+  /// In en, this message translates to:
+  /// **'Username must be at least 3 characters'**
+  String get usernameMinLength;
+
+  /// Password minimum length validation
+  ///
+  /// In en, this message translates to:
+  /// **'Password must be at least 8 characters'**
+  String get passwordMinLength;
+
   /// Passwords mismatch error
   ///
   /// In en, this message translates to:
@@ -1232,6 +1274,238 @@ abstract class AppLocalizations {
   /// **'Artist'**
   String get gameHintArtist;
 
+  /// Generic cancel button label
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get commonCancel;
+
+  /// Generic close label or tooltip
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get commonClose;
+
+  /// Label for the pack mode pill in the game switcher
+  ///
+  /// In en, this message translates to:
+  /// **'Pack'**
+  String get packModeLabel;
+
+  /// Title for the mode section or modes sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Daily Modes'**
+  String get dailyModesTitle;
+
+  /// Short label for the button that opens the modes sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Modes'**
+  String get dailyModesShortLabel;
+
+  /// Intro text for the modes sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock extra lanes for this room without replacing Daily Mix.'**
+  String get dailyModesIntro;
+
+  /// Intro text for the room details modes section
+  ///
+  /// In en, this message translates to:
+  /// **'Mix is always free. Contribute with your room to unlock extra daily lanes.'**
+  String get dailyModesRoomIntro;
+
+  /// Hint shown below the modes list to indicate scrolling
+  ///
+  /// In en, this message translates to:
+  /// **'Scroll to see all modes'**
+  String get dailyModesScrollHint;
+
+  /// Label for the mix mode
+  ///
+  /// In en, this message translates to:
+  /// **'Daily Mix'**
+  String get dailyModeMixLabel;
+
+  /// Label for the genre mode
+  ///
+  /// In en, this message translates to:
+  /// **'Genre Mode'**
+  String get dailyModeGenreLabel;
+
+  /// Label for the decade mode
+  ///
+  /// In en, this message translates to:
+  /// **'Decade Mode'**
+  String get dailyModeDecadeLabel;
+
+  /// Label for the hardcore mode
+  ///
+  /// In en, this message translates to:
+  /// **'Hardcore'**
+  String get dailyModeHardcoreLabel;
+
+  /// Subtitle for the mix mode
+  ///
+  /// In en, this message translates to:
+  /// **'Fully random song for everyone today'**
+  String get dailyModeMixSubtitle;
+
+  /// Subtitle for the genre mode
+  ///
+  /// In en, this message translates to:
+  /// **'Fixed genre for everyone today'**
+  String get dailyModeGenreSubtitle;
+
+  /// Subtitle for the decade mode
+  ///
+  /// In en, this message translates to:
+  /// **'Fixed decade for everyone today'**
+  String get dailyModeDecadeSubtitle;
+
+  /// Subtitle for the hardcore mode
+  ///
+  /// In en, this message translates to:
+  /// **'Same daily song, but no hints and no retries'**
+  String get dailyModeHardcoreSubtitle;
+
+  /// Subtitle when a specific daily lane is active
+  ///
+  /// In en, this message translates to:
+  /// **'Today\'s lane: {name}'**
+  String dailyModeLaneSubtitle(String name);
+
+  /// Price label for a free mode
+  ///
+  /// In en, this message translates to:
+  /// **'Free'**
+  String get dailyModeFree;
+
+  /// Price label for a paid mode
+  ///
+  /// In en, this message translates to:
+  /// **'{coins} coins'**
+  String dailyModeCoinsCost(num coins);
+
+  /// Status text shown when a mode is unlocked
+  ///
+  /// In en, this message translates to:
+  /// **'Unlocked for this room for 7 days'**
+  String get dailyModeUnlockedUntilReset;
+
+  /// Funding progress text for a mode card
+  ///
+  /// In en, this message translates to:
+  /// **'{progress}/{total} coins • {contributors} contributors'**
+  String dailyModeContributionProgress(
+    num progress,
+    num total,
+    num contributors,
+  );
+
+  /// Primary action label for a playable mode
+  ///
+  /// In en, this message translates to:
+  /// **'Play'**
+  String get dailyModePlay;
+
+  /// Primary action label for a previewable mode
+  ///
+  /// In en, this message translates to:
+  /// **'Preview'**
+  String get dailyModePreview;
+
+  /// Action/status label for an unlocked mode
+  ///
+  /// In en, this message translates to:
+  /// **'Unlocked'**
+  String get dailyModeUnlocked;
+
+  /// Action label to contribute to a mode
+  ///
+  /// In en, this message translates to:
+  /// **'Contribute'**
+  String get dailyModeContribute;
+
+  /// Status label when a mode is funded
+  ///
+  /// In en, this message translates to:
+  /// **'Funded'**
+  String get dailyModeFunded;
+
+  /// Dialog title for contributing to a mode
+  ///
+  /// In en, this message translates to:
+  /// **'Contribute to {mode}'**
+  String dailyModeContributeTitle(String mode);
+
+  /// Helper text showing remaining funding and the user's balance
+  ///
+  /// In en, this message translates to:
+  /// **'{remaining} coins remaining. You currently have {coins} coins.'**
+  String dailyModeCoinsRemainingYouHave(num remaining, num coins);
+
+  /// Input label for the contribution amount
+  ///
+  /// In en, this message translates to:
+  /// **'Coins to contribute'**
+  String get dailyModeCoinsToContribute;
+
+  /// Quick contribution chip label for a fixed amount
+  ///
+  /// In en, this message translates to:
+  /// **'+{amount}'**
+  String dailyModeContributionQuickAmount(num amount);
+
+  /// Quick contribution chip label to fully fund the remaining amount the user can afford
+  ///
+  /// In en, this message translates to:
+  /// **'Fill'**
+  String get dailyModeContributionFill;
+
+  /// Short label for remaining room funding in the contribution sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Remaining'**
+  String get dailyModeContributionRemainingLabel;
+
+  /// Short label for the user's current coin balance in the contribution sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Your balance'**
+  String get dailyModeContributionBalanceLabel;
+
+  /// Short label showing how much funding remains
+  ///
+  /// In en, this message translates to:
+  /// **'{remaining} left'**
+  String dailyModeContributionLeft(num remaining);
+
+  /// Snackbar shown when a contribution succeeds without unlocking the mode
+  ///
+  /// In en, this message translates to:
+  /// **'Contribution sent'**
+  String get dailyModeContributionSent;
+
+  /// Snackbar shown when a mode becomes unlocked
+  ///
+  /// In en, this message translates to:
+  /// **'{mode} unlocked for this room'**
+  String dailyModeUnlockedForRoom(String mode);
+
+  /// Title for the hardcore rules card
+  ///
+  /// In en, this message translates to:
+  /// **'Hardcore rules'**
+  String get dailyModeHardcoreRulesTitle;
+
+  /// Body copy for the hardcore rules card
+  ///
+  /// In en, this message translates to:
+  /// **'This lane disables hints and retry unlocks. One run only.'**
+  String get dailyModeHardcoreRulesBody;
+
   /// Error when submitting without selecting an autocomplete result
   ///
   /// In en, this message translates to:
@@ -1514,6 +1788,24 @@ abstract class AppLocalizations {
   /// **'Invalid retry action.'**
   String get backendInvalidRetryActionUnknown;
 
+  /// Backend generic mode rule restriction error
+  ///
+  /// In en, this message translates to:
+  /// **'This action is not allowed in the current game mode.'**
+  String get backendModeRuleRestricted;
+
+  /// Backend hardcore mode retry restriction error
+  ///
+  /// In en, this message translates to:
+  /// **'Hardcore mode does not allow retries.'**
+  String get backendModeRuleRestrictedHardcoreRetryDisabled;
+
+  /// Backend hardcore mode hint restriction error
+  ///
+  /// In en, this message translates to:
+  /// **'Hardcore mode does not allow hints.'**
+  String get backendModeRuleRestrictedHardcoreHintsDisabled;
+
   /// Backend game already completed error
   ///
   /// In en, this message translates to:
@@ -1615,6 +1907,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Invalid email or password.'**
   String get backendInvalidCredentials;
+
+  /// Backend password reset email unavailable error
+  ///
+  /// In en, this message translates to:
+  /// **'Password reset email is currently unavailable.'**
+  String get backendPasswordResetUnavailable;
 
   /// Backend missing refresh token error
   ///

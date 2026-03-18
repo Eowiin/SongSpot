@@ -29,7 +29,7 @@ Build and distribute to TestFlight.
 [bundle exec] fastlane ios app_store
 ```
 
-Build and release directly to App Store.
+Build and submit to App Store review with manual release.
 
 ----
 

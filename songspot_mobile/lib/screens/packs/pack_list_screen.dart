@@ -159,23 +159,6 @@ class _PackListScreenState extends State<PackListScreen> {
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                   ),
-                  if (packProvider.errorMessage != null)
-                    Padding(
-                      padding: AppTheme.pagePadding.copyWith(top: 0, bottom: 8),
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppTheme.errorColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(
-                            AppTheme.borderRadius,
-                          ),
-                        ),
-                        child: Text(
-                          packProvider.errorMessage!,
-                          style: const TextStyle(color: AppTheme.errorColor),
-                        ),
-                      ),
-                    ),
                   // Category filter chips
                   _buildCategoryFilter(packProvider.packs),
                   // Pack list
@@ -202,17 +185,20 @@ class _PackListScreenState extends State<PackListScreen> {
     final banner = _bannerAd;
     if (banner == null || !_isBannerLoaded) return const SizedBox.shrink();
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceColor.withValues(alpha: 0.25),
-        borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-      ),
-      child: SizedBox(
-        width: banner.size.width.toDouble(),
-        height: banner.size.height.toDouble(),
-        child: AdWidget(ad: banner),
+    return KeyedSubtree(
+      key: ObjectKey(banner),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceColor.withValues(alpha: 0.25),
+          borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+        ),
+        child: SizedBox(
+          width: banner.size.width.toDouble(),
+          height: banner.size.height.toDouble(),
+          child: AdWidget(key: ObjectKey(banner), ad: banner),
+        ),
       ),
     );
   }

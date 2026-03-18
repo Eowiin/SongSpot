@@ -259,7 +259,7 @@ void main() {
       expect(session.isCompleted, isTrue);
     });
 
-    test('isCompleted returns true when at snippet 6', () {
+    test('isCompleted returns true when completedAt is set', () {
       final session = GameSession(
         id: '1',
         user: const User(id: '1', email: 'a@b.com', username: 'user'),
@@ -278,6 +278,7 @@ void main() {
         currentSnippet: 6,
         guessesMade: 5,
         correctGuess: false,
+        completedAt: DateTime.now(),
         createdAt: DateTime.now(),
       );
 

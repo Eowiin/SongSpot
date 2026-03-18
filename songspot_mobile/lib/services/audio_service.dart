@@ -4,9 +4,6 @@ import 'package:audio_session/audio_session.dart';
 
 class AudioService {
   final AudioPlayer _player = AudioPlayer();
-  static const Duration _snippetPlaybackCompensation = Duration(
-    milliseconds: 220,
-  );
   bool _isPlaying = false;
   bool _isInitialized = false;
   Timer? _stopTimer;
@@ -88,9 +85,9 @@ class AudioService {
       await _player.stop();
       await _player.seek(Duration.zero);
 
-      final clipEnd =
-          Duration(milliseconds: (durationInSeconds * 1000).round()) +
-          _snippetPlaybackCompensation;
+      final clipEnd = Duration(
+        milliseconds: (durationInSeconds * 1000).round(),
+      );
 
       final playbackFuture = _player.play();
       await _waitForPlaybackStart(requestId);

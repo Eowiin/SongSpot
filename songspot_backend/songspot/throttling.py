@@ -13,6 +13,13 @@ class AuthRateThrottle(AnonRateThrottle):
     scope = 'auth'
 
 
+class PasswordResetRateThrottle(AnonRateThrottle):
+    """
+    Stricter rate limit for password reset email requests.
+    """
+    scope = 'password_reset'
+
+
 class GuessRateThrottle(UserRateThrottle):
     """
     Rate limit for game guess submissions.

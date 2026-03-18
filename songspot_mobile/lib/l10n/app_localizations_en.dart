@@ -88,6 +88,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get passwordLabel => 'Password';
 
   @override
+  String get forgotPasswordLink => 'Forgot password?';
+
+  @override
+  String get forgotPasswordEnterEmail => 'Enter your email address first.';
+
+  @override
+  String get forgotPasswordEmailSent =>
+      'If an account exists for this email, a reset email has been sent.';
+
+  @override
   String get loginButton => 'Login';
 
   @override
@@ -116,6 +126,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get loginLink => 'Login';
+
+  @override
+  String get loginFailed => 'Login failed';
+
+  @override
+  String get registrationFailed => 'Registration failed';
 
   @override
   String get settingsTitle => 'Settings';
@@ -375,6 +391,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get invalidEmail => 'Invalid email address';
+
+  @override
+  String get usernameMinLength => 'Username must be at least 3 characters';
+
+  @override
+  String get passwordMinLength => 'Password must be at least 8 characters';
 
   @override
   String get passwordsDoNotMatch => 'Passwords do not match';
@@ -642,6 +664,144 @@ class AppLocalizationsEn extends AppLocalizations {
   String get gameHintArtist => 'Artist';
 
   @override
+  String get commonCancel => 'Cancel';
+
+  @override
+  String get commonClose => 'Close';
+
+  @override
+  String get packModeLabel => 'Pack';
+
+  @override
+  String get dailyModesTitle => 'Daily Modes';
+
+  @override
+  String get dailyModesShortLabel => 'Modes';
+
+  @override
+  String get dailyModesIntro =>
+      'Unlock extra lanes for this room without replacing Daily Mix.';
+
+  @override
+  String get dailyModesRoomIntro =>
+      'Mix is always free. Contribute with your room to unlock extra daily lanes.';
+
+  @override
+  String get dailyModesScrollHint => 'Scroll to see all modes';
+
+  @override
+  String get dailyModeMixLabel => 'Daily Mix';
+
+  @override
+  String get dailyModeGenreLabel => 'Genre Mode';
+
+  @override
+  String get dailyModeDecadeLabel => 'Decade Mode';
+
+  @override
+  String get dailyModeHardcoreLabel => 'Hardcore';
+
+  @override
+  String get dailyModeMixSubtitle => 'Fully random song for everyone today';
+
+  @override
+  String get dailyModeGenreSubtitle => 'Fixed genre for everyone today';
+
+  @override
+  String get dailyModeDecadeSubtitle => 'Fixed decade for everyone today';
+
+  @override
+  String get dailyModeHardcoreSubtitle =>
+      'Same daily song, but no hints and no retries';
+
+  @override
+  String dailyModeLaneSubtitle(String name) {
+    return 'Today\'s lane: $name';
+  }
+
+  @override
+  String get dailyModeFree => 'Free';
+
+  @override
+  String dailyModeCoinsCost(num coins) {
+    return '$coins coins';
+  }
+
+  @override
+  String get dailyModeUnlockedUntilReset => 'Unlocked for this room for 7 days';
+
+  @override
+  String dailyModeContributionProgress(
+    num progress,
+    num total,
+    num contributors,
+  ) {
+    return '$progress/$total coins • $contributors contributors';
+  }
+
+  @override
+  String get dailyModePlay => 'Play';
+
+  @override
+  String get dailyModePreview => 'Preview';
+
+  @override
+  String get dailyModeUnlocked => 'Unlocked';
+
+  @override
+  String get dailyModeContribute => 'Contribute';
+
+  @override
+  String get dailyModeFunded => 'Funded';
+
+  @override
+  String dailyModeContributeTitle(String mode) {
+    return 'Contribute to $mode';
+  }
+
+  @override
+  String dailyModeCoinsRemainingYouHave(num remaining, num coins) {
+    return '$remaining coins remaining. You currently have $coins coins.';
+  }
+
+  @override
+  String get dailyModeCoinsToContribute => 'Coins to contribute';
+
+  @override
+  String dailyModeContributionQuickAmount(num amount) {
+    return '+$amount';
+  }
+
+  @override
+  String get dailyModeContributionFill => 'Fill';
+
+  @override
+  String get dailyModeContributionRemainingLabel => 'Remaining';
+
+  @override
+  String get dailyModeContributionBalanceLabel => 'Your balance';
+
+  @override
+  String dailyModeContributionLeft(num remaining) {
+    return '$remaining left';
+  }
+
+  @override
+  String get dailyModeContributionSent => 'Contribution sent';
+
+  @override
+  String dailyModeUnlockedForRoom(String mode) {
+    return '$mode unlocked for this room';
+  }
+
+  @override
+  String get dailyModeHardcoreRulesTitle => 'Hardcore rules';
+
+  @override
+  String get dailyModeHardcoreRulesBody =>
+      'This lane disables hints and retry unlocks. One run only.';
+
+  @override
   String get gameSelectSongFromResults =>
       'Please select a song from the search results';
 
@@ -818,6 +978,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get backendInvalidRetryActionUnknown => 'Invalid retry action.';
 
   @override
+  String get backendModeRuleRestricted =>
+      'This action is not allowed in the current game mode.';
+
+  @override
+  String get backendModeRuleRestrictedHardcoreRetryDisabled =>
+      'Hardcore mode does not allow retries.';
+
+  @override
+  String get backendModeRuleRestrictedHardcoreHintsDisabled =>
+      'Hardcore mode does not allow hints.';
+
+  @override
   String get backendGameAlreadyCompleted => 'Game already completed.';
 
   @override
@@ -868,6 +1040,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get backendInvalidCredentials => 'Invalid email or password.';
+
+  @override
+  String get backendPasswordResetUnavailable =>
+      'Password reset email is currently unavailable.';
 
   @override
   String get backendRefreshTokenRequired => 'Refresh token is required.';

@@ -1,10 +1,17 @@
 from unittest.mock import patch
 
+from django.core.cache import cache
+from django.core import mail
 from django.test import TestCase
 from django.urls import reverse
+from django.test.utils import override_settings
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
+from django.contrib.auth.tokens import default_token_generator
 from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
 from game.models import Room, RoomUser, DailySong, DailyGameSession, RoomMessage, Track
 from .models import User
 from .tasks import notify_room_message_task, _active_game_date
@@ -54,11 +61,20 @@ class UserModelTests(TestCase):
         )
         self.assertEqual(str(user), 'test@example.com')
 
+    def test_create_user_normalizes_email_to_lowercase(self):
+        user = User.objects.create_user(
+            username='testuser',
+            email='Test@Example.COM',
+            password='testpass123',
+        )
+        self.assertEqual(user.email, 'test@example.com')
+
 
 class RegisterViewTests(APITestCase):
     """Tests for user registration endpoint."""
 
     def setUp(self):
+        cache.clear()
         self.register_url = '/api/auth/register/'
 
     def test_register_user_success(self):
@@ -112,11 +128,23 @@ class RegisterViewTests(APITestCase):
         response = self.client.post(self.register_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_register_user_lowercases_email(self):
+        data = {
+            'email': 'NewUser@Example.COM',
+            'username': 'newuser',
+            'password': 'securepass123',
+            'password_confirm': 'securepass123'
+        }
+        response = self.client.post(self.register_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['user']['email'], 'newuser@example.com')
+
 
 class LoginViewTests(APITestCase):
     """Tests for user login endpoint."""
 
     def setUp(self):
+        cache.clear()
         self.login_url = '/api/auth/login/'
         self.user = User.objects.create_user(
             username='testuser',
@@ -163,11 +191,20 @@ class LoginViewTests(APITestCase):
         response = self.client.post(self.login_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_login_is_case_insensitive_for_email(self):
+        data = {
+            'email': 'Test@Example.COM',
+            'password': 'testpass123'
+        }
+        response = self.client.post(self.login_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
 
 class LogoutViewTests(APITestCase):
     """Tests for user logout endpoint."""
 
     def setUp(self):
+        cache.clear()
         self.logout_url = '/api/auth/logout/'
         self.user = User.objects.create_user(
             username='testuser',
@@ -205,6 +242,7 @@ class RefreshTokenViewTests(APITestCase):
     """Tests for token refresh endpoint."""
 
     def setUp(self):
+        cache.clear()
         self.refresh_url = '/api/auth/token/refresh/'
         self.user = User.objects.create_user(
             username='testuser',
@@ -237,10 +275,110 @@ class RefreshTokenViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
+@override_settings(
+    EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+    DEFAULT_FROM_EMAIL='no-reply@songspot.test',
+)
+class PasswordResetFlowTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.request_url = '/api/auth/password-reset/request/'
+        self.user = User.objects.create_user(
+            username='reset-user',
+            email='reset@example.com',
+            password='oldpass123A',
+        )
+
+    def test_password_reset_request_sends_email_and_includes_lang(self):
+        response = self.client.post(
+            self.request_url,
+            {'email': 'Reset@Example.com', 'locale': 'fr'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('/reset-password/', mail.outbox[0].body)
+        self.assertIn('lang=fr', mail.outbox[0].body)
+
+    def test_password_reset_request_is_silent_for_unknown_email(self):
+        response = self.client.post(
+            self.request_url,
+            {'email': 'missing@example.com'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_password_reset_request_enforces_email_cooldown(self):
+        first = self.client.post(
+            self.request_url,
+            {'email': 'reset@example.com'},
+            format='json',
+        )
+        second = self.client.post(
+            self.request_url,
+            {'email': 'Reset@Example.com'},
+            format='json',
+        )
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_password_reset_request_ip_throttle_blocks_after_three_attempts(self):
+        responses = []
+        for email in (
+            'one@example.com',
+            'two@example.com',
+            'three@example.com',
+            'four@example.com',
+        ):
+            responses.append(
+                self.client.post(
+                    self.request_url,
+                    {'email': email},
+                    format='json',
+                )
+            )
+
+        self.assertEqual(responses[0].status_code, status.HTTP_200_OK)
+        self.assertEqual(responses[1].status_code, status.HTTP_200_OK)
+        self.assertEqual(responses[2].status_code, status.HTTP_200_OK)
+        self.assertEqual(responses[3].status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    def test_password_reset_confirm_updates_password_and_blacklists_tokens(self):
+        refresh = RefreshToken.for_user(self.user)
+        reset_url = reverse(
+            'password_reset_confirm',
+            kwargs={
+                'uidb64': urlsafe_base64_encode(force_bytes(self.user.pk)),
+                'token': default_token_generator.make_token(self.user),
+            },
+        )
+        response = self.client.post(
+            f'{reset_url}?lang=en',
+            {
+                'lang': 'en',
+                'new_password1': 'BrandNewPass123',
+                'new_password2': 'BrandNewPass123',
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password('BrandNewPass123'))
+        self.assertTrue(
+            BlacklistedToken.objects.filter(token__user=self.user).exists()
+        )
+
+
 class UserProfileViewTests(APITestCase):
     """Tests for user profile endpoint."""
 
     def setUp(self):
+        cache.clear()
         self.profile_url = '/api/auth/profile/'
         self.user = User.objects.create_user(
             username='testuser',
@@ -306,8 +444,13 @@ class RoomMessageNotificationTaskTests(TestCase):
             date=_active_game_date(),
         )
 
+    @patch('authentication.tasks.notify_room_message_task.delay')
     @patch('authentication.tasks.send_push_to_users')
-    def test_only_users_with_correct_guess_receive_room_message_push(self, mock_send_push):
+    def test_only_users_with_correct_guess_receive_room_message_push(
+        self,
+        mock_send_push,
+        mock_delay,
+    ):
         DailyGameSession.objects.create(
             room=self.room,
             user=self.sender,
@@ -336,12 +479,18 @@ class RoomMessageNotificationTaskTests(TestCase):
         mock_send_push.return_value = {'success_count': 1, 'failure_count': 0}
         notify_room_message_task(str(message.id))
 
+        mock_delay.assert_called_once_with(str(message.id))
         mock_send_push.assert_called_once()
         recipient_ids = mock_send_push.call_args.args[0]
         self.assertEqual(recipient_ids, [str(self.guessed_user.id)])
 
+    @patch('authentication.tasks.notify_room_message_task.delay')
     @patch('authentication.tasks.send_push_to_users')
-    def test_no_push_when_no_other_user_has_correct_guess(self, mock_send_push):
+    def test_no_push_when_no_other_user_has_correct_guess(
+        self,
+        mock_send_push,
+        mock_delay,
+    ):
         DailyGameSession.objects.create(
             room=self.room,
             user=self.sender,
@@ -363,5 +512,6 @@ class RoomMessageNotificationTaskTests(TestCase):
 
         result = notify_room_message_task(str(message.id))
 
+        mock_delay.assert_called_once_with(str(message.id))
         mock_send_push.assert_not_called()
         self.assertEqual(result, {'success_count': 0, 'failure_count': 0, 'skipped': True})

@@ -180,6 +180,26 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Stem cleanup TTL (hours)
 STEM_TTL_HOURS = int(os.environ.get('STEM_TTL_HOURS', '72'))
 
+# Email / password reset
+EMAIL_BACKEND = os.environ.get(
+    'EMAIL_BACKEND',
+    'django.core.mail.backends.console.EmailBackend'
+    if DEBUG
+    else 'django.core.mail.backends.smtp.EmailBackend',
+)
+EMAIL_HOST = os.environ.get('EMAIL_HOST', '')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
+EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'False') == 'True'
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'no-reply@songspot.app')
+PASSWORD_RESET_BASE_URL = os.environ.get('PASSWORD_RESET_BASE_URL', '')
+PASSWORD_RESET_TIMEOUT = int(os.environ.get('PASSWORD_RESET_TIMEOUT', '86400'))
+PASSWORD_RESET_EMAIL_COOLDOWN_SECONDS = int(
+    os.environ.get('PASSWORD_RESET_EMAIL_COOLDOWN_SECONDS', '900')
+)
+
 # Custom User Model
 AUTH_USER_MODEL = 'authentication.User'
 
@@ -200,6 +220,7 @@ REST_FRAMEWORK = {
         'anon': '20/minute',      # Anonymous users: 20 requests/minute
         'user': '300/minute',     # Authenticated users: 300 requests/minute
         'auth': '5/minute',       # Auth endpoints (login, register): 5/minute
+        'password_reset': '3/hour',  # Password reset email requests: 3/hour per IP
         'guess': '10/minute',     # Game guess submissions: 10/minute
         'message': '30/minute',   # Chat messages: 30/minute
     },

@@ -49,7 +49,11 @@ class ApiConfig {
     'Origin': webSocketOriginUri.toString(),
   };
 
-  static Uri roomChatWebSocketUri(String roomId, String token) {
+  static Uri roomChatWebSocketUri(
+    String roomId,
+    String token, {
+    String mode = 'mix',
+  }) {
     final port = wsBaseUri.hasPort && wsBaseUri.port > 0
         ? wsBaseUri.port
         : null;
@@ -58,13 +62,15 @@ class ApiConfig {
       host: wsBaseUri.host,
       port: port,
       path: '/ws/room/$roomId/chat/',
-      queryParameters: {'token': token},
+      queryParameters: {'token': token, 'mode': mode},
     );
   }
 
   // Auth endpoints
   static const String authRegister = '/auth/register/';
   static const String authLogin = '/auth/login/';
+  static const String authPasswordResetRequest =
+      '/auth/password-reset/request/';
   static const String authLogout = '/auth/logout/';
   static const String authRefresh = '/auth/token/refresh/';
   static const String authProfile = '/auth/profile/';
@@ -78,6 +84,8 @@ class ApiConfig {
   static const String roomsCreate = '/game/rooms/create/';
   static const String roomsJoin = '/game/rooms/join/';
   static String roomsDetail(String roomId) => '/game/rooms/$roomId/';
+  static String roomsDailyModeContribute(String roomId) =>
+      '/game/rooms/$roomId/daily-modes/contribute/';
   static String roomsLeave(String roomId) => '/game/rooms/$roomId/leave/';
   static String roomsRename(String roomId) => '/game/rooms/$roomId/rename/';
   static const String roomsMyRooms = '/game/rooms/my-rooms/';

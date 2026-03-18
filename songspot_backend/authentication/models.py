@@ -1,13 +1,17 @@
 import uuid
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
+from django.db.models.functions import Lower
 from django.utils import timezone
 
 class CustomUserManager(BaseUserManager):
+    def normalize_full_email(self, email):
+        return self.model.normalize_email_value(email)
+
     def create_user(self, username, email, password=None, **extra_fields):
         if not email:
             raise ValueError('The Email field must be set')
-        email = self.normalize_email(email)
+        email = self.normalize_full_email(email)
         user = self.model(username=username, email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
@@ -23,6 +27,11 @@ class CustomUserManager(BaseUserManager):
             raise ValueError('Superuser must have is_superuser=True.')
 
         return self.create_user(username, email, password, **extra_fields)
+
+    def get_by_natural_key(self, username):
+        return self.get(
+            **{self.model.USERNAME_FIELD: self.normalize_full_email(username)}
+        )
 
 class User(AbstractBaseUser, PermissionsMixin):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -55,8 +64,26 @@ class User(AbstractBaseUser, PermissionsMixin):
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                Lower('email'),
+                name='user_email_lower_unique',
+            ),
+        ]
+
+    @staticmethod
+    def normalize_email_value(email):
+        if not isinstance(email, str):
+            return email
+        return email.strip().lower()
+
     def __str__(self):
         return self.email
+
+    def save(self, *args, **kwargs):
+        self.email = self.normalize_email_value(self.email)
+        super().save(*args, **kwargs)
 
     @property
     def win_rate(self):
