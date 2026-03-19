@@ -50,6 +50,8 @@ class GameProvider with ChangeNotifier {
   static const Duration _pendingMessageTimeout = Duration(seconds: 15);
 
   StreamSubscription<WebSocketEvent>? _wsSubscription;
+  Future<void>? _pendingAudioLoad;
+  String? _pendingAudioSessionId;
 
   String? _currentRoomId;
   GameSession? _currentSession;
@@ -66,14 +68,14 @@ class GameProvider with ChangeNotifier {
   String _currentMode = 'mix';
 
   GameSession? get currentSession => _currentSession;
-  List<LeaderboardEntry> get leaderboard => _leaderboard;
-  List<Message> get messages => _messages;
+  List<LeaderboardEntry> get leaderboard => List.unmodifiable(_leaderboard);
+  List<Message> get messages => List.unmodifiable(_messages);
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   String? get guessResult => _guessResult;
   AudioService get audioService => _audioService;
   bool get isWebSocketConnected => _isWebSocketConnected;
-  Map<String, String> get hintValues => _hintValues;
+  Map<String, String> get hintValues => Map.unmodifiable(_hintValues);
   String get currentMode => _currentMode;
   Stream<WebSocketEvent> get webSocketEvents => _webSocketService.events;
   List<String> get typingUsernames =>
@@ -140,8 +142,30 @@ class GameProvider with ChangeNotifier {
       _currentSession = GameSession.fromJson(response);
       _hintValues = {};
 
-      // Restore any already-purchased hints (re-fetch values without charging)
-      for (final hintType in _currentSession!.hintsUsed) {
+      await _restorePurchasedHints(roomId, mode: mode);
+
+      _isLoading = false;
+      _notifyStateChanged(persist: true);
+      _primeAudioForSession(_currentSession!);
+    } catch (e) {
+      _errorMessage = 'Failed to load game: $e';
+      _isLoading = false;
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<void> _restorePurchasedHints(
+    String roomId, {
+    required String mode,
+  }) async {
+    final hintsUsed = _currentSession?.hintsUsed;
+    if (hintsUsed == null || hintsUsed.isEmpty) {
+      return;
+    }
+
+    await Future.wait(
+      hintsUsed.map((hintType) async {
         try {
           final hintResponse = await _apiService.purchaseDailyGameHint(
             roomId: roomId,
@@ -152,19 +176,40 @@ class GameProvider with ChangeNotifier {
         } catch (_) {
           // Non-fatal — hint button will remain purchasable but won't double-charge
         }
-      }
+      }),
+    );
+  }
 
-      // Load the audio
-      await _loadAudioWithRefresh(_currentSession!);
+  void _primeAudioForSession(GameSession session) {
+    final future = _loadAudioWithRefresh(session);
+    _registerPendingAudioLoad(session.id, future);
+  }
 
-      _isLoading = false;
-      _notifyStateChanged(persist: true);
-    } catch (e) {
-      _errorMessage = 'Failed to load game: $e';
-      _isLoading = false;
-      notifyListeners();
-      rethrow;
+  void _registerPendingAudioLoad(String sessionId, Future<void> future) {
+    _pendingAudioSessionId = sessionId;
+    _pendingAudioLoad = future;
+    unawaited(
+      future.catchError((_) {}).whenComplete(() {
+        if (identical(_pendingAudioLoad, future)) {
+          _pendingAudioLoad = null;
+        }
+        if (_pendingAudioSessionId == sessionId) {
+          _pendingAudioSessionId = null;
+        }
+      }),
+    );
+  }
+
+  Future<void> _ensureAudioLoadedForSession(GameSession session) async {
+    final pendingAudioLoad = _pendingAudioLoad;
+    if (_pendingAudioSessionId == session.id && pendingAudioLoad != null) {
+      await pendingAudioLoad;
+      return;
     }
+
+    final future = _loadAudioWithRefresh(session);
+    _registerPendingAudioLoad(session.id, future);
+    await future;
   }
 
   Future<void> _loadAudioWithRefresh(GameSession session) async {
@@ -188,8 +233,10 @@ class GameProvider with ChangeNotifier {
     final trackJson = refreshed['track'] as Map<String, dynamic>;
     final updatedTrack = Track.fromJson(trackJson);
     final updatedSession = _copySessionWithTrack(session, updatedTrack);
-    _currentSession = updatedSession;
-    _persistCurrentModeState();
+    if (_currentSession?.id == session.id) {
+      _currentSession = updatedSession;
+      _persistCurrentModeState();
+    }
     await _audioService.loadAudio(updatedTrack.previewUrl);
     return updatedSession;
   }
@@ -213,6 +260,8 @@ class GameProvider with ChangeNotifier {
     if (_currentSession == null) return;
 
     try {
+      _playSnippetRequestId += 1;
+      await _audioService.stop();
       _isLoading = true;
       _errorMessage = null;
       _guessResult = null;
@@ -768,18 +817,26 @@ class GameProvider with ChangeNotifier {
 
   /// Play current snippet
   Future<void> playCurrentSnippet() async {
-    if (_currentSession != null) {
+    final session = _currentSession;
+    if (session != null) {
       final requestId = ++_playSnippetRequestId;
       try {
+        await _ensureAudioLoadedForSession(session);
+        if (requestId != _playSnippetRequestId) {
+          return;
+        }
         final playbackFuture = _audioService.playSnippetByNumber(
-          _currentSession!.currentSnippet,
+          (_currentSession ?? session).currentSnippet,
           onPlaybackStarted: notifyListeners,
           onPlaybackStopped: notifyListeners,
         );
         await playbackFuture;
       } catch (e) {
         try {
-          final refreshedSession = await _refreshAndLoadAudio(_currentSession!);
+          final refreshedSession = await _refreshAndLoadAudio(session);
+          if (requestId != _playSnippetRequestId) {
+            return;
+          }
           final retryFuture = _audioService.playSnippetByNumber(
             refreshedSession.currentSnippet,
             onPlaybackStarted: notifyListeners,

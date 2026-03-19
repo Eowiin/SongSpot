@@ -50,12 +50,12 @@ class AudioService {
 
   /// Load audio from URL
   Future<void> loadAudio(String url) async {
+    final requestId = ++_playbackRequestId;
     try {
       // Initialize audio session if not already done
       await initializeAudioSession();
 
       // Ensure we are not playing from a previous session
-      _playbackRequestId += 1;
       _stopTimer?.cancel();
       _setPlaying(false);
       await _player.stop();
@@ -63,6 +63,12 @@ class AudioService {
       // Set the URL and wait for it to load
       _currentUrl = url;
       await _player.setUrl(url);
+      if (requestId != _playbackRequestId) {
+        final latestUrl = _currentUrl;
+        if (latestUrl != null && latestUrl != url) {
+          await _player.setUrl(latestUrl);
+        }
+      }
     } catch (e) {
       throw Exception('Failed to load audio: $e');
     }

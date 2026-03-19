@@ -10,7 +10,7 @@ class RoomProvider with ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
 
-  List<Room> get myRooms => _myRooms;
+  List<Room> get myRooms => List.unmodifiable(_myRooms);
   Room? get currentRoom => _currentRoom;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;

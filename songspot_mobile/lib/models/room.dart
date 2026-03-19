@@ -143,16 +143,20 @@ class Room extends Equatable {
       roomCode: json['room_code'] as String,
       name: json['name'] as String?,
       hostUser: User.fromJson(json['host_user'] as Map<String, dynamic>),
-      users: (json['users'] as List)
-          .map((u) => RoomUser.fromJson(u as Map<String, dynamic>))
-          .toList(),
+      users: List.unmodifiable(
+        (json['users'] as List)
+            .map((u) => RoomUser.fromJson(u as Map<String, dynamic>))
+            .toList(),
+      ),
       userCount: json['user_count'] as int,
       activePack: json['active_pack'] != null
           ? SongPack.fromJson(json['active_pack'] as Map<String, dynamic>)
           : null,
-      dailyModes: (json['daily_modes'] as List<dynamic>? ?? const [])
-          .map((item) => RoomDailyMode.fromJson(item as Map<String, dynamic>))
-          .toList(),
+      dailyModes: List.unmodifiable(
+        (json['daily_modes'] as List<dynamic>? ?? const [])
+            .map((item) => RoomDailyMode.fromJson(item as Map<String, dynamic>))
+            .toList(),
+      ),
       createdAt: DateTime.parse(json['created_at'] as String),
     );
   }
@@ -174,10 +178,10 @@ class Room extends Equatable {
       roomCode: roomCode ?? this.roomCode,
       name: name ?? this.name,
       hostUser: hostUser ?? this.hostUser,
-      users: users ?? this.users,
+      users: List.unmodifiable(users ?? this.users),
       userCount: userCount ?? this.userCount,
       activePack: clearActivePack ? null : (activePack ?? this.activePack),
-      dailyModes: dailyModes ?? this.dailyModes,
+      dailyModes: List.unmodifiable(dailyModes ?? this.dailyModes),
       createdAt: createdAt ?? this.createdAt,
     );
   }
