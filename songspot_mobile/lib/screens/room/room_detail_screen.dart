@@ -9,6 +9,7 @@ import '../../l10n/app_localizations.dart';
 import '../../models/pack.dart';
 import '../../models/room.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/game_provider.dart';
 import '../../providers/pack_provider.dart';
 import '../../providers/room_provider.dart';
 import '../../services/api_service.dart';
@@ -180,11 +181,13 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
     );
 
     if (confirmed == true && mounted) {
-      final success = await context.read<RoomProvider>().leaveRoom(
-        widget.room.id,
-      );
+      final gameProvider = context.read<GameProvider>();
+      final roomProvider = context.read<RoomProvider>();
+      final navigator = Navigator.of(context);
+      await gameProvider.stopPlayback();
+      final success = await roomProvider.leaveRoom(widget.room.id);
       if (success && mounted) {
-        Navigator.of(context).pop();
+        navigator.pop(true);
       }
     }
   }

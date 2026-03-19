@@ -134,7 +134,10 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     _skipFeedbackTimer?.cancel();
     _roomModeSubscription?.cancel();
     _gameProvider.removeListener(_handleGameProviderUpdate);
+    unawaited(_gameProvider.stopPlayback());
     _gameProvider.disconnectFromChat();
+    _previewPlaybackRequestId += 1;
+    unawaited(_previewAudioService.stop());
     _titleController.dispose();
     _messageController.dispose();
     _contentScrollController.dispose();
@@ -152,16 +155,21 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       case AppLifecycleState.hidden:
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
-        unawaited(_gameProvider.audioService.stop());
-        _previewPlaybackRequestId += 1;
-        unawaited(_previewAudioService.stop());
-        if (_isPreviewPlaying) {
-          setState(() {
-            _isPreviewPlaying = false;
-            _previewTrackId = null;
-          });
-        }
+        unawaited(_stopAllPlayback());
         break;
+    }
+  }
+
+  Future<void> _stopAllPlayback() async {
+    await _gameProvider.stopPlayback();
+    _previewPlaybackRequestId += 1;
+    await _previewAudioService.stop();
+    if (!mounted) return;
+    if (_isPreviewPlaying || _previewTrackId != null) {
+      setState(() {
+        _isPreviewPlaying = false;
+        _previewTrackId = null;
+      });
     }
   }
 
@@ -491,6 +499,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   }
 
   Future<bool> _onWillPop() async {
+    await _stopAllPlayback();
     return true;
   }
 
@@ -981,13 +990,22 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     final room = context.read<RoomProvider>().currentRoom;
     if (room == null) return;
 
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => RoomDetailScreen(room: room, showPlayButton: false),
-      ),
-    );
+    final leftRoom =
+        await Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            builder: (_) => RoomDetailScreen(room: room, showPlayButton: false),
+          ),
+        ) ??
+        false;
 
     if (!mounted) return;
+    if (leftRoom) {
+      await _stopAllPlayback();
+      if (mounted) {
+        Navigator.of(context).pop(true);
+      }
+      return;
+    }
     await context.read<RoomProvider>().loadRoomDetails(widget.roomId);
   }
 

@@ -212,6 +212,41 @@ void main() {
     },
   );
 
+  test('skipSnippet stops active playback before advancing', () async {
+    apiService.startSessionResponses[mixMode] = _sessionJson(
+      sessionId: 'session-mix',
+      mode: mixMode,
+      date: activeGameDate,
+      currentSnippet: 2,
+    );
+    apiService.skipResponse = {'current_snippet': 3};
+
+    await provider.startGameSession(roomId, mode: mixMode);
+    await provider.skipSnippet(roomId, mode: mixMode);
+
+    expect(audioService.stopCallCount, 1);
+    expect(provider.currentSession?.currentSnippet, 3);
+  });
+
+  test('startGameSession does not wait for audio preload to finish', () async {
+    apiService.startSessionResponses[mixMode] = _sessionJson(
+      sessionId: 'session-mix',
+      mode: mixMode,
+      date: activeGameDate,
+      currentSnippet: 1,
+    );
+    audioService.pendingLoad = Completer<void>();
+
+    await provider
+        .startGameSession(roomId, mode: mixMode)
+        .timeout(const Duration(milliseconds: 100));
+
+    expect(provider.currentSession?.id, 'session-mix');
+    expect(audioService.lastLoadedUrl, 'https://example.com/preview.mp3');
+
+    audioService.pendingLoad?.complete();
+  });
+
   test(
     'startGameSession(clearVisibleState: false) keeps the current session visible',
     () async {
@@ -354,14 +389,22 @@ class FakeApiService extends ApiService {
 
 class FakeAudioService extends AudioService {
   String? lastLoadedUrl;
+  Completer<void>? pendingLoad;
+  int stopCallCount = 0;
 
   @override
   Future<void> loadAudio(String url) async {
     lastLoadedUrl = url;
+    final completer = pendingLoad;
+    if (completer != null) {
+      await completer.future;
+    }
   }
 
   @override
-  Future<void> stop({bool cancelTimer = true}) async {}
+  Future<void> stop({bool cancelTimer = true}) async {
+    stopCallCount += 1;
+  }
 
   @override
   Future<void> dispose() async {}

@@ -101,7 +101,9 @@ class GameSession extends Equatable {
           ? DateTime.parse(json['completed_at'] as String)
           : null,
       createdAt: DateTime.parse(json['created_at'] as String),
-      hintsUsed: List<String>.from(json['hints_used'] as List? ?? []),
+      hintsUsed: List.unmodifiable(
+        List<String>.from(json['hints_used'] as List? ?? const []),
+      ),
     );
   }
 
@@ -143,7 +145,7 @@ class GameSession extends Equatable {
       pointsEarned: pointsEarned ?? this.pointsEarned,
       completedAt: clearCompletedAt ? null : (completedAt ?? this.completedAt),
       createdAt: createdAt ?? this.createdAt,
-      hintsUsed: hintsUsed ?? this.hintsUsed,
+      hintsUsed: List.unmodifiable(hintsUsed ?? this.hintsUsed),
     );
   }
 
