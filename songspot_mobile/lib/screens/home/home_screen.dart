@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../main.dart' show routeObserver;
 import '../../providers/auth_provider.dart';
 import '../../providers/stats_provider.dart';
 import '../game/category_select_screen.dart';
@@ -13,13 +14,31 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with RouteAware {
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<StatsProvider>().loadStats();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    routeObserver.subscribe(this, ModalRoute.of(context)!);
+  }
+
+  @override
+  void dispose() {
+    routeObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  @override
+  void didPopNext() {
+    // Called when a route above this one is popped (user navigates back here).
+    context.read<StatsProvider>().loadStats();
   }
 
   @override
@@ -120,7 +139,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildStatsBanner(BuildContext context, StatsProvider stats) {
-    if (stats.isLoadingStats) return const SizedBox.shrink();
+    if (stats.isLoadingStats) return _buildStatsBannerSkeleton();
     final best = stats.userBest;
     if (best.totalSongsPlayed == 0) return const SizedBox.shrink();
     return Container(
@@ -140,6 +159,37 @@ class _HomeScreenState extends State<HomeScreen> {
           _buildStat('Songs', best.totalSongsPlayed.toString()),
         ],
       ),
+    );
+  }
+
+  Widget _buildStatsBannerSkeleton() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        gradient: AppTheme.cardGradient,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildSkeletonStat(),
+          _buildStatDivider(),
+          _buildSkeletonStat(),
+          _buildStatDivider(),
+          _buildSkeletonStat(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSkeletonStat() {
+    return Column(
+      children: [
+        _SkeletonBox(width: 48, height: 20),
+        const SizedBox(height: 6),
+        _SkeletonBox(width: 36, height: 10),
+      ],
     );
   }
 
@@ -263,6 +313,55 @@ class _HomeScreenState extends State<HomeScreen> {
         style: TextStyle(
           color: AppTheme.textSecondary.withOpacity(0.5),
           fontSize: 11,
+        ),
+      ),
+    );
+  }
+}
+
+class _SkeletonBox extends StatefulWidget {
+  final double width;
+  final double height;
+
+  const _SkeletonBox({required this.width, required this.height});
+
+  @override
+  State<_SkeletonBox> createState() => _SkeletonBoxState();
+}
+
+class _SkeletonBoxState extends State<_SkeletonBox>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 900),
+      vsync: this,
+    )..repeat(reverse: true);
+    _anim = Tween<double>(begin: 0.25, end: 0.6).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, __) => Container(
+        width: widget.width,
+        height: widget.height,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(_anim.value),
+          borderRadius: BorderRadius.circular(4),
         ),
       ),
     );

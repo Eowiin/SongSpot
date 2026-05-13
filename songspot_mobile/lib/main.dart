@@ -18,6 +18,7 @@ import 'services/consent_service.dart';
 import 'services/push_notification_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+final RouteObserver<ModalRoute<void>> routeObserver = RouteObserver<ModalRoute<void>>();
 
 Future<void> main() async {
   await SentryFlutter.init(
@@ -99,6 +100,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         builder: (context, settings, _) {
           return MaterialApp(
             navigatorKey: navigatorKey,
+            navigatorObservers: [routeObserver],
             onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
             debugShowCheckedModeBanner: false,
             locale: settings.locale,

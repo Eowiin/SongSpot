@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../config/app_theme.dart';
 import '../../models/category.dart';
+import '../../providers/game_session_provider.dart';
 import '../../services/api_service.dart';
 import 'game_screen.dart';
 
@@ -137,19 +138,209 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
     }
   }
 
-  void _startWithCategory(Category category) {
+  Future<void> _startWithCategory(Category category) async {
+    final difficulty = await _showPreGameModal(
+      title: category.name,
+      subtitle: '${category.trackCount} songs',
+    );
+    if (difficulty == null || !mounted) return;
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => GameScreen(category: category)),
+      MaterialPageRoute(
+        builder: (_) => GameScreen(category: category, difficulty: difficulty),
+      ),
     );
   }
 
-  void _startWithArtist(String artist) {
+  Future<void> _startWithArtist(String artist) async {
+    final difficulty = await _showPreGameModal(title: artist);
+    if (difficulty == null || !mounted) return;
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => GameScreen(artistFilter: artist)),
+      MaterialPageRoute(
+        builder: (_) => GameScreen(artistFilter: artist, difficulty: difficulty),
+      ),
     );
   }
+
+  Future<Difficulty?> _showPreGameModal({
+    required String title,
+    String? subtitle,
+  }) async {
+    Difficulty selected = Difficulty.medium;
+
+    return showModalBottomSheet<Difficulty>(
+      context: context,
+      backgroundColor: AppTheme.surfaceColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 36),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Handle
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                // Title
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 4),
+                  Text(subtitle,
+                      style: const TextStyle(
+                          color: AppTheme.textSecondary, fontSize: 14)),
+                ],
+                const SizedBox(height: 24),
+                const Text(
+                  'DIFFICULTY',
+                  style: TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Difficulty options
+                ...Difficulty.values.map((d) {
+                  final isSelected = selected == d;
+                  final color = _difficultyColor(d);
+                  return GestureDetector(
+                    onTap: () => setModalState(() => selected = d),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? color.withOpacity(0.12)
+                            : Colors.white.withOpacity(0.04),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: isSelected
+                              ? color.withOpacity(0.6)
+                              : Colors.white.withOpacity(0.08),
+                          width: isSelected ? 1.5 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            isSelected
+                                ? Icons.radio_button_checked_rounded
+                                : Icons.radio_button_off_rounded,
+                            color: isSelected ? color : AppTheme.textSecondary,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  d.label,
+                                  style: TextStyle(
+                                    color: isSelected
+                                        ? AppTheme.textPrimary
+                                        : AppTheme.textSecondary,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w700
+                                        : FontWeight.w400,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                                Text(
+                                  _difficultyDescription(d),
+                                  style: TextStyle(
+                                    color: isSelected
+                                        ? color
+                                        : AppTheme.textSecondary
+                                            .withOpacity(0.5),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            _difficultyMultiplier(d),
+                            style: TextStyle(
+                              color: isSelected ? color : AppTheme.textSecondary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, selected),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                      elevation: 0,
+                    ),
+                    child: const Text(
+                      'Start Run',
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Color _difficultyColor(Difficulty d) => switch (d) {
+        Difficulty.easy => const Color(0xFF4CAF50),
+        Difficulty.medium => const Color(0xFFFF9800),
+        Difficulty.hard => const Color(0xFFE53935),
+      };
+
+  String _difficultyDescription(Difficulty d) => switch (d) {
+        Difficulty.easy => '15 second snippet',
+        Difficulty.medium => '5 second snippet',
+        Difficulty.hard => '1 second snippet',
+      };
+
+  String _difficultyMultiplier(Difficulty d) => switch (d) {
+        Difficulty.easy => '×1.0',
+        Difficulty.medium => '×1.5',
+        Difficulty.hard => '×2.0',
+      };
 
   @override
   Widget build(BuildContext context) {

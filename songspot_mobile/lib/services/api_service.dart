@@ -368,6 +368,7 @@ class ApiService {
   Future<Map<String, dynamic>> submitScore({
     String? genre,
     String artistFilter = '',
+    String difficulty = 'medium',
     required int songsPlayed,
     required int songsCorrect,
     required int bestStreak,
@@ -376,6 +377,7 @@ class ApiService {
     return await post(ApiConfig.submitScore, includeAuth: true, body: {
       if (genre != null && genre.isNotEmpty) 'genre': genre,
       'artist_filter': artistFilter,
+      'difficulty': difficulty,
       'songs_played': songsPlayed,
       'songs_correct': songsCorrect,
       'best_streak': bestStreak,

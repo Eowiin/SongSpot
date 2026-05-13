@@ -10,8 +10,14 @@ import 'session_end_screen.dart';
 class GameScreen extends StatefulWidget {
   final Category? category;
   final String? artistFilter;
+  final Difficulty difficulty;
 
-  const GameScreen({super.key, this.category, this.artistFilter});
+  const GameScreen({
+    super.key,
+    this.category,
+    this.artistFilter,
+    this.difficulty = Difficulty.medium,
+  });
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -22,6 +28,8 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   final FocusNode _guessFocus = FocusNode();
   late AnimationController _revealAnimController;
   late Animation<double> _revealAnim;
+  // Cached to avoid context.read() in dispose() on a deactivated widget.
+  GameSessionProvider? _provider;
 
   @override
   void initState() {
@@ -33,33 +41,44 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     _revealAnim = CurvedAnimation(parent: _revealAnimController, curve: Curves.easeOut);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final provider = context.read<GameSessionProvider>();
-      provider.startSession(
+      if (!mounted) return;
+      _provider = context.read<GameSessionProvider>();
+      _provider!.startSession(
         category: widget.category,
         artistFilter: widget.artistFilter,
+        difficulty: widget.difficulty,
       );
-      provider.loadNextSong();
+      _provider!.loadNextSong();
+      _provider!.addListener(_onProviderChanged);
     });
   }
 
   @override
   void dispose() {
+    _provider?.removeListener(_onProviderChanged);
     _guessController.dispose();
     _guessFocus.dispose();
     _revealAnimController.dispose();
     super.dispose();
   }
 
+  void _onProviderChanged() {
+    if (_provider?.endReason == SessionEndReason.poolCleared && mounted) {
+      _endSession(reason: SessionEndReason.poolCleared);
+    }
+  }
+
   Future<void> _nextSong() async {
     _revealAnimController.reset();
     _guessController.clear();
     _guessFocus.unfocus();
-    await context.read<GameSessionProvider>().loadNextSong();
+    await _provider?.loadNextSong();
   }
 
-  Future<void> _endSession() async {
+  Future<void> _endSession({SessionEndReason reason = SessionEndReason.quit}) async {
     _guessFocus.unfocus();
-    final provider = context.read<GameSessionProvider>();
+    final provider = _provider;
+    if (provider == null) return;
     final score = await provider.endSession();
     if (!mounted) return;
     Navigator.pushReplacement(
@@ -73,6 +92,8 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
           totalScore: provider.totalScore,
           category: widget.category,
           artistFilter: widget.artistFilter,
+          difficulty: widget.difficulty,
+          endReason: reason,
         ),
       ),
     );
@@ -131,32 +152,49 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
               ],
             ),
           );
-          if (confirmed == true) _endSession();
+          if (confirmed == true) _endSession(reason: SessionEndReason.quit);
         },
       ),
       title: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Lives (hearts)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(3, (i) => Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 1),
+              child: Icon(
+                i < provider.livesRemaining
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
+                color: i < provider.livesRemaining
+                    ? const Color(0xFFE53935)
+                    : AppTheme.textSecondary,
+                size: 18,
+              ),
+            )),
+          ),
+          const SizedBox(width: 14),
           const Icon(Icons.local_fire_department_rounded,
-              color: Color(0xFFFF6B35), size: 20),
-          const SizedBox(width: 4),
+              color: Color(0xFFFF6B35), size: 18),
+          const SizedBox(width: 3),
           Text(
             '${provider.currentStreak}',
             style: const TextStyle(
               color: AppTheme.textPrimary,
               fontWeight: FontWeight.bold,
-              fontSize: 18,
+              fontSize: 16,
             ),
           ),
-          const SizedBox(width: 16),
-          const Icon(Icons.star_rounded, color: AppTheme.primaryColor, size: 18),
-          const SizedBox(width: 4),
+          const SizedBox(width: 12),
+          const Icon(Icons.star_rounded, color: AppTheme.primaryColor, size: 16),
+          const SizedBox(width: 3),
           Text(
             '${provider.totalScore}',
             style: const TextStyle(
               color: AppTheme.textPrimary,
               fontWeight: FontWeight.bold,
-              fontSize: 18,
+              fontSize: 16,
             ),
           ),
         ],
@@ -302,7 +340,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  provider.isPlaying ? 'Playing...' : 'Play',
+                  provider.isPlaying ? 'Playing...' : 'Play ${_snippetLabel(provider.difficulty)}',
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -316,6 +354,12 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
       ],
     );
   }
+
+  String _snippetLabel(Difficulty d) => switch (d) {
+        Difficulty.easy => '15s',
+        Difficulty.medium => '5s',
+        Difficulty.hard => '1s',
+      };
 
   Widget _buildGuessInput(GameSessionProvider provider) {
     return TextField(
@@ -524,6 +568,8 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   }
 
   Widget _buildBottomBar(GameSessionProvider provider) {
+    final isGameOver = provider.endReason == SessionEndReason.outOfLives;
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       decoration: BoxDecoration(
@@ -535,9 +581,13 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
       child: SizedBox(
         width: double.infinity,
         child: ElevatedButton(
-          onPressed: provider.isLoadingTrack ? null : _nextSong,
+          onPressed: provider.isLoadingTrack
+              ? null
+              : isGameOver
+                  ? () => _endSession(reason: SessionEndReason.outOfLives)
+                  : _nextSong,
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.primaryColor,
+            backgroundColor: isGameOver ? const Color(0xFFE53935) : AppTheme.primaryColor,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -549,12 +599,18 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                   height: 20,
                   child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                 )
-              : const Row(
+              : Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('Next', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    SizedBox(width: 6),
-                    Icon(Icons.arrow_forward_rounded, size: 18),
+                    Text(
+                      isGameOver ? 'See Results' : 'Next',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    const SizedBox(width: 6),
+                    Icon(
+                      isGameOver ? Icons.emoji_events_rounded : Icons.arrow_forward_rounded,
+                      size: 18,
+                    ),
                   ],
                 ),
         ),

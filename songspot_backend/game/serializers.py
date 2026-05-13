@@ -23,6 +23,7 @@ class TrackSearchSerializer(serializers.ModelSerializer):
 class GameScoreSubmitSerializer(serializers.Serializer):
     genre = serializers.CharField(required=False, allow_blank=True, default='')
     artist_filter = serializers.CharField(required=False, allow_blank=True, default='')
+    difficulty = serializers.ChoiceField(choices=['easy', 'medium', 'hard'], default='medium')
     songs_played = serializers.IntegerField(min_value=0)
     songs_correct = serializers.IntegerField(min_value=0)
     best_streak = serializers.IntegerField(min_value=0)
@@ -33,7 +34,7 @@ class GameScoreSerializer(serializers.ModelSerializer):
     class Meta:
         model = GameScore
         fields = (
-            'id', 'genre', 'artist_filter',
+            'id', 'genre', 'artist_filter', 'difficulty',
             'songs_played', 'songs_correct', 'best_streak', 'total_score', 'played_at',
         )
         read_only_fields = fields

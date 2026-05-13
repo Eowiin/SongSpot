@@ -200,6 +200,7 @@ class SubmitScoreView(APIView):
                 user=request.user,
                 genre=data.get('genre') or None,
                 artist_filter=data.get('artist_filter', ''),
+                difficulty=data.get('difficulty', 'medium'),
                 songs_played=data['songs_played'],
                 songs_correct=data['songs_correct'],
                 best_streak=data['best_streak'],

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../config/app_theme.dart';
 import '../../models/category.dart';
 import '../../models/game_score.dart';
+import '../../providers/game_session_provider.dart';
 import 'category_select_screen.dart';
 import 'game_screen.dart';
 
@@ -13,6 +14,8 @@ class SessionEndScreen extends StatelessWidget {
   final int totalScore;
   final Category? category;
   final String? artistFilter;
+  final Difficulty difficulty;
+  final SessionEndReason endReason;
 
   const SessionEndScreen({
     super.key,
@@ -23,6 +26,8 @@ class SessionEndScreen extends StatelessWidget {
     required this.totalScore,
     this.category,
     this.artistFilter,
+    this.difficulty = Difficulty.medium,
+    this.endReason = SessionEndReason.quit,
   });
 
   double get _accuracy =>
@@ -41,8 +46,8 @@ class SessionEndScreen extends StatelessWidget {
               _buildTitle(),
               const SizedBox(height: 32),
               _buildStatsCard(),
-              const SizedBox(height: 32),
-              _buildPersonalBestBadge(),
+              const SizedBox(height: 16),
+              _buildBadgesRow(),
               const Spacer(),
               _buildActions(context),
               const SizedBox(height: 32),
@@ -57,18 +62,27 @@ class SessionEndScreen extends StatelessWidget {
     final String emoji;
     final String headline;
 
-    if (songsPlayed == 0) {
-      emoji = '🎵';
-      headline = 'Session ended';
-    } else if (_accuracy >= 80) {
-      emoji = '🔥';
-      headline = 'On fire!';
-    } else if (_accuracy >= 50) {
-      emoji = '🎯';
-      headline = 'Nice run!';
-    } else {
-      emoji = '🎵';
-      headline = 'Good try!';
+    switch (endReason) {
+      case SessionEndReason.poolCleared:
+        emoji = '🏆';
+        headline = 'You cleared it!';
+      case SessionEndReason.outOfLives:
+        emoji = '💀';
+        headline = 'Out of lives!';
+      case SessionEndReason.quit:
+        if (songsPlayed == 0) {
+          emoji = '🎵';
+          headline = 'Session ended';
+        } else if (_accuracy >= 80) {
+          emoji = '🔥';
+          headline = 'On fire!';
+        } else if (_accuracy >= 50) {
+          emoji = '🎯';
+          headline = 'Nice run!';
+        } else {
+          emoji = '🎵';
+          headline = 'Good try!';
+        }
     }
 
     return Column(
@@ -146,28 +160,45 @@ class SessionEndScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPersonalBestBadge() {
-    if (score == null) return const SizedBox.shrink();
+  Widget _buildBadgesRow() {
+    final diffColor = _difficultyColor(difficulty);
+    final multiplierText = '×${difficulty.scoreMultiplier.toStringAsFixed(1)}';
 
-    // Check if any field is a personal best by comparing to score if available
-    // The backend updates UserBest and returns the GameScore — we show a badge
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _buildChip(
+          label: difficulty.label,
+          sublabel: multiplierText,
+          color: diffColor,
+          icon: Icons.tune_rounded,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChip({
+    required String label,
+    required String sublabel,
+    required Color color,
+    required IconData icon,
+  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: AppTheme.primaryColor.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.primaryColor.withOpacity(0.3)),
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.emoji_events_rounded,
-              color: AppTheme.primaryColor, size: 18),
-          const SizedBox(width: 8),
-          const Text(
-            'Score submitted to leaderboard',
+          Icon(icon, color: color, size: 14),
+          const SizedBox(width: 6),
+          Text(
+            '$label  $sublabel',
             style: TextStyle(
-              color: AppTheme.primaryColor,
+              color: color,
               fontWeight: FontWeight.w600,
               fontSize: 13,
             ),
@@ -176,6 +207,12 @@ class SessionEndScreen extends StatelessWidget {
       ),
     );
   }
+
+  Color _difficultyColor(Difficulty d) => switch (d) {
+        Difficulty.easy => const Color(0xFF4CAF50),
+        Difficulty.medium => const Color(0xFFFF9800),
+        Difficulty.hard => const Color(0xFFE53935),
+      };
 
   Widget _buildActions(BuildContext context) {
     return Column(
@@ -190,6 +227,7 @@ class SessionEndScreen extends StatelessWidget {
                   builder: (_) => GameScreen(
                     category: category,
                     artistFilter: artistFilter,
+                    difficulty: difficulty,
                   ),
                 ),
               );

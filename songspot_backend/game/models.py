@@ -161,6 +161,8 @@ class GameScore(models.Model):
         max_length=255, blank=True,
         help_text='Artist name when session was artist-scoped'
     )
+    DIFFICULTY_CHOICES = [('easy', 'Easy'), ('medium', 'Medium'), ('hard', 'Hard')]
+    difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES, default='medium')
     songs_played = models.PositiveIntegerField(default=0)
     songs_correct = models.PositiveIntegerField(default=0)
     best_streak = models.PositiveIntegerField(default=0)

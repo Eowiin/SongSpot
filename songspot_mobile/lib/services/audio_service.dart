@@ -39,18 +39,19 @@ class AudioService {
     }
   }
 
-  /// Play exactly 1 second of audio (frame-accurate via setClip, no wall-clock timer).
+  /// Play a snippet of audio up to [duration] (frame-accurate via setClip, no wall-clock timer).
   /// setClip is re-applied on every call to reset the player from any completed state.
   /// We wait for processingState.completed rather than awaiting play() directly,
   /// because play() resolves as soon as playback starts, not when it ends.
-  Future<void> playOneSecond({
+  Future<void> playSnippet({
+    Duration duration = const Duration(seconds: 1),
     void Function()? onPlaybackStopped,
   }) async {
     final requestId = ++_playbackRequestId;
     try {
       await _player.setClip(
         start: Duration.zero,
-        end: const Duration(seconds: 1),
+        end: duration,
       );
       if (requestId != _playbackRequestId) return;
 
@@ -59,10 +60,11 @@ class AudioService {
       // this immediately rather than hanging until the 5s timeout.
       // Safe to include idle here because setClip is already awaited above —
       // we won't catch the transient idle emitted during clip setup.
+      // Timeout = snippet length + 5s buffer so longer snippets (Easy: 15s) don't time out mid-play.
       final doneFuture = _player.processingStateStream
           .firstWhere((s) =>
               s == ProcessingState.completed || s == ProcessingState.idle)
-          .timeout(const Duration(seconds: 5));
+          .timeout(duration + const Duration(seconds: 5));
 
       _setPlaying(true);
       _player.play(); // intentionally not awaited

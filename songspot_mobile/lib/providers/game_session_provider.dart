@@ -8,6 +8,36 @@ import '../services/audio_service.dart';
 
 enum GuessResult { correct, wrong, none }
 
+enum Difficulty { easy, medium, hard }
+
+extension DifficultyExt on Difficulty {
+  Duration get snippetDuration => switch (this) {
+        Difficulty.easy => const Duration(seconds: 15),
+        Difficulty.medium => const Duration(seconds: 5),
+        Difficulty.hard => const Duration(seconds: 1),
+      };
+
+  double get scoreMultiplier => switch (this) {
+        Difficulty.easy => 1.0,
+        Difficulty.medium => 1.5,
+        Difficulty.hard => 2.0,
+      };
+
+  String get label => switch (this) {
+        Difficulty.easy => 'Easy',
+        Difficulty.medium => 'Medium',
+        Difficulty.hard => 'Hard',
+      };
+
+  String get name => switch (this) {
+        Difficulty.easy => 'easy',
+        Difficulty.medium => 'medium',
+        Difficulty.hard => 'hard',
+      };
+}
+
+enum SessionEndReason { outOfLives, poolCleared, quit }
+
 class GameSessionProvider extends ChangeNotifier {
   final ApiService _api = ApiService();
   final AudioService _audio = AudioService();
@@ -15,6 +45,7 @@ class GameSessionProvider extends ChangeNotifier {
   // Session config
   app_models.Category? _category;
   String? _artistFilter;
+  Difficulty _difficulty = Difficulty.medium;
 
   // Current track
   Track? _currentTrack;
@@ -27,6 +58,12 @@ class GameSessionProvider extends ChangeNotifier {
   // Guess state
   GuessResult _lastGuessResult = GuessResult.none;
   bool _revealAnswer = false;
+
+  // Lives
+  int _livesRemaining = 3;
+
+  // Session end reason (null = still playing)
+  SessionEndReason? _endReason;
 
   // Session stats (in memory, submitted at end)
   int _songsPlayed = 0;
@@ -44,12 +81,15 @@ class GameSessionProvider extends ChangeNotifier {
   // Getters
   app_models.Category? get category => _category;
   String? get artistFilter => _artistFilter;
+  Difficulty get difficulty => _difficulty;
   Track? get currentTrack => _currentTrack;
   bool get isLoadingTrack => _isLoadingTrack;
   String? get trackError => _trackError;
   bool get isPlaying => _isPlaying;
   GuessResult get lastGuessResult => _lastGuessResult;
   bool get revealAnswer => _revealAnswer;
+  int get livesRemaining => _livesRemaining;
+  SessionEndReason? get endReason => _endReason;
   int get songsPlayed => _songsPlayed;
   int get songsCorrect => _songsCorrect;
   int get currentStreak => _currentStreak;
@@ -70,19 +110,26 @@ class GameSessionProvider extends ChangeNotifier {
     if (_currentStreak > 0 && (_currentStreak + 1) % _streakBonusEvery == 0) {
       pts += _streakBonusPoints;
     }
-    return pts;
+    return (pts * _difficulty.scoreMultiplier).round();
   }
 
   // ── Session lifecycle ────────────────────────────────────────────────────
 
-  void startSession({app_models.Category? category, String? artistFilter}) {
+  void startSession({
+    app_models.Category? category,
+    String? artistFilter,
+    Difficulty difficulty = Difficulty.medium,
+  }) {
     _category = category;
     _artistFilter = artistFilter;
+    _difficulty = difficulty;
     _songsPlayed = 0;
     _songsCorrect = 0;
     _currentStreak = 0;
     _bestStreak = 0;
     _totalScore = 0;
+    _livesRemaining = 3;
+    _endReason = null;
     _seenTrackIds.clear();
     _currentTrack = null;
     _lastGuessResult = GuessResult.none;
@@ -112,7 +159,14 @@ class GameSessionProvider extends ChangeNotifier {
         await _loadAudioWithRetry(_currentTrack!.previewUrl!, _currentTrack!.id);
       }
     } catch (e) {
-      _trackError = e.toString();
+      final msg = e.toString();
+      // 404 = pool exhausted — the user has heard every available song
+      if (msg.contains('404') || msg.contains('Not found') || msg.contains('No tracks')) {
+        _endReason = SessionEndReason.poolCleared;
+        _currentTrack = null;
+      } else {
+        _trackError = msg;
+      }
     } finally {
       _isLoadingTrack = false;
       notifyListeners();
@@ -152,7 +206,8 @@ class GameSessionProvider extends ChangeNotifier {
     _isPlaying = true;
     notifyListeners();
     try {
-      await _audio.playOneSecond(
+      await _audio.playSnippet(
+        duration: _difficulty.snippetDuration,
         onPlaybackStopped: () {
           _isPlaying = false;
           notifyListeners();
@@ -176,6 +231,9 @@ class GameSessionProvider extends ChangeNotifier {
   void submitGuess(Track guessedTrack) {
     if (_currentTrack == null || _revealAnswer) return;
 
+    _audio.stop();
+    _isPlaying = false;
+
     final isCorrect = guessedTrack.id == _currentTrack!.id;
     _songsPlayed++;
     _lastGuessResult = isCorrect ? GuessResult.correct : GuessResult.wrong;
@@ -190,6 +248,11 @@ class GameSessionProvider extends ChangeNotifier {
       if (_currentStreak > _bestStreak) _bestStreak = _currentStreak;
     } else {
       _currentStreak = 0;
+      _livesRemaining--;
+      if (_livesRemaining <= 0) {
+        _livesRemaining = 0;
+        _endReason = SessionEndReason.outOfLives;
+      }
     }
 
     notifyListeners();
@@ -197,11 +260,20 @@ class GameSessionProvider extends ChangeNotifier {
 
   void giveUp() {
     if (_currentTrack == null || _revealAnswer) return;
+
+    _audio.stop();
+    _isPlaying = false;
+
     _songsPlayed++;
     _lastGuessResult = GuessResult.wrong;
     _revealAnswer = true;
     _currentStreak = 0;
     _searchResults = [];
+    _livesRemaining--;
+    if (_livesRemaining <= 0) {
+      _livesRemaining = 0;
+      _endReason = SessionEndReason.outOfLives;
+    }
     notifyListeners();
   }
 
@@ -248,6 +320,7 @@ class GameSessionProvider extends ChangeNotifier {
       final data = await _api.submitScore(
         genre: _category?.id,
         artistFilter: _artistFilter ?? '',
+        difficulty: _difficulty.name,
         songsPlayed: _songsPlayed,
         songsCorrect: _songsCorrect,
         bestStreak: _bestStreak,
