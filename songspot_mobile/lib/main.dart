@@ -21,25 +21,30 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 final RouteObserver<ModalRoute<void>> routeObserver = RouteObserver<ModalRoute<void>>();
 
 Future<void> main() async {
-  await SentryFlutter.init(
-    (options) {
-      options.dsn = const String.fromEnvironment(
-        'SENTRY_DSN',
-        defaultValue: '',
-      );
-      options.environment = const String.fromEnvironment(
-        'SENTRY_ENVIRONMENT',
-        defaultValue: 'development',
-      );
-      options.tracesSampleRate = 0.1;
-      options.beforeSend = (event, hint) => kDebugMode ? null : event;
-    },
-    appRunner: () async {
-      await dotenv.load(fileName: '.env');
-      runApp(const MyApp());
-      unawaited(_initializeServices());
-    },
-  );
+  const sentryDsn = String.fromEnvironment('SENTRY_DSN');
+
+  if (sentryDsn.isNotEmpty) {
+    await SentryFlutter.init(
+      (options) {
+        options.dsn = sentryDsn;
+        options.environment = const String.fromEnvironment(
+          'SENTRY_ENVIRONMENT',
+          defaultValue: 'development',
+        );
+        options.tracesSampleRate = 0.1;
+        options.beforeSend = (event, hint) => kDebugMode ? null : event;
+      },
+      appRunner: () async {
+        await dotenv.load(fileName: '.env');
+        runApp(const MyApp());
+        unawaited(_initializeServices());
+      },
+    );
+  } else {
+    await dotenv.load(fileName: '.env');
+    runApp(const MyApp());
+    unawaited(_initializeServices());
+  }
 }
 
 Future<void> _initializeServices() async {
