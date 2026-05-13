@@ -88,7 +88,7 @@ class _MyDataScreenState extends State<MyDataScreen> {
 
     try {
       final apiService = ApiService();
-      await apiService.deleteAccount(password: password);
+      await apiService.deleteAccount();
 
       if (!mounted) return;
       await context.read<AuthProvider>().logout();

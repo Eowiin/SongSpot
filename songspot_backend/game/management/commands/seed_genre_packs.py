@@ -226,13 +226,6 @@ class Command(BaseCommand):
             action='store_true',
             help='Print all Deezer genre IDs and exit (useful to verify CATEGORY_MAP)',
         )
-        parser.add_argument(
-            '--price-coins',
-            type=int,
-            default=1000,
-            help='Price of each created pack in coins (default: 1000)',
-        )
-
     def handle(self, *args, **options):
         deezer = DeezerService()
 
@@ -244,7 +237,6 @@ class Command(BaseCommand):
         count_per_pack = options['count_per_pack']
         min_rank = options['min_rank']
         max_per_artist = options['max_per_artist']
-        price_coins = options['price_coins']
 
         for category_key in categories:
             config = CATEGORY_MAP.get(category_key)
@@ -253,10 +245,10 @@ class Command(BaseCommand):
                 continue
             self._seed_category(
                 deezer, category_key, config,
-                count_per_pack, min_rank, max_per_artist, price_coins,
+                count_per_pack, min_rank, max_per_artist,
             )
 
-    def _seed_category(self, deezer, category_key, config, count_per_pack, min_rank, max_per_artist, price_coins):
+    def _seed_category(self, deezer, category_key, config, count_per_pack, min_rank, max_per_artist):
         category_name = config['name']
         genre_id = config.get('genre_id')
         search_queries = config.get('search_queries', [])
@@ -302,10 +294,8 @@ class Command(BaseCommand):
         pack_name = self._pack_name(category_name, existing_packs.count())
         pack = SongPack.objects.create(
             name=pack_name,
-            description=f'{category_name} stem pack.',
+            description=f'{category_name} pack.',
             category=category_key,
-            price_coins=price_coins,
-            auto_unlock=False,
         )
         for order, track in enumerate(selected_tracks, start=1):
             PackTrack.objects.create(pack=pack, track=track, order_in_pack=order)

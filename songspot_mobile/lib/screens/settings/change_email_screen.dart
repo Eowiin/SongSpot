@@ -39,7 +39,6 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
     try {
       final apiService = ApiService();
       await apiService.changeEmail(
-        currentPassword: _passwordController.text.trim(),
         newEmail: _emailController.text.trim().toLowerCase(),
       );
 

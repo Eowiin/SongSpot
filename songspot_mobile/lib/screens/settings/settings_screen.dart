@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:intl/intl.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -9,7 +8,6 @@ import '../../l10n/app_localizations.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/admob_service.dart';
-import '../../services/api_service.dart';
 import '../../services/consent_service.dart';
 import '../auth/login_screen.dart';
 import 'accessibility_screen.dart';
@@ -17,7 +15,6 @@ import 'change_email_screen.dart';
 import 'change_password_screen.dart';
 import 'language_screen.dart';
 import 'my_data_screen.dart';
-import '../shop/coin_shop_screen.dart';
 
 const _kPrivacyPath = '/privacy';
 const _kTermsPath = '/terms';
@@ -30,12 +27,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  static const _noAdsCostCoins = 700;
-  static const _noAdsDurationDays = 30;
-
-  final ApiService _apiService = ApiService();
   String _appVersion = '';
-  bool _isActivatingNoAds = false;
   bool _isOpeningAdConsent = false;
 
   String _buildLegalUrl(String path) {
@@ -106,76 +98,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  String _formatAdFreeUntil(
-    DateTime? value,
-    AppLocalizations l10n,
-  ) {
-    if (value == null) return l10n.settingsNotActive;
-    return DateFormat('yyyy-MM-dd HH:mm').format(value.toLocal());
-  }
-
-  Future<void> _handleActivateNoAds() async {
-    if (_isActivatingNoAds || !mounted) return;
-    final l10n = AppLocalizations.of(context);
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.surfaceColor,
-        title: Text(l10n.settingsNoAdsPassTitle),
-        content: Text(
-          l10n.settingsNoAdsActivationPrompt(
-            _noAdsCostCoins,
-            _noAdsDurationDays,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(l10n.cancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l10n.settingsActivate),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true || !mounted) return;
-
-    setState(() => _isActivatingNoAds = true);
-    try {
-      final response = await _apiService.activateNoAdsPass();
-      if (!mounted) return;
-
-      context.read<AuthProvider>().applyNoAdsPass(
-        coins: response['coins'] as int? ?? 0,
-        adFreeUntilIso: response['ad_free_until'] as String?,
-        hasNoAds: response['has_no_ads'] as bool?,
-      );
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.settingsNoAdsActivated),
-          backgroundColor: AppTheme.successColor,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
-          backgroundColor: AppTheme.errorColor,
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isActivatingNoAds = false);
-      }
-    }
-  }
-
   Future<void> _handleManageAdConsent() async {
     if (_isOpeningAdConsent || !mounted) return;
 
@@ -228,8 +150,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final settings = context.watch<SettingsProvider>();
-    final user = context.watch<AuthProvider>().user;
-    final hasNoAds = user?.hasNoAds ?? false;
+    context.watch<AuthProvider>();
 
     return Scaffold(
       body: Container(
@@ -286,42 +207,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           builder: (_) => const ChangePasswordScreen(),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-
-                    // ── Shop ───────────────────────────────────────────────
-                    _SectionHeader(l10n.settingsSectionShop),
-                    _SettingsTile(
-                      icon: Icons.monetization_on_outlined,
-                      title: l10n.coinShopTitle,
-                      subtitle: l10n.useCoinsToUnlockHint,
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const CoinShopScreen(),
-                        ),
-                      ),
-                    ),
-                    _SettingsTile(
-                      icon: hasNoAds ? Icons.shield_moon : Icons.block,
-                      title: hasNoAds
-                          ? l10n.settingsExtendNoAdsTitle(_noAdsDurationDays)
-                          : l10n.settingsNoAdsTitle(_noAdsDurationDays),
-                      subtitle: hasNoAds
-                          ? l10n.settingsNoAdsActiveUntil(
-                              _formatAdFreeUntil(user?.adFreeUntil, l10n),
-                            )
-                          : l10n.settingsNoAdsSpendHint(
-                              _noAdsCostCoins,
-                              _noAdsDurationDays,
-                            ),
-                      onTap: _isActivatingNoAds ? null : _handleActivateNoAds,
-                      trailing: _isActivatingNoAds
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : null,
                     ),
                     const SizedBox(height: 8),
 

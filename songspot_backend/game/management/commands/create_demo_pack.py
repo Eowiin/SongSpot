@@ -105,11 +105,8 @@ class Command(BaseCommand):
 
         pack = SongPack.objects.create(
             name='Demo Pack',
-            description='Try the stem guessing game for free with iconic songs.',
+            description='Try the game for free with iconic songs.',
             category='pop',
-            price_coins=0,
-            is_free=True,
-            auto_unlock=False,
         )
         for order, track in enumerate(selected, start=1):
             PackTrack.objects.create(pack=pack, track=track, order_in_pack=order)

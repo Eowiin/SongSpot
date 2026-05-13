@@ -1,10 +1,5 @@
 """
-WebSocket URL routing for the game app.
+WebSocket URL routing — reserved for 1v1 real-time battles (Phase 2).
 """
 
-from django.urls import re_path
-from . import consumers
-
-websocket_urlpatterns = [
-    re_path(r'ws/room/(?P<room_id>[0-9a-f-]+)/chat/$', consumers.RoomChatConsumer.as_asgi()),
-]
+websocket_urlpatterns = []

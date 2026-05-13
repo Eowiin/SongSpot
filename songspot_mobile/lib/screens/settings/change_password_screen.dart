@@ -44,7 +44,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       await apiService.changePassword(
         currentPassword: _currentController.text.trim(),
         newPassword: _newController.text.trim(),
-        confirmNewPassword: _confirmController.text.trim(),
       );
 
       if (mounted) {
