@@ -1,1663 +1,643 @@
 from datetime import timedelta
-from unittest.mock import patch
 
-from django.db import IntegrityError
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from authentication.models import User
-from .daily_modes import is_daily_mode_accessible
-from .models import (
-    Track, Room, RoomUser, DailySong, DailyGameSession,
-    GuessAttempt, RoomMessage, SongPack, PackTrack, RoomPack,
-    PackDailyTrack, PackBundleSession, PackBundleMessage,
-    RoomDailyModeState,
-    DAILY_MODE_GENRE,
-    DAILY_MODE_HARDCORE,
-)
-from .views import PACK_BUNDLE_STAGE_ORDER, _active_game_date, _get_daily_pack_track
+from .models import Track, FavouriteArtist, GameScore, UserBest
+
+from django.core.cache import cache
+
+
+def _make_user(username, email=None, password='testpass123'):
+    return User.objects.create_user(
+        username=username,
+        email=email or f'{username}@example.com',
+        password=password,
+    )
+
+
+def _make_track(title='Test Song', artist='Test Artist', genre='pop', preview_url=None):
+    return Track.objects.create(
+        title=title,
+        artist=artist,
+        genre=genre,
+        preview_url=preview_url or 'https://cdn.example.com/preview.mp3',
+    )
+
+
+def _bearer(user):
+    return f'Bearer {str(RefreshToken.for_user(user).access_token)}'
 
 
 class TrackModelTests(TestCase):
-    """Tests for the Track model."""
-
     def test_create_track(self):
-        """Test creating a track."""
-        track = Track.objects.create(
-            title='Test Song',
-            artist='Test Artist',
-            preview_url='https://example.com/preview.mp3'
-        )
+        track = _make_track()
         self.assertEqual(track.title, 'Test Song')
         self.assertEqual(track.artist, 'Test Artist')
         self.assertIsNotNone(track.id)
 
     def test_track_string_representation(self):
-        """Test string representation of track."""
-        track = Track.objects.create(
-            title='Test Song',
-            artist='Test Artist',
-            preview_url='https://example.com/preview.mp3'
-        )
+        track = _make_track()
         self.assertEqual(str(track), 'Test Song - Test Artist')
 
+    def test_optional_fields_nullable(self):
+        track = Track.objects.create(
+            title='Bare Track',
+            artist='Bare Artist',
+            preview_url='https://cdn.example.com/preview.mp3',
+        )
+        self.assertIsNone(track.genre)
+        self.assertIsNone(track.release_year)
+        self.assertIsNone(track.cover_url)
 
-class RoomModelTests(TestCase):
-    """Tests for the Room model."""
+
+class GameScoreModelTests(TestCase):
+    def setUp(self):
+        self.user = _make_user('scorer')
+
+    def test_create_game_score(self):
+        score = GameScore.objects.create(
+            user=self.user,
+            songs_played=10,
+            songs_correct=7,
+            best_streak=5,
+            total_score=120,
+            difficulty='medium',
+        )
+        self.assertEqual(score.songs_played, 10)
+        self.assertEqual(score.total_score, 120)
+
+    def test_genre_and_artist_filter_default_blank(self):
+        score = GameScore.objects.create(
+            user=self.user,
+            songs_played=5,
+            songs_correct=3,
+            best_streak=2,
+            total_score=40,
+        )
+        self.assertIsNone(score.genre)
+        self.assertEqual(score.artist_filter, '')
+
+    def test_string_representation(self):
+        score = GameScore.objects.create(
+            user=self.user,
+            genre='pop',
+            songs_played=5,
+            songs_correct=5,
+            best_streak=5,
+            total_score=80,
+        )
+        self.assertIn('scorer', str(score))
+        self.assertIn('pop', str(score))
+
+
+class UserBestModelTests(TestCase):
+    def setUp(self):
+        self.user = _make_user('best_player')
+
+    def test_created_with_defaults(self):
+        best = UserBest.objects.create(user=self.user)
+        self.assertEqual(best.best_score_overall, 0)
+        self.assertEqual(best.best_streak_overall, 0)
+        self.assertEqual(best.total_songs_played, 0)
+        self.assertEqual(best.per_genre, {})
+
+    def test_update_from_score_improves_bests(self):
+        best = UserBest.objects.create(user=self.user)
+        score = GameScore.objects.create(
+            user=self.user,
+            genre='hiphop',
+            songs_played=8,
+            songs_correct=6,
+            best_streak=4,
+            total_score=200,
+        )
+        changed = best.update_from_score(score)
+        best.refresh_from_db()
+        self.assertTrue(changed)
+        self.assertEqual(best.best_score_overall, 200)
+        self.assertEqual(best.best_streak_overall, 4)
+        self.assertEqual(best.total_songs_played, 8)
+        self.assertEqual(best.per_genre['hiphop']['best_score'], 200)
+
+    def test_update_from_score_no_change_when_lower(self):
+        best = UserBest.objects.create(
+            user=self.user,
+            best_score_overall=500,
+            best_streak_overall=10,
+        )
+        score = GameScore.objects.create(
+            user=self.user,
+            songs_played=3,
+            songs_correct=1,
+            best_streak=2,
+            total_score=20,
+        )
+        changed = best.update_from_score(score)
+        best.refresh_from_db()
+        self.assertFalse(changed)
+        self.assertEqual(best.best_score_overall, 500)
+
+    def test_total_songs_always_accumulates(self):
+        best = UserBest.objects.create(user=self.user, total_songs_played=5)
+        score = GameScore.objects.create(
+            user=self.user,
+            songs_played=3,
+            songs_correct=2,
+            best_streak=1,
+            total_score=30,
+        )
+        best.update_from_score(score)
+        best.refresh_from_db()
+        self.assertEqual(best.total_songs_played, 8)
+
+
+class CategoryListViewTests(APITestCase):
+    url = '/api/game/categories/'
 
     def setUp(self):
-        self.user = User.objects.create_user(
-            username='testuser',
-            email='test@example.com',
-            password='testpass123'
+        cache.clear()
+        _make_track(genre='pop')
+        _make_track(title='Pop Song 2', genre='pop')
+        _make_track(title='Hip Hop Song', artist='Rapper', genre='hiphop')
+        Track.objects.create(
+            title='No Genre', artist='Artist',
+            preview_url='https://cdn.example.com/preview.mp3',
         )
 
-    def test_create_room(self):
-        """Test creating a room."""
-        room = Room.objects.create(host_user=self.user)
-        self.assertIsNotNone(room.room_code)
-        self.assertEqual(len(room.room_code), 6)
-        self.assertEqual(room.host_user, self.user)
+    def test_returns_genres_with_track_count(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        genres = {r['category']: r['track_count'] for r in response.data}
+        self.assertEqual(genres.get('pop'), 2)
+        self.assertEqual(genres.get('hiphop'), 1)
 
-    def test_room_code_is_unique(self):
-        """Test that room codes are auto-generated and unique."""
-        room1 = Room.objects.create(host_user=self.user)
-        room2 = Room.objects.create(host_user=self.user)
-        self.assertNotEqual(room1.room_code, room2.room_code)
+    def test_excludes_tracks_without_genre(self):
+        response = self.client.get(self.url)
+        categories = [r['category'] for r in response.data]
+        self.assertNotIn(None, categories)
 
-    def test_room_string_representation(self):
-        """Test string representation of room."""
-        room = Room.objects.create(host_user=self.user, name='Test Room')
-        self.assertIn('Test Room', str(room))
+    def test_accessible_without_auth(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_each_entry_has_required_fields(self):
+        response = self.client.get(self.url)
+        for entry in response.data:
+            self.assertIn('id', entry)
+            self.assertIn('name', entry)
+            self.assertIn('category', entry)
+            self.assertIn('track_count', entry)
 
 
-class RoomCreateViewTests(APITestCase):
-    """Tests for room creation endpoint."""
+class NextSongViewTests(APITestCase):
+    url = '/api/game/next-song/'
 
     def setUp(self):
-        self.create_url = '/api/game/rooms/create/'
-        self.user = User.objects.create_user(
-            username='testuser',
-            email='test@example.com',
-            password='testpass123'
-        )
-        self.refresh = RefreshToken.for_user(self.user)
-        self.access_token = str(self.refresh.access_token)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
+        cache.clear()
+        self.pop1 = _make_track(title='Pop Song 1', artist='Pop Artist', genre='pop')
+        self.pop2 = _make_track(title='Pop Song 2', artist='Pop Artist', genre='pop')
+        self.rock = _make_track(title='Rock Song', artist='Rock Artist', genre='rock')
 
-    def test_create_room_success(self):
-        """Test successful room creation."""
-        response = self.client.post(self.create_url, {}, format='json')
+    def test_returns_a_track(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('id', response.data)
+        self.assertIn('title', response.data)
+        self.assertIn('preview_url', response.data)
+
+    def test_genre_filter_returns_matching_genre(self):
+        response = self.client.get(self.url, {'genre': 'rock'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['title'], 'Rock Song')
+
+    def test_artist_filter(self):
+        _make_track(title='Artist Song', artist='Unique Solo Artist', genre='pop')
+        response = self.client.get(self.url, {'artist': 'Unique Solo'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('Unique Solo Artist', response.data['artist'])
+
+    def test_exclude_ids_filters_out_seen_tracks(self):
+        exclude = str(self.pop1.id)
+        for _ in range(5):
+            response = self.client.get(self.url, {'genre': 'pop', 'exclude': exclude})
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertNotEqual(response.data['id'], exclude)
+
+    def test_404_when_no_tracks_match(self):
+        response = self.client.get(self.url, {'genre': 'kpop'})
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_accessible_without_auth(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+class ArtistListViewTests(APITestCase):
+    url = '/api/game/artists/'
+
+    def setUp(self):
+        cache.clear()
+        _make_track(title='Song A', artist='Beyoncé')
+        _make_track(title='Song B', artist='The Beatles')
+        _make_track(title='Song C', artist='Beatles Revival Band')
+
+    def test_returns_matching_artists(self):
+        response = self.client.get(self.url, {'q': 'Beat'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = [a['name'] for a in response.data]
+        self.assertIn('The Beatles', names)
+        self.assertIn('Beatles Revival Band', names)
+
+    def test_empty_for_short_query(self):
+        response = self.client.get(self.url, {'q': 'B'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+    def test_each_entry_has_name_and_picture_url(self):
+        response = self.client.get(self.url, {'q': 'Bey'})
+        for entry in response.data:
+            self.assertIn('name', entry)
+            self.assertIn('picture_url', entry)
+
+    def test_accessible_without_auth(self):
+        response = self.client.get(self.url, {'q': 'Beat'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+class ArtistTrendingViewTests(APITestCase):
+    url = '/api/game/artists/trending/'
+
+    def setUp(self):
+        cache.clear()
+        self.user = _make_user('trend_user')
+        GameScore.objects.create(
+            user=self.user, artist_filter='Drake',
+            songs_played=5, songs_correct=4, best_streak=3, total_score=80,
+        )
+        GameScore.objects.create(
+            user=self.user, artist_filter='Drake',
+            songs_played=3, songs_correct=2, best_streak=2, total_score=40,
+        )
+        GameScore.objects.create(
+            user=self.user, artist_filter='Adele',
+            songs_played=2, songs_correct=1, best_streak=1, total_score=20,
+        )
+
+    def test_returns_trending_artists(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = [a['name'] for a in response.data]
+        self.assertIn('Drake', names)
+        self.assertIn('Adele', names)
+
+    def test_most_played_artist_appears_first(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.data[0]['name'], 'Drake')
+
+    def test_old_scores_excluded(self):
+        old_score = GameScore.objects.create(
+            user=self.user, artist_filter='Old Artist',
+            songs_played=100, songs_correct=100, best_streak=100, total_score=9999,
+        )
+        old_score.played_at = timezone.now() - timedelta(days=60)
+        old_score.save(update_fields=['played_at'])
+        response = self.client.get(self.url)
+        names = [a['name'] for a in response.data]
+        self.assertNotIn('Old Artist', names)
+
+    def test_accessible_without_auth(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+class FavouriteArtistViewTests(APITestCase):
+    url = '/api/game/artists/favourites/'
+
+    def setUp(self):
+        self.user = _make_user('fav_user')
+        self.client.credentials(HTTP_AUTHORIZATION=_bearer(self.user))
+
+    def test_list_empty_by_default(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+    def test_add_favourite_artist(self):
+        response = self.client.post(self.url, {'artist_name': 'Kendrick Lamar'}, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertIn('room', response.data)
-        self.assertIn('room_code', response.data['room'])
-        self.assertEqual(len(response.data['room']['room_code']), 6)
+        self.assertTrue(FavouriteArtist.objects.filter(user=self.user, artist_name='Kendrick Lamar').exists())
 
-    def test_create_room_user_added_automatically(self):
-        """Test that creator is automatically added to room."""
-        response = self.client.post(self.create_url, {}, format='json')
-        room_id = response.data['room']['id']
-        room = Room.objects.get(id=room_id)
-        self.assertTrue(RoomUser.objects.filter(room=room, user=self.user).exists())
+    def test_add_favourite_idempotent(self):
+        self.client.post(self.url, {'artist_name': 'Kendrick Lamar'}, format='json')
+        self.client.post(self.url, {'artist_name': 'Kendrick Lamar'}, format='json')
+        self.assertEqual(
+            FavouriteArtist.objects.filter(user=self.user, artist_name='Kendrick Lamar').count(), 1
+        )
 
-    def test_create_room_unauthenticated(self):
-        """Test room creation fails without authentication."""
+    def test_list_shows_added_artists(self):
+        FavouriteArtist.objects.create(user=self.user, artist_name='Jay-Z')
+        response = self.client.get(self.url)
+        names = [a['name'] for a in response.data]
+        self.assertIn('Jay-Z', names)
+
+    def test_add_requires_artist_name(self):
+        response = self.client.post(self.url, {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_requires_authentication(self):
         self.client.credentials()
-        response = self.client.post(self.create_url, {}, format='json')
+        response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    @override_settings(MAX_HOSTED_ROOMS_PER_USER=1, MAX_ROOM_CREATIONS_PER_DAY=5)
-    def test_create_room_fails_when_hosted_room_limit_reached(self):
-        """Test room creation fails when hosted room cap is reached."""
-        Room.objects.create(host_user=self.user)
-        response = self.client.post(self.create_url, {}, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('Room limit reached', response.data.get('error', ''))
 
-    @override_settings(MAX_HOSTED_ROOMS_PER_USER=50, MAX_ROOM_CREATIONS_PER_DAY=1)
-    def test_create_room_fails_when_daily_creation_limit_reached(self):
-        """Test room creation fails when daily creation cap is reached."""
-        Room.objects.create(host_user=self.user)
-        response = self.client.post(self.create_url, {}, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('Daily room creation limit reached', response.data.get('error', ''))
-
-
-class RoomJoinViewTests(APITestCase):
-    """Tests for room joining endpoint."""
-
+class FavouriteArtistDetailViewTests(APITestCase):
     def setUp(self):
-        self.join_url = '/api/game/rooms/join/'
-        self.host = User.objects.create_user(
-            username='host',
-            email='host@example.com',
-            password='testpass123'
-        )
-        self.user = User.objects.create_user(
-            username='joiner',
-            email='joiner@example.com',
-            password='testpass123'
-        )
-        self.room = Room.objects.create(host_user=self.host)
-        RoomUser.objects.create(room=self.room, user=self.host)
-
-        self.refresh = RefreshToken.for_user(self.user)
-        self.access_token = str(self.refresh.access_token)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
-
-    def test_join_room_success(self):
-        """Test successful room joining."""
-        data = {'room_code': self.room.room_code}
-        response = self.client.post(self.join_url, data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(RoomUser.objects.filter(room=self.room, user=self.user).exists())
-
-
-class PackBundleSessionTests(APITestCase):
-    """Tests for pack bundle gameplay."""
-
-    def setUp(self):
-        self.user = User.objects.create_user(
-            username='bundleuser',
-            email='bundle@example.com',
-            password='testpass123'
-        )
-        self.room = Room.objects.create(host_user=self.user)
-        RoomUser.objects.create(room=self.room, user=self.user)
-        self.refresh = RefreshToken.for_user(self.user)
-        self.access_token = str(self.refresh.access_token)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
-
-        self.pack = SongPack.objects.create(name='Stem Pack', price_coins=0)
-        self.track = Track.objects.create(
-            title='Pack Song',
-            artist='Pack Artist',
-            preview_url='https://example.com/preview.mp3'
-        )
-        PackTrack.objects.create(
-            pack=self.pack,
-            track=self.track,
-            order_in_pack=1,
-            drums_url='https://example.com/drums.mp3',
-            bass_url='https://example.com/bass.mp3',
-            other_url='https://example.com/other.mp3',
-            vocals_url='https://example.com/vocals.mp3',
-        )
-        RoomPack.objects.create(
-            room=self.room,
-            pack=self.pack,
-            purchased_by=self.user,
-            is_active=True,
-            activated_on=_active_game_date(),
-        )
-
-    def test_start_bundle_session(self):
-        url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/'
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn('session', response.data)
-        self.assertIn('stems', response.data)
-
-    def test_guess_bundle_session(self):
-        start_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/'
-        self.client.get(start_url)
-        guess_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/guess/'
-        response = self.client.post(guess_url, {'track_id': str(self.track.id)}, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data['is_correct'])
-
-    def test_wrong_guess_on_final_stage_prompts_retry_flow(self):
-        start_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/'
-        self.client.get(start_url)
-        wrong_track = Track.objects.create(
-            title='Wrong Song',
-            artist='Wrong Artist',
-            preview_url='https://example.com/wrong.mp3'
-        )
-        session = PackBundleSession.objects.get(room=self.room, user=self.user, pack=self.pack)
-        session.current_stage = len(PACK_BUNDLE_STAGE_ORDER)
-        session.save(update_fields=['current_stage'])
-
-        guess_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/guess/'
-        response = self.client.post(guess_url, {'track_id': str(wrong_track.id)}, format='json')
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(response.data['is_correct'])
-        self.assertFalse(response.data['game_over'])
-        self.assertTrue(response.data['session']['retry_available'])
-        self.assertEqual(response.data['session']['next_retry_requirement'], 'ad')
-
-    def test_pack_retry_ad_then_wrong_guess_requests_coin_retry(self):
-        start_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/'
-        self.client.get(start_url)
-        wrong_track = Track.objects.create(
-            title='Wrong Song',
-            artist='Wrong Artist',
-            preview_url='https://example.com/wrong.mp3'
-        )
-        session = PackBundleSession.objects.get(room=self.room, user=self.user, pack=self.pack)
-        session.current_stage = len(PACK_BUNDLE_STAGE_ORDER)
-        session.awaiting_retry_unlock = True
-        session.save(update_fields=['current_stage', 'awaiting_retry_unlock'])
-
-        retry_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/retry/'
-        retry_response = self.client.post(retry_url, {'action': 'ad'}, format='json')
-        self.assertEqual(retry_response.status_code, status.HTTP_200_OK)
-        self.assertEqual(retry_response.data['session']['retry_credits'], 1)
-
-        guess_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/guess/'
-        wrong_again = self.client.post(guess_url, {'track_id': str(wrong_track.id)}, format='json')
-        self.assertEqual(wrong_again.status_code, status.HTTP_200_OK)
-        self.assertFalse(wrong_again.data['game_over'])
-        self.assertEqual(
-            wrong_again.data['session']['next_retry_requirement'],
-            'coins',
-        )
-
-    def test_pack_retry_forfeit_ends_challenge(self):
-        start_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/'
-        self.client.get(start_url)
-        session = PackBundleSession.objects.get(room=self.room, user=self.user, pack=self.pack)
-        session.current_stage = len(PACK_BUNDLE_STAGE_ORDER)
-        session.awaiting_retry_unlock = True
-        session.save(update_fields=['current_stage', 'awaiting_retry_unlock'])
-
-        retry_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/retry/'
-        response = self.client.post(retry_url, {'action': 'forfeit'}, format='json')
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data['game_over'])
-        self.assertIsNotNone(response.data['session']['completed_at'])
-
-    def test_skip_last_stage_requires_guess(self):
-        start_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/'
-        self.client.get(start_url)
-        skip_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/skip/'
-
-        # Stage 1 -> 2 -> 3 -> 4 is allowed
-        self.assertEqual(self.client.post(skip_url, {}, format='json').status_code, status.HTTP_200_OK)
-        self.assertEqual(self.client.post(skip_url, {}, format='json').status_code, status.HTTP_200_OK)
-        self.assertEqual(self.client.post(skip_url, {}, format='json').status_code, status.HTTP_200_OK)
-
-        # Stage 4 cannot be skipped
-        response = self.client.post(skip_url, {}, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(
-            response.data.get('error'),
-            'You must submit a guess on the last stage',
-        )
-
-        session = PackBundleSession.objects.get(
-            room=self.room,
-            user=self.user,
-            pack=self.pack,
-        )
-        self.assertEqual(session.current_stage, len(PACK_BUNDLE_STAGE_ORDER))
-        self.assertIsNone(session.completed_at)
-
-    def test_join_room_already_member(self):
-        """Test joining room fails if already a member."""
-        RoomUser.objects.create(room=self.room, user=self.user)
-        data = {'room_code': self.room.room_code}
-        response = self.client.post(self.join_url, data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_join_room_invalid_code(self):
-        """Test joining room fails with invalid code."""
-        data = {'room_code': 'INVALID'}
-        response = self.client.post(self.join_url, data, format='json')
-        # API returns 400 (validation) or 404 (not found) depending on implementation
-        self.assertIn(response.status_code, [status.HTTP_400_BAD_REQUEST, status.HTTP_404_NOT_FOUND])
-
-
-class RoomPackActivationTests(APITestCase):
-    def setUp(self):
-        self.user = User.objects.create_user(
-            username='packhost',
-            email='packhost@example.com',
-            password='testpass123',
-        )
-        self.room = Room.objects.create(host_user=self.user)
-        RoomUser.objects.create(room=self.room, user=self.user)
-        self.refresh = RefreshToken.for_user(self.user)
-        self.access_token = str(self.refresh.access_token)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
-
-        self.pack = SongPack.objects.create(name='Pack One', price_coins=0)
-        self.pack_two = SongPack.objects.create(name='Pack Two', price_coins=0)
-        self.track = Track.objects.create(
-            title='Pack Song',
-            artist='Pack Artist',
-            preview_url='https://example.com/preview.mp3',
-        )
-        self.track_two = Track.objects.create(
-            title='Second Song',
-            artist='Second Artist',
-            preview_url='https://example.com/preview-2.mp3',
-        )
-        PackTrack.objects.create(pack=self.pack, track=self.track, order_in_pack=1)
-        PackTrack.objects.create(pack=self.pack_two, track=self.track_two, order_in_pack=1)
-        RoomPack.objects.create(
-            room=self.room,
-            pack=self.pack,
-            purchased_by=self.user,
-            is_active=True,
-            activated_on=_active_game_date(),
-        )
-        RoomPack.objects.create(room=self.room, pack=self.pack_two, purchased_by=self.user)
-
-    def test_owned_pack_must_be_activated_before_play(self):
-        url = f'/api/game/rooms/{self.room.id}/packs/{self.pack_two.id}/bundle/'
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data['error'], 'Activate this pack before playing it')
-
-    def test_can_activate_owned_pack(self):
-        url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/activate/'
-        response = self.client.post(url, {}, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data['pack']['is_active'])
-        self.assertEqual(response.data['room']['active_pack']['id'], str(self.pack.id))
-
-    def test_cannot_activate_second_pack_while_one_is_active(self):
-        first_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/activate/'
-        second_url = f'/api/game/rooms/{self.room.id}/packs/{self.pack_two.id}/activate/'
-        self.client.post(first_url, {}, format='json')
-        response = self.client.post(second_url, {}, format='json')
-        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        self.assertIn('Another pack is already active', response.data['error'])
-
-    def test_active_pack_completes_after_its_final_day(self):
-        room_pack = RoomPack.objects.get(room=self.room, pack=self.pack)
-        room_pack.is_active = True
-        room_pack.activated_on = _active_game_date() - timedelta(days=1)
-        room_pack.save(update_fields=['is_active', 'activated_on'])
-
-        # One-track pack is complete on the day after its only active date.
-        url = f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/activate/'
-        response = self.client.post(url, {}, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(
-            response.data['error'],
-            'This pack is already completed for the room',
-        )
-
-
-class RoomLeaveViewTests(APITestCase):
-    """Tests for room leaving endpoint."""
-
-    def setUp(self):
-        self.host = User.objects.create_user(
-            username='host',
-            email='host@example.com',
-            password='testpass123'
-        )
-        self.user = User.objects.create_user(
-            username='member',
-            email='member@example.com',
-            password='testpass123'
-        )
-        self.room = Room.objects.create(host_user=self.host)
-        RoomUser.objects.create(room=self.room, user=self.host)
-        RoomUser.objects.create(room=self.room, user=self.user)
-
-        self.leave_url = f'/api/game/rooms/{self.room.id}/leave/'
-        self.refresh = RefreshToken.for_user(self.user)
-        self.access_token = str(self.refresh.access_token)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
-
-    def test_leave_room_success(self):
-        """Test successful room leaving."""
-        response = self.client.post(self.leave_url, {}, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(RoomUser.objects.filter(room=self.room, user=self.user).exists())
-
-    def test_leave_room_not_member(self):
-        """Test leaving room fails if not a member."""
-        other_user = User.objects.create_user(
-            username='other',
-            email='other@example.com',
-            password='testpass123'
-        )
-        other_refresh = RefreshToken.for_user(other_user)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {str(other_refresh.access_token)}')
-        response = self.client.post(self.leave_url, {}, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_leave_room_host_transfers(self):
-        """Test that host role transfers when host leaves."""
-        host_refresh = RefreshToken.for_user(self.host)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {str(host_refresh.access_token)}')
-        response = self.client.post(self.leave_url, {}, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.room.refresh_from_db()
-        self.assertEqual(self.room.host_user, self.user)
-
-    def test_leave_room_deletes_when_empty(self):
-        """Test that room is deleted when last user leaves."""
-        # Remove the other user first
-        RoomUser.objects.filter(room=self.room, user=self.user).delete()
-
-        # Now host leaves
-        host_refresh = RefreshToken.for_user(self.host)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {str(host_refresh.access_token)}')
-        response = self.client.post(self.leave_url, {}, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(Room.objects.filter(id=self.room.id).exists())
-
-
-class RoomRenameViewTests(APITestCase):
-    """Tests for room renaming endpoint."""
-
-    def setUp(self):
-        self.host = User.objects.create_user(
-            username='host',
-            email='host@example.com',
-            password='testpass123'
-        )
-        self.member = User.objects.create_user(
-            username='member',
-            email='member@example.com',
-            password='testpass123'
-        )
-        self.room = Room.objects.create(host_user=self.host)
-        RoomUser.objects.create(room=self.room, user=self.host)
-        RoomUser.objects.create(room=self.room, user=self.member)
-
-        self.rename_url = f'/api/game/rooms/{self.room.id}/rename/'
-        self.refresh = RefreshToken.for_user(self.host)
-        self.access_token = str(self.refresh.access_token)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
-
-    def test_rename_room_success(self):
-        """Test successful room renaming by host."""
-        data = {'name': 'New Room Name'}
-        response = self.client.put(self.rename_url, data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.room.refresh_from_db()
-        self.assertEqual(self.room.name, 'New Room Name')
-
-    def test_rename_room_non_host_fails(self):
-        """Test that non-host cannot rename room."""
-        member_refresh = RefreshToken.for_user(self.member)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {str(member_refresh.access_token)}')
-        data = {'name': 'Unauthorized Name'}
-        response = self.client.put(self.rename_url, data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-
-class MyRoomsViewTests(APITestCase):
-    """Tests for my rooms endpoint."""
-
-    def setUp(self):
-        self.my_rooms_url = '/api/game/rooms/my-rooms/'
-        self.user = User.objects.create_user(
-            username='testuser',
-            email='test@example.com',
-            password='testpass123'
-        )
-        self.other_user = User.objects.create_user(
-            username='other',
-            email='other@example.com',
-            password='testpass123'
-        )
-
-        # Create rooms user is in
-        self.room1 = Room.objects.create(host_user=self.user)
-        RoomUser.objects.create(room=self.room1, user=self.user)
-
-        self.room2 = Room.objects.create(host_user=self.other_user)
-        RoomUser.objects.create(room=self.room2, user=self.other_user)
-        RoomUser.objects.create(room=self.room2, user=self.user)
-
-        # Room user is not in
-        self.room3 = Room.objects.create(host_user=self.other_user)
-        RoomUser.objects.create(room=self.room3, user=self.other_user)
-
-        self.refresh = RefreshToken.for_user(self.user)
-        self.access_token = str(self.refresh.access_token)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
-
-    def test_get_my_rooms(self):
-        """Test getting user's rooms."""
-        response = self.client.get(self.my_rooms_url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)  # User is in 2 rooms
-
-
-class DailyGameViewTests(APITestCase):
-    """Tests for daily game endpoints."""
-
-    def setUp(self):
-        self.user = User.objects.create_user(
-            username='testuser',
-            email='test@example.com',
-            password='testpass123'
-        )
-        self.room = Room.objects.create(host_user=self.user)
-        RoomUser.objects.create(room=self.room, user=self.user)
-
-        self.track = Track.objects.create(
-            title='Test Song',
-            artist='Test Artist',
-            preview_url='https://example.com/preview.mp3'
-        )
-
-        self.daily_game_url = f'/api/game/rooms/{self.room.id}/daily-game/'
-        self.refresh = RefreshToken.for_user(self.user)
-        self.access_token = str(self.refresh.access_token)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
-
-    def test_get_daily_game_creates_session(self):
-        """Test that getting daily game creates a session."""
-        response = self.client.get(self.daily_game_url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(DailyGameSession.objects.filter(room=self.room, user=self.user).exists())
-
-    def test_get_daily_game_returns_existing_session(self):
-        """Test that getting daily game returns existing session."""
-        # Create first session
-        response1 = self.client.get(self.daily_game_url)
-        session_id = response1.data['id']
-
-        # Get again - should return same session
-        response2 = self.client.get(self.daily_game_url)
-        self.assertEqual(response2.data['id'], session_id)
-
-    def test_daily_game_non_member_fails(self):
-        """Test that non-members cannot access daily game."""
-        other_user = User.objects.create_user(
-            username='other',
-            email='other@example.com',
-            password='testpass123'
-        )
-        other_refresh = RefreshToken.for_user(other_user)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {str(other_refresh.access_token)}')
-        response = self.client.get(self.daily_game_url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-
-class DailyGameModeTests(APITestCase):
-    """Tests for multiple daily modes within the same room."""
-
-    def setUp(self):
-        self.user = User.objects.create_user(
-            username='modetester',
-            email='mode@example.com',
-            password='testpass123'
-        )
-        self.room = Room.objects.create(host_user=self.user)
-        RoomUser.objects.create(room=self.room, user=self.user)
-
-        self.mix_track = Track.objects.create(
-            title='Mix Song',
-            artist='Mix Artist',
-            preview_url='https://example.com/mix.mp3',
-            deezer_id=123456,
-        )
-        self.rock_track = Track.objects.create(
-            title='Rock Song',
-            artist='Rock Artist',
-            preview_url='https://example.com/rock.mp3',
-            genre='Rock',
-        )
-        self.rock_backup_track = Track.objects.create(
-            title='Rock Song 2',
-            artist='Rock Artist 2',
-            preview_url='https://example.com/rock2.mp3',
-            genre='Rock',
-        )
-        self.rock_pack = SongPack.objects.create(
-            name='Rock Pack',
-            price_coins=0,
-            category='rock',
-        )
-        PackTrack.objects.create(
-            pack=self.rock_pack,
-            track=self.rock_track,
-            order_in_pack=1,
-        )
-        PackTrack.objects.create(
-            pack=self.rock_pack,
-            track=self.rock_backup_track,
-            order_in_pack=2,
-        )
-        RoomDailyModeState.objects.create(
-            room=self.room,
-            mode=DAILY_MODE_GENRE,
-            unlocked_for_date=_active_game_date(),
-            unlocked_until_date=_active_game_date() + timedelta(days=6),
-            last_unlock_contributor_count=1,
-        )
-
-        refresh = RefreshToken.for_user(self.user)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {str(refresh.access_token)}')
-        self.base_url = f'/api/game/rooms/{self.room.id}/daily-game/'
-
-    def test_mix_and_genre_daily_can_exist_in_same_room(self):
-        mix_response = self.client.get(self.base_url, {'mode': 'mix'})
-        genre_response = self.client.get(self.base_url, {'mode': 'genre'})
-
-        self.assertEqual(mix_response.status_code, status.HTTP_200_OK)
-        self.assertEqual(genre_response.status_code, status.HTTP_200_OK)
-        self.assertNotEqual(
-            mix_response.data['daily_song']['id'],
-            genre_response.data['daily_song']['id'],
-        )
-        self.assertNotEqual(
-            mix_response.data['daily_song']['track']['id'],
-            genre_response.data['daily_song']['track']['id'],
-        )
-        self.assertEqual(
-            DailySong.objects.filter(room=self.room, date=_active_game_date()).count(),
-            2,
-        )
-
-    def test_genre_daily_returns_mode_metadata(self):
-        response = self.client.get(self.base_url, {'mode': 'genre'})
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['daily_song']['mode'], 'genre')
-        self.assertIsNotNone(response.data['daily_song']['genre_key'])
-        self.assertIsNotNone(response.data['daily_song']['genre_name'])
-
-    def test_genre_mode_guess_uses_genre_daily_song(self):
-        genre_session = self.client.get(self.base_url, {'mode': 'genre'})
-        daily_song_id = genre_session.data['daily_song']['id']
-        guess_url = f'/api/game/rooms/{self.room.id}/daily-game/guess/'
-
-        response = self.client.post(
-            guess_url,
-            {'track_id': str(self.rock_track.id), 'mode': 'genre'},
-            format='json',
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        session = DailyGameSession.objects.get(room=self.room, user=self.user, daily_song_id=daily_song_id)
-        self.assertEqual(session.daily_song.mode, 'genre')
-
-
-class RoomDailyModeContributionTests(APITestCase):
-    def setUp(self):
-        self.user = User.objects.create_user(
-            username='contributor1',
-            email='contributor1@example.com',
-            password='testpass123',
-            coins=200,
-        )
-        self.other_user = User.objects.create_user(
-            username='contributor2',
-            email='contributor2@example.com',
-            password='testpass123',
-            coins=200,
-        )
-        self.room = Room.objects.create(host_user=self.user)
-        RoomUser.objects.create(room=self.room, user=self.user)
-        RoomUser.objects.create(room=self.room, user=self.other_user)
-        self.url = f'/api/game/rooms/{self.room.id}/daily-modes/contribute/'
-        refresh = RefreshToken.for_user(self.user)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {str(refresh.access_token)}')
-
-    def test_partial_contribution_updates_progress_and_balance(self):
-        response = self.client.post(
-            self.url,
-            {'mode': 'genre', 'amount': 40},
-            format='json',
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.user.refresh_from_db()
-        self.assertEqual(self.user.coins, 160)
-        self.assertFalse(response.data['is_unlocked'])
-        self.assertEqual(response.data['contributed_coins'], 40)
-        genre_mode = next(
-            item for item in response.data['room']['daily_modes']
-            if item['mode'] == 'genre'
-        )
-        self.assertEqual(
-            genre_mode['progress_coins'],
-            40,
-        )
-        self.assertEqual(
-            genre_mode['remaining_coins'],
-            140,
-        )
-
-    def test_multiple_users_can_complete_unlock(self):
-        first = self.client.post(
-            self.url,
-            {'mode': 'genre', 'amount': 70},
-            format='json',
-        )
-        self.assertEqual(first.status_code, status.HTTP_200_OK)
-
-        other_refresh = RefreshToken.for_user(self.other_user)
-        self.client.credentials(
-            HTTP_AUTHORIZATION=f'Bearer {str(other_refresh.access_token)}'
-        )
-        second = self.client.post(
-            self.url,
-            {'mode': 'genre', 'amount': 110},
-            format='json',
-        )
-
-        self.assertEqual(second.status_code, status.HTTP_200_OK)
-        self.assertTrue(second.data['is_unlocked'])
-        state = RoomDailyModeState.objects.get(room=self.room, mode='genre')
-        self.assertEqual(state.unlocked_for_date, _active_game_date())
-        self.assertEqual(
-            state.unlocked_until_date,
-            _active_game_date() + timedelta(days=6),
-        )
-        self.assertEqual(state.progress_coins, 0)
-        self.assertEqual(state.last_unlock_contributor_count, 2)
-
-    def test_unlock_remains_accessible_for_full_week(self):
-        response = self.client.post(
-            self.url,
-            {'mode': 'genre', 'amount': 180},
-            format='json',
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data['is_unlocked'])
-        future_date = _active_game_date() + timedelta(days=6)
-        expired_date = _active_game_date() + timedelta(days=7)
-
-        self.assertTrue(
-            is_daily_mode_accessible(self.room, 'genre', future_date),
-        )
-        self.assertFalse(
-            is_daily_mode_accessible(self.room, 'genre', expired_date),
-        )
-
-    def test_insufficient_coins_returns_error(self):
-        self.user.coins = 10
-        self.user.save(update_fields=['coins'])
-
-        response = self.client.post(
-            self.url,
-            {'mode': 'genre', 'amount': 40},
-            format='json',
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data['error_code'], 'INSUFFICIENT_COINS')
-
-    def test_locked_mode_cannot_be_played_until_unlocked(self):
-        track = Track.objects.create(
-            title='Locked Song',
-            artist='Locked Artist',
-            preview_url='https://example.com/locked.mp3',
-            genre='Rock',
-        )
-        SongPack.objects.create(name='Rock Pack 2', price_coins=0, category='rock')
-        response = self.client.get(
-            f'/api/game/rooms/{self.room.id}/daily-game/',
-            {'mode': 'genre'},
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertIn('locked', response.data['error'].lower())
-
-
-class SkipSnippetViewTests(APITestCase):
-    """Tests for skip snippet endpoint."""
-
-    def setUp(self):
-        self.user = User.objects.create_user(
-            username='testuser',
-            email='test@example.com',
-            password='testpass123'
-        )
-        self.room = Room.objects.create(host_user=self.user)
-        RoomUser.objects.create(room=self.room, user=self.user)
-
-        self.track = Track.objects.create(
-            title='Test Song',
-            artist='Test Artist',
-            preview_url='https://example.com/preview.mp3'
-        )
-
-        today = timezone.now().date()
-        self.daily_song = DailySong.objects.create(
-            room=self.room,
-            track=self.track,
-            date=today
-        )
-        self.game_session = DailyGameSession.objects.create(
-            room=self.room,
-            user=self.user,
-            daily_song=self.daily_song,
-            current_snippet=1
-        )
-
-        self.skip_url = f'/api/game/rooms/{self.room.id}/daily-game/skip/'
-        self.refresh = RefreshToken.for_user(self.user)
-        self.access_token = str(self.refresh.access_token)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
-
-    def test_skip_snippet_success(self):
-        """Test successful snippet skip."""
-        response = self.client.post(self.skip_url, {}, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['current_snippet'], 2)
-
-    def test_skip_at_max_snippet_fails(self):
-        """Test skip fails at maximum snippet."""
-        self.game_session.current_snippet = 6
-        self.game_session.save()
-        response = self.client.post(self.skip_url, {}, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_skip_after_correct_guess_fails(self):
-        """Test skip fails after correct guess."""
-        self.game_session.correct_guess = True
-        self.game_session.save()
-        response = self.client.post(self.skip_url, {}, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    @patch('game.views._broadcast_leaderboard_updated')
-    def test_skip_to_final_snippet_broadcasts_leaderboard_update(self, mock_broadcast):
-        """Entering snippet 6 should trigger realtime results refresh."""
-        self.game_session.current_snippet = 5
-        self.game_session.save(update_fields=['current_snippet'])
-
-        response = self.client.post(self.skip_url, {}, format='json')
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['current_snippet'], 6)
-        mock_broadcast.assert_called_once_with(self.room.id, self.user.id, 'mix')
-
-
-class SubmitGuessViewTests(APITestCase):
-    """Tests for submit guess endpoint."""
-
-    def setUp(self):
-        self.user = User.objects.create_user(
-            username='testuser',
-            email='test@example.com',
-            password='testpass123'
-        )
-        self.room = Room.objects.create(host_user=self.user)
-        RoomUser.objects.create(room=self.room, user=self.user)
-
-        self.correct_track = Track.objects.create(
-            title='Correct Song',
-            artist='Correct Artist',
-            preview_url='https://example.com/correct.mp3'
-        )
-        self.wrong_track = Track.objects.create(
-            title='Wrong Song',
-            artist='Wrong Artist',
-            preview_url='https://example.com/wrong.mp3'
-        )
-
-        today = timezone.now().date()
-        self.daily_song = DailySong.objects.create(
-            room=self.room,
-            track=self.correct_track,
-            date=today
-        )
-        self.game_session = DailyGameSession.objects.create(
-            room=self.room,
-            user=self.user,
-            daily_song=self.daily_song,
-            current_snippet=1
-        )
-
-        self.guess_url = f'/api/game/rooms/{self.room.id}/daily-game/guess/'
-        self.retry_url = f'/api/game/rooms/{self.room.id}/daily-game/retry/'
-        self.hint_url = f'/api/game/rooms/{self.room.id}/daily-game/hint/'
-        self.refresh = RefreshToken.for_user(self.user)
-        self.access_token = str(self.refresh.access_token)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
-
-    def _unlock_hardcore_session(self):
-        RoomDailyModeState.objects.create(
-            room=self.room,
-            mode=DAILY_MODE_HARDCORE,
-            unlocked_for_date=_active_game_date(),
-            unlocked_until_date=_active_game_date() + timedelta(days=6),
-            last_unlock_contributor_count=1,
-        )
-        hardcore_song = DailySong.objects.create(
-            room=self.room,
-            track=self.correct_track,
-            mode=DAILY_MODE_HARDCORE,
-            date=_active_game_date(),
-        )
-        return DailyGameSession.objects.create(
-            room=self.room,
-            user=self.user,
-            daily_song=hardcore_song,
-            current_snippet=6,
-        )
-
-    def test_correct_guess_first_snippet(self):
-        """Test correct guess on first snippet awards 6 points."""
-        data = {'track_id': str(self.correct_track.id)}
-        response = self.client.post(self.guess_url, data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data['is_correct'])
-        self.assertEqual(response.data['points_earned'], 6)
-
-    def test_correct_guess_later_snippet(self):
-        """Test correct guess on later snippet awards fewer points."""
-        self.game_session.current_snippet = 4
-        self.game_session.save()
-        data = {'track_id': str(self.correct_track.id)}
-        response = self.client.post(self.guess_url, data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data['is_correct'])
-        self.assertEqual(response.data['points_earned'], 3)
-
-    def test_wrong_guess_advances_snippet(self):
-        """Test wrong guess advances to next snippet."""
-        data = {'track_id': str(self.wrong_track.id)}
-        response = self.client.post(self.guess_url, data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(response.data['is_correct'])
-        self.assertEqual(response.data['current_snippet'], 2)
-
-    @patch('game.views._broadcast_leaderboard_updated')
-    def test_wrong_guess_to_final_snippet_broadcasts_leaderboard_update(self, mock_broadcast):
-        """Reaching snippet 6 via wrong guess should refresh results in realtime."""
-        self.game_session.current_snippet = 5
-        self.game_session.save(update_fields=['current_snippet'])
-
-        response = self.client.post(
-            self.guess_url,
-            {'track_id': str(self.wrong_track.id)},
-            format='json',
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(response.data['is_correct'])
-        self.assertEqual(response.data['current_snippet'], 6)
-        mock_broadcast.assert_called_once_with(self.room.id, self.user.id, 'mix')
-
-    def test_wrong_guess_at_max_snippet(self):
-        """Test wrong guess at max snippet prompts retry flow first."""
-        self.game_session.current_snippet = 6
-        self.game_session.save()
-        data = {'track_id': str(self.wrong_track.id)}
-        response = self.client.post(self.guess_url, data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(response.data['is_correct'])
-        self.assertFalse(response.data['game_over'])
-        self.assertTrue(response.data['retry_available'])
-        self.assertEqual(response.data['next_retry_requirement'], 'ad')
-
-    def test_retry_ad_then_wrong_guess_requests_coin_retry(self):
-        """First retry is ad-gated, then next retry becomes coin-gated."""
-        self.game_session.current_snippet = 6
-        self.game_session.save(update_fields=['current_snippet'])
-
-        self.client.post(self.guess_url, {'track_id': str(self.wrong_track.id)}, format='json')
-        retry_response = self.client.post(self.retry_url, {'action': 'ad'}, format='json')
-        self.assertEqual(retry_response.status_code, status.HTTP_200_OK)
-        self.assertEqual(retry_response.data['retry_credits'], 1)
-
-        wrong_again = self.client.post(self.guess_url, {'track_id': str(self.wrong_track.id)}, format='json')
-        self.assertEqual(wrong_again.status_code, status.HTTP_200_OK)
-        self.assertFalse(wrong_again.data['game_over'])
-        self.assertEqual(wrong_again.data['next_retry_requirement'], 'coins')
-
-    def test_retry_unlock_before_failure_fails(self):
-        """Retry unlock cannot be used until a failed guess requests it."""
-        self.game_session.current_snippet = 6
-        self.game_session.save(update_fields=['current_snippet'])
-
-        response = self.client.post(self.retry_url, {'action': 'ad'}, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_forfeit_ends_game_immediately(self):
-        """Player can skip extra chance and go directly to results."""
-        self.game_session.current_snippet = 6
-        self.game_session.awaiting_retry_unlock = True
-        self.game_session.save(update_fields=['current_snippet', 'awaiting_retry_unlock'])
-
-        response = self.client.post(self.retry_url, {'action': 'forfeit'}, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data['game_over'])
-        self.assertEqual(response.data['points_earned'], 0)
-        self.assertIn('correct_answer', response.data)
-
-    def test_hardcore_wrong_guess_at_final_snippet_ends_run(self):
-        """Hardcore mode should not offer retry unlocks after a failed final guess."""
-        self._unlock_hardcore_session()
-
-        response = self.client.post(
-            self.guess_url,
-            {'track_id': str(self.wrong_track.id), 'mode': DAILY_MODE_HARDCORE},
-            format='json',
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(response.data['is_correct'])
-        self.assertTrue(response.data['game_over'])
-        self.assertFalse(response.data['retry_available'])
-        self.assertIsNone(response.data['next_retry_requirement'])
-
-    def test_hardcore_retry_unlock_is_rejected(self):
-        """Hardcore mode should reject retry activation entirely."""
-        self._unlock_hardcore_session()
-
-        response = self.client.post(
-            self.retry_url,
-            {'action': 'ad', 'mode': DAILY_MODE_HARDCORE},
-            format='json',
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data['error_code'], 'MODE_RULE_RESTRICTED')
-        self.assertEqual(response.data['reason'], 'hardcore_retry_disabled')
-
-    def test_hardcore_hint_purchase_is_rejected(self):
-        """Hardcore mode should reject hint purchases."""
-        self._unlock_hardcore_session()
-
-        response = self.client.post(
-            self.hint_url,
-            {'hint_type': 'genre', 'mode': DAILY_MODE_HARDCORE},
-            format='json',
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data['error_code'], 'MODE_RULE_RESTRICTED')
-        self.assertEqual(response.data['reason'], 'hardcore_hints_disabled')
-
-    def test_guess_after_completion_fails(self):
-        """Test guessing after already completing fails."""
-        self.game_session.correct_guess = True
-        self.game_session.save()
-        data = {'track_id': str(self.correct_track.id)}
-        response = self.client.post(self.guess_url, data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_guess_creates_attempt_record(self):
-        """Test that guessing creates a GuessAttempt record."""
-        data = {'track_id': str(self.wrong_track.id)}
-        self.client.post(self.guess_url, data, format='json')
-        self.assertTrue(GuessAttempt.objects.filter(game_session=self.game_session).exists())
-
-    @override_settings(DAILY_GAME_MAX_RETRIES=0)
-    @patch('game.views._broadcast_leaderboard_updated')
-    def test_failed_guess_broadcasts_leaderboard_update(self, mock_broadcast):
-        """Failed completion should trigger real-time leaderboard refresh."""
-        self.game_session.current_snippet = 6
-        self.game_session.save(update_fields=['current_snippet'])
-
-        response = self.client.post(
-            self.guess_url,
-            {'track_id': str(self.wrong_track.id)},
-            format='json',
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data['game_over'])
-        self.assertEqual(response.data['points_earned'], 0)
-        mock_broadcast.assert_called_once_with(self.room.id, self.user.id, 'mix')
-
-
-class LeaderboardViewTests(APITestCase):
-    """Tests for leaderboard endpoint."""
-
-    def setUp(self):
-        self.user1 = User.objects.create_user(
-            username='user1',
-            email='user1@example.com',
-            password='testpass123'
-        )
-        self.user2 = User.objects.create_user(
-            username='user2',
-            email='user2@example.com',
-            password='testpass123'
-        )
-        self.room = Room.objects.create(host_user=self.user1)
-        RoomUser.objects.create(room=self.room, user=self.user1)
-        RoomUser.objects.create(room=self.room, user=self.user2)
-
-        self.track = Track.objects.create(
-            title='Test Song',
-            artist='Test Artist',
-            preview_url='https://example.com/preview.mp3'
-        )
-
-        today = timezone.now().date()
-        self.daily_song = DailySong.objects.create(
-            room=self.room,
-            track=self.track,
-            date=today
-        )
-
-        # User1 got 6 points
-        DailyGameSession.objects.create(
-            room=self.room,
-            user=self.user1,
-            daily_song=self.daily_song,
-            current_snippet=1,
-            correct_guess=True,
-            points_earned=6,
-            completed_at=timezone.now()
-        )
-
-        # User2 got 4 points
-        DailyGameSession.objects.create(
-            room=self.room,
-            user=self.user2,
-            daily_song=self.daily_song,
-            current_snippet=3,
-            correct_guess=True,
-            points_earned=4,
-            completed_at=timezone.now()
-        )
-
-        self.leaderboard_url = f'/api/game/rooms/{self.room.id}/daily-game/leaderboard/'
-        self.refresh = RefreshToken.for_user(self.user1)
-        self.access_token = str(self.refresh.access_token)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
-
-    def test_get_leaderboard(self):
-        """Test getting leaderboard."""
-        response = self.client.get(self.leaderboard_url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data['leaderboard']), 2)
-        # First place should have 6 points
-        self.assertEqual(response.data['leaderboard'][0]['points_earned'], 6)
-
-    def test_leaderboard_includes_failed_players(self):
-        """Completed failed attempts should also appear in today's results."""
-        user3 = User.objects.create_user(
-            username='user3',
-            email='user3@example.com',
-            password='testpass123'
-        )
-        RoomUser.objects.create(room=self.room, user=user3)
-        DailyGameSession.objects.create(
-            room=self.room,
-            user=user3,
-            daily_song=self.daily_song,
-            current_snippet=6,
-            correct_guess=False,
-            points_earned=0,
-            completed_at=timezone.now()
-        )
-
-        response = self.client.get(self.leaderboard_url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data['leaderboard']), 3)
-
-        failed_entry = next(
-            item for item in response.data['leaderboard']
-            if item['user']['username'] == 'user3'
-        )
-        self.assertFalse(failed_entry['correct_guess'])
-        self.assertEqual(failed_entry['points_earned'], 0)
-
-    def test_leaderboard_orders_winners_before_failed_players(self):
-        """Successful guesses should rank above failed runs."""
-        user3 = User.objects.create_user(
-            username='user3',
-            email='user3@example.com',
-            password='testpass123'
-        )
-        RoomUser.objects.create(room=self.room, user=user3)
-        DailyGameSession.objects.create(
-            room=self.room,
-            user=user3,
-            daily_song=self.daily_song,
-            current_snippet=6,
-            correct_guess=False,
-            points_earned=0,
-            completed_at=timezone.now()
-        )
-
-        response = self.client.get(self.leaderboard_url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        usernames = [entry['user']['username'] for entry in response.data['leaderboard']]
-        self.assertEqual(usernames[-1], 'user3')
-
-    def test_leaderboard_non_member_fails(self):
-        """Test that non-members cannot view leaderboard."""
-        other_user = User.objects.create_user(
-            username='other',
-            email='other@example.com',
-            password='testpass123'
-        )
-        other_refresh = RefreshToken.for_user(other_user)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {str(other_refresh.access_token)}')
-        response = self.client.get(self.leaderboard_url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-    def test_leaderboard_includes_final_snippet_incomplete_failures(self):
-        """Snippet-6 non-winners should appear in today's results."""
-        user3 = User.objects.create_user(
-            username='user3_final_snippet',
-            email='user3_final_snippet@example.com',
-            password='testpass123'
-        )
-        RoomUser.objects.create(room=self.room, user=user3)
-        DailyGameSession.objects.create(
-            room=self.room,
-            user=user3,
-            daily_song=self.daily_song,
-            current_snippet=6,
-            guesses_made=2,
-            correct_guess=False,
-            points_earned=None,
-            completed_at=None
-        )
-
-        response = self.client.get(self.leaderboard_url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data['leaderboard']), 3)
-        entry = next(
-            item for item in response.data['leaderboard']
-            if item['user']['username'] == 'user3_final_snippet'
-        )
-        self.assertFalse(entry['correct_guess'])
-        self.assertEqual(entry['points_earned'], 0)
-        self.assertIsNotNone(entry['completed_at'])
-
-
-class RoomHistoryDetailViewTests(APITestCase):
-    """Tests for room history detail endpoint."""
-
-    def setUp(self):
-        self.user1 = User.objects.create_user(
-            username='history_user1',
-            email='history_user1@example.com',
-            password='testpass123'
-        )
-        self.user2 = User.objects.create_user(
-            username='history_user2',
-            email='history_user2@example.com',
-            password='testpass123'
-        )
-        self.room = Room.objects.create(host_user=self.user1)
-        RoomUser.objects.create(room=self.room, user=self.user1)
-        RoomUser.objects.create(room=self.room, user=self.user2)
-
-        self.track = Track.objects.create(
-            title='History Song',
-            artist='History Artist',
-            preview_url='https://example.com/history.mp3'
-        )
-        self.history_date = timezone.now().date() - timedelta(days=2)
-        self.daily_song = DailySong.objects.create(
-            room=self.room,
-            track=self.track,
-            date=self.history_date,
-        )
-
-        DailyGameSession.objects.create(
-            room=self.room,
-            user=self.user1,
-            daily_song=self.daily_song,
-            current_snippet=2,
-            correct_guess=True,
-            points_earned=5,
-            completed_at=timezone.now() - timedelta(minutes=5),
-        )
-        DailyGameSession.objects.create(
-            room=self.room,
-            user=self.user2,
-            daily_song=self.daily_song,
-            current_snippet=6,
-            correct_guess=False,
-            points_earned=0,
-            completed_at=timezone.now(),
-        )
-
-        self.detail_url = f'/api/game/rooms/{self.room.id}/history/{self.history_date.isoformat()}/'
-        refresh = RefreshToken.for_user(self.user1)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {str(refresh.access_token)}')
-
-    def test_history_detail_includes_failed_players(self):
-        """History leaderboard should include completed failed attempts."""
-        response = self.client.get(self.detail_url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data['leaderboard']), 2)
-
-        failed_entry = next(
-            item for item in response.data['leaderboard']
-            if item['user']['username'] == 'history_user2'
-        )
-        self.assertFalse(failed_entry['correct_guess'])
-        self.assertEqual(failed_entry['points_earned'], 0)
-
-    def test_history_detail_orders_winners_before_failed_players(self):
-        """Winners should remain ranked above failed attempts in history."""
-        response = self.client.get(self.detail_url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        usernames = [entry['user']['username'] for entry in response.data['leaderboard']]
-        self.assertEqual(usernames, ['history_user1', 'history_user2'])
-
-
-class RoomMessagesViewTests(APITestCase):
-    """Tests for room messages endpoint."""
-
-    def setUp(self):
-        self.user = User.objects.create_user(
-            username='testuser',
-            email='test@example.com',
-            password='testpass123'
-        )
-        self.room = Room.objects.create(host_user=self.user)
-        RoomUser.objects.create(room=self.room, user=self.user)
-
-        self.messages_url = f'/api/game/rooms/{self.room.id}/messages/'
-        self.refresh = RefreshToken.for_user(self.user)
-        self.access_token = str(self.refresh.access_token)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
-        RoomDailyModeState.objects.create(
-            room=self.room,
-            mode=DAILY_MODE_GENRE,
-            unlocked_for_date=_active_game_date(),
-            unlocked_until_date=_active_game_date() + timedelta(days=6),
-            last_unlock_contributor_count=1,
-        )
-
-    def test_post_message_success(self):
-        """Test posting a message."""
-        data = {'message': 'Hello everyone!'}
-        response = self.client.post(self.messages_url, data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(RoomMessage.objects.filter(room=self.room, message='Hello everyone!').exists())
-        self.assertEqual(response.data['message'], 'Hello everyone!')
-
-    def test_get_messages(self):
-        """Test getting messages."""
-        RoomMessage.objects.create(room=self.room, user=self.user, message='Test message')
-        response = self.client.get(self.messages_url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data['messages']), 1)
-
-    def test_get_messages_are_filtered_by_mode(self):
-        """Mix chat should not include genre chat messages."""
-        RoomMessage.objects.create(room=self.room, user=self.user, message='Mix message')
-        RoomMessage.objects.create(
-            room=self.room,
-            user=self.user,
-            mode=DAILY_MODE_GENRE,
-            message='Genre message',
-        )
-
-        response = self.client.get(self.messages_url, {'mode': 'mix'})
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data['messages']), 1)
-        self.assertEqual(response.data['messages'][0]['message'], 'Mix message')
-
-    def test_post_message_stores_requested_mode(self):
-        """Posting with a specific daily mode should persist it on the message."""
-        response = self.client.post(
-            self.messages_url,
-            {'message': 'Genre hello', 'mode': DAILY_MODE_GENRE},
-            format='json',
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(
-            RoomMessage.objects.filter(
-                room=self.room,
-                user=self.user,
-                mode=DAILY_MODE_GENRE,
-                message='Genre hello',
-            ).exists()
-        )
-
-    def test_post_message_non_member_fails(self):
-        """Test that non-members cannot post messages."""
-        other_user = User.objects.create_user(
-            username='other',
-            email='other@example.com',
-            password='testpass123'
-        )
-        other_refresh = RefreshToken.for_user(other_user)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {str(other_refresh.access_token)}')
-        data = {'message': 'Unauthorized message'}
-        response = self.client.post(self.messages_url, data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-    def test_message_max_length(self):
-        """Test that messages over 500 chars are rejected."""
-        data = {'message': 'x' * 501}
-        response = self.client.post(self.messages_url, data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_post_message_is_idempotent_with_client_message_id(self):
-        """Test duplicate submits return the existing room message."""
-        data = {
-            'message': 'Hello everyone!',
-            'client_message_id': 'client-msg-1',
-        }
-
-        first = self.client.post(self.messages_url, data, format='json')
-        second = self.client.post(self.messages_url, data, format='json')
-
-        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(second.status_code, status.HTTP_200_OK)
-        self.assertEqual(first.data['id'], second.data['id'])
-        self.assertEqual(
-            RoomMessage.objects.filter(
-                room=self.room,
-                user=self.user,
-                client_message_id='client-msg-1',
-            ).count(),
-            1,
-        )
-
-    def test_client_message_id_is_unique_per_mode(self):
-        """The same client message ID can be reused across mix and genre chats."""
-        data = {
-            'message': 'Hello everyone!',
-            'client_message_id': 'client-msg-1',
-        }
-
-        first = self.client.post(
-            self.messages_url,
-            {'message': data['message'], 'client_message_id': data['client_message_id'], 'mode': 'mix'},
-            format='json',
-        )
-        second = self.client.post(
-            self.messages_url,
-            {
-                'message': data['message'],
-                'client_message_id': data['client_message_id'],
-                'mode': DAILY_MODE_GENRE,
-            },
-            format='json',
-        )
-
-        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(
-            RoomMessage.objects.filter(
-                room=self.room,
-                user=self.user,
-                client_message_id='client-msg-1',
-            ).count(),
-            2,
-        )
-
-
-class PackBundleMessagesViewTests(APITestCase):
-    """Tests for pack bundle messages endpoint."""
-
-    def setUp(self):
-        self.user = User.objects.create_user(
-            username='bundleuser',
-            email='bundle@example.com',
-            password='testpass123'
-        )
-        self.room = Room.objects.create(host_user=self.user)
-        RoomUser.objects.create(room=self.room, user=self.user)
-        self.pack = SongPack.objects.create(name='Stem Pack', price_coins=0)
-        self.track = Track.objects.create(
-            title='Pack Song',
-            artist='Pack Artist',
-            preview_url='https://example.com/preview.mp3'
-        )
-        PackTrack.objects.create(
-            pack=self.pack,
-            track=self.track,
-            order_in_pack=1,
-            drums_url='https://example.com/drums.mp3',
-            bass_url='https://example.com/bass.mp3',
-            other_url='https://example.com/other.mp3',
-            vocals_url='https://example.com/vocals.mp3',
-        )
-        RoomPack.objects.create(room=self.room, pack=self.pack, purchased_by=self.user)
-
-        self.messages_url = (
-            f'/api/game/rooms/{self.room.id}/packs/{self.pack.id}/bundle/messages/'
-        )
-        self.refresh = RefreshToken.for_user(self.user)
-        self.access_token = str(self.refresh.access_token)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
-
-    def test_post_message_is_idempotent_with_client_message_id(self):
-        """Test duplicate submits return the existing pack bundle message."""
-        data = {
-            'message': 'Bundle hello!',
-            'client_message_id': 'bundle-msg-1',
-        }
-
-        first = self.client.post(self.messages_url, data, format='json')
-        second = self.client.post(self.messages_url, data, format='json')
-
-        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(second.status_code, status.HTTP_200_OK)
-        self.assertEqual(first.data['id'], second.data['id'])
-        self.assertEqual(
-            PackBundleMessage.objects.filter(
-                room=self.room,
-                pack=self.pack,
-                user=self.user,
-                client_message_id='bundle-msg-1',
-            ).count(),
-            1,
-        )
+        self.user = _make_user('fav_detail_user')
+        self.client.credentials(HTTP_AUTHORIZATION=_bearer(self.user))
+        FavouriteArtist.objects.create(user=self.user, artist_name='Rihanna')
+
+    def test_delete_favourite_artist(self):
+        response = self.client.delete('/api/game/artists/favourites/Rihanna/')
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(FavouriteArtist.objects.filter(user=self.user, artist_name='Rihanna').exists())
+
+    def test_delete_nonexistent_is_idempotent(self):
+        response = self.client.delete('/api/game/artists/favourites/Unknown/')
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_delete_requires_authentication(self):
+        self.client.credentials()
+        response = self.client.delete('/api/game/artists/favourites/Rihanna/')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 class SearchTracksViewTests(APITestCase):
-    """Tests for track search endpoint."""
+    url = '/api/game/tracks/search/'
 
     def setUp(self):
-        self.search_url = '/api/game/tracks/search/'
-        self.user = User.objects.create_user(
-            username='testuser',
-            email='test@example.com',
-            password='testpass123'
-        )
-
-        Track.objects.create(title='Bohemian Rhapsody', artist='Queen', preview_url='https://example.com/1.mp3')
-        Track.objects.create(title='Stairway to Heaven', artist='Led Zeppelin', preview_url='https://example.com/2.mp3')
-        Track.objects.create(title='Hotel California', artist='Eagles', preview_url='https://example.com/3.mp3')
-
-        self.refresh = RefreshToken.for_user(self.user)
-        self.access_token = str(self.refresh.access_token)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
+        cache.clear()
+        _make_track(title='Bohemian Rhapsody', artist='Queen', genre='rock')
+        _make_track(title='Somebody That I Used to Know', artist='Gotye', genre='pop')
+        _make_track(title='Another Brick', artist='Pink Floyd', genre='rock')
 
     def test_search_by_title(self):
-        """Test searching tracks by title."""
-        response = self.client.get(f'{self.search_url}?q=bohemian')
+        response = self.client.get(self.url, {'q': 'Bohemian'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['title'], 'Bohemian Rhapsody')
+        titles = [t['title'] for t in response.data]
+        self.assertIn('Bohemian Rhapsody', titles)
 
     def test_search_by_artist(self):
-        """Test searching tracks by artist."""
-        response = self.client.get(f'{self.search_url}?q=queen')
+        response = self.client.get(self.url, {'q': 'Gotye'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
 
-    def test_search_empty_query(self):
-        """Test search with empty query returns empty list."""
-        response = self.client.get(f'{self.search_url}?q=')
+    def test_short_query_returns_empty(self):
+        response = self.client.get(self.url, {'q': 'B'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 0)
+        self.assertEqual(response.data, [])
 
-    def test_search_no_matches(self):
-        """Test search with no matches returns empty list."""
-        response = self.client.get(f'{self.search_url}?q=nonexistent')
+    def test_no_preview_url_in_search_results(self):
+        response = self.client.get(self.url, {'q': 'Brick'})
+        for entry in response.data:
+            self.assertNotIn('preview_url', entry)
+
+    def test_accessible_without_auth(self):
+        response = self.client.get(self.url, {'q': 'Queen'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 0)
-
-    def test_search_default_limit_allows_more_than_ten_results(self):
-        """Default search limit should not truncate common artist queries at 10."""
-        artist_name = 'TestArtistMany'
-        for i in range(12):
-            Track.objects.create(
-                title=f'Song {i}',
-                artist=artist_name,
-                preview_url=f'https://example.com/many-{i}.mp3',
-            )
-
-        response = self.client.get(f'{self.search_url}?q={artist_name}')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 12)
-
-    def test_search_limit_query_param_is_respected(self):
-        """Search should honor explicit limit query param."""
-        artist_name = 'TestArtistLimit'
-        for i in range(20):
-            Track.objects.create(
-                title=f'Limit Song {i}',
-                artist=artist_name,
-                preview_url=f'https://example.com/limit-{i}.mp3',
-            )
-
-        response = self.client.get(f'{self.search_url}?q={artist_name}&limit=8')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 8)
 
 
-class PackDailyTrackTests(TestCase):
-    """Tests for daily pack track assignment."""
+class SubmitScoreViewTests(APITestCase):
+    url = '/api/game/score/'
 
     def setUp(self):
-        self.user = User.objects.create_user(
-            username='dailytrackuser',
-            email='dailytrack@example.com',
-            password='testpass123'
-        )
-        self.room = Room.objects.create(host_user=self.user)
-        self.pack = SongPack.objects.create(name='Rotation Pack', price_coins=0)
-        self.track_one = Track.objects.create(
-            title='Track One',
-            artist='Artist One',
-            preview_url='https://example.com/track-one.mp3'
-        )
-        self.track_two = Track.objects.create(
-            title='Track Two',
-            artist='Artist Two',
-            preview_url='https://example.com/track-two.mp3'
-        )
-        PackTrack.objects.create(pack=self.pack, track=self.track_one, order_in_pack=1)
-        PackTrack.objects.create(pack=self.pack, track=self.track_two, order_in_pack=2)
+        self.user = _make_user('scorer')
+        self.client.credentials(HTTP_AUTHORIZATION=_bearer(self.user))
 
-    def test_get_daily_pack_track_returns_existing_row_after_duplicate_create_race(self):
-        today = timezone.now().date()
-        original_create = PackDailyTrack.objects.create
+    def _payload(self, **overrides):
+        base = {
+            'genre': 'pop',
+            'artist_filter': '',
+            'difficulty': 'medium',
+            'songs_played': 10,
+            'songs_correct': 7,
+            'best_streak': 5,
+            'total_score': 120,
+        }
+        base.update(overrides)
+        return base
 
-        def create_then_raise(*args, **kwargs):
-            original_create(*args, **kwargs)
-            raise IntegrityError('UNIQUE constraint failed')
+    def test_submit_score_creates_game_score(self):
+        response = self.client.post(self.url, self._payload(), format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(GameScore.objects.filter(user=self.user).exists())
 
-        with patch('game.views.PackDailyTrack.objects.create', side_effect=create_then_raise):
-            daily_track = _get_daily_pack_track(self.room, self.pack, today)
+    def test_submit_score_creates_user_best(self):
+        self.client.post(self.url, self._payload(), format='json')
+        self.assertTrue(UserBest.objects.filter(user=self.user).exists())
+        best = UserBest.objects.get(user=self.user)
+        self.assertEqual(best.best_score_overall, 120)
 
-        self.assertIsNotNone(daily_track)
-        self.assertEqual(daily_track.room, self.room)
-        self.assertEqual(daily_track.pack, self.pack)
-        self.assertEqual(daily_track.date, today)
-        self.assertEqual(
-            PackDailyTrack.objects.filter(room=self.room, pack=self.pack, date=today).count(),
-            1,
+    def test_submit_score_response_has_required_fields(self):
+        response = self.client.post(self.url, self._payload(), format='json')
+        for field in ('id', 'genre', 'songs_played', 'songs_correct', 'best_streak', 'total_score'):
+            self.assertIn(field, response.data)
+
+    def test_second_better_score_updates_user_best(self):
+        self.client.post(self.url, self._payload(total_score=100), format='json')
+        self.client.post(self.url, self._payload(total_score=300, best_streak=10), format='json')
+        best = UserBest.objects.get(user=self.user)
+        self.assertEqual(best.best_score_overall, 300)
+        self.assertEqual(best.best_streak_overall, 10)
+
+    def test_artist_filter_score_stored(self):
+        response = self.client.post(
+            self.url,
+            self._payload(genre='', artist_filter='Daft Punk'),
+            format='json',
         )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        score = GameScore.objects.get(id=response.data['id'])
+        self.assertEqual(score.artist_filter, 'Daft Punk')
+        self.assertIsNone(score.genre)
+
+    def test_requires_authentication(self):
+        self.client.credentials()
+        response = self.client.post(self.url, self._payload(), format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_missing_required_fields_returns_400(self):
+        response = self.client.post(self.url, {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_difficulty_choices_accepted(self):
+        for diff in ('easy', 'medium', 'hard'):
+            response = self.client.post(self.url, self._payload(difficulty=diff), format='json')
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_invalid_difficulty_rejected(self):
+        response = self.client.post(self.url, self._payload(difficulty='expert'), format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class UserStatsViewTests(APITestCase):
+    url = '/api/game/stats/'
+
+    def setUp(self):
+        self.user = _make_user('stats_user')
+        self.client.credentials(HTTP_AUTHORIZATION=_bearer(self.user))
+
+    def test_returns_default_stats_for_new_user(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['best_score_overall'], 0)
+        self.assertEqual(response.data['total_songs_played'], 0)
+
+    def test_returns_existing_user_best(self):
+        UserBest.objects.create(
+            user=self.user,
+            best_score_overall=500,
+            best_streak_overall=8,
+            total_songs_played=40,
+        )
+        response = self.client.get(self.url)
+        self.assertEqual(response.data['best_score_overall'], 500)
+        self.assertEqual(response.data['best_streak_overall'], 8)
+
+    def test_requires_authentication(self):
+        self.client.credentials()
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_response_has_required_fields(self):
+        response = self.client.get(self.url)
+        for field in ('best_score_overall', 'best_streak_overall',
+                      'total_songs_played', 'total_songs_correct', 'per_genre'):
+            self.assertIn(field, response.data)
+
+
+class LeaderboardViewTests(APITestCase):
+    url = '/api/game/leaderboard/'
+
+    def setUp(self):
+        self.user = _make_user('leaderboard_user')
+        self.client.credentials(HTTP_AUTHORIZATION=_bearer(self.user))
+        self.other = _make_user('other_user')
+
+        GameScore.objects.create(
+            user=self.user, genre='pop',
+            songs_played=10, songs_correct=8, best_streak=5, total_score=200,
+        )
+        GameScore.objects.create(
+            user=self.other, genre='pop',
+            songs_played=10, songs_correct=10, best_streak=10, total_score=400,
+        )
+        GameScore.objects.create(
+            user=self.user, genre='rock',
+            songs_played=5, songs_correct=3, best_streak=2, total_score=50,
+        )
+
+    def test_returns_scores_ordered_by_total_score_desc(self):
+        response = self.client.get(self.url, {'timeframe': 'alltime'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        scores = [entry['total_score'] for entry in response.data]
+        self.assertEqual(scores, sorted(scores, reverse=True))
+
+    def test_genre_filter(self):
+        response = self.client.get(self.url, {'timeframe': 'alltime', 'genre': 'rock'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for entry in response.data:
+            self.assertEqual(entry['genre'], 'rock')
+
+    def test_daily_timeframe_excludes_old_scores(self):
+        old_score = GameScore.objects.create(
+            user=self.user, genre='pop',
+            songs_played=5, songs_correct=5, best_streak=5, total_score=9999,
+        )
+        old_score.played_at = timezone.now() - timedelta(days=3)
+        old_score.save(update_fields=['played_at'])
+        response = self.client.get(self.url, {'timeframe': 'daily'})
+        score_ids = [e['id'] for e in response.data]
+        self.assertNotIn(str(old_score.id), score_ids)
+
+    def test_alltime_includes_all_scores(self):
+        response = self.client.get(self.url, {'timeframe': 'alltime'})
+        self.assertEqual(len(response.data), 3)
+
+    def test_limit_param_respected(self):
+        response = self.client.get(self.url, {'timeframe': 'alltime', 'limit': 2})
+        self.assertLessEqual(len(response.data), 2)
+
+    def test_response_entries_have_user_field(self):
+        response = self.client.get(self.url, {'timeframe': 'alltime'})
+        for entry in response.data:
+            self.assertIn('user', entry)
+            self.assertIn('username', entry['user'])
+
+    def test_requires_authentication(self):
+        self.client.credentials()
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class MigrateGuestStatsViewTests(APITestCase):
+    url = '/api/game/migrate-guest-stats/'
+
+    def setUp(self):
+        self.user = _make_user('migrator')
+        self.client.credentials(HTTP_AUTHORIZATION=_bearer(self.user))
+
+    def _payload(self, **overrides):
+        base = {
+            'best_score': 150,
+            'best_streak': 6,
+            'songs_played': 20,
+            'songs_correct': 14,
+        }
+        base.update(overrides)
+        return base
+
+    def test_migrate_creates_user_best(self):
+        response = self.client.post(self.url, self._payload(), format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['status'], 'migrated')
+        best = UserBest.objects.get(user=self.user)
+        self.assertEqual(best.best_score_overall, 150)
+        self.assertEqual(best.total_songs_played, 20)
+
+    def test_migrate_merges_keeps_higher_existing_best(self):
+        UserBest.objects.create(
+            user=self.user,
+            best_score_overall=200,
+            best_streak_overall=3,
+            total_songs_played=10,
+            total_songs_correct=7,
+        )
+        response = self.client.post(self.url, self._payload(best_score=100), format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        best = UserBest.objects.get(user=self.user)
+        self.assertEqual(best.best_score_overall, 200)
+        self.assertEqual(best.total_songs_played, 30)
+
+    def test_migrate_applies_higher_guest_score(self):
+        UserBest.objects.create(user=self.user, best_score_overall=50)
+        self.client.post(self.url, self._payload(best_score=300), format='json')
+        best = UserBest.objects.get(user=self.user)
+        self.assertEqual(best.best_score_overall, 300)
+
+    def test_nothing_migrated_when_songs_played_zero(self):
+        response = self.client.post(self.url, self._payload(songs_played=0), format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['status'], 'nothing_to_migrate')
+
+    def test_requires_authentication(self):
+        self.client.credentials()
+        response = self.client.post(self.url, self._payload(), format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_missing_fields_returns_400(self):
+        response = self.client.post(self.url, {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

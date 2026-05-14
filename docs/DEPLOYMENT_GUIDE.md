@@ -340,8 +340,14 @@ sudo ufw enable
 ```bash
 cd /var/www/songspot/songspot_backend
 source .venv/bin/activate
-python manage.py fetch_deezer_tracks --count 200
-python manage.py seed_genre_packs --count-per-pack 30 --genres pop,rock,hiphop
+python manage.py seed_curated_artists           # seed ~190 curated artists, 10 tracks each
+python manage.py add_artist "Artist Name"       # add a single artist on demand
+```
+
+To delete all tracks and re-seed from scratch:
+```bash
+python manage.py shell -c "from game.models import Track; Track.objects.all().delete()"
+python manage.py seed_curated_artists
 ```
 
 ---
@@ -562,7 +568,7 @@ python manage.py createsuperuser
 - [ ] PostgreSQL installed, database and user created
 - [ ] `.env` configured with all production values
 - [ ] Django migrations run
-- [ ] Tracks populated (`fetch_deezer_tracks`)
+- [ ] Tracks populated (`seed_curated_artists`)
 - [ ] FFmpeg installed (`apt install ffmpeg`, required for Demucs stem generation)
 - [ ] Redis installed and running
 - [ ] Daphne service running (`songspot.service`)

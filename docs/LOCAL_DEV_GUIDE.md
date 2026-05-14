@@ -16,9 +16,7 @@ It focuses on the fastest path to a working dev loop.
    # Create songspot_backend/.env (see Backend Setup below)
    python manage.py migrate
    python manage.py createsuperuser
-   python manage.py fetch_deezer_tracks --count 200
-   python manage.py update_track_metadata --dry-run
-   python manage.py update_track_metadata
+   python manage.py seed_curated_artists
    python manage.py runserver
    ```
 
@@ -80,12 +78,22 @@ python manage.py createsuperuser
 ```
 
 ### Seed Track Data (Required for Gameplay)
-The game requires tracks in the database:
+The game requires tracks in the database. Seed from the curated artist list:
 ```bash
-python manage.py fetch_deezer_tracks --count 200
+python manage.py seed_curated_artists           # ~190 artists, 10 tracks each
+python manage.py seed_curated_artists --tracks 20  # more tracks per artist
 ```
 
-If you see errors like “No tracks available”, run the command above again.
+To add a single artist on demand:
+```bash
+python manage.py add_artist “Rosalía” --tracks 15
+python manage.py add_artist “Rosalía” --tracks 15 --save-to-list  # also adds to curated_artists.json
+```
+
+To delete all tracks and start fresh:
+```bash
+python manage.py shell -c “from game.models import Track; Track.objects.all().delete()”
+```
 
 ### Run the Server
 ```bash
@@ -186,15 +194,7 @@ This starts:
 `docker-compose.yml` runs `python manage.py migrate` automatically before `runserver` on backend startup.
 You still need to seed track data manually:
 ```bash
-docker compose exec backend python manage.py fetch_deezer_tracks --count 200
-docker compose exec backend python manage.py update_track_metadata --dry-run
-docker compose exec backend python manage.py update_track_metadata
-```
-
-If some older rows have no `deezer_id`, enable the conservative title+artist lookup:
-
-```bash
-docker compose exec backend python manage.py update_track_metadata --search-missing
+docker compose exec backend python manage.py seed_curated_artists
 ```
 
 ### Open a Shell in the Container
@@ -263,7 +263,7 @@ DRF throttling is enabled by default.
 You can disable it in local dev (see `docs/THROTTLING.md`).
 
 ### Missing Audio / Packs
-- Run `python manage.py fetch_deezer_tracks --count 200`.
+- Run `python manage.py seed_curated_artists`.
 - For packs, see `docs/STEMS_GUIDE.md`.
 
 ---
