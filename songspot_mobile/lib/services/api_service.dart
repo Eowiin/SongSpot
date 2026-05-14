@@ -80,6 +80,29 @@ class ApiService {
     }
   }
 
+  String? _localizeBackendCode(AppLocalizations l10n, String code) {
+    switch (code) {
+      case 'INVALID_CREDENTIALS':
+        return l10n.backendInvalidCredentials;
+      case 'INVALID_PASSWORD':
+        return l10n.backendInvalidPassword;
+      case 'INVALID_CURRENT_PASSWORD':
+        return l10n.backendInvalidCurrentPassword;
+      case 'INVALID_TOKEN':
+        return l10n.backendInvalidToken;
+      case 'INVALID_OR_EXPIRED_REFRESH_TOKEN':
+        return l10n.backendInvalidOrExpiredRefreshToken;
+      case 'REFRESH_TOKEN_REQUIRED':
+        return l10n.backendRefreshTokenRequired;
+      case 'PASSWORD_RESET_UNAVAILABLE':
+        return l10n.backendPasswordResetUnavailable;
+      case 'MISSING_REQUIRED_FIELDS':
+        return l10n.backendMissingRequiredFields;
+      default:
+        return null;
+    }
+  }
+
   Future<dynamic> _handleResponse(http.Response response) async {
     final statusCode = response.statusCode;
     if (statusCode >= 200 && statusCode < 300) {
@@ -108,6 +131,14 @@ class ApiService {
         errors = body;
       }
     } catch (_) {}
+
+    if (errorCode != null) {
+      try {
+        final l10n = await _resolveLocalizations();
+        final localized = _localizeBackendCode(l10n, errorCode!);
+        if (localized != null) message = localized;
+      } catch (_) {}
+    }
 
     throw ApiException(
       message,
