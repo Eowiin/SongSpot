@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../config/app_theme.dart';
+import '../../l10n/app_localizations.dart';
 import '../../models/category.dart';
 import '../../models/game_score.dart';
 import '../../providers/game_session_provider.dart';
@@ -35,6 +36,7 @@ class SessionEndScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       body: SafeArea(
@@ -43,9 +45,9 @@ class SessionEndScreen extends StatelessWidget {
           child: Column(
             children: [
               const SizedBox(height: 40),
-              _buildTitle(),
+              _buildTitle(l10n),
               const SizedBox(height: 32),
-              _buildStatsCard(),
+              _buildStatsCard(l10n),
               const SizedBox(height: 16),
               _buildBadgesRow(),
               const Spacer(),
@@ -58,30 +60,30 @@ class SessionEndScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildTitle() {
+  Widget _buildTitle(AppLocalizations l10n) {
     final String emoji;
     final String headline;
 
     switch (endReason) {
       case SessionEndReason.poolCleared:
         emoji = '🏆';
-        headline = 'You cleared it!';
+        headline = l10n.sessionEndHeadlineCleared;
       case SessionEndReason.outOfLives:
         emoji = '💀';
-        headline = 'Out of lives!';
+        headline = l10n.sessionEndHeadlineOutOfLives;
       case SessionEndReason.quit:
         if (songsPlayed == 0) {
           emoji = '🎵';
-          headline = 'Session ended';
+          headline = l10n.sessionEndHeadlineEnded;
         } else if (_accuracy >= 80) {
           emoji = '🔥';
-          headline = 'On fire!';
+          headline = l10n.sessionEndHeadlineOnFire;
         } else if (_accuracy >= 50) {
           emoji = '🎯';
-          headline = 'Nice run!';
+          headline = l10n.sessionEndHeadlineNiceRun;
         } else {
           emoji = '🎵';
-          headline = 'Good try!';
+          headline = l10n.sessionEndHeadlineGoodTry;
         }
     }
 
@@ -108,7 +110,7 @@ class SessionEndScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStatsCard() {
+  Widget _buildStatsCard(AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
       decoration: BoxDecoration(
@@ -119,14 +121,14 @@ class SessionEndScreen extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildStat('Score', '$totalScore', AppTheme.primaryColor),
+          _buildStat(l10n.sessionEndStatScore, '$totalScore', AppTheme.primaryColor),
           _buildDivider(),
-          _buildStat('Streak', '🔥 $bestStreak', const Color(0xFFFF6B35)),
+          _buildStat(l10n.sessionEndStatStreak, '🔥 $bestStreak', const Color(0xFFFF6B35)),
           _buildDivider(),
           _buildStat(
-              'Accuracy', '${_accuracy.toStringAsFixed(0)}%', const Color(0xFF4CAF50)),
+              l10n.sessionEndStatAccuracy, '${_accuracy.toStringAsFixed(0)}%', const Color(0xFF4CAF50)),
           _buildDivider(),
-          _buildStat('Songs', '$songsPlayed', AppTheme.textSecondary),
+          _buildStat(l10n.sessionEndStatSongs, '$songsPlayed', AppTheme.textSecondary),
         ],
       ),
     );
@@ -215,6 +217,7 @@ class SessionEndScreen extends StatelessWidget {
       };
 
   Widget _buildActions(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       children: [
         SizedBox(
@@ -240,9 +243,9 @@ class SessionEndScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14)),
               elevation: 0,
             ),
-            child: const Text(
-              'Play again',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            child: Text(
+              l10n.sessionEndPlayAgain,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
           ),
         ),
@@ -264,9 +267,9 @@ class SessionEndScreen extends StatelessWidget {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14)),
             ),
-            child: const Text(
-              'Change category',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            child: Text(
+              l10n.sessionEndChangeCategory,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
           ),
         ),
@@ -274,9 +277,9 @@ class SessionEndScreen extends StatelessWidget {
         TextButton(
           onPressed: () => Navigator.of(context)
               .popUntil((route) => route.isFirst),
-          child: const Text(
-            'Back to home',
-            style: TextStyle(color: AppTheme.textSecondary),
+          child: Text(
+            l10n.sessionEndBackToHome,
+            style: const TextStyle(color: AppTheme.textSecondary),
           ),
         ),
       ],

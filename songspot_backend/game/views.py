@@ -8,6 +8,7 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from songspot.throttling import GameSearchThrottle
 
 from .models import (
     Track, GameScore, UserBest, FavouriteArtist,
@@ -66,6 +67,7 @@ class NextSongView(APIView):
       exclude — comma-separated track UUIDs already seen this session
     """
     permission_classes = [AllowAny]
+    throttle_classes = [GameSearchThrottle]
 
     def get(self, request):
         genre = request.query_params.get('genre', '').strip()
@@ -187,6 +189,7 @@ class FavouriteArtistDetailView(APIView):
 class SearchTracksView(APIView):
     """Autocomplete track search for the guess input."""
     permission_classes = [AllowAny]
+    throttle_classes = [GameSearchThrottle]
 
     def get(self, request):
         q = request.query_params.get('q', '').strip()

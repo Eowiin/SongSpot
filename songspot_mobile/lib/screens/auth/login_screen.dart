@@ -251,7 +251,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextButton(
                     onPressed: _handleContinueAsGuest,
                     child: Text(
-                      'Continue as guest',
+                      l10n.loginContinueAsGuest,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: AppTheme.textSecondary,
                       ),

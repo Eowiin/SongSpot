@@ -1,1101 +1,491 @@
 {
   "@@locale": "en",
-
-  "appTitle": "SongSpot",
-  "@appTitle": { "description": "The name of the application" },
-
   "loading": "Loading...",
-  "@loading": { "description": "Generic loading text" },
-
+  "@loading": {
+    "description": "Generic loading text"
+  },
   "cancel": "Cancel",
-  "@cancel": { "description": "Cancel action" },
-
-  "confirm": "Confirm",
-  "@confirm": { "description": "Confirm action" },
-
-  "save": "Save",
-  "@save": { "description": "Save action" },
-
-  "submit": "Submit",
-  "@submit": { "description": "Submit action" },
-
-  "error": "Error",
-  "@error": { "description": "Generic error label" },
-
-  "success": "Success",
-  "@success": { "description": "Generic success label" },
-
+  "@cancel": {
+    "description": "Cancel action"
+  },
   "logout": "Logout",
-  "@logout": { "description": "Logout action" },
-
+  "@logout": {
+    "description": "Logout action"
+  },
   "logoutConfirmTitle": "Logout",
-  "@logoutConfirmTitle": { "description": "Title of the logout confirmation dialog" },
-
+  "@logoutConfirmTitle": {
+    "description": "Title of the logout confirmation dialog"
+  },
   "logoutConfirmMessage": "Are you sure you want to logout?",
-  "@logoutConfirmMessage": { "description": "Message in the logout confirmation dialog" },
-
-  "createRoom": "Create New Room",
-  "@createRoom": { "description": "Create new room button" },
-
-  "joinRoom": "Join a Room",
-  "@joinRoom": { "description": "Join a room section title" },
-
-  "myRooms": "My Rooms",
-  "@myRooms": { "description": "My rooms section title" },
-
-  "noRoomsYet": "No rooms yet",
-  "@noRoomsYet": { "description": "Empty state for rooms list" },
-
-  "noRoomsHint": "Create or join a room to start playing!",
-  "@noRoomsHint": { "description": "Hint when no rooms exist" },
-
-  "enterRoomCode": "Enter room code",
-  "@enterRoomCode": { "description": "Placeholder for room code input" },
-
-  "members": "{count, plural, =1{1 member} other{{count} members}}",
-  "@members": {
-    "description": "Member count label",
-    "placeholders": {
-      "count": { "type": "num", "format": "compact" }
-    }
+  "@logoutConfirmMessage": {
+    "description": "Message in the logout confirmation dialog"
   },
-
-  "loginTitle": "Welcome back",
-  "@loginTitle": { "description": "Login screen title" },
-
   "loginSubtitle": "Sign in to continue playing",
-  "@loginSubtitle": { "description": "Login screen subtitle" },
-
+  "@loginSubtitle": {
+    "description": "Login screen subtitle"
+  },
   "emailLabel": "Email",
-  "@emailLabel": { "description": "Email input label" },
-
+  "@emailLabel": {
+    "description": "Email input label"
+  },
   "passwordLabel": "Password",
-  "@passwordLabel": { "description": "Password input label" },
-
+  "@passwordLabel": {
+    "description": "Password input label"
+  },
   "forgotPasswordLink": "Forgot password?",
-  "@forgotPasswordLink": { "description": "Forgot password link on the login screen" },
-
+  "@forgotPasswordLink": {
+    "description": "Forgot password link on the login screen"
+  },
   "forgotPasswordEnterEmail": "Enter your email address first.",
-  "@forgotPasswordEnterEmail": { "description": "Prompt shown when forgot password is tapped without a valid email" },
-
+  "@forgotPasswordEnterEmail": {
+    "description": "Prompt shown when forgot password is tapped without a valid email"
+  },
   "forgotPasswordEmailSent": "If an account exists for this email, a reset email has been sent.",
-  "@forgotPasswordEmailSent": { "description": "Success message after requesting a password reset email" },
-
+  "@forgotPasswordEmailSent": {
+    "description": "Success message after requesting a password reset email"
+  },
   "loginButton": "Login",
-  "@loginButton": { "description": "Login button" },
-
+  "@loginButton": {
+    "description": "Login button"
+  },
   "noAccountPrompt": "Don't have an account?",
-  "@noAccountPrompt": { "description": "Prompt to register" },
-
+  "@noAccountPrompt": {
+    "description": "Prompt to register"
+  },
   "registerLink": "Register",
-  "@registerLink": { "description": "Link to register" },
-
+  "@registerLink": {
+    "description": "Link to register"
+  },
   "registerTitle": "Create account",
-  "@registerTitle": { "description": "Register screen title" },
-
+  "@registerTitle": {
+    "description": "Register screen title"
+  },
   "registerSubtitle": "Join SongSpot and start guessing",
-  "@registerSubtitle": { "description": "Register screen subtitle" },
-
+  "@registerSubtitle": {
+    "description": "Register screen subtitle"
+  },
   "usernameLabel": "Username",
-  "@usernameLabel": { "description": "Username input label" },
-
+  "@usernameLabel": {
+    "description": "Username input label"
+  },
   "confirmPasswordLabel": "Confirm password",
-  "@confirmPasswordLabel": { "description": "Confirm password input label" },
-
+  "@confirmPasswordLabel": {
+    "description": "Confirm password input label"
+  },
   "registerButton": "Create account",
-  "@registerButton": { "description": "Register button" },
-
+  "@registerButton": {
+    "description": "Register button"
+  },
   "alreadyHaveAccount": "Already have an account?",
-  "@alreadyHaveAccount": { "description": "Prompt to login" },
-
+  "@alreadyHaveAccount": {
+    "description": "Prompt to login"
+  },
   "loginLink": "Login",
-  "@loginLink": { "description": "Link to login" },
-
+  "@loginLink": {
+    "description": "Link to login"
+  },
   "loginFailed": "Login failed",
-  "@loginFailed": { "description": "Fallback login failure message" },
-
+  "@loginFailed": {
+    "description": "Fallback login failure message"
+  },
   "registrationFailed": "Registration failed",
-  "@registrationFailed": { "description": "Fallback registration failure message" },
-
+  "@registrationFailed": {
+    "description": "Fallback registration failure message"
+  },
   "settingsTitle": "Settings",
-  "@settingsTitle": { "description": "Settings screen title" },
-
+  "@settingsTitle": {
+    "description": "Settings screen title"
+  },
   "settingsSectionAccount": "Account",
-  "@settingsSectionAccount": { "description": "Account section header in settings" },
-
+  "@settingsSectionAccount": {
+    "description": "Account section header in settings"
+  },
   "settingsSectionNotifications": "Notifications",
-  "@settingsSectionNotifications": { "description": "Notifications section header in settings" },
-
+  "@settingsSectionNotifications": {
+    "description": "Notifications section header in settings"
+  },
   "settingsSectionAccessibility": "Accessibility",
-  "@settingsSectionAccessibility": { "description": "Accessibility section header in settings" },
-
+  "@settingsSectionAccessibility": {
+    "description": "Accessibility section header in settings"
+  },
   "settingsSectionLanguage": "Language",
-  "@settingsSectionLanguage": { "description": "Language section header in settings" },
-
+  "@settingsSectionLanguage": {
+    "description": "Language section header in settings"
+  },
   "settingsSectionMyData": "My Data",
-  "@settingsSectionMyData": { "description": "My Data section header in settings" },
-
+  "@settingsSectionMyData": {
+    "description": "My Data section header in settings"
+  },
   "settingsSectionAbout": "About",
-  "@settingsSectionAbout": { "description": "About section header in settings" },
-
+  "@settingsSectionAbout": {
+    "description": "About section header in settings"
+  },
   "settingsChangeEmail": "Change email",
-  "@settingsChangeEmail": { "description": "Change email tile" },
-
+  "@settingsChangeEmail": {
+    "description": "Change email tile"
+  },
   "settingsChangePassword": "Change password",
-  "@settingsChangePassword": { "description": "Change password tile" },
-
+  "@settingsChangePassword": {
+    "description": "Change password tile"
+  },
   "settingsDailySongNotifications": "Daily song notifications",
-  "@settingsDailySongNotifications": { "description": "Daily song notifications toggle" },
-
+  "@settingsDailySongNotifications": {
+    "description": "Daily song notifications toggle"
+  },
   "settingsMessageNotifications": "Message notifications",
-  "@settingsMessageNotifications": { "description": "Message notifications toggle" },
-
+  "@settingsMessageNotifications": {
+    "description": "Message notifications toggle"
+  },
   "settingsAccessibility": "Accessibility",
-  "@settingsAccessibility": { "description": "Accessibility tile" },
-
+  "@settingsAccessibility": {
+    "description": "Accessibility tile"
+  },
   "settingsLanguage": "Language",
-  "@settingsLanguage": { "description": "Language tile" },
-
+  "@settingsLanguage": {
+    "description": "Language tile"
+  },
   "settingsExportData": "Export my data",
-  "@settingsExportData": { "description": "Export data tile" },
-
+  "@settingsExportData": {
+    "description": "Export data tile"
+  },
   "settingsExportDataSubtitle": "Download a copy of all your personal data",
-  "@settingsExportDataSubtitle": { "description": "Export data tile subtitle" },
-
+  "@settingsExportDataSubtitle": {
+    "description": "Export data tile subtitle"
+  },
   "settingsDeleteAccount": "Delete my account",
-  "@settingsDeleteAccount": { "description": "Delete account tile" },
-
+  "@settingsDeleteAccount": {
+    "description": "Delete account tile"
+  },
   "settingsDeleteAccountSubtitle": "Permanently delete your account and all data",
-  "@settingsDeleteAccountSubtitle": { "description": "Delete account tile subtitle" },
-
+  "@settingsDeleteAccountSubtitle": {
+    "description": "Delete account tile subtitle"
+  },
   "settingsAppVersion": "App version",
-  "@settingsAppVersion": { "description": "App version tile" },
-
+  "@settingsAppVersion": {
+    "description": "App version tile"
+  },
   "settingsPrivacyPolicy": "Privacy Policy",
-  "@settingsPrivacyPolicy": { "description": "Privacy policy tile" },
-
-  "settingsManageAdConsent": "Manage Ad Consent",
-  "@settingsManageAdConsent": { "description": "Settings tile to open UMP privacy options form" },
-
-  "settingsManageAdConsentSubtitle": "Update your ad privacy choices (GDPR)",
-  "@settingsManageAdConsentSubtitle": { "description": "Subtitle for ad consent settings tile" },
-
+  "@settingsPrivacyPolicy": {
+    "description": "Privacy policy tile"
+  },
   "settingsTermsOfService": "Terms of Service",
-  "@settingsTermsOfService": { "description": "Terms of service tile" },
-
-  "settingsSectionShop": "Shop",
-  "@settingsSectionShop": { "description": "Shop section header in settings" },
-
+  "@settingsTermsOfService": {
+    "description": "Terms of service tile"
+  },
   "settingsCouldNotOpenLink": "Could not open link",
-  "@settingsCouldNotOpenLink": { "description": "Shown when external URL cannot be opened" },
-
+  "@settingsCouldNotOpenLink": {
+    "description": "Shown when external URL cannot be opened"
+  },
   "settingsBackLabel": "Back",
-  "@settingsBackLabel": { "description": "Semantic label for back button" },
-
-  "settingsNoAdsPassTitle": "No Ads Pass",
-  "@settingsNoAdsPassTitle": { "description": "No-ads activation dialog title" },
-
-  "settingsNoAdsActivationPrompt": "Spend {coins} coins to disable ads for {days} days?",
-  "@settingsNoAdsActivationPrompt": {
-    "description": "No-ads activation dialog message",
-    "placeholders": {
-      "coins": { "type": "num" },
-      "days": { "type": "num" }
-    }
+  "@settingsBackLabel": {
+    "description": "Semantic label for back button"
   },
-
-  "settingsActivate": "Activate",
-  "@settingsActivate": { "description": "Activate action label" },
-
-  "settingsNoAdsActivated": "No ads activated",
-  "@settingsNoAdsActivated": { "description": "No-ads activation success snackbar" },
-
-  "settingsNoAdsTitle": "No Ads ({days} days)",
-  "@settingsNoAdsTitle": {
-    "description": "No-ads tile title when not active",
-    "placeholders": {
-      "days": { "type": "num" }
-    }
-  },
-
-  "settingsExtendNoAdsTitle": "Extend No Ads ({days} days)",
-  "@settingsExtendNoAdsTitle": {
-    "description": "No-ads tile title when already active",
-    "placeholders": {
-      "days": { "type": "num" }
-    }
-  },
-
-  "settingsNoAdsActiveUntil": "Active until {date}",
-  "@settingsNoAdsActiveUntil": {
-    "description": "No-ads subtitle when active",
-    "placeholders": {
-      "date": { "type": "String" }
-    }
-  },
-
-  "settingsNoAdsSpendHint": "Spend {coins} coins to disable ads for {days} days",
-  "@settingsNoAdsSpendHint": {
-    "description": "No-ads subtitle when inactive",
-    "placeholders": {
-      "coins": { "type": "num" },
-      "days": { "type": "num" }
-    }
-  },
-
-  "settingsNotActive": "Not active",
-  "@settingsNotActive": { "description": "Fallback no-ads state label" },
-
-  "adConsentUpdated": "Ad consent preferences updated.",
-  "@adConsentUpdated": { "description": "Shown after user updates ad consent options" },
-
-  "adConsentNotRequired": "Ad privacy options are not required in your region.",
-  "@adConsentNotRequired": { "description": "Shown when privacy options entry is not required by UMP" },
-
-  "adConsentError": "Could not open ad privacy options right now.",
-  "@adConsentError": { "description": "Shown when UMP privacy options form cannot be opened" },
-
   "accessibilityTitle": "Accessibility",
-  "@accessibilityTitle": { "description": "Accessibility screen title" },
-
+  "@accessibilityTitle": {
+    "description": "Accessibility screen title"
+  },
   "accessibilityTextSize": "Text size",
-  "@accessibilityTextSize": { "description": "Text size section" },
-
+  "@accessibilityTextSize": {
+    "description": "Text size section"
+  },
   "accessibilityTextSizePreview": "Preview text at this size",
-  "@accessibilityTextSizePreview": { "description": "Text size preview label" },
-
+  "@accessibilityTextSizePreview": {
+    "description": "Text size preview label"
+  },
   "accessibilityTextSizeSmall": "Small",
-  "@accessibilityTextSizeSmall": { "description": "Small text size label" },
-
+  "@accessibilityTextSizeSmall": {
+    "description": "Small text size label"
+  },
   "accessibilityTextSizeLarge": "Large",
-  "@accessibilityTextSizeLarge": { "description": "Large text size label" },
-
+  "@accessibilityTextSizeLarge": {
+    "description": "Large text size label"
+  },
   "accessibilityReduceAnimations": "Reduce animations",
-  "@accessibilityReduceAnimations": { "description": "Reduce animations toggle" },
-
+  "@accessibilityReduceAnimations": {
+    "description": "Reduce animations toggle"
+  },
   "accessibilityReduceAnimationsSubtitle": "Minimize motion throughout the app",
-  "@accessibilityReduceAnimationsSubtitle": { "description": "Reduce animations subtitle" },
-
+  "@accessibilityReduceAnimationsSubtitle": {
+    "description": "Reduce animations subtitle"
+  },
   "accessibilityHighContrast": "High contrast",
-  "@accessibilityHighContrast": { "description": "High contrast toggle" },
-
+  "@accessibilityHighContrast": {
+    "description": "High contrast toggle"
+  },
   "accessibilityHighContrastSubtitle": "Increase color contrast for readability",
-  "@accessibilityHighContrastSubtitle": { "description": "High contrast subtitle" },
-
+  "@accessibilityHighContrastSubtitle": {
+    "description": "High contrast subtitle"
+  },
   "accessibilityColorBlindness": "Color blindness mode",
-  "@accessibilityColorBlindness": { "description": "Color blindness section" },
-
+  "@accessibilityColorBlindness": {
+    "description": "Color blindness section"
+  },
   "accessibilityColorBlindnessNone": "None",
-  "@accessibilityColorBlindnessNone": { "description": "No color blindness mode" },
-
+  "@accessibilityColorBlindnessNone": {
+    "description": "No color blindness mode"
+  },
   "accessibilityColorBlindnessDeuteranopia": "Deuteranopia (red-green)",
-  "@accessibilityColorBlindnessDeuteranopia": { "description": "Deuteranopia mode" },
-
+  "@accessibilityColorBlindnessDeuteranopia": {
+    "description": "Deuteranopia mode"
+  },
   "accessibilityColorBlindnessProtanopia": "Protanopia (red)",
-  "@accessibilityColorBlindnessProtanopia": { "description": "Protanopia mode" },
-
+  "@accessibilityColorBlindnessProtanopia": {
+    "description": "Protanopia mode"
+  },
   "accessibilityColorBlindnessTritanopia": "Tritanopia (blue-yellow)",
-  "@accessibilityColorBlindnessTritanopia": { "description": "Tritanopia mode" },
-
+  "@accessibilityColorBlindnessTritanopia": {
+    "description": "Tritanopia mode"
+  },
   "accessibilityEnhancedScreenReader": "Enhanced screen reader",
-  "@accessibilityEnhancedScreenReader": { "description": "Enhanced screen reader toggle" },
-
+  "@accessibilityEnhancedScreenReader": {
+    "description": "Enhanced screen reader toggle"
+  },
   "accessibilityEnhancedScreenReaderSubtitle": "Add more descriptive labels for VoiceOver / TalkBack",
-  "@accessibilityEnhancedScreenReaderSubtitle": { "description": "Enhanced screen reader subtitle" },
-
+  "@accessibilityEnhancedScreenReaderSubtitle": {
+    "description": "Enhanced screen reader subtitle"
+  },
   "languageTitle": "Language",
-  "@languageTitle": { "description": "Language screen title" },
-
-  "languageEnglish": "English",
-  "@languageEnglish": { "description": "English language option" },
-
-  "languageFrench": "Français",
-  "@languageFrench": { "description": "French language option" },
-
+  "@languageTitle": {
+    "description": "Language screen title"
+  },
   "changeEmailTitle": "Change email",
-  "@changeEmailTitle": { "description": "Change email screen title" },
-
+  "@changeEmailTitle": {
+    "description": "Change email screen title"
+  },
   "changeEmailCurrentPassword": "Current password",
-  "@changeEmailCurrentPassword": { "description": "Current password label" },
-
+  "@changeEmailCurrentPassword": {
+    "description": "Current password label"
+  },
   "changeEmailNewEmail": "New email address",
-  "@changeEmailNewEmail": { "description": "New email label" },
-
+  "@changeEmailNewEmail": {
+    "description": "New email label"
+  },
   "changeEmailButton": "Update email",
-  "@changeEmailButton": { "description": "Update email button" },
-
-  "changeEmailSuccess": "Email updated successfully",
-  "@changeEmailSuccess": { "description": "Email update success message" },
-
+  "@changeEmailButton": {
+    "description": "Update email button"
+  },
   "changePasswordTitle": "Change password",
-  "@changePasswordTitle": { "description": "Change password screen title" },
-
+  "@changePasswordTitle": {
+    "description": "Change password screen title"
+  },
   "changePasswordCurrent": "Current password",
-  "@changePasswordCurrent": { "description": "Current password label" },
-
+  "@changePasswordCurrent": {
+    "description": "Current password label"
+  },
   "changePasswordNew": "New password",
-  "@changePasswordNew": { "description": "New password label" },
-
+  "@changePasswordNew": {
+    "description": "New password label"
+  },
   "changePasswordConfirm": "Confirm new password",
-  "@changePasswordConfirm": { "description": "Confirm new password label" },
-
+  "@changePasswordConfirm": {
+    "description": "Confirm new password label"
+  },
   "changePasswordButton": "Update password",
-  "@changePasswordButton": { "description": "Update password button" },
-
-  "changePasswordSuccess": "Password updated. Please log in again.",
-  "@changePasswordSuccess": { "description": "Password update success message" },
-
+  "@changePasswordButton": {
+    "description": "Update password button"
+  },
   "myDataTitle": "My Data",
-  "@myDataTitle": { "description": "My Data screen title" },
-
+  "@myDataTitle": {
+    "description": "My Data screen title"
+  },
   "myDataExportTitle": "Export your data",
-  "@myDataExportTitle": { "description": "Export data section title" },
-
+  "@myDataExportTitle": {
+    "description": "Export data section title"
+  },
   "myDataExportDescription": "Download a copy of all your personal data including your profile, game history, messages, and coin transactions.",
-  "@myDataExportDescription": { "description": "Export data description" },
-
+  "@myDataExportDescription": {
+    "description": "Export data description"
+  },
   "myDataExportButton": "Export my data",
-  "@myDataExportButton": { "description": "Export data button" },
-
+  "@myDataExportButton": {
+    "description": "Export data button"
+  },
   "myDataDeleteTitle": "Delete your account",
-  "@myDataDeleteTitle": { "description": "Delete account section title" },
-
+  "@myDataDeleteTitle": {
+    "description": "Delete account section title"
+  },
   "myDataDeleteDescription": "Permanently delete your account and all associated data. This action cannot be undone.",
-  "@myDataDeleteDescription": { "description": "Delete account description" },
-
+  "@myDataDeleteDescription": {
+    "description": "Delete account description"
+  },
   "myDataDeleteButton": "Delete my account",
-  "@myDataDeleteButton": { "description": "Delete account button" },
-
+  "@myDataDeleteButton": {
+    "description": "Delete account button"
+  },
   "myDataDeleteConfirmTitle": "Delete account",
-  "@myDataDeleteConfirmTitle": { "description": "Delete confirmation dialog title" },
-
+  "@myDataDeleteConfirmTitle": {
+    "description": "Delete confirmation dialog title"
+  },
   "myDataDeleteConfirmMessage": "This will permanently delete your account and all your data. Enter your password to confirm.",
-  "@myDataDeleteConfirmMessage": { "description": "Delete confirmation dialog message" },
-
+  "@myDataDeleteConfirmMessage": {
+    "description": "Delete confirmation dialog message"
+  },
   "myDataDeleteConfirmButton": "Delete permanently",
-  "@myDataDeleteConfirmButton": { "description": "Confirm delete button" },
-
-  "invalidPassword": "Invalid password",
-  "@invalidPassword": { "description": "Invalid password error" },
-
+  "@myDataDeleteConfirmButton": {
+    "description": "Confirm delete button"
+  },
   "invalidEmail": "Invalid email address",
-  "@invalidEmail": { "description": "Invalid email error" },
-
+  "@invalidEmail": {
+    "description": "Invalid email error"
+  },
   "usernameMinLength": "Username must be at least 3 characters",
-  "@usernameMinLength": { "description": "Username minimum length validation" },
-
+  "@usernameMinLength": {
+    "description": "Username minimum length validation"
+  },
   "passwordMinLength": "Password must be at least 8 characters",
-  "@passwordMinLength": { "description": "Password minimum length validation" },
-
+  "@passwordMinLength": {
+    "description": "Password minimum length validation"
+  },
   "passwordsDoNotMatch": "Passwords do not match",
-  "@passwordsDoNotMatch": { "description": "Passwords mismatch error" },
-
+  "@passwordsDoNotMatch": {
+    "description": "Passwords mismatch error"
+  },
   "fieldRequired": "This field is required",
-  "@fieldRequired": { "description": "Required field error" },
-
-  "undoAction": "Undo",
-  "@undoAction": { "description": "Undo button/action label" },
-
-  "userFallback": "User",
-  "@userFallback": { "description": "Fallback username label" },
-
-  "dailyStreakTooltip": "Daily streak",
-  "@dailyStreakTooltip": { "description": "Tooltip for daily streak chip" },
-
-  "coinsTooltip": "Coins",
-  "@coinsTooltip": { "description": "Tooltip for coins chip" },
-
-  "pleaseEnterRoomCode": "Please enter a room code",
-  "@pleaseEnterRoomCode": { "description": "Validation when room code is empty" },
-
-  "finishOrUndoCurrentRoomDeletion": "Finish or undo the current room deletion first.",
-  "@finishOrUndoCurrentRoomDeletion": { "description": "Warning shown when another room deletion is pending" },
-
-  "leftRoomHostTransferred": "Left room. Host transferred.",
-  "@leftRoomHostTransferred": { "description": "Swipe delete snackbar content when host transfer happens" },
-
-  "roomRemoved": "Room removed.",
-  "@roomRemoved": { "description": "Swipe delete snackbar content" },
-
-  "roomDeletionCancelled": "Deletion cancelled.",
-  "@roomDeletionCancelled": { "description": "Shown after tapping undo for room deletion" },
-
-  "deleteLabel": "Delete",
-  "@deleteLabel": { "description": "Delete label in swipe background" },
-
-  "couldNotDeleteRoom": "Could not delete room.",
-  "@couldNotDeleteRoom": { "description": "Fallback delete error message" },
-
-  "coinShopTitle": "Coin Shop",
-  "@coinShopTitle": { "description": "Coin shop screen title" },
-
-  "packListTitle": "Song Packs",
-  "@packListTitle": { "description": "Pack list screen title" },
-
-  "packBrowseTitle": "Browse packs",
-  "@packBrowseTitle": { "description": "Pack list heading" },
-
-  "packFilterAll": "All",
-  "@packFilterAll": { "description": "Pack category filter for all packs" },
-
-  "packNeedMoreCoins": "Need more coins?",
-  "@packNeedMoreCoins": { "description": "Pack list coin helper text" },
-
-  "packGetCoins": "Get Coins",
-  "@packGetCoins": { "description": "Pack list CTA to open coin shop" },
-
-  "packPriceFree": "Free",
-  "@packPriceFree": { "description": "Pack price label for free packs" },
-
-  "packCoinsPrice": "{coins} coins",
-  "@packCoinsPrice": {
-    "description": "Pack price label in coins",
-    "placeholders": {
-      "coins": { "type": "num" }
-    }
+  "@fieldRequired": {
+    "description": "Required field error"
   },
-
-  "packProgressDay": "Day {day} of {totalDays}",
-  "@packProgressDay": {
-    "description": "Current active day progress for a pack",
-    "placeholders": {
-      "day": { "type": "num" },
-      "totalDays": { "type": "num" }
-    }
-  },
-
-  "packStateInProgress": "In progress",
-  "@packStateInProgress": { "description": "Pack state text when active" },
-
-  "packStateFinishedInRoom": "Finished in this room",
-  "@packStateFinishedInRoom": { "description": "Pack state text when completed" },
-
-  "packStateReadyNow": "Ready now",
-  "@packStateReadyNow": { "description": "Pack state text when available to activate" },
-
-  "packStateAfterActivePack": "Unavailable now",
-  "@packStateAfterActivePack": { "description": "Pack state text when blocked by another active pack" },
-
-  "packTagInProgress": "In Progress",
-  "@packTagInProgress": { "description": "Pack status tag when active" },
-
-  "packTagFinished": "Finished",
-  "@packTagFinished": { "description": "Pack status tag when completed" },
-
-  "packTagReadyNow": "Ready Now",
-  "@packTagReadyNow": { "description": "Pack status tag when can activate" },
-
-  "packTagAfterActivePack": "Unavailable",
-  "@packTagAfterActivePack": { "description": "Pack status tag when blocked by another active pack" },
-
-  "packActionUnlock": "Unlock",
-  "@packActionUnlock": { "description": "Primary pack action for free unowned packs" },
-
-  "packActionBuy": "Buy",
-  "@packActionBuy": { "description": "Primary pack action for paid unowned packs" },
-
-  "packActionInProgress": "In Progress",
-  "@packActionInProgress": { "description": "Disabled pack action label while pack is active" },
-
-  "packActionFinished": "Finished",
-  "@packActionFinished": { "description": "Disabled pack action label when pack is completed" },
-
-  "packActionActivate": "Activate",
-  "@packActionActivate": { "description": "Primary pack action to activate an owned pack" },
-
-  "packActionLater": "Later",
-  "@packActionLater": { "description": "Disabled pack action label when another pack is active" },
-
-  "packActivatedSuccessfully": "Pack activated successfully",
-  "@packActivatedSuccessfully": { "description": "Pack activation success message" },
-
-  "packUnlockedActivateWhenReady": "Pack unlocked. Activate it when you are ready.",
-  "@packUnlockedActivateWhenReady": { "description": "Pack purchase success message" },
-
-  "adNotReadyTryAgain": "Ad not ready yet. Please try again in a moment.",
-  "@adNotReadyTryAgain": { "description": "Shown when rewarded ad cannot be displayed" },
-
-  "storeNotAvailableOnDevice": "Store not available on this device.",
-  "@storeNotAvailableOnDevice": { "description": "Shown when IAP store is unavailable" },
-
-  "productsNotFoundStoreMessage": "Products not found in store. Make sure in-app products are created and set to Active in App Store Connect / Play Console.",
-  "@productsNotFoundStoreMessage": { "description": "Shown when store products are missing" },
-
-  "getMoreCoinsTitle": "Get more coins",
-  "@getMoreCoinsTitle": { "description": "Section title in coin shop" },
-
-  "useCoinsToUnlockHint": "Use coins to unlock song packs and hints.",
-  "@useCoinsToUnlockHint": { "description": "Coin shop helper text" },
-
-  "processingPayment": "Processing payment...",
-  "@processingPayment": { "description": "Payment overlay title" },
-
-  "pleaseDontCloseApp": "Please don't close the app",
-  "@pleaseDontCloseApp": { "description": "Payment overlay subtitle" },
-
-  "yourBalance": "Your balance",
-  "@yourBalance": { "description": "Coin balance header label" },
-
-  "coinsAmount": "{count} coins",
-  "@coinsAmount": {
-    "description": "Generic coins amount label",
-    "placeholders": {
-      "count": { "type": "num" }
-    }
-  },
-
-  "freeBonusCoinsTitle": "Free Bonus Coins",
-  "@freeBonusCoinsTitle": { "description": "Rewarded card title in coin shop" },
-
-  "watchRewardedAdClaimCoins": "Watch a rewarded ad to claim +{coins} coins.",
-  "@watchRewardedAdClaimCoins": {
-    "description": "Rewarded card helper text",
-    "placeholders": {
-      "coins": { "type": "num" }
-    }
-  },
-
-  "checkingDailyLimit": "Checking daily limit...",
-  "@checkingDailyLimit": { "description": "Reward status loading text" },
-
-  "dailyLimitUnavailable": "Daily limit unavailable right now.",
-  "@dailyLimitUnavailable": { "description": "Reward status unavailable text" },
-
-  "remainingTodayStatus": "Remaining today: {remaining} / {cap}",
-  "@remainingTodayStatus": {
-    "description": "Remaining rewarded claims status",
-    "placeholders": {
-      "remaining": { "type": "num" },
-      "cap": { "type": "num" }
-    }
-  },
-
-  "dailyLimitReached": "Daily Limit Reached",
-  "@dailyLimitReached": { "description": "Reward button label when cap reached" },
-
-  "watchAdLabel": "Watch Ad",
-  "@watchAdLabel": { "description": "Reward button label" },
-
-  "rewardCoinsAddedToBalance": "+{coins} coins added to your balance.",
-  "@rewardCoinsAddedToBalance": {
-    "description": "Inline rewarded ad success message in coin shop",
-    "placeholders": {
-      "coins": { "type": "num" }
-    }
-  },
-
-  "coinsAddedSuccess": "+{coins} coins added!",
-  "@coinsAddedSuccess": {
-    "description": "IAP success snackbar in coin shop",
-    "placeholders": {
-      "coins": { "type": "num" }
-    }
-  },
-
-  "gamePlayingSnippet": "🔊 Playing...",
-  "@gamePlayingSnippet": { "description": "Game CTA while snippet audio is currently playing" },
-
-  "gamePlaySnippet": "Play Snippet",
-  "@gamePlaySnippet": { "description": "Game CTA to play current snippet" },
-
-  "gameSnippetLabel": "Snippet {number}",
-  "@gameSnippetLabel": {
-    "description": "Current snippet indicator label",
-    "placeholders": {
-      "number": { "type": "num" }
-    }
-  },
-
-  "gamePointsLabel": "{points} points",
-  "@gamePointsLabel": {
-    "description": "Possible points label",
-    "placeholders": {
-      "points": { "type": "num" }
-    }
-  },
-
-  "gameMakeYourGuess": "Make Your Guess",
-  "@gameMakeYourGuess": { "description": "Heading above guess form" },
-
-  "gameSongTitleHint": "Start typing song title...",
-  "@gameSongTitleHint": { "description": "Song autocomplete hint text" },
-
-  "gameSongTitleLabel": "Song Title",
-  "@gameSongTitleLabel": { "description": "Song autocomplete label text" },
-
-  "gameSkip": "Skip",
-  "@gameSkip": { "description": "Skip snippet button label" },
-
-  "gameSubmitGuess": "Submit Guess",
-  "@gameSubmitGuess": { "description": "Submit guess button label" },
-
-  "gameGuessesMade": "Guesses made: {count}",
-  "@gameGuessesMade": {
-    "description": "Guesses made counter label",
-    "placeholders": {
-      "count": { "type": "num" }
-    }
-  },
-
-  "gameRetryUnlocked": "Second chance unlocked. Submit another guess.",
-  "@gameRetryUnlocked": { "description": "Banner shown when retry is already unlocked" },
-
-  "gameWatchAdForRetry": "Watch Ad for Retry",
-  "@gameWatchAdForRetry": { "description": "Retry CTA for ad-based unlock" },
-
-  "gameSpendCoinsForFinalChance": "Spend {coins} Coins for Final Chance",
-  "@gameSpendCoinsForFinalChance": {
-    "description": "Retry CTA for coin-based unlock",
-    "placeholders": {
-      "coins": { "type": "num" }
-    }
-  },
-
-  "gameRetryWatchAdSubtitle": "You reached the last snippet. Watch one rewarded ad to unlock a second chance.",
-  "@gameRetryWatchAdSubtitle": { "description": "Retry subtitle when next action is ad" },
-
-  "gameRetryUseCoinsSubtitle": "Use coins to unlock one final guess before results.",
-  "@gameRetryUseCoinsSubtitle": { "description": "Retry subtitle when next action is coins" },
-
-  "gameUseRewardForSecondChance": "Use Reward for Second Chance",
-  "@gameUseRewardForSecondChance": { "description": "Retry CTA when user has ad-free pass and ad action is required" },
-
-  "gameExtraChanceTitle": "Extra Chance",
-  "@gameExtraChanceTitle": { "description": "Retry card title" },
-
-  "gameSkipExtraChanceShowResults": "Skip Extra Chance and Show Results",
-  "@gameSkipExtraChanceShowResults": { "description": "Retry card secondary action label" },
-
-  "gameHintsTitle": "Hints",
-  "@gameHintsTitle": { "description": "Hints section title" },
-
-  "gameHintGenre": "Genre",
-  "@gameHintGenre": { "description": "Hint chip label for genre" },
-
-  "gameHintDecade": "Decade",
-  "@gameHintDecade": { "description": "Hint chip label for decade" },
-
-  "gameHintArtist": "Artist",
-  "@gameHintArtist": { "description": "Hint chip label for artist" },
-
-  "commonCancel": "Cancel",
-  "@commonCancel": { "description": "Generic cancel button label" },
-  "commonClose": "Close",
-  "@commonClose": { "description": "Generic close label or tooltip" },
-  "packModeLabel": "Pack",
-  "@packModeLabel": { "description": "Label for the pack mode pill in the game switcher" },
-  "dailyModesTitle": "Daily Modes",
-  "@dailyModesTitle": { "description": "Title for the mode section or modes sheet" },
-  "dailyModesShortLabel": "Modes",
-  "@dailyModesShortLabel": { "description": "Short label for the button that opens the modes sheet" },
-  "dailyModesIntro": "Unlock extra lanes for this room without replacing Daily Mix.",
-  "@dailyModesIntro": { "description": "Intro text for the modes sheet" },
-  "dailyModesRoomIntro": "Mix is always free. Contribute with your room to unlock extra daily lanes.",
-  "@dailyModesRoomIntro": { "description": "Intro text for the room details modes section" },
-  "dailyModesScrollHint": "Scroll to see all modes",
-  "@dailyModesScrollHint": { "description": "Hint shown below the modes list to indicate scrolling" },
   "dailyModeMixLabel": "Daily Mix",
-  "@dailyModeMixLabel": { "description": "Label for the mix mode" },
+  "@dailyModeMixLabel": {
+    "description": "Label for the mix mode"
+  },
   "dailyModeGenreLabel": "Genre Mode",
-  "@dailyModeGenreLabel": { "description": "Label for the genre mode" },
+  "@dailyModeGenreLabel": {
+    "description": "Label for the genre mode"
+  },
   "dailyModeDecadeLabel": "Decade Mode",
-  "@dailyModeDecadeLabel": { "description": "Label for the decade mode" },
+  "@dailyModeDecadeLabel": {
+    "description": "Label for the decade mode"
+  },
   "dailyModeHardcoreLabel": "Hardcore",
-  "@dailyModeHardcoreLabel": { "description": "Label for the hardcore mode" },
+  "@dailyModeHardcoreLabel": {
+    "description": "Label for the hardcore mode"
+  },
   "dailyModeMixSubtitle": "Fully random song for everyone today",
-  "@dailyModeMixSubtitle": { "description": "Subtitle for the mix mode" },
+  "@dailyModeMixSubtitle": {
+    "description": "Subtitle for the mix mode"
+  },
   "dailyModeGenreSubtitle": "Fixed genre for everyone today",
-  "@dailyModeGenreSubtitle": { "description": "Subtitle for the genre mode" },
+  "@dailyModeGenreSubtitle": {
+    "description": "Subtitle for the genre mode"
+  },
   "dailyModeDecadeSubtitle": "Fixed decade for everyone today",
-  "@dailyModeDecadeSubtitle": { "description": "Subtitle for the decade mode" },
+  "@dailyModeDecadeSubtitle": {
+    "description": "Subtitle for the decade mode"
+  },
   "dailyModeHardcoreSubtitle": "Same daily song, but no hints and no retries",
-  "@dailyModeHardcoreSubtitle": { "description": "Subtitle for the hardcore mode" },
+  "@dailyModeHardcoreSubtitle": {
+    "description": "Subtitle for the hardcore mode"
+  },
   "dailyModeLaneSubtitle": "Today's lane: {name}",
   "@dailyModeLaneSubtitle": {
     "description": "Subtitle when a specific daily lane is active",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
-  "dailyModeFree": "Free",
-  "@dailyModeFree": { "description": "Price label for a free mode" },
-  "dailyModeCoinsCost": "{coins} coins",
-  "@dailyModeCoinsCost": {
-    "description": "Price label for a paid mode",
-    "placeholders": {
-      "coins": { "type": "num" }
-    }
-  },
-  "dailyModeUnlockedUntilReset": "Unlocked for this room for 7 days",
-  "@dailyModeUnlockedUntilReset": { "description": "Status text shown when a mode is unlocked" },
-  "dailyModeContributionProgress": "{progress}/{total} coins • {contributors} contributors",
-  "@dailyModeContributionProgress": {
-    "description": "Funding progress text for a mode card",
-    "placeholders": {
-      "progress": { "type": "num" },
-      "total": { "type": "num" },
-      "contributors": { "type": "num" }
-    }
-  },
-  "dailyModePlay": "Play",
-  "@dailyModePlay": { "description": "Primary action label for a playable mode" },
-  "dailyModePreview": "Preview",
-  "@dailyModePreview": { "description": "Primary action label for a previewable mode" },
-  "dailyModeUnlocked": "Unlocked",
-  "@dailyModeUnlocked": { "description": "Action/status label for an unlocked mode" },
-  "dailyModeContribute": "Contribute",
-  "@dailyModeContribute": { "description": "Action label to contribute to a mode" },
-  "dailyModeFunded": "Funded",
-  "@dailyModeFunded": { "description": "Status label when a mode is funded" },
-  "dailyModeContributeTitle": "Contribute to {mode}",
-  "@dailyModeContributeTitle": {
-    "description": "Dialog title for contributing to a mode",
-    "placeholders": {
-      "mode": { "type": "String" }
-    }
-  },
-  "dailyModeCoinsRemainingYouHave": "{remaining} coins remaining. You currently have {coins} coins.",
-  "@dailyModeCoinsRemainingYouHave": {
-    "description": "Helper text showing remaining funding and the user's balance",
-    "placeholders": {
-      "remaining": { "type": "num" },
-      "coins": { "type": "num" }
-    }
-  },
-  "dailyModeCoinsToContribute": "Coins to contribute",
-  "@dailyModeCoinsToContribute": { "description": "Input label for the contribution amount" },
-  "dailyModeContributionQuickAmount": "+{amount}",
-  "@dailyModeContributionQuickAmount": {
-    "description": "Quick contribution chip label for a fixed amount",
-    "placeholders": {
-      "amount": { "type": "num" }
-    }
-  },
-  "dailyModeContributionFill": "Fill",
-  "@dailyModeContributionFill": { "description": "Quick contribution chip label to fully fund the remaining amount the user can afford" },
-  "dailyModeContributionRemainingLabel": "Remaining",
-  "@dailyModeContributionRemainingLabel": { "description": "Short label for remaining room funding in the contribution sheet" },
-  "dailyModeContributionBalanceLabel": "Your balance",
-  "@dailyModeContributionBalanceLabel": { "description": "Short label for the user's current coin balance in the contribution sheet" },
-  "dailyModeContributionLeft": "{remaining} left",
-  "@dailyModeContributionLeft": {
-    "description": "Short label showing how much funding remains",
-    "placeholders": {
-      "remaining": { "type": "num" }
-    }
-  },
-  "dailyModeContributionSent": "Contribution sent",
-  "@dailyModeContributionSent": { "description": "Snackbar shown when a contribution succeeds without unlocking the mode" },
-  "dailyModeUnlockedForRoom": "{mode} unlocked for this room",
-  "@dailyModeUnlockedForRoom": {
-    "description": "Snackbar shown when a mode becomes unlocked",
-    "placeholders": {
-      "mode": { "type": "String" }
-    }
-  },
-  "dailyModeHardcoreRulesTitle": "Hardcore rules",
-  "@dailyModeHardcoreRulesTitle": { "description": "Title for the hardcore rules card" },
-  "dailyModeHardcoreRulesBody": "This lane disables hints and retry unlocks. One run only.",
-  "@dailyModeHardcoreRulesBody": { "description": "Body copy for the hardcore rules card" },
-
-  "gameSelectSongFromResults": "Please select a song from the search results",
-  "@gameSelectSongFromResults": { "description": "Error when submitting without selecting an autocomplete result" },
-
-  "chatTitle": "Chat",
-  "@chatTitle": { "description": "Chat section title" },
-
-  "chatNoMessagesYet": "No messages yet",
-  "@chatNoMessagesYet": { "description": "Empty chat title message" },
-
-  "chatStartConversation": "Start the conversation!",
-  "@chatStartConversation": { "description": "Empty chat subtitle message" },
-
-  "chatYou": "You",
-  "@chatYou": { "description": "Current user label in chat bubbles" },
-
-  "chatTypeMessageHint": "Type a message...",
-  "@chatTypeMessageHint": { "description": "Chat input hint text" },
-
-  "packSearchSongTitleOrArtist": "Search song title or artist",
-  "@packSearchSongTitleOrArtist": { "description": "Pack mode autocomplete hint text" },
-
-  "packSkipInstrument": "Skip Instrument",
-  "@packSkipInstrument": { "description": "Pack mode skip stage button label" },
-
-  "packPlayStems": "Play Stems",
-  "@packPlayStems": { "description": "Pack mode play stems button label" },
-
-  "packStageLabel": "Stage {number}",
-  "@packStageLabel": {
-    "description": "Pack mode stage label",
-    "placeholders": {
-      "number": { "type": "num" }
-    }
-  },
-
-  "packPointsSoFar": "{points} points so far",
-  "@packPointsSoFar": {
-    "description": "Pack mode points summary",
-    "placeholders": {
-      "points": { "type": "num" }
-    }
-  },
-
-  "packPreparingChallenge": "Preparing your challenge...",
-  "@packPreparingChallenge": { "description": "Pack stems generation status title" },
-
-  "packPreparingChallengeSubtitle": "This may take a moment",
-  "@packPreparingChallengeSubtitle": { "description": "Pack stems generation status subtitle" },
-
-  "packStageDrums": "Drums",
-  "@packStageDrums": { "description": "Pack stage name for drums stem" },
-
-  "packStageBass": "Bass",
-  "@packStageBass": { "description": "Pack stage name for bass stem" },
-
-  "packStageOther": "Other",
-  "@packStageOther": { "description": "Pack stage name for other stems" },
-
-  "packStageVocals": "Vocals",
-  "@packStageVocals": { "description": "Pack stage name for vocals stem" },
-
-  "packStemsGeneratingTryAgain": "Stems are being generated. Try again in a moment.",
-  "@packStemsGeneratingTryAgain": { "description": "Snack when attempting to play stems while generation is still in progress" },
-
-  "packNoStemsAvailableForStage": "No stems available for this stage",
-  "@packNoStemsAvailableForStage": { "description": "Snack when no stems were returned for current pack stage" },
-
-  "packFailedToPlayStems": "Failed to play stems: {error}",
-  "@packFailedToPlayStems": {
-    "description": "Snack shown when local stem playback fails",
-    "placeholders": {
-      "error": { "type": "String" }
-    }
-  },
-
-  "packCompleted": "Pack completed!",
-  "@packCompleted": { "description": "Pack completion headline" },
-  "packFailed": "Pack failed",
-  "@packFailed": { "description": "Pack failure headline" },
-
-  "packTotalPoints": "Total points: {points}",
-  "@packTotalPoints": {
-    "description": "Pack completion total points",
-    "placeholders": {
-      "points": { "type": "num" }
-    }
-  },
-
-  "packResultsTitle": "Today's Results",
-  "@packResultsTitle": { "description": "Pack completion results section title" },
-
-  "packNoOtherPlayersCompleted": "No other players have completed this pack yet",
-  "@packNoOtherPlayersCompleted": { "description": "Empty state for pack leaderboard" },
-
-  "packStageCompletedAt": "Stage {stage} - {time}",
-  "@packStageCompletedAt": {
-    "description": "Pack leaderboard row subtitle with stage and completion time",
-    "placeholders": {
-      "stage": { "type": "num" },
-      "time": { "type": "String" }
-    }
-  },
-
-  "dailyResultNoOtherPlayersCompleted": "No other players have guessed yet",
-  "@dailyResultNoOtherPlayersCompleted": { "description": "Empty state for daily results leaderboard" },
-
-  "dailyResultSnippetCompletedAt": "Snippet {snippet} - {time}",
-  "@dailyResultSnippetCompletedAt": {
-    "description": "Daily leaderboard row subtitle with snippet and completion time",
-    "placeholders": {
-      "snippet": { "type": "num" },
-      "time": { "type": "String" }
-    }
-  },
-
-  "dailyResultNotGuessedAt": "Did not guess - {time}",
-  "@dailyResultNotGuessedAt": {
-    "description": "Daily leaderboard row subtitle when the song was not guessed",
-    "placeholders": {
-      "time": { "type": "String" }
-    }
-  },
-
-  "dailyResultPointsSnippet": "+{points} points (Snippet {snippet})",
-  "@dailyResultPointsSnippet": {
-    "description": "Daily result success badge with points and snippet number",
-    "placeholders": {
-      "points": { "type": "num" },
-      "snippet": { "type": "num" }
-    }
-  },
-
-  "backendRoomLimitReached": "Room limit reached. Delete or leave one room before creating another.",
-  "@backendRoomLimitReached": { "description": "Backend room hosted limit error" },
-
-  "backendRoomLimitReachedWithLimit": "Room limit reached ({maxRooms}). Delete or leave one room before creating another.",
-  "@backendRoomLimitReachedWithLimit": {
-    "description": "Backend room hosted limit error with max rooms value",
-    "placeholders": {
-      "maxRooms": { "type": "num" }
-    }
-  },
-
-  "backendDailyRoomCreationLimitReached": "Daily room creation limit reached. Try again tomorrow.",
-  "@backendDailyRoomCreationLimitReached": { "description": "Backend daily room creation limit error" },
-
-  "backendDailyRoomCreationLimitReachedWithLimit": "Daily room creation limit reached ({dailyLimit}). Try again tomorrow.",
-  "@backendDailyRoomCreationLimitReachedWithLimit": {
-    "description": "Backend daily room creation limit with explicit limit value",
-    "placeholders": {
-      "dailyLimit": { "type": "num" }
-    }
-  },
-
-  "backendAlreadyInRoom": "You are already in this room.",
-  "@backendAlreadyInRoom": { "description": "Backend room join duplicate error" },
-
-  "backendNotInRoom": "You are not in this room.",
-  "@backendNotInRoom": { "description": "Backend room membership error" },
-
-  "backendOnlyHostCanRenameRoom": "Only the host can rename the room.",
-  "@backendOnlyHostCanRenameRoom": { "description": "Backend room rename permission error" },
-
-  "backendMustBeInRoomToPlayGame": "You must be in a room to play this game.",
-  "@backendMustBeInRoomToPlayGame": { "description": "Backend room membership required for game actions" },
-
-  "backendRoomNotFound": "Room not found.",
-  "@backendRoomNotFound": { "description": "Backend room not found error" },
-
-  "backendInsufficientCoins": "Insufficient coins.",
-  "@backendInsufficientCoins": { "description": "Backend insufficient coins error" },
-
-  "backendInsufficientCoinsWithCost": "Insufficient coins. You need {requiredCoins} coins.",
-  "@backendInsufficientCoinsWithCost": {
-    "description": "Backend insufficient coins error with required cost",
-    "placeholders": {
-      "requiredCoins": { "type": "num" }
-    }
-  },
-
-  "backendNoRetriesRemaining": "No retries remaining.",
-  "@backendNoRetriesRemaining": { "description": "Backend no retries remaining error" },
-
-  "backendRetryAfterLastSnippetOnly": "Retry is only available after the last snippet.",
-  "@backendRetryAfterLastSnippetOnly": { "description": "Backend retry requirement error" },
-
-  "backendRetryAlreadyActive": "Second chance is already active.",
-  "@backendRetryAlreadyActive": { "description": "Backend retry already active error" },
-
-  "backendRetryNotPendingUnlock": "Second chance is not available right now.",
-  "@backendRetryNotPendingUnlock": { "description": "Backend retry not pending unlock error" },
-
-  "backendInvalidRetryAction": "Invalid retry action. Expected: {expectedAction}.",
-  "@backendInvalidRetryAction": {
-    "description": "Backend invalid retry action with expected value",
-    "placeholders": {
-      "expectedAction": { "type": "String" }
-    }
-  },
-
-  "backendInvalidRetryActionUnknown": "Invalid retry action.",
-  "@backendInvalidRetryActionUnknown": { "description": "Backend invalid retry action without expected value" },
-
-  "backendModeRuleRestricted": "This action is not allowed in the current game mode.",
-  "@backendModeRuleRestricted": { "description": "Backend generic mode rule restriction error" },
-
-  "backendModeRuleRestrictedHardcoreRetryDisabled": "Hardcore mode does not allow retries.",
-  "@backendModeRuleRestrictedHardcoreRetryDisabled": { "description": "Backend hardcore mode retry restriction error" },
-
-  "backendModeRuleRestrictedHardcoreHintsDisabled": "Hardcore mode does not allow hints.",
-  "@backendModeRuleRestrictedHardcoreHintsDisabled": { "description": "Backend hardcore mode hint restriction error" },
-
-  "backendGameAlreadyCompleted": "Game already completed.",
-  "@backendGameAlreadyCompleted": { "description": "Backend game already completed error" },
-
-  "backendNoActiveGameSession": "No active game session.",
-  "@backendNoActiveGameSession": { "description": "Backend missing active game session error" },
-
-  "backendNoSongAvailableToday": "No song available for today.",
-  "@backendNoSongAvailableToday": { "description": "Backend no daily song error" },
-
-  "backendPackNotOwnedByRoom": "This pack is not owned by the room.",
-  "@backendPackNotOwnedByRoom": { "description": "Backend room pack ownership error" },
-
-  "backendPackHasNoTracks": "This pack has no tracks.",
-  "@backendPackHasNoTracks": { "description": "Backend empty pack error" },
-
-  "backendNoActivePackSession": "No active pack session.",
-  "@backendNoActivePackSession": { "description": "Backend missing active pack session error" },
-
-  "backendPackAlreadyCompleted": "Pack already completed.",
-  "@backendPackAlreadyCompleted": { "description": "Backend completed pack session error" },
-
-  "backendTrackNotFound": "Track not found.",
-  "@backendTrackNotFound": { "description": "Backend track not found error" },
-
-  "backendAlreadyGuessedForStage": "You already guessed for this stage.",
-  "@backendAlreadyGuessedForStage": { "description": "Backend duplicate stage guess error" },
-
-  "backendRoomIdRequired": "Room is required.",
-  "@backendRoomIdRequired": { "description": "Backend missing room id error" },
-
   "backendInvalidPassword": "Invalid password.",
-  "@backendInvalidPassword": { "description": "Backend invalid password error" },
-
+  "@backendInvalidPassword": {
+    "description": "Backend invalid password error"
+  },
   "backendInvalidCurrentPassword": "Invalid current password.",
-  "@backendInvalidCurrentPassword": { "description": "Backend invalid current password error" },
-
-  "backendInvalidDateFormat": "Invalid date format. Use YYYY-MM-DD.",
-  "@backendInvalidDateFormat": { "description": "Backend invalid date format error" },
-
-  "backendDateNotInHistory": "This date is not yet in history.",
-  "@backendDateNotInHistory": { "description": "Backend date not in history error" },
-
-  "backendNoSongFoundForDate": "No song found for this date.",
-  "@backendNoSongFoundForDate": { "description": "Backend no song for history date error" },
-
-  "backendNoPackTrackForDate": "No pack track found for this date.",
-  "@backendNoPackTrackForDate": { "description": "Backend no pack track for date error" },
-
+  "@backendInvalidCurrentPassword": {
+    "description": "Backend invalid current password error"
+  },
   "backendInvalidCredentials": "Invalid email or password.",
-  "@backendInvalidCredentials": { "description": "Backend invalid credentials error" },
-
+  "@backendInvalidCredentials": {
+    "description": "Backend invalid credentials error"
+  },
   "backendPasswordResetUnavailable": "Password reset email is currently unavailable.",
-  "@backendPasswordResetUnavailable": { "description": "Backend password reset email unavailable error" },
-
+  "@backendPasswordResetUnavailable": {
+    "description": "Backend password reset email unavailable error"
+  },
   "backendRefreshTokenRequired": "Refresh token is required.",
-  "@backendRefreshTokenRequired": { "description": "Backend missing refresh token error" },
-
+  "@backendRefreshTokenRequired": {
+    "description": "Backend missing refresh token error"
+  },
   "backendInvalidOrExpiredRefreshToken": "Refresh token is invalid or expired.",
-  "@backendInvalidOrExpiredRefreshToken": { "description": "Backend invalid or expired refresh token error" },
-
+  "@backendInvalidOrExpiredRefreshToken": {
+    "description": "Backend invalid or expired refresh token error"
+  },
   "backendInvalidToken": "Token is invalid.",
-  "@backendInvalidToken": { "description": "Backend invalid access token error" },
-
+  "@backendInvalidToken": {
+    "description": "Backend invalid access token error"
+  },
   "backendMissingRequiredFields": "Missing required fields.",
-  "@backendMissingRequiredFields": { "description": "Backend missing required fields error" },
-
-  "backendInvalidStore": "Invalid store.",
-  "@backendInvalidStore": { "description": "Backend invalid store identifier error" },
-
-  "backendPurchaseProcessing": "Purchase is being processed.",
-  "@backendPurchaseProcessing": { "description": "Backend purchase in progress or already processed response" },
-
-  "backendUnknownOrInactiveProduct": "Unknown or inactive product: {productId}.",
-  "@backendUnknownOrInactiveProduct": {
-    "description": "Backend unknown or inactive product with product id",
+  "@backendMissingRequiredFields": {
+    "description": "Backend missing required fields error"
+  },
+  "backendNetworkError": "Network error",
+  "@backendNetworkError": {
+    "description": "Generic network error prefix"
+  },
+  "signInRequired": "Sign in required",
+  "signIn": "Sign in",
+  "retry": "Retry",
+  "gameEndSessionTitle": "End session?",
+  "gameEndSessionMessage": "Your progress will be submitted.",
+  "gameEndSessionConfirm": "End",
+  "gamePlaying": "Playing...",
+  "gamePlayWithDuration": "Play {duration}",
+  "@gamePlayWithDuration": {
     "placeholders": {
-      "productId": { "type": "String" }
+      "duration": {
+        "type": "String"
+      }
     }
   },
-
-  "backendUnknownOrInactiveProductUnknown": "Unknown or inactive product.",
-  "@backendUnknownOrInactiveProductUnknown": { "description": "Backend unknown or inactive product without product id" },
-
-  "backendReceiptVerificationFailed": "Receipt verification failed.",
-  "@backendReceiptVerificationFailed": { "description": "Backend receipt verification failed error" },
-
-  "backendNetworkError": "Network error",
-  "@backendNetworkError": { "description": "Generic network error prefix" }
+  "gameSongInputHint": "Type song title...",
+  "gameGiveUp": "Give up",
+  "gameCorrect": "Correct!",
+  "gameWrong": "Wrong",
+  "gameSeeResults": "See Results",
+  "gameNextButton": "Next",
+  "sessionEndHeadlineCleared": "You cleared it!",
+  "sessionEndHeadlineOutOfLives": "Out of lives!",
+  "sessionEndHeadlineEnded": "Session ended",
+  "sessionEndHeadlineOnFire": "On fire!",
+  "sessionEndHeadlineNiceRun": "Nice run!",
+  "sessionEndHeadlineGoodTry": "Good try!",
+  "sessionEndStatScore": "Score",
+  "sessionEndStatSongs": "Songs",
+  "sessionEndPlayAgain": "Play again",
+  "sessionEndChangeCategory": "Change category",
+  "sessionEndBackToHome": "Back to home",
+  "categorySignInForFavourites": "You need an account to save favourite artists.",
+  "categoryStartRun": "Start Run",
+  "categoryChooseCategory": "Choose a category",
+  "categoryTabGenre": "Genre",
+  "categoryTabArtist": "Artist",
+  "categorySearchArtistHint": "Search artist...",
+  "categoryNoArtistsFound": "No artists found",
+  "categorySearchArtistAbove": "Search for an artist above",
+  "categoryYourFavourites": "Your favourites",
+  "categoryTrending": "Trending",
+  "homeGuest": "Guest",
+  "homePlay": "Play",
+  "homeSoloLabel": "Solo",
+  "homeTagline": "Test your music knowledge",
+  "homeSignInToPlay": "Sign in to play",
+  "homeComingSoon": "Coming soon",
+  "homeGreeting": "Hi, {username}",
+  "@homeGreeting": {
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
+  "homeStatBestScore": "Best score",
+  "homeStatBestStreak": "Best streak",
+  "homeStatSongs": "Songs played",
+  "homeDeezerCredits": "Music previews powered by Deezer",
+  "loginContinueAsGuest": "Continue as guest",
+  "settingsSignInPrompt": "Sign in / Create account",
+  "sessionEndStatStreak": "Streak",
+  "sessionEndStatAccuracy": "Accuracy",
+  "appTitle": "SongSpot",
+  "changeEmailSuccess": "Email updated successfully",
+  "changePasswordSuccess": "Password updated. Please log in again."
 }

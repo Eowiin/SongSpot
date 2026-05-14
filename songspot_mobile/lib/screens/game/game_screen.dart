@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../l10n/app_localizations.dart';
 import '../../models/category.dart';
 import '../../models/track.dart';
 import '../../providers/auth_provider.dart';
@@ -126,6 +127,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   }
 
   AppBar _buildAppBar(GameSessionProvider provider) {
+    final l10n = AppLocalizations.of(context);
     return AppBar(
       backgroundColor: AppTheme.backgroundColor,
       elevation: 0,
@@ -136,20 +138,20 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
             context: context,
             builder: (_) => AlertDialog(
               backgroundColor: AppTheme.surfaceColor,
-              title: const Text('End session?',
-                  style: TextStyle(color: AppTheme.textPrimary)),
-              content: const Text('Your progress will be submitted.',
-                  style: TextStyle(color: AppTheme.textSecondary)),
+              title: Text(l10n.gameEndSessionTitle,
+                  style: const TextStyle(color: AppTheme.textPrimary)),
+              content: Text(l10n.gameEndSessionMessage,
+                  style: const TextStyle(color: AppTheme.textSecondary)),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Cancel',
-                      style: TextStyle(color: AppTheme.textSecondary)),
+                  child: Text(l10n.cancel,
+                      style: const TextStyle(color: AppTheme.textSecondary)),
                 ),
                 TextButton(
                   onPressed: () => Navigator.pop(context, true),
-                  child: const Text('End',
-                      style: TextStyle(color: AppTheme.primaryColor)),
+                  child: Text(l10n.gameEndSessionConfirm,
+                      style: const TextStyle(color: AppTheme.primaryColor)),
                 ),
               ],
             ),
@@ -206,6 +208,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   }
 
   Widget _buildError(GameSessionProvider provider) {
+    final l10n = AppLocalizations.of(context);
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -216,7 +219,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: provider.loadNextSong,
-            child: const Text('Retry'),
+            child: Text(l10n.retry),
           ),
         ],
       ),
@@ -308,6 +311,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   }
 
   Widget _buildPlaybackRow(GameSessionProvider provider) {
+    final l10n = AppLocalizations.of(context);
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -342,7 +346,9 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  provider.isPlaying ? 'Playing...' : 'Play ${_snippetLabel(provider.difficulty)}',
+                  provider.isPlaying
+                      ? l10n.gamePlaying
+                      : l10n.gamePlayWithDuration(_snippetLabel(provider.difficulty)),
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -364,12 +370,13 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
       };
 
   Widget _buildGuessInput(GameSessionProvider provider) {
+    final l10n = AppLocalizations.of(context);
     return TextField(
       controller: _guessController,
       focusNode: _guessFocus,
       style: const TextStyle(color: AppTheme.textPrimary),
       decoration: InputDecoration(
-        hintText: 'Type song title...',
+        hintText: l10n.gameSongInputHint,
         hintStyle: const TextStyle(color: AppTheme.textSecondary),
         prefixIcon: const Icon(Icons.search_rounded, color: AppTheme.textSecondary),
         suffixIcon: provider.isSearching
@@ -458,6 +465,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   }
 
   Widget _buildGiveUpButton(GameSessionProvider provider) {
+    final l10n = AppLocalizations.of(context);
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton(
@@ -468,12 +476,13 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
           padding: const EdgeInsets.symmetric(vertical: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
-        child: const Text('Give up'),
+        child: Text(l10n.gameGiveUp),
       ),
     );
   }
 
   Widget _buildResultCard(GameSessionProvider provider, Track? track) {
+    final l10n = AppLocalizations.of(context);
     final isCorrect = provider.lastGuessResult == GuessResult.correct;
     final color = isCorrect ? const Color(0xFF4CAF50) : const Color(0xFFE53935);
     final icon = isCorrect ? Icons.check_circle_rounded : Icons.cancel_rounded;
@@ -501,7 +510,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                       Icon(icon, color: color, size: 22),
                       const SizedBox(width: 8),
                       Text(
-                        isCorrect ? 'Correct!' : 'Wrong',
+                        isCorrect ? l10n.gameCorrect : l10n.gameWrong,
                         style: TextStyle(
                           color: color,
                           fontWeight: FontWeight.bold,
@@ -570,6 +579,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   }
 
   Widget _buildBottomBar(GameSessionProvider provider) {
+    final l10n = AppLocalizations.of(context);
     final isGameOver = provider.endReason == SessionEndReason.outOfLives;
 
     return Container(
@@ -605,7 +615,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      isGameOver ? 'See Results' : 'Next',
+                      isGameOver ? l10n.gameSeeResults : l10n.gameNextButton,
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                     const SizedBox(width: 6),

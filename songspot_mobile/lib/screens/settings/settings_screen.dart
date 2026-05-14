@@ -276,9 +276,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 Icons.login,
                                 color: AppTheme.primaryColor,
                               ),
-                              label: const Text(
-                                'Sign in / Create account',
-                                style: TextStyle(color: AppTheme.primaryColor),
+                              label: Text(
+                                l10n.settingsSignInPrompt,
+                                style: const TextStyle(color: AppTheme.primaryColor),
                               ),
                               style: OutlinedButton.styleFrom(
                                 side: const BorderSide(

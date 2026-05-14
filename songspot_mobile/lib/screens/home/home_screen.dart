@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../l10n/app_localizations.dart';
 import '../../main.dart' show routeObserver;
 import '../../providers/auth_provider.dart';
 import '../../providers/stats_provider.dart';
@@ -45,10 +46,11 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final auth = context.watch<AuthProvider>();
     final stats = context.watch<StatsProvider>();
     final isGuest = auth.isGuest;
-    final username = isGuest ? 'Guest' : (auth.user?.username ?? '');
+    final username = isGuest ? l10n.homeGuest : (auth.user?.username ?? '');
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
@@ -59,12 +61,12 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 24),
-              _buildHeader(context, username),
+              _buildHeader(context, l10n, username),
               const SizedBox(height: 32),
-              _buildStatsBanner(context, stats),
+              _buildStatsBanner(context, l10n, stats),
               const SizedBox(height: 40),
               Text(
-                'Play',
+                l10n.homePlay,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   color: AppTheme.textSecondary,
                   fontWeight: FontWeight.w600,
@@ -75,8 +77,8 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
               _buildModeCard(
                 context,
                 icon: Icons.music_note_rounded,
-                label: 'Solo',
-                sublabel: 'Guess as many songs as you want',
+                label: l10n.homeSoloLabel,
+                sublabel: l10n.homeTagline,
                 gradient: AppTheme.primaryGradient,
                 onTap: () => Navigator.push(
                   context,
@@ -88,7 +90,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                 context,
                 icon: Icons.people_rounded,
                 label: '1v1',
-                sublabel: isGuest ? 'Sign in to play' : 'Coming soon',
+                sublabel: isGuest ? l10n.homeSignInToPlay : l10n.homeComingSoon,
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -108,22 +110,23 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   }
 
   void _showSignInPrompt() {
+    final l10n = AppLocalizations.of(context);
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceColor,
-        title: const Text(
-          'Sign in required',
-          style: TextStyle(color: AppTheme.textPrimary),
+        title: Text(
+          l10n.signInRequired,
+          style: const TextStyle(color: AppTheme.textPrimary),
         ),
-        content: const Text(
+        content: Text(
           '1v1 mode requires an account. Sign in or create one to play against others.',
-          style: TextStyle(color: AppTheme.textSecondary),
+          style: const TextStyle(color: AppTheme.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           TextButton(
             onPressed: () {
@@ -133,8 +136,8 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
               );
             },
             child: Text(
-              'Sign in',
-              style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w600),
+              l10n.signIn,
+              style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w600),
             ),
           ),
         ],
@@ -142,29 +145,30 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     );
   }
 
-  Widget _buildHeader(BuildContext context, String username) {
+  Widget _buildHeader(BuildContext context, AppLocalizations l10n, String username) {
     return Row(
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Hi, $username',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: AppTheme.textPrimary,
-                fontWeight: FontWeight.bold,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.homeGreeting(username),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: AppTheme.textPrimary,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Guess as many songs as you want',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppTheme.textSecondary,
+              const SizedBox(height: 4),
+              Text(
+                l10n.homeTagline,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.textSecondary,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-        const Spacer(),
         IconButton(
           icon: const Icon(Icons.settings_rounded, color: AppTheme.textSecondary),
           onPressed: () => Navigator.push(
@@ -176,7 +180,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     );
   }
 
-  Widget _buildStatsBanner(BuildContext context, StatsProvider stats) {
+  Widget _buildStatsBanner(BuildContext context, AppLocalizations l10n, StatsProvider stats) {
     if (stats.isLoadingStats) return _buildStatsBannerSkeleton();
     final best = stats.userBest;
     if (best.totalSongsPlayed == 0) return const SizedBox.shrink();
@@ -190,11 +194,11 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildStat('Best score', best.bestScoreOverall.toString()),
+          _buildStat(l10n.homeStatBestScore, best.bestScoreOverall.toString()),
           _buildStatDivider(),
-          _buildStat('Best streak', '${best.bestStreakOverall} 🔥'),
+          _buildStat(l10n.homeStatBestStreak, '${best.bestStreakOverall} 🔥'),
           _buildStatDivider(),
-          _buildStat('Songs', best.totalSongsPlayed.toString()),
+          _buildStat(l10n.homeStatSongs, best.totalSongsPlayed.toString()),
         ],
       ),
     );
@@ -345,9 +349,10 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   }
 
   Widget _buildDeezerAttribution() {
+    final l10n = AppLocalizations.of(context);
     return Center(
       child: Text(
-        'Music previews powered by Deezer',
+        l10n.homeDeezerCredits,
         style: TextStyle(
           color: AppTheme.textSecondary.withOpacity(0.5),
           fontSize: 11,

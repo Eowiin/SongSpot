@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../l10n/app_localizations.dart';
 import '../../models/category.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/game_session_provider.dart';
@@ -169,22 +170,23 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
   }
 
   void _showSignInPrompt() {
+    final l10n = AppLocalizations.of(context);
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceColor,
-        title: const Text(
-          'Sign in required',
-          style: TextStyle(color: AppTheme.textPrimary),
+        title: Text(
+          l10n.signInRequired,
+          style: const TextStyle(color: AppTheme.textPrimary),
         ),
-        content: const Text(
-          'You need an account to save favourite artists.',
-          style: TextStyle(color: AppTheme.textSecondary),
+        content: Text(
+          l10n.categorySignInForFavourites,
+          style: const TextStyle(color: AppTheme.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           TextButton(
             onPressed: () {
@@ -194,8 +196,8 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
               );
             },
             child: Text(
-              'Sign in',
-              style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w600),
+              l10n.signIn,
+              style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w600),
             ),
           ),
         ],
@@ -232,6 +234,7 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
     required String title,
     String? subtitle,
   }) async {
+    final l10n = AppLocalizations.of(context);
     Difficulty selected = Difficulty.medium;
 
     return showModalBottomSheet<Difficulty>(
@@ -374,10 +377,9 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
                           borderRadius: BorderRadius.circular(14)),
                       elevation: 0,
                     ),
-                    child: const Text(
-                      'Start Run',
-                      style:
-                          TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    child: Text(
+                      l10n.categoryStartRun,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                   ),
                 ),
@@ -409,6 +411,7 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
@@ -418,18 +421,18 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
           icon: const Icon(Icons.arrow_back_rounded, color: AppTheme.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Choose a category',
-          style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold),
+        title: Text(
+          l10n.categoryChooseCategory,
+          style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold),
         ),
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: AppTheme.primaryColor,
           labelColor: AppTheme.primaryColor,
           unselectedLabelColor: AppTheme.textSecondary,
-          tabs: const [
-            Tab(text: 'Genre'),
-            Tab(text: 'Artist'),
+          tabs: [
+            Tab(text: l10n.categoryTabGenre),
+            Tab(text: l10n.categoryTabArtist),
           ],
         ),
       ),
@@ -448,13 +451,14 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
       return const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor));
     }
     if (_error != null) {
+      final l10n = AppLocalizations.of(context);
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(_error!, style: const TextStyle(color: AppTheme.textSecondary)),
             const SizedBox(height: 16),
-            ElevatedButton(onPressed: _loadCategories, child: const Text('Retry')),
+            ElevatedButton(onPressed: _loadCategories, child: Text(l10n.retry)),
           ],
         ),
       );
@@ -528,6 +532,7 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
   }
 
   Widget _buildArtistTab() {
+    final l10n = AppLocalizations.of(context);
     final showSearch = _artistController.text.trim().length >= 2;
 
     return Column(
@@ -538,7 +543,7 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
             controller: _artistController,
             style: const TextStyle(color: AppTheme.textPrimary),
             decoration: InputDecoration(
-              hintText: 'Search artist...',
+              hintText: l10n.categorySearchArtistHint,
               hintStyle: const TextStyle(color: AppTheme.textSecondary),
               prefixIcon: const Icon(Icons.search_rounded, color: AppTheme.textSecondary),
               suffixIcon: _isSearchingArtists
@@ -578,9 +583,10 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
   }
 
   Widget _buildSearchResults() {
+    final l10n = AppLocalizations.of(context);
     if (_artistResults.isEmpty) {
-      return const Center(
-        child: Text('No artists found', style: TextStyle(color: AppTheme.textSecondary)),
+      return Center(
+        child: Text(l10n.categoryNoArtistsFound, style: const TextStyle(color: AppTheme.textSecondary)),
       );
     }
     return ListView.builder(
@@ -593,6 +599,7 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
   }
 
   Widget _buildArtistSuggestions() {
+    final l10n = AppLocalizations.of(context);
     if (_isLoadingArtistData) {
       return const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor));
     }
@@ -601,23 +608,23 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
       padding: const EdgeInsets.symmetric(vertical: 8),
       children: [
         if (_favourites.isNotEmpty) ...[
-          _buildSectionHeader('Your favourites', Icons.favorite_rounded),
+          _buildSectionHeader(l10n.categoryYourFavourites, Icons.favorite_rounded),
           ..._favourites.map((a) => _buildArtistTile(a, showFavButton: true)),
           const SizedBox(height: 8),
         ],
         if (_trending.isNotEmpty) ...[
-          _buildSectionHeader('Trending', Icons.trending_up_rounded),
+          _buildSectionHeader(l10n.categoryTrending, Icons.trending_up_rounded),
           ..._trending
               .where((a) => !_favourites.contains(a))
               .map((a) => _buildArtistTile(a, showFavButton: true)),
         ],
         if (_favourites.isEmpty && _trending.isEmpty)
-          const Padding(
-            padding: EdgeInsets.all(32),
+          Padding(
+            padding: const EdgeInsets.all(32),
             child: Center(
               child: Text(
-                'Search for an artist above',
-                style: TextStyle(color: AppTheme.textSecondary),
+                l10n.categorySearchArtistAbove,
+                style: const TextStyle(color: AppTheme.textSecondary),
               ),
             ),
           ),

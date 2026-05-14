@@ -42,3 +42,11 @@ class BurstRateThrottle(UserRateThrottle):
     """
     scope = 'burst'
     rate = '3/second'
+
+
+class GameSearchThrottle(AnonRateThrottle):
+    """
+    Permissive limit for gameplay endpoints (track search, next song).
+    Search fires on every keystroke so the default anon limit is too tight.
+    """
+    scope = 'game_search'

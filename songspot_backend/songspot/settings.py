@@ -223,6 +223,7 @@ REST_FRAMEWORK = {
         'password_reset': '3/hour',  # Password reset email requests: 3/hour per IP
         'guess': '10/minute',     # Game guess submissions: 10/minute
         'message': '30/minute',   # Chat messages: 30/minute
+        'game_search': '200/minute',  # Track search + next-song (fires per keystroke)
     },
 }
 
