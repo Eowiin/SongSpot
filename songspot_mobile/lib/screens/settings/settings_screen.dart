@@ -7,8 +7,6 @@ import '../../config/app_theme.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/settings_provider.dart';
-import '../../services/admob_service.dart';
-import '../../services/consent_service.dart';
 import '../auth/login_screen.dart';
 import 'accessibility_screen.dart';
 import 'change_email_screen.dart';
@@ -28,7 +26,6 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   String _appVersion = '';
-  bool _isOpeningAdConsent = false;
 
   String _buildLegalUrl(String path) {
     final baseUrl = dotenv.get('SERVER_URL').trim();
@@ -98,59 +95,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _handleManageAdConsent() async {
-    if (_isOpeningAdConsent || !mounted) return;
-
-    final l10n = AppLocalizations.of(context);
-    setState(() => _isOpeningAdConsent = true);
-    try {
-      final result = await ConsentService().showPrivacyOptionsForm();
-      if (!mounted) return;
-      switch (result) {
-        case PrivacyOptionsResult.shown:
-          await AdMobService().initialize();
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(l10n.adConsentUpdated),
-              backgroundColor: AppTheme.successColor,
-            ),
-          );
-          break;
-        case PrivacyOptionsResult.notRequired:
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(l10n.adConsentNotRequired)));
-          break;
-        case PrivacyOptionsResult.failed:
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(l10n.adConsentError),
-              backgroundColor: AppTheme.errorColor,
-            ),
-          );
-          break;
-      }
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.adConsentError),
-          backgroundColor: AppTheme.errorColor,
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isOpeningAdConsent = false);
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final settings = context.watch<SettingsProvider>();
-    context.watch<AuthProvider>();
+    final isGuest = context.watch<AuthProvider>().isGuest;
 
     return Scaffold(
       body: Container(
@@ -188,43 +137,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     vertical: 8,
                   ),
                   children: [
-                    // ── Account ──────────────────────────────────────────
-                    _SectionHeader(l10n.settingsSectionAccount),
-                    _SettingsTile(
-                      icon: Icons.email_outlined,
-                      title: l10n.settingsChangeEmail,
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const ChangeEmailScreen(),
+                    // ── Account (authenticated only) ──────────────────────
+                    if (!isGuest) ...[
+                      _SectionHeader(l10n.settingsSectionAccount),
+                      _SettingsTile(
+                        icon: Icons.email_outlined,
+                        title: l10n.settingsChangeEmail,
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const ChangeEmailScreen(),
+                          ),
                         ),
                       ),
-                    ),
-                    _SettingsTile(
-                      icon: Icons.lock_outline,
-                      title: l10n.settingsChangePassword,
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const ChangePasswordScreen(),
+                      _SettingsTile(
+                        icon: Icons.lock_outline,
+                        title: l10n.settingsChangePassword,
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const ChangePasswordScreen(),
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
+                      const SizedBox(height: 8),
 
-                    // ── Notifications ─────────────────────────────────────
-                    _SectionHeader(l10n.settingsSectionNotifications),
-                    _SettingsSwitch(
-                      icon: Icons.music_note_outlined,
-                      title: l10n.settingsDailySongNotifications,
-                      value: settings.dailySongNotifications,
-                      onChanged: (v) => settings.setDailySongNotifications(v),
-                    ),
-                    _SettingsSwitch(
-                      icon: Icons.chat_bubble_outline,
-                      title: l10n.settingsMessageNotifications,
-                      value: settings.messagesNotifications,
-                      onChanged: (v) => settings.setMessagesNotifications(v),
-                    ),
-                    const SizedBox(height: 8),
+                      // ── Notifications ───────────────────────────────────
+                      _SectionHeader(l10n.settingsSectionNotifications),
+                      _SettingsSwitch(
+                        icon: Icons.music_note_outlined,
+                        title: l10n.settingsDailySongNotifications,
+                        value: settings.dailySongNotifications,
+                        onChanged: (v) => settings.setDailySongNotifications(v),
+                      ),
+                      _SettingsSwitch(
+                        icon: Icons.chat_bubble_outline,
+                        title: l10n.settingsMessageNotifications,
+                        value: settings.messagesNotifications,
+                        onChanged: (v) => settings.setMessagesNotifications(v),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
 
                     // ── Accessibility ─────────────────────────────────────
                     _SectionHeader(l10n.settingsSectionAccessibility),
@@ -258,30 +209,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     const SizedBox(height: 8),
 
-                    // ── My Data ───────────────────────────────────────────
-                    _SectionHeader(l10n.settingsSectionMyData),
-                    _SettingsTile(
-                      icon: Icons.download_outlined,
-                      title: l10n.settingsExportData,
-                      subtitle: l10n.settingsExportDataSubtitle,
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const MyDataScreen()),
-                      ),
-                    ),
-                    _SettingsTile(
-                      icon: Icons.delete_outline,
-                      title: l10n.settingsDeleteAccount,
-                      subtitle: l10n.settingsDeleteAccountSubtitle,
-                      iconColor: AppTheme.errorColor,
-                      titleColor: AppTheme.errorColor,
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              const MyDataScreen(showDeleteSection: true),
+                    // ── My Data (authenticated only) ───────────────────────
+                    if (!isGuest) ...[
+                      _SectionHeader(l10n.settingsSectionMyData),
+                      _SettingsTile(
+                        icon: Icons.download_outlined,
+                        title: l10n.settingsExportData,
+                        subtitle: l10n.settingsExportDataSubtitle,
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => const MyDataScreen()),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
+                      _SettingsTile(
+                        icon: Icons.delete_outline,
+                        title: l10n.settingsDeleteAccount,
+                        subtitle: l10n.settingsDeleteAccountSubtitle,
+                        iconColor: AppTheme.errorColor,
+                        titleColor: AppTheme.errorColor,
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const MyDataScreen(showDeleteSection: true),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
 
                     // ── About ─────────────────────────────────────────────
                     _SectionHeader(l10n.settingsSectionAbout),
@@ -300,50 +254,65 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onTap: () => _openUrl(_buildLegalUrl(_kPrivacyPath)),
                     ),
                     _SettingsTile(
-                      icon: Icons.gpp_maybe_outlined,
-                      title: l10n.settingsManageAdConsent,
-                      subtitle: l10n.settingsManageAdConsentSubtitle,
-                      onTap: _isOpeningAdConsent
-                          ? null
-                          : _handleManageAdConsent,
-                      trailing: _isOpeningAdConsent
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : null,
-                    ),
-                    _SettingsTile(
                       icon: Icons.article_outlined,
                       title: l10n.settingsTermsOfService,
                       onTap: () => _openUrl(_buildLegalUrl(_kTermsPath)),
                     ),
                     const SizedBox(height: 24),
 
-                    // ── Logout ────────────────────────────────────────────
+                    // ── Sign in (guest) / Logout (authenticated) ──────────
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: OutlinedButton.icon(
-                        onPressed: _handleLogout,
-                        icon: const Icon(
-                          Icons.logout,
-                          color: AppTheme.errorColor,
-                        ),
-                        label: Text(
-                          l10n.logout,
-                          style: const TextStyle(color: AppTheme.errorColor),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: AppTheme.errorColor),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              AppTheme.borderRadius,
+                      child: isGuest
+                          ? OutlinedButton.icon(
+                              onPressed: () {
+                                Navigator.of(context).pushAndRemoveUntil(
+                                  MaterialPageRoute(
+                                      builder: (_) => const LoginScreen()),
+                                  (route) => false,
+                                );
+                              },
+                              icon: const Icon(
+                                Icons.login,
+                                color: AppTheme.primaryColor,
+                              ),
+                              label: const Text(
+                                'Sign in / Create account',
+                                style: TextStyle(color: AppTheme.primaryColor),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(
+                                    color: AppTheme.primaryColor),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(
+                                      AppTheme.borderRadius),
+                                ),
+                              ),
+                            )
+                          : OutlinedButton.icon(
+                              onPressed: _handleLogout,
+                              icon: const Icon(
+                                Icons.logout,
+                                color: AppTheme.errorColor,
+                              ),
+                              label: Text(
+                                l10n.logout,
+                                style:
+                                    const TextStyle(color: AppTheme.errorColor),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(
+                                    color: AppTheme.errorColor),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(
+                                      AppTheme.borderRadius),
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                      ),
                     ),
                     const SizedBox(height: 32),
                   ],

@@ -1,9 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../models/category.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/game_session_provider.dart';
 import '../../services/api_service.dart';
+import '../auth/login_screen.dart';
 import 'game_screen.dart';
+
+class ArtistInfo {
+  final String name;
+  final String? pictureUrl;
+
+  const ArtistInfo({required this.name, this.pictureUrl});
+
+  factory ArtistInfo.fromJson(Map<String, dynamic> j) => ArtistInfo(
+        name: j['name'] as String,
+        pictureUrl: j['picture_url'] as String?,
+      );
+
+  @override
+  bool operator ==(Object other) => other is ArtistInfo && other.name == name;
+
+  @override
+  int get hashCode => name.hashCode;
+}
 
 class CategorySelectScreen extends StatefulWidget {
   const CategorySelectScreen({super.key});
@@ -23,12 +44,12 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
 
   // Artist search
   final TextEditingController _artistController = TextEditingController();
-  List<String> _artistResults = [];
+  List<ArtistInfo> _artistResults = [];
   bool _isSearchingArtists = false;
 
   // Artist suggestions
-  List<String> _trending = [];
-  List<String> _favourites = [];
+  List<ArtistInfo> _trending = [];
+  List<ArtistInfo> _favourites = [];
   bool _isLoadingArtistData = false;
 
   @override
@@ -79,8 +100,12 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
       ]);
       if (mounted) {
         setState(() {
-          _trending = (results[0] as List<dynamic>).cast<String>();
-          _favourites = (results[1] as List<dynamic>).cast<String>();
+          _trending = results[0]
+              .map((j) => ArtistInfo.fromJson(j as Map<String, dynamic>))
+              .toList();
+          _favourites = results[1]
+              .map((j) => ArtistInfo.fromJson(j as Map<String, dynamic>))
+              .toList();
           _isLoadingArtistData = false;
         });
       }
@@ -100,7 +125,9 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
       final results = await _api.searchArtists(q);
       if (mounted) {
         setState(() {
-          _artistResults = (results as List<dynamic>).cast<String>();
+          _artistResults = results
+              .map((j) => ArtistInfo.fromJson(j as Map<String, dynamic>))
+              .toList();
           _isSearchingArtists = false;
         });
       }
@@ -109,7 +136,11 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
     }
   }
 
-  Future<void> _toggleFavourite(String artist) async {
+  Future<void> _toggleFavourite(ArtistInfo artist) async {
+    if (context.read<AuthProvider>().isGuest) {
+      _showSignInPrompt();
+      return;
+    }
     final isFav = _favourites.contains(artist);
     setState(() {
       if (isFav) {
@@ -120,12 +151,11 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
     });
     try {
       if (isFav) {
-        await _api.removeFavouriteArtist(artist);
+        await _api.removeFavouriteArtist(artist.name);
       } else {
-        await _api.addFavouriteArtist(artist);
+        await _api.addFavouriteArtist(artist.name);
       }
     } catch (_) {
-      // Revert on error
       if (mounted) {
         setState(() {
           if (isFav) {
@@ -136,6 +166,41 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
         });
       }
     }
+  }
+
+  void _showSignInPrompt() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceColor,
+        title: const Text(
+          'Sign in required',
+          style: TextStyle(color: AppTheme.textPrimary),
+        ),
+        content: const Text(
+          'You need an account to save favourite artists.',
+          style: TextStyle(color: AppTheme.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+              );
+            },
+            child: Text(
+              'Sign in',
+              style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _startWithCategory(Category category) async {
@@ -152,13 +217,13 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
     );
   }
 
-  Future<void> _startWithArtist(String artist) async {
-    final difficulty = await _showPreGameModal(title: artist);
+  Future<void> _startWithArtist(ArtistInfo artist) async {
+    final difficulty = await _showPreGameModal(title: artist.name);
     if (difficulty == null || !mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => GameScreen(artistFilter: artist, difficulty: difficulty),
+        builder: (_) => GameScreen(artistFilter: artist.name, difficulty: difficulty),
       ),
     );
   }
@@ -581,14 +646,19 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
     );
   }
 
-  Widget _buildArtistTile(String artist, {bool showFavButton = false}) {
+  Widget _buildArtistTile(ArtistInfo artist, {bool showFavButton = false}) {
     final isFav = _favourites.contains(artist);
+    final pic = artist.pictureUrl;
     return ListTile(
       leading: CircleAvatar(
         backgroundColor: AppTheme.primaryColor.withOpacity(0.2),
-        child: const Icon(Icons.person_rounded, color: AppTheme.primaryColor, size: 20),
+        backgroundImage: pic != null ? NetworkImage(pic) : null,
+        onBackgroundImageError: pic != null ? (_, __) {} : null,
+        child: pic == null
+            ? const Icon(Icons.person_rounded, color: AppTheme.primaryColor, size: 20)
+            : null,
       ),
-      title: Text(artist, style: const TextStyle(color: AppTheme.textPrimary)),
+      title: Text(artist.name, style: const TextStyle(color: AppTheme.textPrimary)),
       trailing: showFavButton
           ? IconButton(
               icon: Icon(

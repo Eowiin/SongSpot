@@ -40,6 +40,7 @@ class ApiConfig {
   static const String submitScore = '/game/score/';
   static const String userStats = '/game/stats/';
   static const String leaderboard = '/game/leaderboard/';
+  static const String migrateGuestStats = '/game/migrate-guest-stats/';
 
   static const Duration timeout = Duration(seconds: 30);
 }

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../models/category.dart';
 import '../../models/track.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/game_session_provider.dart';
 import 'session_end_screen.dart';
 
@@ -47,6 +48,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
         category: widget.category,
         artistFilter: widget.artistFilter,
         difficulty: widget.difficulty,
+        isGuest: context.read<AuthProvider>().isGuest,
       );
       _provider!.loadNextSong();
       _provider!.addListener(_onProviderChanged);

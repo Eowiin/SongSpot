@@ -34,35 +34,30 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         return user
 
 class UserSerializer(serializers.ModelSerializer):
-    has_no_ads = serializers.BooleanField(read_only=True)
-
     class Meta:
         model = User
-        fields = ('id', 'email', 'username', 'coins', 'ad_free_until', 'has_no_ads')
-        read_only_fields = ('id', 'coins', 'ad_free_until', 'has_no_ads')
+        fields = ('id', 'email', 'username')
+        read_only_fields = ('id',)
 
 class UserProfileSerializer(serializers.ModelSerializer):
     win_rate = serializers.FloatField(read_only=True)
     average_points = serializers.FloatField(read_only=True)
-    has_no_ads = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = User
         fields = (
-            'id', 'email', 'username', 'coins',
+            'id', 'email', 'username',
             'games_played', 'games_won', 'win_rate',
             'total_points', 'average_points',
             'current_streak', 'best_streak',
             'last_played_date', 'perfect_games',
-            'ad_free_until', 'has_no_ads',
         )
         read_only_fields = (
-            'id', 'email', 'username', 'coins',
+            'id', 'email', 'username',
             'games_played', 'games_won', 'win_rate',
             'total_points', 'average_points',
             'current_streak', 'best_streak',
             'last_played_date', 'perfect_games',
-            'ad_free_until', 'has_no_ads',
         )
 
 class LoginSerializer(serializers.Serializer):

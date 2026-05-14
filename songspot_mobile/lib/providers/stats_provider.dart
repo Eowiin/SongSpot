@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 import '../models/game_score.dart';
 import '../services/api_service.dart';
+import '../services/storage_service.dart';
 
 class StatsProvider extends ChangeNotifier {
   final ApiService _api = ApiService();
+  final StorageService _storage = StorageService();
 
   UserBest _userBest = UserBest.empty;
   List<GameScore> _leaderboard = [];
@@ -23,13 +25,24 @@ class StatsProvider extends ChangeNotifier {
   String get leaderboardTimeframe => _leaderboardTimeframe;
   String? get leaderboardCategoryId => _leaderboardCategoryId;
 
-  Future<void> loadStats() async {
+  Future<void> loadStats({bool isGuest = false}) async {
     _isLoadingStats = true;
     _statsError = null;
     notifyListeners();
     try {
-      final data = await _api.getUserStats();
-      _userBest = UserBest.fromJson(data as Map<String, dynamic>);
+      if (isGuest) {
+        final raw = await _storage.getGuestStats();
+        _userBest = UserBest(
+          bestScoreOverall: raw['best_score']!,
+          bestStreakOverall: raw['best_streak']!,
+          totalSongsPlayed: raw['songs_played']!,
+          totalSongsCorrect: raw['songs_correct']!,
+          perCategory: {},
+        );
+      } else {
+        final data = await _api.getUserStats();
+        _userBest = UserBest.fromJson(data as Map<String, dynamic>);
+      }
     } catch (e) {
       _statsError = e.toString();
     } finally {

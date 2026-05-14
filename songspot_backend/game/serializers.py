@@ -52,6 +52,13 @@ class UserBestSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class MigrateGuestStatsSerializer(serializers.Serializer):
+    best_score = serializers.IntegerField(min_value=0)
+    best_streak = serializers.IntegerField(min_value=0)
+    songs_played = serializers.IntegerField(min_value=0)
+    songs_correct = serializers.IntegerField(min_value=0)
+
+
 class LeaderboardUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User

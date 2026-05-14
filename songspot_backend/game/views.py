@@ -2,10 +2,10 @@ import random
 from datetime import timedelta
 
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Subquery, OuterRef
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -20,6 +20,7 @@ from .serializers import (
     GameScoreSerializer,
     UserBestSerializer,
     LeaderboardEntrySerializer,
+    MigrateGuestStatsSerializer,
 )
 
 GENRE_DISPLAY = dict(CATEGORY_CHOICES)
@@ -30,7 +31,7 @@ class CategoryListView(APIView):
     List available genres derived directly from tracks in the library.
     Returns one entry per genre key — no more multiple packs per genre.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def get(self, request):
         rows = (
@@ -64,7 +65,7 @@ class NextSongView(APIView):
       artist  — artist name filter (case-insensitive)
       exclude — comma-separated track UUIDs already seen this session
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def get(self, request):
         genre = request.query_params.get('genre', '').strip()
@@ -90,9 +91,20 @@ class NextSongView(APIView):
         return Response(TrackSerializer(track).data)
 
 
+def _artist_picture_subquery():
+    """Subquery returning the first non-null artist_picture_url for a given artist name."""
+    return Subquery(
+        Track.objects.filter(
+            artist=OuterRef('artist'),
+            artist_picture_url__isnull=False,
+        ).exclude(artist_picture_url='')
+        .values('artist_picture_url')[:1]
+    )
+
+
 class ArtistListView(APIView):
     """Autocomplete artist search for the category select screen."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def get(self, request):
         q = request.query_params.get('q', '').strip()
@@ -100,11 +112,12 @@ class ArtistListView(APIView):
             return Response([])
         artists = (
             Track.objects.filter(artist__icontains=q)
-            .values_list('artist', flat=True)
+            .values('artist')
             .distinct()
-            .order_by('artist')[:30]
+            .order_by('artist')
+            .annotate(picture_url=_artist_picture_subquery())[:30]
         )
-        return Response(list(artists))
+        return Response([{'name': a['artist'], 'picture_url': a['picture_url']} for a in artists])
 
 
 class ArtistTrendingView(APIView):
@@ -112,7 +125,7 @@ class ArtistTrendingView(APIView):
     Artists most frequently chosen for play sessions over the last 30 days.
     Aggregated from GameScore.artist_filter.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def get(self, request):
         since = timezone.now() - timedelta(days=30)
@@ -124,7 +137,15 @@ class ArtistTrendingView(APIView):
             .annotate(play_count=Count('id'))
             .order_by('-play_count')[:20]
         )
-        return Response([r['artist_filter'] for r in rows])
+        artist_names = [r['artist_filter'] for r in rows]
+        pictures = {
+            t['artist']: t['artist_picture_url']
+            for t in Track.objects
+            .filter(artist__in=artist_names, artist_picture_url__isnull=False)
+            .exclude(artist_picture_url='')
+            .values('artist', 'artist_picture_url')
+        }
+        return Response([{'name': n, 'picture_url': pictures.get(n)} for n in artist_names])
 
 
 class FavouriteArtistView(APIView):
@@ -132,12 +153,19 @@ class FavouriteArtistView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        artists = (
+        artist_names = list(
             FavouriteArtist.objects
             .filter(user=request.user)
             .values_list('artist_name', flat=True)
         )
-        return Response(list(artists))
+        pictures = {
+            t['artist']: t['artist_picture_url']
+            for t in Track.objects
+            .filter(artist__in=artist_names, artist_picture_url__isnull=False)
+            .exclude(artist_picture_url='')
+            .values('artist', 'artist_picture_url')
+        }
+        return Response([{'name': n, 'picture_url': pictures.get(n)} for n in artist_names])
 
     def post(self, request):
         artist_name = (request.data.get('artist_name') or '').strip()
@@ -158,7 +186,7 @@ class FavouriteArtistDetailView(APIView):
 
 class SearchTracksView(APIView):
     """Autocomplete track search for the guess input."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def get(self, request):
         q = request.query_params.get('q', '').strip()
@@ -175,7 +203,7 @@ class SearchTracksView(APIView):
 
 class TrackRefreshPreviewView(APIView):
     """Force-refresh a track's preview URL from Deezer."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def post(self, request, track_id):
         try:
@@ -256,3 +284,26 @@ class LeaderboardView(APIView):
             qs = qs.filter(genre=genre)
 
         return Response(LeaderboardEntrySerializer(qs[:limit], many=True).data)
+
+
+class MigrateGuestStatsView(APIView):
+    """Merge guest-accumulated local stats into the authenticated user's UserBest."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = MigrateGuestStatsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        if data['songs_played'] == 0:
+            return Response({'status': 'nothing_to_migrate'})
+
+        with transaction.atomic():
+            best, _ = UserBest.objects.select_for_update().get_or_create(user=request.user)
+            best.best_score_overall = max(best.best_score_overall, data['best_score'])
+            best.best_streak_overall = max(best.best_streak_overall, data['best_streak'])
+            best.total_songs_played += data['songs_played']
+            best.total_songs_correct += data['songs_correct']
+            best.save()
+
+        return Response({'status': 'migrated'})

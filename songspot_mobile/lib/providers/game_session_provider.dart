@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import '../models/track.dart';
 import '../models/game_score.dart';
 import '../models/category.dart' as app_models;
 import '../services/api_service.dart';
 import '../services/audio_service.dart';
+import '../services/storage_service.dart';
 
 enum GuessResult { correct, wrong, none }
 
@@ -41,11 +43,13 @@ enum SessionEndReason { outOfLives, poolCleared, quit }
 class GameSessionProvider extends ChangeNotifier {
   final ApiService _api = ApiService();
   final AudioService _audio = AudioService();
+  final StorageService _storage = StorageService();
 
   // Session config
   app_models.Category? _category;
   String? _artistFilter;
   Difficulty _difficulty = Difficulty.medium;
+  bool _isGuest = false;
 
   // Current track
   Track? _currentTrack;
@@ -119,10 +123,12 @@ class GameSessionProvider extends ChangeNotifier {
     app_models.Category? category,
     String? artistFilter,
     Difficulty difficulty = Difficulty.medium,
+    bool isGuest = false,
   }) {
     _category = category;
     _artistFilter = artistFilter;
     _difficulty = difficulty;
+    _isGuest = isGuest;
     _songsPlayed = 0;
     _songsCorrect = 0;
     _currentStreak = 0;
@@ -316,6 +322,12 @@ class GameSessionProvider extends ChangeNotifier {
   Future<GameScore?> endSession() async {
     await _audio.stop();
     if (_songsPlayed == 0) return null;
+
+    if (_isGuest) {
+      await _saveGuestSessionStats();
+      return null;
+    }
+
     try {
       final data = await _api.submitScore(
         genre: _category?.id,
@@ -330,6 +342,16 @@ class GameSessionProvider extends ChangeNotifier {
     } catch (_) {
       return null;
     }
+  }
+
+  Future<void> _saveGuestSessionStats() async {
+    final current = await _storage.getGuestStats();
+    await _storage.saveGuestStats(
+      bestScore: math.max(current['best_score']!, _totalScore),
+      bestStreak: math.max(current['best_streak']!, _bestStreak),
+      songsPlayed: current['songs_played']! + _songsPlayed,
+      songsCorrect: current['songs_correct']! + _songsCorrect,
+    );
   }
 
   @override

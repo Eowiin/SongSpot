@@ -4,6 +4,7 @@ import '../../config/app_theme.dart';
 import '../../main.dart' show routeObserver;
 import '../../providers/auth_provider.dart';
 import '../../providers/stats_provider.dart';
+import '../auth/login_screen.dart';
 import '../game/category_select_screen.dart';
 import '../settings/settings_screen.dart';
 
@@ -19,7 +20,8 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<StatsProvider>().loadStats();
+      final isGuest = context.read<AuthProvider>().isGuest;
+      context.read<StatsProvider>().loadStats(isGuest: isGuest);
     });
   }
 
@@ -37,15 +39,16 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
 
   @override
   void didPopNext() {
-    // Called when a route above this one is popped (user navigates back here).
-    context.read<StatsProvider>().loadStats();
+    final isGuest = context.read<AuthProvider>().isGuest;
+    context.read<StatsProvider>().loadStats(isGuest: isGuest);
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final stats = context.watch<StatsProvider>();
-    final username = auth.user?.username ?? '';
+    final isGuest = auth.isGuest;
+    final username = isGuest ? 'Guest' : (auth.user?.username ?? '');
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
@@ -85,13 +88,13 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                 context,
                 icon: Icons.people_rounded,
                 label: '1v1',
-                sublabel: 'Coming soon',
+                sublabel: isGuest ? 'Sign in to play' : 'Coming soon',
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [Color(0xFF3A3A5C), Color(0xFF2A2A4A)],
                 ),
-                onTap: null,
+                onTap: isGuest ? _showSignInPrompt : null,
                 disabled: true,
               ),
               const Spacer(),
@@ -100,6 +103,41 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showSignInPrompt() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceColor,
+        title: const Text(
+          'Sign in required',
+          style: TextStyle(color: AppTheme.textPrimary),
+        ),
+        content: const Text(
+          '1v1 mode requires an account. Sign in or create one to play against others.',
+          style: TextStyle(color: AppTheme.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+              );
+            },
+            child: Text(
+              'Sign in',
+              style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
       ),
     );
   }

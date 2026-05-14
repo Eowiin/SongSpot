@@ -158,7 +158,7 @@ class _SplashScreenState extends State<SplashScreen> {
     if (mounted) {
       PushNotificationService().setOnNotificationTap(_handleNotificationTap);
 
-      if (authProvider.isAuthenticated) {
+      if (authProvider.isAuthenticated || authProvider.isGuest) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const HomeScreen()),
         );

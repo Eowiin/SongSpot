@@ -385,6 +385,20 @@ class ApiService {
     });
   }
 
+  Future<void> migrateGuestStats({
+    required int bestScore,
+    required int bestStreak,
+    required int songsPlayed,
+    required int songsCorrect,
+  }) async {
+    await post(ApiConfig.migrateGuestStats, includeAuth: true, body: {
+      'best_score': bestScore,
+      'best_streak': bestStreak,
+      'songs_played': songsPlayed,
+      'songs_correct': songsCorrect,
+    });
+  }
+
   Future<List<dynamic>> getTrendingArtists() async {
     return await get(ApiConfig.artistsTrending, includeAuth: true);
   }

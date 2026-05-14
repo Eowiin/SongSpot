@@ -10,6 +10,7 @@ class Track(models.Model):
     preview_url = models.URLField(max_length=500)
     cover_url = models.URLField(max_length=500, blank=True, null=True)
     deezer_id = models.BigIntegerField(null=True, blank=True)
+    artist_picture_url = models.URLField(max_length=500, blank=True, null=True)
     release_year = models.PositiveSmallIntegerField(null=True, blank=True)
     genre = models.CharField(max_length=100, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)

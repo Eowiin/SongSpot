@@ -414,6 +414,7 @@ class Command(BaseCommand):
                 'deezer_id': deezer_id,
                 'release_year': info.get('release_year'),
                 'genre': info.get('genre') or category_name,
+                'artist_picture_url': info.get('artist_picture_url'),
             },
         )
 
@@ -423,6 +424,7 @@ class Command(BaseCommand):
             'deezer_id': deezer_id,
             'release_year': info.get('release_year'),
             'genre': info.get('genre') or category_name,
+            'artist_picture_url': info.get('artist_picture_url'),
         }
         for field, new_value in field_updates.items():
             if not new_value:

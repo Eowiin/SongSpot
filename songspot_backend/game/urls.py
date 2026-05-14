@@ -11,6 +11,7 @@ from .views import (
     SubmitScoreView,
     UserStatsView,
     LeaderboardView,
+    MigrateGuestStatsView,
 )
 
 app_name = 'game'
@@ -27,4 +28,5 @@ urlpatterns = [
     path('score/', SubmitScoreView.as_view(), name='submit_score'),
     path('stats/', UserStatsView.as_view(), name='user_stats'),
     path('leaderboard/', LeaderboardView.as_view(), name='leaderboard'),
+    path('migrate-guest-stats/', MigrateGuestStatsView.as_view(), name='migrate_guest_stats'),
 ]

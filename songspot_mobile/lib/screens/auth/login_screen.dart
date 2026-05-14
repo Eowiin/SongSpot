@@ -31,6 +31,15 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  Future<void> _handleContinueAsGuest() async {
+    await context.read<AuthProvider>().continueAsGuest();
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
+    }
+  }
+
   Future<void> _handleLogin() async {
     if (_formKey.currentState!.validate()) {
       final l10n = AppLocalizations.of(context);
@@ -237,6 +246,16 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 16),
+                  TextButton(
+                    onPressed: _handleContinueAsGuest,
+                    child: Text(
+                      'Continue as guest',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
                   ),
                 ],
               ),
