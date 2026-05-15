@@ -96,7 +96,6 @@ restart_service() {
 }
 
 restart_service "${BACKEND_SERVICE_NAME:-songspot}" "${RESTART_BACKEND_SERVICE:-true}"
-restart_service "${CELERY_SERVICE_NAME:-songspot-celery}" "${RESTART_CELERY_SERVICE:-true}"
 
 if [ -n "${POST_DEPLOY_CMD:-}" ]; then
   echo "[deploy] Running POST_DEPLOY_CMD"
