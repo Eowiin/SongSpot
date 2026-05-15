@@ -39,7 +39,6 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
     try {
       final apiService = ApiService();
       await apiService.changeEmail(
-        currentPassword: _passwordController.text.trim(),
         newEmail: _emailController.text.trim().toLowerCase(),
       );
 
@@ -77,7 +76,7 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
                 child: Row(
                   children: [
                     Semantics(
-                      label: 'Back',
+                      label: l10n.settingsBackLabel,
                       button: true,
                       child: IconButton(
                         icon: const Icon(Icons.arrow_back_ios_new),

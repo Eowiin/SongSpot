@@ -88,7 +88,7 @@ class _MyDataScreenState extends State<MyDataScreen> {
 
     try {
       final apiService = ApiService();
-      await apiService.deleteAccount(password: password);
+      await apiService.deleteAccount();
 
       if (!mounted) return;
       await context.read<AuthProvider>().logout();
@@ -162,7 +162,7 @@ class _MyDataScreenState extends State<MyDataScreen> {
                 child: Row(
                   children: [
                     Semantics(
-                      label: 'Back',
+                      label: l10n.settingsBackLabel,
                       button: true,
                       child: IconButton(
                         icon: const Icon(Icons.arrow_back_ios_new),

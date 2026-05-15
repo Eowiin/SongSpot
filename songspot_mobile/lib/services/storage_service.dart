@@ -1,4 +1,5 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class StorageService {
   static const _storage = FlutterSecureStorage();
@@ -64,5 +65,55 @@ class StorageService {
   // Clear all data
   Future<void> clearAll() async {
     await _storage.deleteAll();
+  }
+
+  // ── Guest mode ───────────────────────────────────────────────────────────
+
+  static const String _guestModeKey = 'guest_mode';
+  static const String _guestBestScoreKey = 'guest_best_score';
+  static const String _guestBestStreakKey = 'guest_best_streak';
+  static const String _guestSongsPlayedKey = 'guest_songs_played';
+  static const String _guestSongsCorrectKey = 'guest_songs_correct';
+
+  Future<void> setGuestMode(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_guestModeKey, value);
+  }
+
+  Future<bool> isGuestMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_guestModeKey) ?? false;
+  }
+
+  Future<void> saveGuestStats({
+    required int bestScore,
+    required int bestStreak,
+    required int songsPlayed,
+    required int songsCorrect,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_guestBestScoreKey, bestScore);
+    await prefs.setInt(_guestBestStreakKey, bestStreak);
+    await prefs.setInt(_guestSongsPlayedKey, songsPlayed);
+    await prefs.setInt(_guestSongsCorrectKey, songsCorrect);
+  }
+
+  Future<Map<String, int>> getGuestStats() async {
+    final prefs = await SharedPreferences.getInstance();
+    return {
+      'best_score': prefs.getInt(_guestBestScoreKey) ?? 0,
+      'best_streak': prefs.getInt(_guestBestStreakKey) ?? 0,
+      'songs_played': prefs.getInt(_guestSongsPlayedKey) ?? 0,
+      'songs_correct': prefs.getInt(_guestSongsCorrectKey) ?? 0,
+    };
+  }
+
+  Future<void> clearGuestData() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_guestModeKey);
+    await prefs.remove(_guestBestScoreKey);
+    await prefs.remove(_guestBestStreakKey);
+    await prefs.remove(_guestSongsPlayedKey);
+    await prefs.remove(_guestSongsCorrectKey);
   }
 }

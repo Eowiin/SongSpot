@@ -6,14 +6,9 @@ class AudioService {
   final AudioPlayer _player = AudioPlayer();
   bool _isPlaying = false;
   bool _isInitialized = false;
-  Timer? _stopTimer;
-  String? _currentUrl;
   int _playbackRequestId = 0;
 
   bool get isPlaying => _isPlaying;
-
-  Stream<Duration> get positionStream => _player.positionStream;
-  Stream<PlayerState> get playerStateStream => _player.playerStateStream;
 
   void _setPlaying(bool value, {void Function()? onChanged}) {
     if (_isPlaying == value) return;
@@ -21,215 +16,80 @@ class AudioService {
     onChanged?.call();
   }
 
-  Future<void> _waitForPlaybackStart(int requestId) async {
-    if (_player.playing) return;
-
-    try {
-      await _player.playerStateStream
-          .firstWhere((state) => state.playing)
-          .timeout(const Duration(seconds: 2));
-    } on TimeoutException {
-      if (!_player.playing && requestId == _playbackRequestId) {
-        throw StateError('Audio playback did not start in time.');
-      }
-    }
-  }
-
-  /// Initialize audio session (call this once at app start)
   Future<void> initializeAudioSession() async {
     if (_isInitialized) return;
-
     try {
       final session = await AudioSession.instance;
       await session.configure(const AudioSessionConfiguration.music());
       _isInitialized = true;
-    } catch (e) {
-      // Continue anyway, it might still work
-    }
+    } catch (_) {}
   }
 
-  /// Load audio from URL
+  /// Load a URL into the player (no playback yet).
   Future<void> loadAudio(String url) async {
     final requestId = ++_playbackRequestId;
     try {
-      // Initialize audio session if not already done
       await initializeAudioSession();
-
-      // Ensure we are not playing from a previous session
-      _stopTimer?.cancel();
       _setPlaying(false);
       await _player.stop();
-
-      // Set the URL and wait for it to load
-      _currentUrl = url;
-      await _player.setUrl(url);
-      if (requestId != _playbackRequestId) {
-        final latestUrl = _currentUrl;
-        if (latestUrl != null && latestUrl != url) {
-          await _player.setUrl(latestUrl);
-        }
-      }
+      await _player.setUrl(url).timeout(const Duration(seconds: 15));
+      if (requestId != _playbackRequestId) return;
     } catch (e) {
       throw Exception('Failed to load audio: $e');
     }
   }
 
-  /// Play snippet for a specific duration (in seconds)
-  Future<void> playSnippet(
-    double durationInSeconds, {
-    void Function()? onPlaybackStarted,
+  /// Play a snippet of audio up to [duration] (frame-accurate via setClip, no wall-clock timer).
+  /// setClip is re-applied on every call to reset the player from any completed state.
+  /// We wait for processingState.completed rather than awaiting play() directly,
+  /// because play() resolves as soon as playback starts, not when it ends.
+  Future<void> playSnippet({
+    Duration duration = const Duration(seconds: 1),
     void Function()? onPlaybackStopped,
   }) async {
     final requestId = ++_playbackRequestId;
     try {
-      _stopTimer?.cancel();
-
-      if (_currentUrl == null) {
-        throw StateError('Audio must be loaded before playing a snippet.');
-      }
-
-      await _player.stop();
-      await _player.seek(Duration.zero);
-
-      final clipEnd = Duration(
-        milliseconds: (durationInSeconds * 1000).round(),
+      await _player.setClip(
+        start: Duration.zero,
+        end: duration,
       );
+      if (requestId != _playbackRequestId) return;
 
-      final playbackFuture = _player.play();
-      await _waitForPlaybackStart(requestId);
-      if (requestId != _playbackRequestId) {
-        await playbackFuture;
-        return;
-      }
-
-      _setPlaying(true, onChanged: onPlaybackStarted);
-      _stopTimer = Timer(clipEnd, () async {
-        if (requestId != _playbackRequestId) return;
-        await _player.stop();
-        await _player.seek(Duration.zero);
-        if (requestId == _playbackRequestId) {
-          _stopTimer = null;
-          _setPlaying(false, onChanged: onPlaybackStopped);
-        }
-      });
-
-      await playbackFuture;
-      if (requestId == _playbackRequestId) {
-        _stopTimer?.cancel();
-        _stopTimer = null;
-        _setPlaying(false, onChanged: onPlaybackStopped);
-      }
-    } catch (e) {
-      if (requestId == _playbackRequestId) {
-        _stopTimer?.cancel();
-        _stopTimer = null;
-        await _player.stop();
-        await _player.seek(Duration.zero);
-        _setPlaying(false, onChanged: onPlaybackStopped);
-      }
-      throw Exception('Failed to play snippet: $e');
-    }
-  }
-
-  Future<void> playFullAudio({bool fromStart = true}) async {
-    final requestId = ++_playbackRequestId;
-    try {
-      _stopTimer?.cancel();
-
-      if (_currentUrl == null) {
-        throw StateError('Audio must be loaded before playing.');
-      }
-
-      await _player.stop();
-      if (fromStart) {
-        await _player.seek(Duration.zero);
-      }
+      // Subscribe before play() to avoid missing the completed event.
+      // Also accepts idle so that stop() or an audio interruption resolves
+      // this immediately rather than hanging until the 5s timeout.
+      // Safe to include idle here because setClip is already awaited above —
+      // we won't catch the transient idle emitted during clip setup.
+      // Timeout = snippet length + 5s buffer so longer snippets (Easy: 15s) don't time out mid-play.
+      final doneFuture = _player.processingStateStream
+          .firstWhere((s) =>
+              s == ProcessingState.completed || s == ProcessingState.idle)
+          .timeout(duration + const Duration(seconds: 5));
 
       _setPlaying(true);
-      await _player.play();
+      _player.play(); // intentionally not awaited
+
+      await doneFuture;
+
       if (requestId == _playbackRequestId) {
-        _setPlaying(false);
+        _setPlaying(false, onChanged: onPlaybackStopped);
       }
     } catch (e) {
       if (requestId == _playbackRequestId) {
-        _setPlaying(false);
+        _setPlaying(false, onChanged: onPlaybackStopped);
       }
-      throw Exception('Failed to play audio: $e');
+      rethrow;
     }
   }
 
-  /// Stop playback
-  Future<void> stop({bool cancelTimer = true}) async {
+  Future<void> stop() async {
     _playbackRequestId += 1;
-    if (cancelTimer) {
-      _stopTimer?.cancel();
-      _stopTimer = null;
-    }
     await _player.stop();
     await _player.seek(Duration.zero);
     _setPlaying(false);
   }
 
-  /// Pause playback
-  Future<void> pause() async {
-    _playbackRequestId += 1;
-    _stopTimer?.cancel();
-    _stopTimer = null;
-    await _player.pause();
-    _setPlaying(false);
-  }
-
-  /// Resume playback
-  Future<void> resume() async {
-    await _player.play();
-    _setPlaying(true);
-  }
-
-  /// Get current position
-  Duration get currentPosition => _player.position;
-
-  /// Get total duration
-  Duration? get duration => _player.duration;
-
-  /// Dispose the player
   Future<void> dispose() async {
-    _stopTimer?.cancel();
     await _player.dispose();
-  }
-
-  /// Play snippet based on snippet number (1-6)
-  Future<void> playSnippetByNumber(
-    int snippetNumber, {
-    void Function()? onPlaybackStarted,
-    void Function()? onPlaybackStopped,
-  }) async {
-    double duration;
-    switch (snippetNumber) {
-      case 1:
-        duration = 0.2;
-        break;
-      case 2:
-        duration = 0.5;
-        break;
-      case 3:
-        duration = 2.0;
-        break;
-      case 4:
-        duration = 4.0;
-        break;
-      case 5:
-        duration = 8.0;
-        break;
-      case 6:
-        duration = 15.0;
-        break;
-      default:
-        duration = 0.2;
-    }
-    await playSnippet(
-      duration,
-      onPlaybackStarted: onPlaybackStarted,
-      onPlaybackStopped: onPlaybackStopped,
-    );
   }
 }

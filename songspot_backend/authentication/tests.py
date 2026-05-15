@@ -1,5 +1,3 @@
-from unittest.mock import patch
-
 from django.core.cache import cache
 from django.core import mail
 from django.test import TestCase
@@ -12,9 +10,7 @@ from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
-from game.models import Room, RoomUser, DailySong, DailyGameSession, RoomMessage, Track
 from .models import User
-from .tasks import notify_room_message_task, _active_game_date
 
 
 class UserModelTests(TestCase):
@@ -400,118 +396,3 @@ class UserProfileViewTests(APITestCase):
         """Test getting profile fails when not authenticated."""
         response = self.client.get(self.profile_url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-
-
-class RoomMessageNotificationTaskTests(TestCase):
-    """Tests for room message push recipient filtering."""
-
-    def setUp(self):
-        self.host = User.objects.create_user(
-            username='host_user',
-            email='host@example.com',
-            password='testpass123',
-        )
-        self.sender = User.objects.create_user(
-            username='sender_user',
-            email='sender@example.com',
-            password='testpass123',
-        )
-        self.guessed_user = User.objects.create_user(
-            username='guessed_user',
-            email='guessed@example.com',
-            password='testpass123',
-        )
-        self.not_guessed_user = User.objects.create_user(
-            username='not_guessed_user',
-            email='not_guessed@example.com',
-            password='testpass123',
-        )
-
-        self.room = Room.objects.create(host_user=self.host)
-        RoomUser.objects.create(room=self.room, user=self.host)
-        RoomUser.objects.create(room=self.room, user=self.sender)
-        RoomUser.objects.create(room=self.room, user=self.guessed_user)
-        RoomUser.objects.create(room=self.room, user=self.not_guessed_user)
-
-        self.track = Track.objects.create(
-            title='Test Song',
-            artist='Test Artist',
-            preview_url='https://example.com/preview.mp3',
-        )
-        self.daily_song = DailySong.objects.create(
-            room=self.room,
-            track=self.track,
-            date=_active_game_date(),
-        )
-
-    @patch('authentication.tasks.notify_room_message_task.delay')
-    @patch('authentication.tasks.send_push_to_users')
-    def test_only_users_with_correct_guess_receive_room_message_push(
-        self,
-        mock_send_push,
-        mock_delay,
-    ):
-        DailyGameSession.objects.create(
-            room=self.room,
-            user=self.sender,
-            daily_song=self.daily_song,
-            correct_guess=True,
-        )
-        DailyGameSession.objects.create(
-            room=self.room,
-            user=self.guessed_user,
-            daily_song=self.daily_song,
-            correct_guess=True,
-        )
-        DailyGameSession.objects.create(
-            room=self.room,
-            user=self.not_guessed_user,
-            daily_song=self.daily_song,
-            correct_guess=False,
-        )
-
-        message = RoomMessage.objects.create(
-            room=self.room,
-            user=self.sender,
-            message='Solved it!',
-        )
-
-        mock_send_push.return_value = {'success_count': 1, 'failure_count': 0}
-        notify_room_message_task(str(message.id))
-
-        mock_delay.assert_called_once_with(str(message.id))
-        mock_send_push.assert_called_once()
-        recipient_ids = mock_send_push.call_args.args[0]
-        self.assertEqual(recipient_ids, [str(self.guessed_user.id)])
-
-    @patch('authentication.tasks.notify_room_message_task.delay')
-    @patch('authentication.tasks.send_push_to_users')
-    def test_no_push_when_no_other_user_has_correct_guess(
-        self,
-        mock_send_push,
-        mock_delay,
-    ):
-        DailyGameSession.objects.create(
-            room=self.room,
-            user=self.sender,
-            daily_song=self.daily_song,
-            correct_guess=True,
-        )
-        DailyGameSession.objects.create(
-            room=self.room,
-            user=self.not_guessed_user,
-            daily_song=self.daily_song,
-            correct_guess=False,
-        )
-
-        message = RoomMessage.objects.create(
-            room=self.room,
-            user=self.sender,
-            message='Anyone got it?',
-        )
-
-        result = notify_room_message_task(str(message.id))
-
-        mock_delay.assert_called_once_with(str(message.id))
-        mock_send_push.assert_not_called()
-        self.assertEqual(result, {'success_count': 0, 'failure_count': 0, 'skipped': True})

@@ -178,7 +178,7 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # Stem cleanup TTL (hours)
-STEM_TTL_HOURS = int(os.environ.get('STEM_TTL_HOURS', '72'))
+# STEM_TTL_HOURS = int(os.environ.get('STEM_TTL_HOURS', '72'))
 
 # Email / password reset
 EMAIL_BACKEND = os.environ.get(
@@ -223,6 +223,7 @@ REST_FRAMEWORK = {
         'password_reset': '3/hour',  # Password reset email requests: 3/hour per IP
         'guess': '10/minute',     # Game guess submissions: 10/minute
         'message': '30/minute',   # Chat messages: 30/minute
+        'game_search': '200/minute',  # Track search + next-song (fires per keystroke)
     },
 }
 
@@ -230,12 +231,12 @@ REST_FRAMEWORK = {
 from datetime import timedelta
 
 # Celery (async tasks)
-CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
-CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', CELERY_BROKER_URL)
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_SERIALIZER = 'json'
-CELERY_TIMEZONE = TIME_ZONE
+# CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+# CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', CELERY_BROKER_URL)
+# CELERY_ACCEPT_CONTENT = ['json']
+# CELERY_TASK_SERIALIZER = 'json'
+# CELERY_RESULT_SERIALIZER = 'json'
+# CELERY_TIMEZONE = TIME_ZONE
 
 # Firebase Cloud Messaging
 FCM_SERVICE_ACCOUNT_PATH = os.environ.get('FCM_SERVICE_ACCOUNT_PATH')
@@ -243,27 +244,27 @@ FCM_SERVICE_ACCOUNT_JSON = os.environ.get('FCM_SERVICE_ACCOUNT_JSON')
 
 # In-App Purchases
 # Set to False in production once Apple/Google receipt verification is implemented
-IAP_SANDBOX_MODE = os.environ.get('IAP_SANDBOX_MODE', 'True') == 'True'
+# IAP_SANDBOX_MODE = os.environ.get('IAP_SANDBOX_MODE', 'True') == 'True'
 
 # Coin-based ad-free pass
-NO_ADS_PASS_COINS = int(os.environ.get('NO_ADS_PASS_COINS', '700'))
-NO_ADS_PASS_DAYS = int(os.environ.get('NO_ADS_PASS_DAYS', '30'))
+# NO_ADS_PASS_COINS = int(os.environ.get('NO_ADS_PASS_COINS', '700'))
+# NO_ADS_PASS_DAYS = int(os.environ.get('NO_ADS_PASS_DAYS', '30'))
 
 # Rewarded ads
-AD_REWARD_COINS = int(os.environ.get('AD_REWARD_COINS', '10'))
-AD_REWARD_DAILY_CAP = int(os.environ.get('AD_REWARD_DAILY_CAP', '2'))
-APP_ADS_TXT = os.environ.get(
-    'APP_ADS_TXT',
-    'google.com, pub-2260442058102246, DIRECT, f08c47fec0942fa0',
-)
+# AD_REWARD_COINS = int(os.environ.get('AD_REWARD_COINS', '10'))
+# AD_REWARD_DAILY_CAP = int(os.environ.get('AD_REWARD_DAILY_CAP', '2'))
+# APP_ADS_TXT = os.environ.get(
+#     'APP_ADS_TXT',
+#     'google.com, pub-2260442058102246, DIRECT, f08c47fec0942fa0',
+# )
 
 # Daily game retry progression
-DAILY_GAME_MAX_RETRIES = int(os.environ.get('DAILY_GAME_MAX_RETRIES', '2'))
-DAILY_GAME_RETRY_COIN_COST = int(os.environ.get('DAILY_GAME_RETRY_COIN_COST', '120'))
+# DAILY_GAME_MAX_RETRIES = int(os.environ.get('DAILY_GAME_MAX_RETRIES', '2'))
+# DAILY_GAME_RETRY_COIN_COST = int(os.environ.get('DAILY_GAME_RETRY_COIN_COST', '120'))
 
 # Room creation safeguards (anti-abuse)
-MAX_HOSTED_ROOMS_PER_USER = int(os.environ.get('MAX_HOSTED_ROOMS_PER_USER', '5'))
-MAX_ROOM_CREATIONS_PER_DAY = int(os.environ.get('MAX_ROOM_CREATIONS_PER_DAY', '5'))
+# MAX_HOSTED_ROOMS_PER_USER = int(os.environ.get('MAX_HOSTED_ROOMS_PER_USER', '5'))
+# MAX_ROOM_CREATIONS_PER_DAY = int(os.environ.get('MAX_ROOM_CREATIONS_PER_DAY', '5'))
 
 # Sentry error monitoring (only active in production, when DEBUG=False)
 if not DEBUG and os.environ.get('SENTRY_DSN'):

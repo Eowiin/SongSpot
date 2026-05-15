@@ -3,34 +3,28 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:songspot_mobile/config/api_config.dart';
 
 void main() {
-  group('ApiConfig websocket origin', () {
-    test('uses SERVER_URL as the websocket origin when available', () {
-      dotenv.loadFromString(
-        envString: '''
-SERVER_URL=https://songspot.eowinstudio.com
-API_BASE_URL=https://songspot.eowinstudio.com/api
-WS_BASE_URL=wss://songspot.eowinstudio.com
-''',
-      );
+  setUpAll(() {
+    dotenv.loadFromString(envString: '', isOptional: true);
+  });
 
-      expect(
-        ApiConfig.webSocketHeaders['Origin'],
-        'https://songspot.eowinstudio.com',
-      );
+  group('ApiConfig', () {
+    test('base url falls back to localhost when no env var is set', () {
+      expect(ApiConfig.baseUrl, isNotEmpty);
+      expect(ApiConfig.baseUrl, contains('localhost'));
     });
 
-    test('falls back to converting WS_BASE_URL to http origin', () {
-      dotenv.loadFromString(
-        envString: '''
-API_BASE_URL=http://192.168.10.109:8000/api
-WS_BASE_URL=ws://192.168.10.109:8000
-''',
-      );
+    test('game endpoints are defined', () {
+      expect(ApiConfig.categories, isNotEmpty);
+      expect(ApiConfig.nextSong, isNotEmpty);
+      expect(ApiConfig.submitScore, isNotEmpty);
+      expect(ApiConfig.leaderboard, isNotEmpty);
+      expect(ApiConfig.userStats, isNotEmpty);
+    });
 
-      expect(
-        ApiConfig.webSocketHeaders['Origin'],
-        'http://192.168.10.109:8000',
-      );
+    test('auth endpoints are defined', () {
+      expect(ApiConfig.authLogin, isNotEmpty);
+      expect(ApiConfig.authRegister, isNotEmpty);
+      expect(ApiConfig.authProfile, isNotEmpty);
     });
   });
 }

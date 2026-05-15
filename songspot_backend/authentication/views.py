@@ -1,4 +1,3 @@
-from datetime import timedelta
 import hashlib
 import logging
 
@@ -25,7 +24,7 @@ from django.views import View
 from django.core.mail import send_mail
 import json
 from urllib.parse import urlencode
-from .models import UserDevicePushToken, CoinTransaction, AdRewardClaim
+from .models import UserDevicePushToken
 from .serializers import (
     UserRegistrationSerializer,
     UserSerializer,
@@ -417,158 +416,6 @@ class UserProfileView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class NoAdsPassActivateView(APIView):
-    """
-    Activate or extend an ad-free pass by spending coins.
-
-    POST /api/auth/no-ads/activate/
-    Headers: Authorization: Bearer <access_token>
-
-    Server-side pricing is controlled by settings:
-    - NO_ADS_PASS_COINS (default: 700)
-    - NO_ADS_PASS_DAYS (default: 30)
-    """
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request):
-        user = request.user
-        cost_coins = int(getattr(settings, 'NO_ADS_PASS_COINS', 700))
-        duration_days = int(getattr(settings, 'NO_ADS_PASS_DAYS', 30))
-
-        if user.coins < cost_coins:
-            return Response(
-                {
-                    'error': 'Insufficient coins',
-                    'coins': user.coins,
-                    'cost_coins': cost_coins,
-                    'duration_days': duration_days,
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        now = timezone.now()
-        with transaction.atomic():
-            if not user.spend_coins(cost_coins, reason=f"No ads pass ({duration_days} days)"):
-                return Response(
-                    {
-                        'error': 'Insufficient coins',
-                        'coins': user.coins,
-                        'cost_coins': cost_coins,
-                        'duration_days': duration_days,
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            starts_at = user.ad_free_until if user.ad_free_until and user.ad_free_until > now else now
-            user.ad_free_until = starts_at + timedelta(days=duration_days)
-            user.save(update_fields=['ad_free_until'])
-
-        return Response(
-            {
-                'message': f'Ad-free pass activated for {duration_days} days',
-                'coins': user.coins,
-                'cost_coins': cost_coins,
-                'duration_days': duration_days,
-                'ad_free_until': user.ad_free_until.isoformat() if user.ad_free_until else None,
-                'has_no_ads': user.has_no_ads,
-            },
-            status=status.HTTP_200_OK,
-        )
-
-
-class RewardedAdClaimView(APIView):
-    """
-    Credit bonus coins after a rewarded ad is completed.
-
-    POST /api/auth/ads/reward/
-    Headers: Authorization: Bearer <access_token>
-    Body: {"placement": "game_result"}
-
-    Server-side controls:
-    - AD_REWARD_COINS (default: 10)
-    - AD_REWARD_DAILY_CAP (default: 2)
-    """
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request):
-        user = request.user
-        placement = (request.data.get('placement') or 'game_result').strip()[:50] or 'game_result'
-        reward_coins = int(getattr(settings, 'AD_REWARD_COINS', 10))
-        daily_cap = int(getattr(settings, 'AD_REWARD_DAILY_CAP', 2))
-        today = timezone.now().date()
-
-        claims_today = AdRewardClaim.objects.filter(
-            user=user,
-            created_at__date=today,
-        ).count()
-
-        if claims_today >= daily_cap:
-            return Response(
-                {
-                    'error': 'Daily rewarded-ad limit reached',
-                    'daily_cap': daily_cap,
-                    'remaining_today': 0,
-                    'coins': user.coins,
-                },
-                status=status.HTTP_429_TOO_MANY_REQUESTS,
-            )
-
-        with transaction.atomic():
-            user.add_coins(
-                reward_coins,
-                reason=f"Rewarded ad ({placement})",
-                transaction_type='bonus',
-            )
-            AdRewardClaim.objects.create(
-                user=user,
-                placement=placement,
-                coins_awarded=reward_coins,
-            )
-
-        return Response(
-            {
-                'message': 'Reward credited',
-                'coins': user.coins,
-                'coins_awarded': reward_coins,
-                'daily_cap': daily_cap,
-                'remaining_today': max(daily_cap - claims_today - 1, 0),
-            },
-            status=status.HTTP_200_OK,
-        )
-
-
-class RewardedAdStatusView(APIView):
-    """
-    Return current rewarded-ad limits and remaining claims for today.
-
-    GET /api/auth/ads/reward/status/
-    Headers: Authorization: Bearer <access_token>
-    """
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        user = request.user
-        reward_coins = int(getattr(settings, 'AD_REWARD_COINS', 10))
-        daily_cap = int(getattr(settings, 'AD_REWARD_DAILY_CAP', 2))
-        today = timezone.now().date()
-
-        claims_today = AdRewardClaim.objects.filter(
-            user=user,
-            created_at__date=today,
-        ).count()
-        remaining_today = max(daily_cap - claims_today, 0)
-
-        return Response(
-            {
-                'reward_coins': reward_coins,
-                'daily_cap': daily_cap,
-                'claims_today': claims_today,
-                'remaining_today': remaining_today,
-            },
-            status=status.HTTP_200_OK,
-        )
-
-
 class PushDeviceRegisterView(APIView):
     """
     Register or refresh the current device FCM token.
@@ -788,27 +635,12 @@ class DataExportView(APIView):
             )
         )
 
-        coin_history = list(
-            CoinTransaction.objects.filter(user=user).values(
-                'id', 'amount', 'transaction_type', 'reason', 'created_at',
-            )
-        )
-
-        ad_reward_claims = list(
-            AdRewardClaim.objects.filter(user=user).values(
-                'id', 'placement', 'coins_awarded', 'created_at',
-            )
-        )
-
         payload = {
             'exported_at': timezone.now().isoformat(),
             'profile': {
                 'id': str(user.id),
                 'username': user.username,
                 'email': user.email,
-                'coins': user.coins,
-                'ad_free_until': user.ad_free_until.isoformat() if user.ad_free_until else None,
-                'has_no_ads': user.has_no_ads,
                 'games_played': user.games_played,
                 'games_won': user.games_won,
                 'total_points': user.total_points,
@@ -840,14 +672,6 @@ class DataExportView(APIView):
             'packs_purchased': [
                 {**p, 'pack_id': str(p['pack_id']), 'purchased_at': p['purchased_at'].isoformat() if p['purchased_at'] else None}
                 for p in packs_purchased
-            ],
-            'coin_transactions': [
-                {**c, 'id': str(c['id']), 'created_at': c['created_at'].isoformat() if c['created_at'] else None}
-                for c in coin_history
-            ],
-            'ad_reward_claims': [
-                {**c, 'id': str(c['id']), 'created_at': c['created_at'].isoformat() if c['created_at'] else None}
-                for c in ad_reward_claims
             ],
         }
 

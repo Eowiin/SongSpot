@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import 'pack.dart';
+import 'playlist.dart';
 import 'user.dart';
 
 class RoomUser extends Equatable {
@@ -121,7 +121,7 @@ class Room extends Equatable {
   final User hostUser;
   final List<RoomUser> users;
   final int userCount;
-  final SongPack? activePack;
+  final Playlist? activePack;
   final List<RoomDailyMode> dailyModes;
   final DateTime createdAt;
 
@@ -150,7 +150,7 @@ class Room extends Equatable {
       ),
       userCount: json['user_count'] as int,
       activePack: json['active_pack'] != null
-          ? SongPack.fromJson(json['active_pack'] as Map<String, dynamic>)
+          ? Playlist.fromJson(json['active_pack'] as Map<String, dynamic>)
           : null,
       dailyModes: List.unmodifiable(
         (json['daily_modes'] as List<dynamic>? ?? const [])
@@ -168,7 +168,7 @@ class Room extends Equatable {
     User? hostUser,
     List<RoomUser>? users,
     int? userCount,
-    SongPack? activePack,
+    Playlist? activePack,
     bool clearActivePack = false,
     List<RoomDailyMode>? dailyModes,
     DateTime? createdAt,

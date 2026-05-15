@@ -119,17 +119,11 @@ class PushNotificationService {
     }
   }
 
-  Future<void> _registerToken(
-    String token, {
-    bool dailySongEnabled = true,
-    bool messagesEnabled = true,
-  }) async {
+  Future<void> _registerToken(String token) async {
     try {
       await _apiService.registerPushDevice(
         token: token,
         platform: _platformName,
-        dailySongEnabled: dailySongEnabled,
-        messagesEnabled: messagesEnabled,
       );
     } catch (e) {
       debugPrint('FCM token register failed: $e');
@@ -148,7 +142,7 @@ class PushNotificationService {
     final token = await messaging.getToken();
     if (token == null || token.isEmpty) return;
 
-    await _registerToken(token, dailySongEnabled: dailySong, messagesEnabled: messages);
+    await _registerToken(token);
   }
 
   String get _platformName {
