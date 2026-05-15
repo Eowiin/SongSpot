@@ -23,20 +23,22 @@ jobs:
     name: Detect changed paths
     runs-on: ubuntu-latest
     outputs:
-      backend: ${{ steps.filter.outputs.backend }}
-      mobile: ${{ steps.filter.outputs.mobile }}
+      backend: ${{ steps.check.outputs.backend }}
+      mobile: ${{ steps.check.outputs.mobile }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: filter
         with:
-          filters: |
-            backend:
-              - ".github/workflows/ci.yml"
-              - "songspot_backend/**"
-            mobile:
-              - ".github/workflows/ci.yml"
-              - "songspot_mobile/**"
+          fetch-depth: 0
+      - id: check
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          else
+            CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+          fi
+          echo "$CHANGED"
+          echo "backend=$(echo "$CHANGED" | grep -qE '^(songspot_backend/|\.github/workflows/ci\.yml)' && echo true || echo false)" >> $GITHUB_OUTPUT
+          echo "mobile=$(echo "$CHANGED" | grep -qE '^(songspot_mobile/|\.github/workflows/ci\.yml)' && echo true || echo false)" >> $GITHUB_OUTPUT
 
   backend:
     name: Backend Tests and Ruff
