@@ -41,7 +41,7 @@ class StatsProvider extends ChangeNotifier {
         );
       } else {
         final data = await _api.getUserStats();
-        _userBest = UserBest.fromJson(data as Map<String, dynamic>);
+        _userBest = UserBest.fromJson(data);
       }
     } catch (e) {
       _statsError = e.toString();
@@ -66,7 +66,7 @@ class StatsProvider extends ChangeNotifier {
         categoryId: categoryId,
         limit: 50,
       );
-      _leaderboard = (results as List<dynamic>)
+      _leaderboard = results
           .map((j) => GameScore.fromJson(j as Map<String, dynamic>))
           .toList();
     } catch (e) {

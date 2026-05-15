@@ -135,7 +135,7 @@ class ApiService {
     if (errorCode != null) {
       try {
         final l10n = await _resolveLocalizations();
-        final localized = _localizeBackendCode(l10n, errorCode!);
+        final localized = _localizeBackendCode(l10n, errorCode);
         if (localized != null) message = localized;
       } catch (_) {}
     }
@@ -372,12 +372,12 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> getNextSong({
-    String? genre,
+    String? playlist,
     String? artist,
     List<String>? excludeIds,
   }) async {
     final params = <String, String>{};
-    if (genre != null && genre.isNotEmpty) params['genre'] = genre;
+    if (playlist != null && playlist.isNotEmpty) params['playlist'] = playlist;
     if (artist != null && artist.isNotEmpty) params['artist'] = artist;
     if (excludeIds != null && excludeIds.isNotEmpty) {
       params['exclude'] = excludeIds.join(',');

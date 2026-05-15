@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import 'pack.dart';
+import 'playlist.dart';
 import 'user.dart';
 
 class Stem extends Equatable {
@@ -28,7 +28,7 @@ class PackBundleSession extends Equatable {
   final int pointsEarned;
   final DateTime? completedAt;
   final DateTime createdAt;
-  final PackTrack? packTrack;
+  final PlaylistTrack? packTrack;
   final String date;
   final List<String> hintsUsed;
 
@@ -65,7 +65,7 @@ class PackBundleSession extends Equatable {
           : null,
       createdAt: DateTime.parse(json['created_at'] as String),
       packTrack: json['pack_track'] != null
-          ? PackTrack.fromJson(json['pack_track'] as Map<String, dynamic>)
+          ? PlaylistTrack.fromJson(json['pack_track'] as Map<String, dynamic>)
           : null,
       date: json['date'] as String? ?? '',
       hintsUsed: List<String>.from(json['hints_used'] as List? ?? []),
@@ -86,7 +86,7 @@ class PackBundleSession extends Equatable {
     DateTime? completedAt,
     bool clearCompletedAt = false,
     DateTime? createdAt,
-    PackTrack? packTrack,
+    PlaylistTrack? packTrack,
     String? date,
     List<String>? hintsUsed,
   }) {

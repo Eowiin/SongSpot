@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import (
-    CategoryListView,
+    PlaylistListView,
     NextSongView,
     ArtistListView,
     ArtistTrendingView,
@@ -17,7 +17,7 @@ from .views import (
 app_name = 'game'
 
 urlpatterns = [
-    path('categories/', CategoryListView.as_view(), name='categories'),
+    path('categories/', PlaylistListView.as_view(), name='categories'),
     path('next-song/', NextSongView.as_view(), name='next_song'),
     path('artists/', ArtistListView.as_view(), name='artists'),
     path('artists/trending/', ArtistTrendingView.as_view(), name='artists_trending'),

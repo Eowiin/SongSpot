@@ -12,6 +12,7 @@ from songspot.throttling import GameSearchThrottle
 
 from .models import (
     Track, GameScore, UserBest, FavouriteArtist,
+    Playlist, PlaylistTrack,
     CATEGORY_CHOICES,
 )
 from .serializers import (
@@ -24,35 +25,25 @@ from .serializers import (
     MigrateGuestStatsSerializer,
 )
 
-GENRE_DISPLAY = dict(CATEGORY_CHOICES)
-
-
-class CategoryListView(APIView):
-    """
-    List available genres derived directly from tracks in the library.
-    Returns one entry per genre key — no more multiple packs per genre.
-    """
+class PlaylistListView(APIView):
+    """Return all playlists that have at least one track."""
     permission_classes = [AllowAny]
 
     def get(self, request):
-        rows = (
-            Track.objects
-            .filter(preview_url__isnull=False)
-            .exclude(preview_url='')
-            .exclude(genre__isnull=True)
-            .exclude(genre='')
-            .values('genre')
-            .annotate(track_count=Count('id'))
-            .order_by('genre')
+        playlists = (
+            Playlist.objects
+            .annotate(num_tracks=Count('playlist_tracks'))
+            .filter(num_tracks__gt=0)
+            .order_by('name')
         )
         result = [
             {
-                'id': row['genre'],
-                'name': GENRE_DISPLAY.get(row['genre'], row['genre'].replace('_', ' ').title()),
-                'category': row['genre'],
-                'track_count': row['track_count'],
+                'id': str(p.id),
+                'name': p.name,
+                'category': p.category,
+                'track_count': p.num_tracks,
             }
-            for row in rows
+            for p in playlists
         ]
         return Response(result)
 
@@ -70,15 +61,18 @@ class NextSongView(APIView):
     throttle_classes = [GameSearchThrottle]
 
     def get(self, request):
-        genre = request.query_params.get('genre', '').strip()
+        playlist_id = request.query_params.get('playlist', '').strip()
         artist = request.query_params.get('artist', '').strip()
         exclude_raw = request.query_params.get('exclude', '')
         exclude_ids = [e.strip() for e in exclude_raw.split(',') if e.strip()]
 
         qs = Track.objects.filter(preview_url__isnull=False).exclude(preview_url='')
 
-        if genre:
-            qs = qs.filter(genre=genre)
+        if playlist_id:
+            track_ids = PlaylistTrack.objects.filter(
+                playlist_id=playlist_id
+            ).values_list('track_id', flat=True)
+            qs = qs.filter(id__in=track_ids)
         elif artist:
             qs = qs.filter(artist__icontains=artist)
 
@@ -199,7 +193,7 @@ class SearchTracksView(APIView):
             Track.objects.filter(
                 Q(title__icontains=q) | Q(artist__icontains=q)
             )
-            .order_by('title')[:20]
+            .order_by('title')[:40]
         )
         return Response(TrackSearchSerializer(tracks, many=True).data)
 

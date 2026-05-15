@@ -287,18 +287,18 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                 Image.network(
                   track!.coverUrl!,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const _PlaceholderArt(),
+                  errorBuilder: (_, _, _) => const _PlaceholderArt(),
                 )
               else
                 const _PlaceholderArt(),
               if (blurSigma > 0.5)
                 BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
-                  child: Container(color: Colors.black.withOpacity(0.2)),
+                  child: Container(color: Colors.black.withValues(alpha: 0.2)),
                 ),
               if (provider.isLoadingTrack)
                 Container(
-                  color: Colors.black.withOpacity(0.4),
+                  color: Colors.black.withValues(alpha: 0.4),
                   child: const Center(
                     child: CircularProgressIndicator(color: Colors.white),
                   ),
@@ -328,7 +328,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                   ? null
                   : [
                       BoxShadow(
-                        color: AppTheme.primaryColor.withOpacity(0.4),
+                        color: AppTheme.primaryColor.withValues(alpha: 0.4),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -416,13 +416,13 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
       decoration: BoxDecoration(
         color: AppTheme.surfaceColor,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: ListView.separated(
         shrinkWrap: true,
-        itemCount: provider.searchResults.length.clamp(0, 6),
-        separatorBuilder: (_, __) =>
-            Divider(height: 1, color: Colors.white.withOpacity(0.06)),
+        itemCount: provider.searchResults.length.clamp(0, 40),
+        separatorBuilder: (_, _) =>
+            Divider(height: 1, color: Colors.white.withValues(alpha: 0.06)),
         itemBuilder: (context, i) {
           final t = provider.searchResults[i];
           return ListTile(
@@ -437,7 +437,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: AppTheme.primaryColor.withOpacity(0.2),
+                      color: AppTheme.primaryColor.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Icon(Icons.music_note_rounded,
@@ -472,7 +472,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
         onPressed: provider.giveUp,
         style: OutlinedButton.styleFrom(
           foregroundColor: AppTheme.textSecondary,
-          side: BorderSide(color: AppTheme.textSecondary.withOpacity(0.3)),
+          side: BorderSide(color: AppTheme.textSecondary.withValues(alpha: 0.3)),
           padding: const EdgeInsets.symmetric(vertical: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
@@ -498,9 +498,9 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: color.withOpacity(0.3)),
+                border: Border.all(color: color.withValues(alpha: 0.3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -523,7 +523,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
-                            color: color.withOpacity(0.2),
+                            color: color.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
@@ -563,7 +563,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                       Text(
                         '${track.releaseYear}',
                         style: TextStyle(
-                          color: AppTheme.textSecondary.withOpacity(0.6),
+                          color: AppTheme.textSecondary.withValues(alpha: 0.6),
                           fontSize: 12,
                         ),
                       ),
@@ -587,7 +587,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
       decoration: BoxDecoration(
         color: AppTheme.backgroundColor,
         border: Border(
-          top: BorderSide(color: Colors.white.withOpacity(0.06)),
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
         ),
       ),
       child: SizedBox(

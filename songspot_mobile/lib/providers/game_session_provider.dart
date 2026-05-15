@@ -154,11 +154,11 @@ class GameSessionProvider extends ChangeNotifier {
 
     try {
       final data = await _api.getNextSong(
-        genre: _category?.id,
+        playlist: _category?.id,
         artist: _artistFilter,
         excludeIds: List.from(_seenTrackIds),
       );
-      _currentTrack = Track.fromJson(data as Map<String, dynamic>);
+      _currentTrack = Track.fromJson(data);
       _seenTrackIds.add(_currentTrack!.id);
 
       if (_currentTrack!.previewUrl != null) {
@@ -298,7 +298,7 @@ class GameSessionProvider extends ChangeNotifier {
     _searchDebounce = Timer(const Duration(milliseconds: 350), () async {
       try {
         final results = await _api.searchTracks(query);
-        _searchResults = (results as List<dynamic>)
+        _searchResults = results
             .map((j) => Track.fromJson(j as Map<String, dynamic>))
             .toList();
       } catch (_) {
@@ -330,7 +330,7 @@ class GameSessionProvider extends ChangeNotifier {
 
     try {
       final data = await _api.submitScore(
-        genre: _category?.id,
+        genre: _category?.category,
         artistFilter: _artistFilter ?? '',
         difficulty: _difficulty.name,
         songsPlayed: _songsPlayed,
@@ -338,7 +338,7 @@ class GameSessionProvider extends ChangeNotifier {
         bestStreak: _bestStreak,
         totalScore: _totalScore,
       );
-      return GameScore.fromJson(data as Map<String, dynamic>);
+      return GameScore.fromJson(data);
     } catch (_) {
       return null;
     }

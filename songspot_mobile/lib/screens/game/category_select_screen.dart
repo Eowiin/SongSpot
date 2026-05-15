@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
@@ -47,6 +49,7 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
   final TextEditingController _artistController = TextEditingController();
   List<ArtistInfo> _artistResults = [];
   bool _isSearchingArtists = false;
+  Timer? _artistSearchDebounce;
 
   // Artist suggestions
   List<ArtistInfo> _trending = [];
@@ -68,6 +71,7 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
 
   @override
   void dispose() {
+    _artistSearchDebounce?.cancel();
     _tabController.dispose();
     _artistController.dispose();
     super.dispose();
@@ -77,7 +81,7 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
     try {
       final data = await _api.getCategories();
       setState(() {
-        _categories = (data as List<dynamic>)
+        _categories = data
             .map((j) => Category.fromJson(j as Map<String, dynamic>))
             .where((c) => c.trackCount > 0)
             .toList();
@@ -115,26 +119,31 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
     }
   }
 
-  Future<void> _onArtistQueryChanged() async {
+  void _onArtistQueryChanged() {
     final q = _artistController.text.trim();
     if (q.length < 2) {
+      _artistSearchDebounce?.cancel();
       setState(() => _artistResults = []);
       return;
     }
-    setState(() => _isSearchingArtists = true);
-    try {
-      final results = await _api.searchArtists(q);
-      if (mounted) {
-        setState(() {
-          _artistResults = results
-              .map((j) => ArtistInfo.fromJson(j as Map<String, dynamic>))
-              .toList();
-          _isSearchingArtists = false;
-        });
+    _artistSearchDebounce?.cancel();
+    _artistSearchDebounce = Timer(const Duration(milliseconds: 350), () async {
+      if (!mounted) return;
+      setState(() => _isSearchingArtists = true);
+      try {
+        final results = await _api.searchArtists(q);
+        if (mounted) {
+          setState(() {
+            _artistResults = results
+                .map((j) => ArtistInfo.fromJson(j as Map<String, dynamic>))
+                .toList();
+            _isSearchingArtists = false;
+          });
+        }
+      } catch (_) {
+        if (mounted) setState(() => _isSearchingArtists = false);
       }
-    } catch (_) {
-      if (mounted) setState(() => _isSearchingArtists = false);
-    }
+    });
   }
 
   Future<void> _toggleFavourite(ArtistInfo artist) async {
@@ -257,7 +266,7 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
                     width: 36,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -302,13 +311,13 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
                           horizontal: 16, vertical: 14),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? color.withOpacity(0.12)
-                            : Colors.white.withOpacity(0.04),
+                            ? color.withValues(alpha: 0.12)
+                            : Colors.white.withValues(alpha: 0.04),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
                           color: isSelected
-                              ? color.withOpacity(0.6)
-                              : Colors.white.withOpacity(0.08),
+                              ? color.withValues(alpha: 0.6)
+                              : Colors.white.withValues(alpha: 0.08),
                           width: isSelected ? 1.5 : 1,
                         ),
                       ),
@@ -344,7 +353,7 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
                                     color: isSelected
                                         ? color
                                         : AppTheme.textSecondary
-                                            .withOpacity(0.5),
+                                            .withValues(alpha: 0.5),
                                     fontSize: 12,
                                   ),
                                 ),
@@ -486,7 +495,7 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [color, color.withOpacity(0.6)],
+            colors: [color, color.withValues(alpha: 0.6)],
           ),
           borderRadius: BorderRadius.circular(16),
         ),
@@ -498,7 +507,7 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
               child: Icon(
                 _categoryIcon(category.category),
                 size: 70,
-                color: Colors.white.withOpacity(0.12),
+                color: Colors.white.withValues(alpha: 0.12),
               ),
             ),
             Padding(
@@ -520,7 +529,7 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
                   ),
                   Text(
                     '${category.trackCount} songs',
-                    style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12),
                   ),
                 ],
               ),
@@ -658,9 +667,9 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
     final pic = artist.pictureUrl;
     return ListTile(
       leading: CircleAvatar(
-        backgroundColor: AppTheme.primaryColor.withOpacity(0.2),
+        backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.2),
         backgroundImage: pic != null ? NetworkImage(pic) : null,
-        onBackgroundImageError: pic != null ? (_, __) {} : null,
+        onBackgroundImageError: pic != null ? (_, _) {} : null,
         child: pic == null
             ? const Icon(Icons.person_rounded, color: AppTheme.primaryColor, size: 20)
             : null,

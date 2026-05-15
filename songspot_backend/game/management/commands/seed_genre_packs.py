@@ -19,7 +19,7 @@ Run --list-genres to print all Deezer genre IDs and verify the CATEGORY_MAP belo
 
 from django.core.management.base import BaseCommand
 
-from game.models import SongPack, Track, PackTrack
+from game.models import Playlist, Track, PlaylistTrack
 from game.services import DeezerService
 
 
@@ -256,9 +256,9 @@ class Command(BaseCommand):
         self.stdout.write(self.style.WARNING(f'\n=== {category_name} ==='))
 
         # Tracks already used in any pack of this category (no cross-pack duplicates)
-        existing_packs = SongPack.objects.filter(category=category_key)
+        existing_packs = Playlist.objects.filter(category=category_key)
         used_track_ids = set(
-            PackTrack.objects.filter(pack__in=existing_packs)
+            PlaylistTrack.objects.filter(playlist__in=existing_packs)
             .values_list('track_id', flat=True)
         )
         self.stdout.write(f'Existing packs: {existing_packs.count()} | Used tracks: {len(used_track_ids)}')
@@ -292,13 +292,13 @@ class Command(BaseCommand):
             return
 
         pack_name = self._pack_name(category_name, existing_packs.count())
-        pack = SongPack.objects.create(
+        pack = Playlist.objects.create(
             name=pack_name,
             description=f'{category_name} pack.',
             category=category_key,
         )
         for order, track in enumerate(selected_tracks, start=1):
-            PackTrack.objects.create(pack=pack, track=track, order_in_pack=order)
+            PlaylistTrack.objects.create(playlist=pack, track=track, order_in_playlist=order)
 
         self.stdout.write(self.style.SUCCESS(
             f'Created "{pack_name}" with {len(selected_tracks)} tracks.'

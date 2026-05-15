@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Track, SongPack, PackTrack, GameScore, UserBest, FavouriteArtist
+from .models import Track, Playlist, PlaylistTrack, GameScore, UserBest, FavouriteArtist
 
 
 @admin.register(Track)
@@ -10,27 +10,27 @@ class TrackAdmin(admin.ModelAdmin):
     readonly_fields = ('id', 'created_at')
 
 
-class PackTrackInline(admin.TabularInline):
-    model = PackTrack
-    extra = 1
+class PlaylistTrackInline(admin.TabularInline):
+    model = PlaylistTrack
+    extra = 0
     autocomplete_fields = ['track']
 
 
-@admin.register(SongPack)
-class SongPackAdmin(admin.ModelAdmin):
+@admin.register(Playlist)
+class PlaylistAdmin(admin.ModelAdmin):
     list_display = ('name', 'category', 'track_count', 'created_at')
     search_fields = ('name', 'description')
     list_filter = ('category', 'created_at')
     readonly_fields = ('id', 'created_at')
-    inlines = [PackTrackInline]
+    inlines = [PlaylistTrackInline]
 
 
-@admin.register(PackTrack)
-class PackTrackAdmin(admin.ModelAdmin):
-    list_display = ('pack', 'track', 'order_in_pack')
-    list_filter = ('pack',)
-    search_fields = ('pack__name', 'track__title')
-    ordering = ('pack', 'order_in_pack')
+@admin.register(PlaylistTrack)
+class PlaylistTrackAdmin(admin.ModelAdmin):
+    list_display = ('playlist', 'track', 'order_in_playlist')
+    list_filter = ('playlist',)
+    search_fields = ('playlist__name', 'track__title')
+    ordering = ('playlist', 'order_in_playlist')
 
 
 @admin.register(GameScore)

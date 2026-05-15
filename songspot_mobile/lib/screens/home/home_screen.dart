@@ -189,7 +189,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
       decoration: BoxDecoration(
         gradient: AppTheme.cardGradient,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -210,7 +210,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
       decoration: BoxDecoration(
         gradient: AppTheme.cardGradient,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -256,7 +256,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   }
 
   Widget _buildStatDivider() {
-    return Container(width: 1, height: 32, color: Colors.white.withOpacity(0.12));
+    return Container(width: 1, height: 32, color: Colors.white.withValues(alpha: 0.12));
   }
 
   Widget _buildModeCard(
@@ -280,7 +280,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
               ? null
               : [
                   BoxShadow(
-                    color: AppTheme.primaryColor.withOpacity(0.3),
+                    color: AppTheme.primaryColor.withValues(alpha: 0.3),
                     blurRadius: 16,
                     offset: const Offset(0, 6),
                   ),
@@ -294,7 +294,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                 width: 52,
                 height: 52,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(disabled ? 0.08 : 0.15),
+                  color: Colors.white.withValues(alpha: disabled ? 0.08 : 0.15),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -325,7 +325,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                       style: TextStyle(
                         color: disabled
                             ? AppTheme.textSecondary
-                            : Colors.white.withOpacity(0.7),
+                            : Colors.white.withValues(alpha: 0.7),
                         fontSize: 13,
                       ),
                       maxLines: 2,
@@ -354,7 +354,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
       child: Text(
         l10n.homeDeezerCredits,
         style: TextStyle(
-          color: AppTheme.textSecondary.withOpacity(0.5),
+          color: AppTheme.textSecondary.withValues(alpha: 0.5),
           fontSize: 11,
         ),
       ),
@@ -399,11 +399,11 @@ class _SkeletonBoxState extends State<_SkeletonBox>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _anim,
-      builder: (_, __) => Container(
+      builder: (_, _) => Container(
         width: widget.width,
         height: widget.height,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(_anim.value),
+          color: Colors.white.withValues(alpha: _anim.value),
           borderRadius: BorderRadius.circular(4),
         ),
       ),

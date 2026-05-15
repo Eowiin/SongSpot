@@ -116,7 +116,7 @@ class SessionEndScreen extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: AppTheme.cardGradient,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -158,7 +158,7 @@ class SessionEndScreen extends StatelessWidget {
     return Container(
       width: 1,
       height: 36,
-      color: Colors.white.withOpacity(0.1),
+      color: Colors.white.withValues(alpha: 0.1),
     );
   }
 
@@ -188,9 +188,9 @@ class SessionEndScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -262,7 +262,7 @@ class SessionEndScreen extends StatelessWidget {
             },
             style: OutlinedButton.styleFrom(
               foregroundColor: AppTheme.textSecondary,
-              side: BorderSide(color: AppTheme.textSecondary.withOpacity(0.3)),
+              side: BorderSide(color: AppTheme.textSecondary.withValues(alpha: 0.3)),
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14)),

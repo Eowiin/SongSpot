@@ -77,10 +77,9 @@ CATEGORY_CHOICES = [
 ]
 
 
-class SongPack(models.Model):
+class Playlist(models.Model):
     """
-    A named category / pool of tracks (e.g. "Pop", "Rap Français").
-    No purchase or room concept — just a curated set of tracks for infinite play.
+    A curated set of tracks (e.g. "Pop", "Rap Français") for infinite play.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
@@ -92,7 +91,7 @@ class SongPack(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = 'song_packs'
+        db_table = 'playlists'
         ordering = ['name']
 
     def __str__(self):
@@ -100,32 +99,32 @@ class SongPack(models.Model):
 
     @property
     def track_count(self):
-        return self.pack_tracks.count()
+        return self.playlist_tracks.count()
 
 
-class PackTrack(models.Model):
-    pack = models.ForeignKey(
-        SongPack,
+class PlaylistTrack(models.Model):
+    playlist = models.ForeignKey(
+        Playlist,
         on_delete=models.CASCADE,
-        related_name='pack_tracks'
+        related_name='playlist_tracks'
     )
     track = models.ForeignKey(
         Track,
         on_delete=models.CASCADE,
-        related_name='in_packs'
+        related_name='in_playlists'
     )
-    order_in_pack = models.PositiveIntegerField(default=0)
+    order_in_playlist = models.PositiveIntegerField(default=0)
 
     class Meta:
-        db_table = 'pack_tracks'
-        unique_together = [['pack', 'track']]
-        ordering = ['order_in_pack']
+        db_table = 'playlist_tracks'
+        unique_together = [['playlist', 'track']]
+        ordering = ['order_in_playlist']
         indexes = [
-            models.Index(fields=['pack', 'order_in_pack']),
+            models.Index(fields=['playlist', 'order_in_playlist']),
         ]
 
     def __str__(self):
-        return f"{self.pack.name} - {self.track.title}"
+        return f"{self.playlist.name} - {self.track.title}"
 
 
 class FavouriteArtist(models.Model):

@@ -12,7 +12,7 @@ Usage:
 
 from django.core.management.base import BaseCommand
 
-from game.models import SongPack, Track, PackTrack
+from game.models import Playlist, Track, PlaylistTrack
 from game.services import DeezerService
 
 
@@ -44,7 +44,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        if not options['force'] and SongPack.objects.filter(name='Demo Pack').exists():
+        if not options['force'] and Playlist.objects.filter(name='Demo Pack').exists():
             self.stdout.write(self.style.WARNING(
                 'A Demo Pack already exists. Use --force to create another.'
             ))
@@ -103,13 +103,13 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR('No tracks found — aborting.'))
             return
 
-        pack = SongPack.objects.create(
+        pack = Playlist.objects.create(
             name='Demo Pack',
             description='Try the game for free with iconic songs.',
             category='pop',
         )
         for order, track in enumerate(selected, start=1):
-            PackTrack.objects.create(pack=pack, track=track, order_in_pack=order)
+            PlaylistTrack.objects.create(playlist=pack, track=track, order_in_playlist=order)
 
         self.stdout.write(self.style.SUCCESS(
             f'Created "Demo Pack" with {len(selected)} tracks. '
