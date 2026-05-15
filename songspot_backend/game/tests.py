@@ -6,7 +6,7 @@ from rest_framework.test import APITestCase
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from authentication.models import User
-from .models import Track, FavouriteArtist, GameScore, UserBest
+from .models import Track, FavouriteArtist, GameScore, UserBest, Playlist, PlaylistTrack
 
 from django.core.cache import cache
 
@@ -155,30 +155,32 @@ class UserBestModelTests(TestCase):
         self.assertEqual(best.total_songs_played, 8)
 
 
-class CategoryListViewTests(APITestCase):
+class PlaylistListViewTests(APITestCase):
     url = '/api/game/categories/'
 
     def setUp(self):
         cache.clear()
-        _make_track(genre='pop')
-        _make_track(title='Pop Song 2', genre='pop')
-        _make_track(title='Hip Hop Song', artist='Rapper', genre='hiphop')
-        Track.objects.create(
-            title='No Genre', artist='Artist',
-            preview_url='https://cdn.example.com/preview.mp3',
-        )
+        self.pop_playlist = Playlist.objects.create(name='Pop', category='pop')
+        self.hiphop_playlist = Playlist.objects.create(name='Hip-Hop / Rap', category='hiphop')
+        self.empty_playlist = Playlist.objects.create(name='Rock', category='rock')
+        t1 = _make_track(genre='pop')
+        t2 = _make_track(title='Pop Song 2', genre='pop')
+        t3 = _make_track(title='Hip Hop Song', artist='Rapper', genre='hiphop')
+        PlaylistTrack.objects.create(playlist=self.pop_playlist, track=t1, order_in_playlist=1)
+        PlaylistTrack.objects.create(playlist=self.pop_playlist, track=t2, order_in_playlist=2)
+        PlaylistTrack.objects.create(playlist=self.hiphop_playlist, track=t3, order_in_playlist=1)
 
-    def test_returns_genres_with_track_count(self):
+    def test_returns_playlists_with_track_count(self):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        genres = {r['category']: r['track_count'] for r in response.data}
-        self.assertEqual(genres.get('pop'), 2)
-        self.assertEqual(genres.get('hiphop'), 1)
+        by_category = {r['category']: r['track_count'] for r in response.data}
+        self.assertEqual(by_category.get('pop'), 2)
+        self.assertEqual(by_category.get('hiphop'), 1)
 
-    def test_excludes_tracks_without_genre(self):
+    def test_excludes_empty_playlists(self):
         response = self.client.get(self.url)
         categories = [r['category'] for r in response.data]
-        self.assertNotIn(None, categories)
+        self.assertNotIn('rock', categories)
 
     def test_accessible_without_auth(self):
         response = self.client.get(self.url)
@@ -198,9 +200,14 @@ class NextSongViewTests(APITestCase):
 
     def setUp(self):
         cache.clear()
+        self.pop_playlist = Playlist.objects.create(name='Pop', category='pop')
+        self.rock_playlist = Playlist.objects.create(name='Rock', category='rock')
         self.pop1 = _make_track(title='Pop Song 1', artist='Pop Artist', genre='pop')
         self.pop2 = _make_track(title='Pop Song 2', artist='Pop Artist', genre='pop')
         self.rock = _make_track(title='Rock Song', artist='Rock Artist', genre='rock')
+        PlaylistTrack.objects.create(playlist=self.pop_playlist, track=self.pop1, order_in_playlist=1)
+        PlaylistTrack.objects.create(playlist=self.pop_playlist, track=self.pop2, order_in_playlist=2)
+        PlaylistTrack.objects.create(playlist=self.rock_playlist, track=self.rock, order_in_playlist=1)
 
     def test_returns_a_track(self):
         response = self.client.get(self.url)
@@ -209,8 +216,8 @@ class NextSongViewTests(APITestCase):
         self.assertIn('title', response.data)
         self.assertIn('preview_url', response.data)
 
-    def test_genre_filter_returns_matching_genre(self):
-        response = self.client.get(self.url, {'genre': 'rock'})
+    def test_playlist_filter_returns_matching_tracks(self):
+        response = self.client.get(self.url, {'playlist': str(self.rock_playlist.id)})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['title'], 'Rock Song')
 
@@ -223,12 +230,13 @@ class NextSongViewTests(APITestCase):
     def test_exclude_ids_filters_out_seen_tracks(self):
         exclude = str(self.pop1.id)
         for _ in range(5):
-            response = self.client.get(self.url, {'genre': 'pop', 'exclude': exclude})
+            response = self.client.get(self.url, {'playlist': str(self.pop_playlist.id), 'exclude': exclude})
             self.assertEqual(response.status_code, status.HTTP_200_OK)
             self.assertNotEqual(response.data['id'], exclude)
 
-    def test_404_when_no_tracks_match(self):
-        response = self.client.get(self.url, {'genre': 'kpop'})
+    def test_404_when_playlist_is_empty(self):
+        empty = Playlist.objects.create(name='Empty', category='kpop')
+        response = self.client.get(self.url, {'playlist': str(empty.id)})
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_accessible_without_auth(self):
