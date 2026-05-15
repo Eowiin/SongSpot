@@ -52,11 +52,26 @@ pip install -r requirements.txt
 echo "[deploy] Running migrations"
 python manage.py migrate --noinput
 
-echo "[deploy] Seeding coin products"
-python manage.py seed_coin_products
-
 echo "[deploy] Collecting static files"
 python manage.py collectstatic --noinput
+
+# Set SEED_ARTISTS=true to fetch tracks for all curated artists from Deezer (safe to re-run).
+if [ "${SEED_ARTISTS:-false}" = "true" ]; then
+  echo "[deploy] Seeding curated artists"
+  python manage.py seed_curated_artists
+fi
+
+# Set RESET_PLAYLISTS=true to wipe all playlists and recreate empty ones (destructive).
+if [ "${RESET_PLAYLISTS:-false}" = "true" ]; then
+  echo "[deploy] Resetting playlists"
+  python manage.py reset_playlists
+fi
+
+# Set SEED_PLAYLISTS=true to populate playlists from the curated artist map (safe to re-run).
+if [ "${SEED_PLAYLISTS:-false}" = "true" ]; then
+  echo "[deploy] Seeding curated playlists"
+  python manage.py seed_curated_playlists
+fi
 
 restart_service() {
   local service_name="$1"
