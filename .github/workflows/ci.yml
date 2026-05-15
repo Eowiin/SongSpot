@@ -19,8 +19,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      mobile: ${{ steps.filter.outputs.mobile }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - ".github/workflows/ci.yml"
+              - "songspot_backend/**"
+            mobile:
+              - ".github/workflows/ci.yml"
+              - "songspot_mobile/**"
+
   backend:
     name: Backend Tests and Ruff
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -61,6 +82,8 @@ jobs:
 
   mobile:
     name: Flutter Test and Analyze
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
