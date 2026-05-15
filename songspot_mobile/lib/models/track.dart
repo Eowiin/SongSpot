@@ -4,17 +4,19 @@ class Track extends Equatable {
   final String id;
   final String title;
   final String artist;
-  final String previewUrl;
+  final String? previewUrl;
   final String? coverUrl;
-  final DateTime createdAt;
+  final int? releaseYear;
+  final String? genre;
 
   const Track({
     required this.id,
     required this.title,
     required this.artist,
-    required this.previewUrl,
+    this.previewUrl,
     this.coverUrl,
-    required this.createdAt,
+    this.releaseYear,
+    this.genre,
   });
 
   factory Track.fromJson(Map<String, dynamic> json) {
@@ -22,23 +24,13 @@ class Track extends Equatable {
       id: json['id'].toString(),
       title: json['title'] as String,
       artist: json['artist'] as String,
-      previewUrl: json['preview_url'] as String,
+      previewUrl: json['preview_url'] as String?,
       coverUrl: json['cover_url'] as String?,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      releaseYear: json['release_year'] as int?,
+      genre: json['genre'] as String?,
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'title': title,
-      'artist': artist,
-      'preview_url': previewUrl,
-      'cover_url': coverUrl,
-      'created_at': createdAt.toIso8601String(),
-    };
-  }
-
   @override
-  List<Object?> get props => [id, title, artist, previewUrl, coverUrl, createdAt];
+  List<Object?> get props => [id, title, artist, previewUrl, coverUrl, releaseYear, genre];
 }

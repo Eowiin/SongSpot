@@ -9,50 +9,46 @@ import 'package:provider/provider.dart';
 import 'config/app_theme.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/auth_provider.dart';
-import 'providers/coin_shop_provider.dart';
-import 'providers/game_provider.dart';
-import 'providers/pack_bundle_provider.dart';
-import 'providers/pack_provider.dart';
-import 'providers/room_provider.dart';
+import 'providers/game_session_provider.dart';
 import 'providers/settings_provider.dart';
+import 'providers/stats_provider.dart';
 import 'screens/auth/login_screen.dart';
-import 'screens/game/game_screen.dart';
 import 'screens/home/home_screen.dart';
-import 'services/admob_service.dart';
 import 'services/consent_service.dart';
 import 'services/push_notification_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+final RouteObserver<ModalRoute<void>> routeObserver = RouteObserver<ModalRoute<void>>();
 
 Future<void> main() async {
-  await SentryFlutter.init(
-    (options) {
-      options.dsn = const String.fromEnvironment(
-        'SENTRY_DSN',
-        defaultValue: '',
-      );
-      options.environment = const String.fromEnvironment(
-        'SENTRY_ENVIRONMENT',
-        defaultValue: 'development',
-      );
-      options.tracesSampleRate = 0.1;
-      // Never send errors in debug mode
-      options.beforeSend = (event, hint) => kDebugMode ? null : event;
-    },
-    appRunner: () async {
-      await dotenv.load(fileName: '.env');
-      // runApp first so the Flutter Activity is fully rendered before the UMP
-      // consent form Activity is launched. On older Android, showing a new Activity
-      // before runApp() causes it to appear behind the main Activity (grey screen).
-      runApp(const MyApp());
-      unawaited(_initializeServices());
-    },
-  );
+  const sentryDsn = String.fromEnvironment('SENTRY_DSN');
+
+  if (sentryDsn.isNotEmpty) {
+    await SentryFlutter.init(
+      (options) {
+        options.dsn = sentryDsn;
+        options.environment = const String.fromEnvironment(
+          'SENTRY_ENVIRONMENT',
+          defaultValue: 'development',
+        );
+        options.tracesSampleRate = 0.1;
+        options.beforeSend = (event, hint) => kDebugMode ? null : event;
+      },
+      appRunner: () async {
+        await dotenv.load(fileName: '.env');
+        runApp(const MyApp());
+        unawaited(_initializeServices());
+      },
+    );
+  } else {
+    await dotenv.load(fileName: '.env');
+    runApp(const MyApp());
+    unawaited(_initializeServices());
+  }
 }
 
 Future<void> _initializeServices() async {
   await _run(ConsentService().gatherConsent);
-  await _run(AdMobService().initialize);
   await _run(PushNotificationService().initializeCore);
 }
 
@@ -89,8 +85,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       case AppLifecycleState.hidden:
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
-        // Clear any active text selection/focus before backgrounding so Android
-        // doesn't resume into a half-focused field with no visible keyboard.
         FocusManager.instance.primaryFocus?.unfocus();
         break;
       case AppLifecycleState.resumed:
@@ -104,22 +98,16 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       providers: [
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => RoomProvider()),
-        ChangeNotifierProvider(create: (_) => GameProvider()),
-        ChangeNotifierProvider(create: (_) => PackProvider()),
-        ChangeNotifierProvider(create: (_) => PackBundleProvider()),
-        ChangeNotifierProxyProvider<AuthProvider, CoinShopProvider>(
-          create: (_) => CoinShopProvider(),
-          update: (_, auth, shop) => shop!..setAuthProvider(auth),
-        ),
+        ChangeNotifierProvider(create: (_) => GameSessionProvider()),
+        ChangeNotifierProvider(create: (_) => StatsProvider()),
       ],
       child: Consumer<SettingsProvider>(
         builder: (context, settings, _) {
           return MaterialApp(
             navigatorKey: navigatorKey,
+            navigatorObservers: [routeObserver],
             onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
             debugShowCheckedModeBanner: false,
-            // Localization
             locale: settings.locale,
             localizationsDelegates: const [
               AppLocalizations.delegate,
@@ -128,9 +116,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               GlobalCupertinoLocalizations.delegate,
             ],
             supportedLocales: AppLocalizations.supportedLocales,
-            // Theme (high contrast / color blindness override)
             theme: settings.currentTheme,
-            // Apply text scale and animation speed via builder
             builder: (context, child) {
               return MediaQuery(
                 data: MediaQuery.of(context).copyWith(
@@ -164,20 +150,15 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _checkAuthStatus() async {
     final authProvider = context.read<AuthProvider>();
-    // Run auth check and consent in parallel; consent attaches to the
-    // in-flight singleton future so no second form is ever shown.
-    // Waiting here ensures we don't navigate while the consent form is visible,
-    // which would cause it to flicker/refresh on Android.
     await Future.wait([
       authProvider.checkAuthStatus(),
       ConsentService().gatherConsent(),
     ]);
 
     if (mounted) {
-      // Set up push notification tap handler
       PushNotificationService().setOnNotificationTap(_handleNotificationTap);
 
-      if (authProvider.isAuthenticated) {
+      if (authProvider.isAuthenticated || authProvider.isGuest) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const HomeScreen()),
         );
@@ -190,15 +171,7 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   void _handleNotificationTap(Map<String, dynamic> data) {
-    final type = data['type'] as String?;
-    final roomId = data['room_id'] as String?;
-    if (roomId == null) return;
-
-    if (type == 'daily_song_available') {
-      navigatorKey.currentState?.push(
-        MaterialPageRoute(builder: (_) => GameScreen(roomId: roomId)),
-      );
-    }
+    // Push notification handling — reserved for future use
   }
 
   @override
@@ -210,8 +183,8 @@ class _SplashScreenState extends State<SplashScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.music_note, size: 100, color: AppTheme.primaryColor),
-              SizedBox(height: 24),
+              const Icon(Icons.music_note, size: 100, color: AppTheme.primaryColor),
+              const SizedBox(height: 24),
               Text(
                 AppLocalizations.of(context).appTitle,
                 style: const TextStyle(
@@ -220,11 +193,9 @@ class _SplashScreenState extends State<SplashScreen> {
                   color: AppTheme.textPrimary,
                 ),
               ),
-              SizedBox(height: 32),
-              CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  AppTheme.primaryColor,
-                ),
+              const SizedBox(height: 32),
+              const CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
               ),
             ],
           ),

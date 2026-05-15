@@ -4,7 +4,7 @@ import '../services/api_service.dart';
 import '../services/push_notification_service.dart';
 import '../services/storage_service.dart';
 
-enum AuthStatus { initial, authenticated, unauthenticated, loading }
+enum AuthStatus { initial, authenticated, unauthenticated, guest, loading }
 
 class AuthProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
@@ -20,36 +20,42 @@ class AuthProvider with ChangeNotifier {
   User? get user => _user;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _status == AuthStatus.authenticated;
+  bool get isGuest => _status == AuthStatus.guest;
 
   /// Check if user is already logged in and fetch fresh profile from API.
-  /// Always fetches from the backend so dynamic fields like coins are current.
-  /// Falls back to local storage only if the network call fails.
+  /// Falls back to cached user data if network unavailable.
+  /// If no token, checks for a persisted guest session.
   Future<void> checkAuthStatus() async {
     try {
       final token = await _storageService.getAccessToken();
-      if (token == null) {
-        _status = AuthStatus.unauthenticated;
+      if (token != null) {
+        try {
+          final profileData = await _apiService.getProfile();
+          _user = User.fromJson(profileData);
+        } catch (_) {
+          final userData = await _storageService.getUser();
+          if (userData == null) {
+            _status = AuthStatus.unauthenticated;
+            notifyListeners();
+            return;
+          }
+          _user = User.fromJson(userData);
+        }
+        _status = AuthStatus.authenticated;
+        await _pushNotificationService.syncTokenWithBackend();
         notifyListeners();
         return;
       }
 
-      try {
-        // Fetch fresh profile from API — includes coins and all dynamic fields
-        final profileData = await _apiService.getProfile();
-        _user = User.fromJson(profileData);
-      } catch (_) {
-        // Network unavailable — fall back to local storage (coins may be stale)
-        final userData = await _storageService.getUser();
-        if (userData == null) {
-          _status = AuthStatus.unauthenticated;
-          notifyListeners();
-          return;
-        }
-        _user = User.fromJson(userData);
+      final guestMode = await _storageService.isGuestMode();
+      if (guestMode) {
+        _status = AuthStatus.guest;
+        _user = null;
+        notifyListeners();
+        return;
       }
 
-      _status = AuthStatus.authenticated;
-      await _pushNotificationService.syncTokenWithBackend();
+      _status = AuthStatus.unauthenticated;
       notifyListeners();
     } catch (e) {
       _status = AuthStatus.unauthenticated;
@@ -57,22 +63,25 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  /// Enter guest mode — persisted so reopening the app skips the login screen.
+  Future<void> continueAsGuest() async {
+    await _storageService.setGuestMode(true);
+    _status = AuthStatus.guest;
+    _user = null;
+    notifyListeners();
+  }
+
   /// Refresh the authenticated user's profile from backend.
-  /// Useful after coin-changing actions to keep shared UI state in sync.
   Future<void> refreshProfile({bool notify = true}) async {
     if (_status != AuthStatus.authenticated) return;
     try {
       final profileData = await _apiService.getProfile();
       _user = User.fromJson(profileData);
-      if (notify) {
-        notifyListeners();
-      }
-    } catch (_) {
-      // Keep current state if refresh fails.
-    }
+      if (notify) notifyListeners();
+    } catch (_) {}
   }
 
-  /// Register a new user
+  /// Register a new user, migrating any guest stats afterward.
   Future<bool> register({
     required String email,
     required String username,
@@ -91,14 +100,12 @@ class AuthProvider with ChangeNotifier {
         passwordConfirm: passwordConfirm,
       );
 
-      // Save tokens
       final tokens = response['tokens'] as Map<String, dynamic>;
       await _storageService.saveTokens(
         tokens['access'] as String,
         tokens['refresh'] as String,
       );
 
-      // Save user (basic fields from register response)
       final userData = response['user'] as Map<String, dynamic>;
       _user = User.fromJson(userData);
       await _storageService.saveUser(
@@ -110,13 +117,12 @@ class AuthProvider with ChangeNotifier {
       _status = AuthStatus.authenticated;
       await _pushNotificationService.syncTokenWithBackend();
 
-      // Fetch full profile to populate streak and other stats
       try {
         final profileData = await _apiService.getProfile();
         _user = User.fromJson(profileData);
-      } catch (_) {
-        // Non-fatal — streak will show 0 until next app start
-      }
+      } catch (_) {}
+
+      await _migrateGuestStatsIfNeeded();
 
       notifyListeners();
       return true;
@@ -128,7 +134,7 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  /// Login user
+  /// Login user, migrating any guest stats afterward.
   Future<bool> login({required String email, required String password}) async {
     try {
       _status = AuthStatus.loading;
@@ -140,14 +146,12 @@ class AuthProvider with ChangeNotifier {
         password: password,
       );
 
-      // Save tokens
       final tokens = response['tokens'] as Map<String, dynamic>;
       await _storageService.saveTokens(
         tokens['access'] as String,
         tokens['refresh'] as String,
       );
 
-      // Save user (basic fields from login response)
       final userData = response['user'] as Map<String, dynamic>;
       _user = User.fromJson(userData);
       await _storageService.saveUser(
@@ -159,13 +163,12 @@ class AuthProvider with ChangeNotifier {
       _status = AuthStatus.authenticated;
       await _pushNotificationService.syncTokenWithBackend();
 
-      // Fetch full profile to populate streak and other stats
       try {
         final profileData = await _apiService.getProfile();
         _user = User.fromJson(profileData);
-      } catch (_) {
-        // Non-fatal — streak will show 0 until next app start
-      }
+      } catch (_) {}
+
+      await _migrateGuestStatsIfNeeded();
 
       notifyListeners();
       return true;
@@ -177,17 +180,24 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  /// Logout user
+  /// Logout — works for both authenticated users and guests.
   Future<void> logout() async {
-    try {
-      await _pushNotificationService.unregisterCurrentToken();
-    } catch (e) {
-      // Continue logout even if push cleanup fails
+    if (_status == AuthStatus.guest) {
+      await _storageService.clearGuestData();
+      _user = null;
+      _status = AuthStatus.unauthenticated;
+      _errorMessage = null;
+      notifyListeners();
+      return;
     }
 
     try {
+      await _pushNotificationService.unregisterCurrentToken();
+    } catch (_) {}
+
+    try {
       await _apiService.logout();
-    } catch (e) {
+    } catch (_) {
       await _storageService.clearAll();
     }
 
@@ -197,45 +207,21 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Update the user's coin balance in memory and notify listeners.
-  /// Called after a successful IAP purchase — no extra API call needed since
-  /// the backend already returned the correct new balance.
-  void updateCoinsBalance(int newBalance) {
-    if (_user == null) return;
-    _user = User(
-      id: _user!.id,
-      email: _user!.email,
-      username: _user!.username,
-      coins: newBalance,
-      currentStreak: _user!.currentStreak,
-      adFreeUntil: _user!.adFreeUntil,
-      hasNoAds: _user!.hasNoAds,
-    );
-    notifyListeners();
+  Future<void> _migrateGuestStatsIfNeeded() async {
+    final guestStats = await _storageService.getGuestStats();
+    if (guestStats['songs_played']! > 0) {
+      try {
+        await _apiService.migrateGuestStats(
+          bestScore: guestStats['best_score']!,
+          bestStreak: guestStats['best_streak']!,
+          songsPlayed: guestStats['songs_played']!,
+          songsCorrect: guestStats['songs_correct']!,
+        );
+      } catch (_) {}
+    }
+    await _storageService.clearGuestData();
   }
 
-  /// Apply ad-free fields returned by backend after purchasing/extending pass.
-  void applyNoAdsPass({
-    required int coins,
-    String? adFreeUntilIso,
-    bool? hasNoAds,
-  }) {
-    if (_user == null) return;
-    _user = User(
-      id: _user!.id,
-      email: _user!.email,
-      username: _user!.username,
-      coins: coins,
-      currentStreak: _user!.currentStreak,
-      adFreeUntil: adFreeUntilIso != null
-          ? DateTime.tryParse(adFreeUntilIso)
-          : _user!.adFreeUntil,
-      hasNoAds: hasNoAds ?? _user!.hasNoAds,
-    );
-    notifyListeners();
-  }
-
-  /// Clear error message
   void clearError() {
     _errorMessage = null;
     notifyListeners();

@@ -44,7 +44,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       await apiService.changePassword(
         currentPassword: _currentController.text.trim(),
         newPassword: _newController.text.trim(),
-        confirmNewPassword: _confirmController.text.trim(),
       );
 
       if (mounted) {
@@ -87,7 +86,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 child: Row(
                   children: [
                     Semantics(
-                      label: 'Back',
+                      label: l10n.settingsBackLabel,
                       button: true,
                       child: IconButton(
                         icon: const Icon(Icons.arrow_back_ios_new),

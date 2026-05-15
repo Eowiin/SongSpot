@@ -103,6 +103,7 @@ class Command(BaseCommand):
                     deezer_id=track_info.get('deezer_id'),
                     release_year=track_info.get('release_year'),
                     genre=track_info.get('genre'),
+                    artist_picture_url=track_info.get('artist_picture_url'),
                 )
 
                 self.stdout.write(

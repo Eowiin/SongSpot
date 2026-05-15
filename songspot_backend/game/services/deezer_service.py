@@ -58,6 +58,23 @@ class DeezerService:
             seen_ids.add(track_id)
             destination.append(track)
 
+    def search_artist(self, name: str) -> Optional[Dict]:
+        """
+        Search for an artist by name and return the best match.
+
+        Returns the first result dict (id, name, picture_*) or None.
+        """
+        url = f"{self.BASE_URL}/search/artist"
+        params = {'q': name, 'limit': 5}
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            results = response.json().get('data', [])
+            return results[0] if results else None
+        except requests.RequestException as e:
+            print(f"Error searching artist '{name}': {e}")
+            return None
+
     def search_track(self, query: str, limit: int = 25) -> Dict:
         """
         Search for tracks by query.
@@ -163,6 +180,17 @@ class DeezerService:
         except requests.RequestException as e:
             print(f"Error fetching top artists: {e}")
             return []
+
+    def get_artist(self, artist_id: int) -> Optional[Dict]:
+        """Fetch a single artist by ID (includes picture_* fields)."""
+        url = f"{self.BASE_URL}/artist/{artist_id}"
+        try:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            print(f"Error fetching artist {artist_id}: {e}")
+            return None
 
     def get_artist_top_tracks(self, artist_id: int, limit: int = 3) -> List[Dict]:
         """
@@ -436,9 +464,19 @@ class DeezerService:
             fallback_genre
         )
 
+        artist_data = track_data.get('artist', {})
+        artist_picture_url = (
+            artist_data.get('picture_xl') or
+            artist_data.get('picture_big') or
+            artist_data.get('picture_medium') or
+            artist_data.get('picture_small') or
+            artist_data.get('picture') or
+            None
+        )
+
         return {
             'title': track_data.get('title', ''),
-            'artist': track_data.get('artist', {}).get('name', ''),
+            'artist': artist_data.get('name', ''),
             'preview_url': track_data.get('preview', ''),
             'cover_url': cover_url,
             'deezer_id': track_data.get('id'),
@@ -447,6 +485,7 @@ class DeezerService:
             'release_year': release_year,
             'genre': genre,
             'rank': track_data.get('rank', 0),
+            'artist_picture_url': artist_picture_url,
         }
 
     def enrich_track_info(self, track_data: Dict, fallback_genre: Optional[str] = None) -> Dict:
