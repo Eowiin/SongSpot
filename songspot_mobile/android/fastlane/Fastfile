@@ -114,15 +114,21 @@ platform :android do
     )
   end
 
-  desc "Build and release directly to Play Store production."
+  desc "Build, upload to internal, then promote straight to production."
   lane :play_store do
     aab_path = build_aab
     release_notes = localized_release_notes
     upload_options = play_store_upload_options(release_notes: release_notes)
     upload_to_play_store(
-      track: "production",
+      track: "internal",
       aab: aab_path,
       release_status: "completed",
+      **upload_options
+    )
+    upload_to_play_store(
+      track: "internal",
+      track_promote_to: "production",
+      rollout: "1.0",
       **upload_options
     )
   end

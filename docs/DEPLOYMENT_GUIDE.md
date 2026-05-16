@@ -60,7 +60,7 @@ python manage.py createsuperuser
 
 ---
 
-## 2. Redis + Celery
+## 2. Redis
 
 ### Install Redis
 
@@ -74,50 +74,8 @@ sudo systemctl start redis-server
 
 Add to `.env`:
 ```env
-CELERY_BROKER_URL=redis://localhost:6379/0
-CELERY_RESULT_BACKEND=redis://localhost:6379/0
 USE_REDIS_CHANNEL_LAYER=True
 CHANNEL_LAYERS_REDIS_URL=redis://localhost:6379/1
-```
-
-### Celery Worker (systemd)
-
-Create `/etc/systemd/system/songspot-celery.service`:
-```ini
-[Unit]
-Description=SongSpot Celery Worker
-After=network.target redis-server.service
-
-[Service]
-Type=forking
-User=root
-WorkingDirectory=/var/www/songspot/songspot_backend
-EnvironmentFile=/var/www/songspot/songspot_backend/.env
-ExecStart=/var/www/songspot/songspot_backend/.venv/bin/celery \
-    -A songspot multi start worker \
-    --pidfile=/var/run/celery/%n.pid \
-    --logfile=/var/log/celery/%n%%I.log \
-    --loglevel=info
-ExecStop=/var/www/songspot/songspot_backend/.venv/bin/celery \
-    -A songspot multi stopwait worker \
-    --pidfile=/var/run/celery/%n.pid
-ExecReload=/var/www/songspot/songspot_backend/.venv/bin/celery \
-    -A songspot multi restart worker \
-    --pidfile=/var/run/celery/%n.pid \
-    --logfile=/var/log/celery/%n%%I.log \
-    --loglevel=info
-Restart=on-failure
-RuntimeDirectory=celery
-LogsDirectory=celery
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable songspot-celery
-sudo systemctl start songspot-celery
 ```
 
 ---
@@ -376,28 +334,7 @@ python manage.py cleanup_stems --max-age-hours 72
 
 ---
 
-## 13. Daily Cron Jobs (Required)
-
-**These cron jobs are required for the app to function properly.** Add them with `crontab -e`:
-
-### Daily song preparation (noon UTC)
-
-Creates today's `DailySong` for every room and triggers push notifications to all users.
-Stems are generated on-demand when users start playing (not pre-generated).
-
-```bash
-0 12 * * * cd /var/www/songspot/songspot_backend && /var/www/songspot/songspot_backend/.venv/bin/python manage.py prepare_daily_content >> /var/log/songspot_daily.log 2>&1
-```
-
-### Cleanup old stems (3 AM UTC)
-
-```bash
-0 3 * * * cd /var/www/songspot/songspot_backend && /var/www/songspot/songspot_backend/.venv/bin/python manage.py cleanup_stems --max-age-hours 72 >> /var/log/songspot_cleanup.log 2>&1
-```
-
----
-
-## 14. Monitoring
+## 13. Monitoring
 
 ### UptimeRobot (server uptime)
 
@@ -576,7 +513,6 @@ python manage.py createsuperuser
 - [ ] Nginx configured with SSL
 - [ ] Static files collected
 - [ ] Firewall configured (UFW)
-- [ ] Cron jobs set up (daily content + stem cleanup)
 - [ ] GitHub secrets configured for CI/CD
 - [ ] Mobile app `.env` updated with production URL
 - [ ] DNS `A` record for `api.yourdomain.com` pointing to VPS IP
