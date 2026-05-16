@@ -67,6 +67,8 @@ platform :ios do
       clean: true,
       output_directory: "./build",
       output_name: "Runner",
+      xcargs: "-allowProvisioningUpdates",
+      export_xcargs: "-allowProvisioningUpdates",
       export_options: {
         signingStyle: "automatic",
         signingCertificate: "Apple Distribution",

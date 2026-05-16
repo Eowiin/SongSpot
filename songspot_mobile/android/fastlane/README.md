@@ -53,7 +53,7 @@ Promote closed testing (alpha) track to production - no build
 [bundle exec] fastlane android play_store
 ```
 
-Build and release directly to Play Store production.
+Build, upload to internal, then promote straight to production.
 
 ----
 
