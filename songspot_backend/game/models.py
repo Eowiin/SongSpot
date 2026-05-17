@@ -184,6 +184,142 @@ class GameScore(models.Model):
         return f"{self.user.username} — {label} — {self.total_score}pts"
 
 
+class UserElo(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='elo',
+    )
+    elo = models.IntegerField(default=1000)
+    wins = models.PositiveIntegerField(default=0)
+    losses = models.PositiveIntegerField(default=0)
+    draws = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'user_elos'
+
+    def __str__(self):
+        return f"{self.user.username} — ELO {self.elo}"
+
+    def update(self, opponent_elo: int, result: str):
+        """result: 'win' | 'loss' | 'draw'"""
+        expected = 1 / (1 + 10 ** ((opponent_elo - self.elo) / 400))
+        score = {'win': 1.0, 'loss': 0.0, 'draw': 0.5}[result]
+        self.elo = round(self.elo + 32 * (score - expected))
+        if result == 'win':
+            self.wins += 1
+        elif result == 'loss':
+            self.losses += 1
+        else:
+            self.draws += 1
+        self.save()
+
+
+DUEL_STATUS_CHOICES = [
+    ('waiting', 'Waiting'),
+    ('in_progress', 'In Progress'),
+    ('completed', 'Completed'),
+    ('abandoned', 'Abandoned'),
+]
+
+
+class DuelMatch(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    player1 = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='duels_as_p1',
+    )
+    player2 = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='duels_as_p2',
+    )
+    status = models.CharField(max_length=15, choices=DUEL_STATUS_CHOICES, default='waiting')
+    playlist = models.ForeignKey(
+        Playlist, on_delete=models.SET_NULL, null=True, blank=True, related_name='duels',
+    )
+    total_rounds = models.PositiveSmallIntegerField(default=5)
+    current_round = models.PositiveSmallIntegerField(default=0)
+    player1_score = models.PositiveIntegerField(default=0)
+    player2_score = models.PositiveIntegerField(default=0)
+    winner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='duel_wins',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'duel_matches'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['player1', '-created_at']),
+            models.Index(fields=['player2', '-created_at']),
+            models.Index(fields=['status']),
+        ]
+
+    def __str__(self):
+        return f"{self.player1.username} vs {self.player2.username} [{self.status}]"
+
+    def get_opponent(self, user):
+        return self.player2 if self.player1_id == user.id else self.player1
+
+    def is_player(self, user):
+        return user.id in (self.player1_id, self.player2_id)
+
+
+SNIPPET_POINTS = {1: 100, 2: 80, 3: 60, 4: 40, 5: 20}
+
+
+class DuelRound(models.Model):
+    match = models.ForeignKey(DuelMatch, on_delete=models.CASCADE, related_name='rounds')
+    round_number = models.PositiveSmallIntegerField()
+    track = models.ForeignKey(Track, on_delete=models.CASCADE, related_name='duel_rounds')
+
+    player1_correct = models.BooleanField(null=True, blank=True)
+    player1_points = models.PositiveIntegerField(default=0)
+    player1_snippets_used = models.PositiveSmallIntegerField(default=0)
+    player1_submitted_at = models.DateTimeField(null=True, blank=True)
+
+    player2_correct = models.BooleanField(null=True, blank=True)
+    player2_points = models.PositiveIntegerField(default=0)
+    player2_snippets_used = models.PositiveSmallIntegerField(default=0)
+    player2_submitted_at = models.DateTimeField(null=True, blank=True)
+
+    started_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'duel_rounds'
+        unique_together = [['match', 'round_number']]
+        ordering = ['round_number']
+
+    def __str__(self):
+        return f"Round {self.round_number} of {self.match}"
+
+    @staticmethod
+    def points_for_snippets(snippets_used: int) -> int:
+        return SNIPPET_POINTS.get(snippets_used, 0)
+
+    @property
+    def both_submitted(self):
+        return self.player1_submitted_at is not None and self.player2_submitted_at is not None
+
+
+class MatchmakingQueue(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='matchmaking_entry',
+    )
+    elo_at_join = models.IntegerField()
+    playlist = models.ForeignKey(
+        Playlist, on_delete=models.SET_NULL, null=True, blank=True,
+    )
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'matchmaking_queue'
+
+    def __str__(self):
+        return f"{self.user.username} in queue (ELO {self.elo_at_join})"
+
+
 class UserBest(models.Model):
     """
     Denormalized personal bests per user, updated whenever a GameScore beats the record.

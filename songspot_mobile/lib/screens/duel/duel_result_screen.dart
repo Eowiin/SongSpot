@@ -1,0 +1,267 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../config/app_theme.dart';
+import '../../providers/duel_provider.dart';
+
+class DuelResultScreen extends StatelessWidget {
+  const DuelResultScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final duel = context.read<DuelProvider>();
+    final end = duel.matchEnd;
+    if (end == null) {
+      return const Scaffold(
+        backgroundColor: AppTheme.backgroundColor,
+        body: Center(child: CircularProgressIndicator(color: AppTheme.primaryColor)),
+      );
+    }
+
+    final isWin = end.winner == 'player';
+    final isDraw = end.winner == 'draw';
+    final eloPositive = end.eloChange >= 0;
+
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundColor,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            children: [
+              const SizedBox(height: 32),
+              _buildWinnerBanner(isWin, isDraw),
+              const SizedBox(height: 20),
+              _buildEloChange(end.eloChange, end.newElo, eloPositive),
+              const SizedBox(height: 24),
+              _buildScoreRow(end.playerFinalScore, end.opponentFinalScore, duel),
+              const SizedBox(height: 24),
+              // Round breakdown
+              if (duel.lastRoundResult != null) ...[
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Match Summary',
+                    style: TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildSummaryCard(duel),
+              ],
+              const Spacer(),
+              _buildActions(context, duel),
+              const SizedBox(height: 32),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWinnerBanner(bool isWin, bool isDraw) {
+    final (emoji, label, color) = isDraw
+        ? ('🤝', 'Draw!', AppTheme.textSecondary)
+        : isWin
+            ? ('🏆', 'You Win!', AppTheme.successColor)
+            : ('💀', 'You Lost', AppTheme.errorColor);
+
+    return Column(
+      children: [
+        Text(emoji, style: const TextStyle(fontSize: 64)),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: TextStyle(
+            color: color,
+            fontSize: 36,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEloChange(int change, int newElo, bool positive) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          positive ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+          color: positive ? AppTheme.successColor : AppTheme.errorColor,
+          size: 20,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '${positive ? '+' : ''}$change ELO',
+          style: TextStyle(
+            color: positive ? AppTheme.successColor : AppTheme.errorColor,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          'New ELO: $newElo',
+          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 16),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildScoreRow(int playerScore, int opponentScore, DuelProvider duel) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 32),
+      decoration: BoxDecoration(
+        gradient: AppTheme.cardGradient,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _buildScoreCell('You', '$playerScore', AppTheme.primaryColor),
+          const Text('—', style: TextStyle(color: AppTheme.textSecondary, fontSize: 24)),
+          _buildScoreCell(
+            duel.opponent?.username ?? 'Opponent',
+            '$opponentScore',
+            AppTheme.textSecondary,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScoreCell(String label, String score, Color color) {
+    return Column(
+      children: [
+        Text(
+          score,
+          style: TextStyle(color: color, fontSize: 36, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 4),
+        Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
+      ],
+    );
+  }
+
+  Widget _buildSummaryCard(DuelProvider duel) {
+    final result = duel.lastRoundResult!;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Round ${result.round}',
+                  style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+                ),
+                Text(
+                  result.track.title ?? '?',
+                  style: const TextStyle(color: AppTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  result.track.artist ?? '',
+                  style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          _buildRoundResultBadge(result.player.correct, result.player.points),
+          const SizedBox(width: 8),
+          Text('vs', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11)),
+          const SizedBox(width: 8),
+          _buildRoundResultBadge(result.opponent.correct, result.opponent.points),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRoundResultBadge(bool correct, int points) {
+    return Column(
+      children: [
+        Icon(
+          correct ? Icons.check_circle_rounded : Icons.cancel_rounded,
+          color: correct ? AppTheme.successColor : AppTheme.errorColor,
+          size: 20,
+        ),
+        Text(
+          correct ? '+$points' : '0',
+          style: TextStyle(
+            color: correct ? AppTheme.successColor : AppTheme.errorColor,
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActions(BuildContext context, DuelProvider duel) {
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: AppTheme.primaryGradient,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.primaryColor.withValues(alpha: 0.4),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: TextButton(
+              onPressed: () => context.read<DuelProvider>().reset(),
+              style: TextButton.styleFrom(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              child: const Text(
+                'Play Again',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: OutlinedButton(
+            onPressed: () {
+              duel.disconnect();
+              Navigator.of(context).pop();
+            },
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            child: const Text(
+              'Back to Home',
+              style: TextStyle(color: AppTheme.textSecondary, fontSize: 16),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}

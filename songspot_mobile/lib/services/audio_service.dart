@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_session/audio_session.dart';
 
@@ -28,13 +29,19 @@ class AudioService {
   /// Load a URL into the player (no playback yet).
   Future<void> loadAudio(String url) async {
     final requestId = ++_playbackRequestId;
+    debugPrint('[AudioService] loadAudio: url=$url requestId=$requestId');
     try {
       await initializeAudioSession();
       _setPlaying(false);
       await _player.stop();
       await _player.setUrl(url).timeout(const Duration(seconds: 15));
-      if (requestId != _playbackRequestId) return;
+      if (requestId != _playbackRequestId) {
+        debugPrint('[AudioService] loadAudio: stale requestId, aborting');
+        return;
+      }
+      debugPrint('[AudioService] loadAudio: ready');
     } catch (e) {
+      debugPrint('[AudioService] loadAudio: FAILED $e');
       throw Exception('Failed to load audio: $e');
     }
   }
@@ -47,6 +54,7 @@ class AudioService {
     Duration duration = const Duration(seconds: 1),
     void Function()? onPlaybackStopped,
   }) async {
+    debugPrint('[AudioService] playSnippet: duration=$duration requestId=${_playbackRequestId + 1}');
     final requestId = ++_playbackRequestId;
     try {
       await _player.setClip(

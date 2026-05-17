@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
-from .models import Track, GameScore, UserBest
+from .models import Track, GameScore, UserBest, UserElo, DuelMatch, DuelRound
 
 User = get_user_model()
 
@@ -76,3 +76,66 @@ class LeaderboardEntrySerializer(serializers.ModelSerializer):
             'total_score', 'best_streak', 'songs_played', 'songs_correct', 'played_at',
         )
         read_only_fields = fields
+
+
+# ── Duel serializers ──────────────────────────────────────────────────────────
+
+class UserEloSerializer(serializers.ModelSerializer):
+    rank = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UserElo
+        fields = ('elo', 'wins', 'losses', 'draws', 'rank')
+        read_only_fields = fields
+
+    def get_rank(self, obj):
+        return UserElo.objects.filter(elo__gt=obj.elo).count() + 1
+
+
+class DuelRoundSerializer(serializers.ModelSerializer):
+    track_title = serializers.CharField(source='track.title', read_only=True)
+    track_artist = serializers.CharField(source='track.artist', read_only=True)
+    track_cover = serializers.URLField(source='track.cover_url', read_only=True)
+
+    class Meta:
+        model = DuelRound
+        fields = (
+            'round_number',
+            'track_title', 'track_artist', 'track_cover',
+            'player1_correct', 'player1_points', 'player1_snippets_used',
+            'player2_correct', 'player2_points', 'player2_snippets_used',
+        )
+        read_only_fields = fields
+
+
+class DuelMatchSerializer(serializers.ModelSerializer):
+    player1_username = serializers.CharField(source='player1.username', read_only=True)
+    player2_username = serializers.CharField(source='player2.username', read_only=True)
+    playlist_name = serializers.CharField(source='playlist.name', read_only=True, default=None)
+    rounds = DuelRoundSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = DuelMatch
+        fields = (
+            'id', 'status',
+            'player1_username', 'player2_username',
+            'playlist_name',
+            'total_rounds', 'current_round',
+            'player1_score', 'player2_score',
+            'rounds',
+            'created_at', 'updated_at',
+        )
+        read_only_fields = fields
+
+
+class DuelLeaderboardEntrySerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', read_only=True)
+    rank = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UserElo
+        fields = ('username', 'elo', 'wins', 'losses', 'draws', 'rank')
+        read_only_fields = fields
+
+    def get_rank(self, obj):
+        return self.context.get('ranks', {}).get(obj.user_id, 0)

@@ -468,4 +468,24 @@ class ApiService {
   Future<Map<String, dynamic>> refreshTrackPreview({required String trackId}) async {
     return await post(ApiConfig.trackRefreshPreview(trackId), includeAuth: true);
   }
+
+  // ── Duel ──────────────────────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> getDuelElo() async {
+    return await get(ApiConfig.duelElo, includeAuth: true);
+  }
+
+  Future<List<dynamic>> getDuelHistory({int limit = 20}) async {
+    return await get(ApiConfig.duelHistory, includeAuth: true,
+        queryParameters: {'limit': limit.toString()});
+  }
+
+  Future<Map<String, dynamic>> getDuelMatch(String matchId) async {
+    return await get(ApiConfig.duelMatch(matchId), includeAuth: true);
+  }
+
+  Future<List<dynamic>> getDuelLeaderboard({int limit = 50}) async {
+    return await get(ApiConfig.duelLeaderboard, includeAuth: true,
+        queryParameters: {'limit': limit.toString()});
+  }
 }

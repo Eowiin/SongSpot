@@ -42,5 +42,21 @@ class ApiConfig {
   static const String leaderboard = '/game/leaderboard/';
   static const String migrateGuestStats = '/game/migrate-guest-stats/';
 
+  // Duel endpoints
+  static const String duelElo = '/game/duel/elo/';
+  static const String duelHistory = '/game/duel/history/';
+  static const String duelLeaderboard = '/game/duel/leaderboard/';
+  static String duelMatch(String matchId) => '/game/duel/$matchId/';
+
+  // WebSocket base (ws:// or wss://)
+  static String get wsBaseUrl {
+    final http = _trimmedEnv('API_BASE_URL') ?? 'http://localhost:8000/api';
+    // Convert http(s):// to ws(s)://  and strip /api suffix
+    return http
+        .replaceFirst(RegExp(r'^https://'), 'wss://')
+        .replaceFirst(RegExp(r'^http://'), 'ws://')
+        .replaceFirst(RegExp(r'/api$'), '');
+  }
+
   static const Duration timeout = Duration(seconds: 30);
 }

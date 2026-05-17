@@ -6,6 +6,7 @@ import '../../main.dart' show routeObserver;
 import '../../providers/auth_provider.dart';
 import '../../providers/stats_provider.dart';
 import '../auth/login_screen.dart';
+import '../duel/duel_flow_screen.dart';
 import '../game/category_select_screen.dart';
 import '../settings/settings_screen.dart';
 
@@ -90,14 +91,18 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                 context,
                 icon: Icons.people_rounded,
                 label: '1v1',
-                sublabel: isGuest ? l10n.homeSignInToPlay : l10n.homeComingSoon,
+                sublabel: isGuest ? l10n.homeSignInToPlay : 'Challenge opponents online',
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xFF3A3A5C), Color(0xFF2A2A4A)],
+                  colors: [Color(0xFF5C3A8C), Color(0xFF3A2A6A)],
                 ),
-                onTap: isGuest ? _showSignInPrompt : null,
-                disabled: true,
+                onTap: isGuest
+                    ? _showSignInPrompt
+                    : () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const DuelFlowScreen()),
+                        ),
               ),
               const Spacer(),
               _buildDeezerAttribution(),
