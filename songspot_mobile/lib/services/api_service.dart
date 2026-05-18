@@ -28,6 +28,10 @@ class ApiException implements Exception {
 }
 
 class ApiService {
+  ApiService._();
+  static final ApiService _instance = ApiService._();
+  factory ApiService() => _instance;
+
   final StorageService _storageService = StorageService();
   bool _isRefreshing = false;
   static const String _settingsLocaleKey = 'settings_locale';
@@ -404,6 +408,8 @@ class ApiService {
     required int songsCorrect,
     required int bestStreak,
     required int totalScore,
+    String? sessionUuid,
+    bool isPartial = false,
   }) async {
     return await post(ApiConfig.submitScore, includeAuth: true, body: {
       if (genre != null && genre.isNotEmpty) 'genre': genre,
@@ -413,6 +419,8 @@ class ApiService {
       'songs_correct': songsCorrect,
       'best_streak': bestStreak,
       'total_score': totalScore,
+      if (sessionUuid != null) 'session_uuid': sessionUuid,
+      if (isPartial) 'is_partial': true,
     });
   }
 

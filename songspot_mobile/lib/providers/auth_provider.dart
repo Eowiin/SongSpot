@@ -116,12 +116,6 @@ class AuthProvider with ChangeNotifier {
 
       _status = AuthStatus.authenticated;
       await _pushNotificationService.syncTokenWithBackend();
-
-      try {
-        final profileData = await _apiService.getProfile();
-        _user = User.fromJson(profileData);
-      } catch (_) {}
-
       await _migrateGuestStatsIfNeeded();
 
       notifyListeners();
@@ -162,12 +156,6 @@ class AuthProvider with ChangeNotifier {
 
       _status = AuthStatus.authenticated;
       await _pushNotificationService.syncTokenWithBackend();
-
-      try {
-        final profileData = await _apiService.getProfile();
-        _user = User.fromJson(profileData);
-      } catch (_) {}
-
       await _migrateGuestStatsIfNeeded();
 
       notifyListeners();

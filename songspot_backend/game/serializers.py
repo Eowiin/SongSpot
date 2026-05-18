@@ -28,6 +28,8 @@ class GameScoreSubmitSerializer(serializers.Serializer):
     songs_correct = serializers.IntegerField(min_value=0)
     best_streak = serializers.IntegerField(min_value=0)
     total_score = serializers.IntegerField(min_value=0)
+    session_uuid = serializers.UUIDField(required=False, allow_null=True)
+    is_partial = serializers.BooleanField(required=False, default=False)
 
 
 class GameScoreSerializer(serializers.ModelSerializer):

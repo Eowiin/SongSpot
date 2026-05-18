@@ -39,6 +39,7 @@ from .serializers import (
 )
 from songspot.throttling import AuthRateThrottle, PasswordResetRateThrottle
 from songspot.api_errors import error_response, ErrorCode
+from .utils import normalize_locale as _normalize_locale
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -52,11 +53,6 @@ def _blacklist_outstanding_tokens(user):
         except Exception:
             from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
             BlacklistedToken.objects.get_or_create(token=token)
-
-
-def _normalize_locale(raw_locale):
-    value = (raw_locale or '').strip().lower()
-    return 'fr' if value.startswith('fr') else 'en'
 
 
 def _password_reset_copy(lang):

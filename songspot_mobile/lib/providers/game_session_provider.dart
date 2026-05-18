@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 import '../models/track.dart';
 import '../models/game_score.dart';
 import '../models/category.dart' as app_models;
@@ -69,6 +70,9 @@ class GameSessionProvider extends ChangeNotifier {
   // Session end reason (null = still playing)
   SessionEndReason? _endReason;
 
+  // Session identity (for checkpointing)
+  String? _sessionUuid;
+
   // Session stats (in memory, submitted at end)
   int _songsPlayed = 0;
   int _songsCorrect = 0;
@@ -129,6 +133,7 @@ class GameSessionProvider extends ChangeNotifier {
     _artistFilter = artistFilter;
     _difficulty = difficulty;
     _isGuest = isGuest;
+    _sessionUuid = const Uuid().v4();
     _songsPlayed = 0;
     _songsCorrect = 0;
     _currentStreak = 0;
@@ -232,6 +237,23 @@ class GameSessionProvider extends ChangeNotifier {
     await _playSnippet();
   }
 
+  // ── Checkpointing ────────────────────────────────────────────────────────
+
+  void _checkpoint() {
+    if (_isGuest || _sessionUuid == null || _songsPlayed == 0) return;
+    _api.submitScore(
+      sessionUuid: _sessionUuid,
+      isPartial: true,
+      genre: _category?.category,
+      artistFilter: _artistFilter ?? '',
+      difficulty: _difficulty.name,
+      songsPlayed: _songsPlayed,
+      songsCorrect: _songsCorrect,
+      bestStreak: _bestStreak,
+      totalScore: _totalScore,
+    ).catchError((_) {});
+  }
+
   // ── Guess logic ──────────────────────────────────────────────────────────
 
   void submitGuess(Track guessedTrack) {
@@ -261,6 +283,7 @@ class GameSessionProvider extends ChangeNotifier {
       }
     }
 
+    _checkpoint();
     notifyListeners();
   }
 
@@ -280,6 +303,7 @@ class GameSessionProvider extends ChangeNotifier {
       _livesRemaining = 0;
       _endReason = SessionEndReason.outOfLives;
     }
+    _checkpoint();
     notifyListeners();
   }
 
@@ -330,6 +354,8 @@ class GameSessionProvider extends ChangeNotifier {
 
     try {
       final data = await _api.submitScore(
+        sessionUuid: _sessionUuid,
+        isPartial: false,
         genre: _category?.category,
         artistFilter: _artistFilter ?? '',
         difficulty: _difficulty.name,

@@ -168,6 +168,8 @@ class GameScore(models.Model):
     best_streak = models.PositiveIntegerField(default=0)
     total_score = models.PositiveIntegerField(default=0)
     played_at = models.DateTimeField(auto_now_add=True)
+    session_uuid = models.UUIDField(null=True, blank=True, db_index=True)
+    is_partial = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'game_scores'

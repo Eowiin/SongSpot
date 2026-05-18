@@ -224,19 +224,32 @@ class SubmitScoreView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
+        session_uuid = data.get('session_uuid')
+        is_partial = data.get('is_partial', False)
+        score_fields = {
+            'genre': data.get('genre') or None,
+            'artist_filter': data.get('artist_filter', ''),
+            'difficulty': data.get('difficulty', 'medium'),
+            'songs_played': data['songs_played'],
+            'songs_correct': data['songs_correct'],
+            'best_streak': data['best_streak'],
+            'total_score': data['total_score'],
+            'is_partial': is_partial,
+        }
+
         with transaction.atomic():
-            score = GameScore.objects.create(
-                user=request.user,
-                genre=data.get('genre') or None,
-                artist_filter=data.get('artist_filter', ''),
-                difficulty=data.get('difficulty', 'medium'),
-                songs_played=data['songs_played'],
-                songs_correct=data['songs_correct'],
-                best_streak=data['best_streak'],
-                total_score=data['total_score'],
-            )
-            best, _ = UserBest.objects.select_for_update().get_or_create(user=request.user)
-            best.update_from_score(score)
+            if session_uuid:
+                score, _ = GameScore.objects.update_or_create(
+                    user=request.user,
+                    session_uuid=session_uuid,
+                    defaults=score_fields,
+                )
+            else:
+                score = GameScore.objects.create(user=request.user, **score_fields)
+
+            if not is_partial:
+                best, _ = UserBest.objects.select_for_update().get_or_create(user=request.user)
+                best.update_from_score(score)
 
         return Response(GameScoreSerializer(score).data, status=status.HTTP_201_CREATED)
 
@@ -331,7 +344,6 @@ class DuelHistoryView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from django.db.models import Q
         limit = min(int(request.query_params.get('limit', 20)), 50)
         qs = (
             DuelMatch.objects

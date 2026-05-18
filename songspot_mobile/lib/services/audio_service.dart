@@ -4,6 +4,10 @@ import 'package:just_audio/just_audio.dart';
 import 'package:audio_session/audio_session.dart';
 
 class AudioService {
+  AudioService._();
+  static final AudioService _instance = AudioService._();
+  factory AudioService() => _instance;
+
   final AudioPlayer _player = AudioPlayer();
   bool _isPlaying = false;
   bool _isInitialized = false;
