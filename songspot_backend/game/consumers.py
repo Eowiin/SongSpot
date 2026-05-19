@@ -263,7 +263,11 @@ class DuelConsumer(AsyncWebsocketConsumer):
         if t:
             t.cancel()
 
-        if match.status == 'in_progress' and match.current_round > 0:
+        if match.status in ('completed', 'abandoned'):
+            # Match is already over — send the result so the client can show
+            # the result screen instead of being stuck on the last round.
+            await self._send_match_end_late(match)
+        elif match.status == 'in_progress' and match.current_round > 0:
             # Reconnect: push current round state directly to this connection.
             await self._send_reconnect_state(match)
             # Notify the other player.
@@ -422,9 +426,13 @@ class DuelConsumer(AsyncWebsocketConsumer):
         await self._db_set_current_round(round_number)
 
         # Refresh the preview URL so players never get a stale Deezer link.
-        preview_url = await sync_to_async(round_obj.track.get_fresh_preview_url)(
-            prefer_cached=False
-        )
+        try:
+            preview_url = await sync_to_async(round_obj.track.get_fresh_preview_url)(
+                prefer_cached=False
+            )
+        except Exception:
+            logger.warning('[start_round] URL refresh failed for track %s, using cached', round_obj.track.id)
+            preview_url = round_obj.track.preview_url
 
         # Reset audio-ready state for this round
         _audio_ready[self.match_id] = set()
@@ -497,11 +505,19 @@ class DuelConsumer(AsyncWebsocketConsumer):
         existing = _forfeit_tasks.pop(key, None)
         if existing:
             existing.cancel()
-        elapsed = time.time() - _round_started_at.get(self.match_id, time.time())
-        remaining = max(0.0, ROUND_TIME_LIMIT - elapsed)
-        grace = min(30.0, remaining)
-        logger.info('[forfeit] scheduling p%s match=%s round=%s grace=%.1fs remaining=%.1fs',
-                    player_num, self.match_id, round_number, grace, remaining)
+        # Only derive grace from elapsed time when the round timer is actively
+        # running. If the round hasn't started yet (player disconnected during
+        # audio loading), _round_started_at holds the *previous* round's time
+        # and would produce a near-zero — or zero — grace period, causing an
+        # immediate forfeit before the new round even begins.
+        if self.match_id in _round_timers:
+            elapsed = time.time() - _round_started_at.get(self.match_id, time.time())
+            remaining = max(0.0, ROUND_TIME_LIMIT - elapsed)
+            grace = min(30.0, remaining)
+        else:
+            grace = 30.0
+        logger.info('[forfeit] scheduling p%s match=%s round=%s grace=%.1fs',
+                    player_num, self.match_id, round_number, grace)
         task = asyncio.create_task(self._forfeit_after(player_num, round_number, grace))
         _forfeit_tasks[key] = task
 
@@ -527,6 +543,33 @@ class DuelConsumer(AsyncWebsocketConsumer):
             if timer:
                 timer.cancel()
             await self._resolve_round(round_number)
+
+    async def _send_match_end_late(self, match):
+        """Send match_end to a player who reconnects after the match finished."""
+        is_p1 = self.player_num == 1
+        my_score = match.player1_score if is_p1 else match.player2_score
+        opp_score = match.player2_score if is_p1 else match.player1_score
+        if match.winner_id is None:
+            winner = 'draw'
+        elif (is_p1 and match.winner_id == match.player1_id) or \
+             (not is_p1 and match.winner_id == match.player2_id):
+            winner = 'player'
+        else:
+            winner = 'opponent'
+        new_elo = await self._get_player_elo()
+        await self.send(json.dumps({
+            'type': 'match_end',
+            'winner': winner,
+            'final_scores': {'player': my_score, 'opponent': opp_score},
+            'elo_change': {'player': 0, 'opponent': 0},
+            'new_elo': {'player': new_elo, 'opponent': 0},
+        }))
+
+    @sync_to_async
+    def _get_player_elo(self):
+        user_id = self.match.player1_id if self.player_num == 1 else self.match.player2_id
+        obj, _ = UserElo.objects.get_or_create(user_id=user_id, defaults={'elo': 1000})
+        return obj.elo
 
     async def _send_reconnect_state(self, match):
         """Push current round state directly to a reconnecting player."""
@@ -632,10 +675,20 @@ class DuelConsumer(AsyncWebsocketConsumer):
             return
         resolved.add(round_number)
 
-        # Cancel any pending forfeit tasks for this round.
+        # Cancel the audio-ready timeout so it can't fire round_begin after the
+        # round has already been resolved (e.g., via immediate forfeit).
+        timeout = _ready_timeouts.pop(self.match_id, None)
+        if timeout:
+            timeout.cancel()
+
+        # Cancel any pending forfeit tasks — but never the currently running task,
+        # since _resolve_round is sometimes called from within a forfeit task itself.
+        # Cancelling the caller would inject CancelledError at the next await here,
+        # aborting the resolve before round_result_event is sent.
+        current = asyncio.current_task()
         for pnum in (1, 2):
             t = _forfeit_tasks.pop(f'{self.match_id}_{pnum}', None)
-            if t:
+            if t and t is not current:
                 t.cancel()
 
         round_obj = await self._get_round(round_number)
@@ -681,11 +734,14 @@ class DuelConsumer(AsyncWebsocketConsumer):
         # causing player 1 to receive round_result far too late (after round_start
         # for the next round has already arrived, cancelling the reveal overlay).
         async def _transition():
-            await asyncio.sleep(NEXT_ROUND_DELAY)
-            if round_number >= match.total_rounds:
-                await self._end_match(new_p1, new_p2)
-            else:
-                await self._start_round(round_number + 1)
+            try:
+                await asyncio.sleep(NEXT_ROUND_DELAY)
+                if round_number >= match.total_rounds:
+                    await self._end_match(new_p1, new_p2)
+                else:
+                    await self._start_round(round_number + 1)
+            except Exception:
+                logger.exception('[transition] ERROR match=%s after round=%s', self.match_id, round_number)
 
         asyncio.create_task(_transition())
 
