@@ -22,6 +22,7 @@ class DuelFlowScreen extends StatelessWidget {
             DuelStatus.error =>
               const DuelLobbyScreen(),
             DuelStatus.matched ||
+            DuelStatus.loading ||
             DuelStatus.playing ||
             DuelStatus.roundReveal =>
               const DuelGameScreen(),

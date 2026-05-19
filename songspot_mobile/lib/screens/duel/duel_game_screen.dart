@@ -39,8 +39,8 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
   String? _submittedTrackLabel;
   DuelProvider? _duel;
 
-  // Track which round we've already loaded audio + reset UI for
-  int _lastLoadedRound = 0;
+  // Mirrors DuelProvider.roundVersion — audio is reloaded whenever these differ.
+  int _lastLoadedVersion = 0;
   String? _loadedUrl;
 
   @override
@@ -49,9 +49,9 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _duel = context.read<DuelProvider>();
       debugPrint('[DuelGame] initState postFrame: status=${_duel!.status} trackUrl=${_duel!.currentTrack?.previewUrl}');
-      _lastLoadedRound = _duel!.currentRound;
+      _lastLoadedVersion = _duel!.roundVersion;
       _duel!.addListener(_onDuelChanged);
-      _loadAudio();
+      _loadAndSignalReady();
     });
   }
 
@@ -67,17 +67,15 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
   }
 
   void _onDuelChanged() {
-    debugPrint('[DuelGame] _onDuelChanged: mounted=$mounted status=${_duel?.status}');
     if (!mounted || _duel == null) return;
 
-    // Only reset UI and reload audio when a genuinely new round starts.
-    // Snippet extensions also fire notifyListeners() while status==playing,
-    // so guard on round number to avoid clearing the input and re-fetching audio.
-    if (_duel!.status == DuelStatus.playing &&
-        _duel!.currentRound != _lastLoadedRound) {
-      _lastLoadedRound = _duel!.currentRound;
+    // Trigger audio load when the server sends round_start (status → loading).
+    // Guard on round number so snippet extensions don't re-fetch audio.
+    if (_duel!.status == DuelStatus.loading &&
+        _duel!.roundVersion != _lastLoadedVersion) {
+      _lastLoadedVersion = _duel!.roundVersion;
       _resetForNewRound();
-      _loadAudio();
+      _loadAndSignalReady();
     }
 
     // Guard the reveal overlay behind a short timer so the submitted banner
@@ -106,6 +104,11 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
       _guessController.clear();
       _loadedUrl = null;
     });
+  }
+
+  Future<void> _loadAndSignalReady() async {
+    await _loadAudio();
+    _duel?.notifyAudioReady();
   }
 
   Future<void> _loadAudio() async {
@@ -223,6 +226,8 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
                         child: Column(
                           children: [
                             const SizedBox(height: 8),
+                            if (duel.errorMessage != null)
+                              _buildConnectionBanner(duel.errorMessage!),
                             _buildRoundIndicator(duel),
                             const SizedBox(height: 20),
                             _buildTrackCard(duel),
@@ -254,6 +259,8 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
                       _buildSubmittedBanner(),
                   ],
                 ),
+                if (duel.status == DuelStatus.loading)
+                  _buildReadyOverlay(duel),
                 if (_showRevealOverlay) _buildRoundResultOverlay(context, duel),
               ],
             ),
@@ -264,6 +271,14 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
   }
 
   AppBar _buildAppBar(DuelProvider duel) {
+    final timeRemaining = duel.roundTimeRemaining;
+    final showTimer = duel.status == DuelStatus.playing && timeRemaining > 0;
+    final timerColor = timeRemaining <= 10
+        ? AppTheme.errorColor
+        : timeRemaining <= 20
+            ? Colors.orange
+            : AppTheme.textSecondary;
+
     return AppBar(
       backgroundColor: AppTheme.backgroundColor,
       elevation: 0,
@@ -279,9 +294,19 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
               fontWeight: FontWeight.bold,
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 12),
-            child: Text('vs', style: TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: showTimer
+                ? Text(
+                    '${timeRemaining}s',
+                    style: TextStyle(
+                      color: timerColor,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  )
+                : const Text('vs', style: TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
           ),
           Text(
             '${duel.opponentScore}',
@@ -629,6 +654,43 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildConnectionBanner(String message) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      color: Colors.orange.withValues(alpha: 0.15),
+      child: Text(
+        message,
+        style: const TextStyle(color: Colors.orange, fontSize: 12),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  Widget _buildReadyOverlay(DuelProvider duel) {
+    final label = duel.localAudioReady
+        ? 'Waiting for opponent...'
+        : 'Loading audio...';
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black.withValues(alpha: 0.65),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(color: AppTheme.primaryColor),
+              const SizedBox(height: 16),
+              Text(
+                label,
+                style: const TextStyle(color: Colors.white70, fontSize: 16),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

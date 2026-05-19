@@ -10,7 +10,8 @@ enum DuelStatus {
   idle,
   queuing,
   matched,     // match found, about to connect to game WS
-  playing,     // round in progress
+  loading,     // round_start received, waiting for audio / opponent to be ready
+  playing,     // round in progress (controls enabled)
   roundReveal, // showing round result
   finished,    // match ended
   error,
@@ -20,7 +21,9 @@ class DuelProvider extends ChangeNotifier {
   final _api = ApiService();
   final _storage = StorageService();
   final _queueWs = WebSocketService();
-  final _gameWs = WebSocketService();
+  // Game WS retries aggressively — 20 attempts with exponential backoff up to
+  // 30s each gives ~10 minutes of retrying before giving up.
+  final _gameWs = WebSocketService(maxRetries: 20);
 
   DuelStatus _status = DuelStatus.idle;
   DuelStatus get status => _status;
@@ -70,6 +73,27 @@ class DuelProvider extends ChangeNotifier {
 
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
+
+  // True once local audio has buffered; false while still loading or between rounds.
+  // Used to show "Waiting for opponent..." vs "Loading audio..." in the overlay.
+  bool _localAudioReady = false;
+  bool get localAudioReady => _localAudioReady;
+
+  int _roundTimeRemaining = 0;
+  int get roundTimeRemaining => _roundTimeRemaining;
+
+  // Monotonically increasing counter — incremented on every round_start and on
+  // reconnect to an active round. Used by the screen to detect when audio must
+  // be reloaded (avoids the round-number-equality trap on reconnect).
+  int _roundVersion = 0;
+  int get roundVersion => _roundVersion;
+
+  // When reconnecting to an already-running round the server won't send
+  // round_begin again, so we skip the WS audio_ready send and jump straight
+  // to playing once the audio has buffered locally.
+  bool _skipAudioReadySignal = false;
+
+  Timer? _roundTimer;
 
   StreamSubscription? _queueSub;
   StreamSubscription? _gameSub;
@@ -136,7 +160,21 @@ class DuelProvider extends ChangeNotifier {
     });
   }
 
+  /// Called by the game screen once audio has finished buffering.
+  void notifyAudioReady() {
+    _localAudioReady = true;
+    notifyListeners(); // update overlay text to "Waiting for opponent..."
+    if (_skipAudioReadySignal) {
+      _skipAudioReadySignal = false;
+      _setStatus(DuelStatus.playing);
+      return;
+    }
+    _gameWs.send({'type': 'audio_ready'});
+  }
+
   Future<void> disconnect() async {
+    _roundTimer?.cancel();
+    _roundTimer = null;
     await _gameWs.disconnect();
     await _gameSub?.cancel();
     _gameSub = null;
@@ -171,6 +209,21 @@ class DuelProvider extends ChangeNotifier {
     }
     final uri = Uri.parse('${ApiConfig.wsBaseUrl}/ws/duel/$_matchId/?token=$token');
     _gameSub = _gameWs.messages.listen(_onGameMessage);
+    _gameWs.statusChanges.listen((s) {
+      final inGame = _status != DuelStatus.idle &&
+          _status != DuelStatus.finished &&
+          _status != DuelStatus.error;
+      if (s == WsStatus.error && inGame) {
+        _errorMessage = 'Connection lost. Reconnecting...';
+        notifyListeners();
+      } else if (s == WsStatus.disconnected && inGame) {
+        // All retries exhausted — route to error so the user gets back to lobby.
+        _setError('Connection lost. Please restart the match.');
+      } else if (s == WsStatus.connected && _errorMessage != null) {
+        _errorMessage = null;
+        notifyListeners();
+      }
+    });
     await _gameWs.connect(uri);
   }
 
@@ -181,6 +234,8 @@ class DuelProvider extends ChangeNotifier {
     switch (msg['type']) {
       case 'round_start':
         _handleRoundStart(msg);
+      case 'round_begin':
+        _handleRoundBegin(msg);
       case 'opponent_submitted':
         _opponentSubmitted = true;
         notifyListeners();
@@ -191,6 +246,11 @@ class DuelProvider extends ChangeNotifier {
       case 'opponent_disconnected':
         _errorMessage = 'Your opponent disconnected.';
         notifyListeners();
+      case 'opponent_reconnected':
+        _errorMessage = null;
+        notifyListeners();
+      case 'reconnect_state':
+        _handleReconnectState(msg);
     }
   }
 
@@ -203,14 +263,78 @@ class DuelProvider extends ChangeNotifier {
     _hasSubmitted = false;
     _opponentSubmitted = false;
     _lastRoundResult = null;
+    _localAudioReady = false;
+    _roundVersion++;
+    _setStatus(DuelStatus.loading);
+  }
+
+  void _handleRoundBegin(Map<String, dynamic> msg) {
+    _roundTimer?.cancel();
+    final timeLimit = (msg['time_limit'] as num?)?.toInt() ?? 60;
+    _roundTimeRemaining = timeLimit;
+    _startRoundTimer();
     _setStatus(DuelStatus.playing);
   }
 
+  void _startRoundTimer() {
+    _roundTimer?.cancel();
+    _roundTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (_roundTimeRemaining <= 0) {
+        t.cancel();
+        _roundTimer = null;
+        return;
+      }
+      _roundTimeRemaining--;
+      notifyListeners();
+    });
+  }
+
   void _handleRoundResult(Map<String, dynamic> msg) {
+    _roundTimer?.cancel();
+    _roundTimer = null;
+    _roundTimeRemaining = 0;
     _lastRoundResult = DuelRoundResult.fromJson(msg);
     _playerScore = _lastRoundResult!.playerScore;
     _opponentScore = _lastRoundResult!.opponentScore;
     _setStatus(DuelStatus.roundReveal);
+  }
+
+  void _handleReconnectState(Map<String, dynamic> msg) {
+    _roundTimer?.cancel();
+    _roundTimer = null;
+
+    _currentRound = (msg['round'] as num).toInt();
+    _totalRounds = (msg['total_rounds'] as num?)?.toInt() ?? _totalRounds;
+    _currentTrack = DuelTrack.fromRoundStart(msg['track'] as Map<String, dynamic>);
+    _snippetsUsed = 1;
+    _hasSubmitted = false;
+    _opponentSubmitted = false;
+    _lastRoundResult = null;
+
+    final scores = msg['scores'] as Map<String, dynamic>?;
+    if (scores != null) {
+      _playerScore = (scores['player'] as num?)?.toInt() ?? _playerScore;
+      _opponentScore = (scores['opponent'] as num?)?.toInt() ?? _opponentScore;
+    }
+
+    final timeRemaining = (msg['time_remaining'] as num?)?.toInt() ?? 0;
+    final roundActive = msg['round_active'] as bool? ?? false;
+
+    if (roundActive && timeRemaining > 0) {
+      // Increment version so the screen re-triggers audio load.
+      // Set skip flag so notifyAudioReady() goes directly to playing instead
+      // of sending audio_ready to server (server won't send round_begin again).
+      _localAudioReady = false;
+      _roundVersion++;
+      _skipAudioReadySignal = true;
+      _roundTimeRemaining = timeRemaining;
+      _startRoundTimer();
+      _setStatus(DuelStatus.loading);
+    } else {
+      // Round not active — wait for the next round_start from server.
+      _roundTimeRemaining = 0;
+      _setStatus(DuelStatus.matched);
+    }
   }
 
   void _handleMatchEnd(Map<String, dynamic> msg) {
@@ -231,6 +355,9 @@ class DuelProvider extends ChangeNotifier {
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   void _reset() {
+    _roundTimer?.cancel();
+    _roundTimer = null;
+    _roundTimeRemaining = 0;
     _matchId = null;
     _opponent = null;
     _playlist = null;
@@ -245,6 +372,9 @@ class DuelProvider extends ChangeNotifier {
     _lastRoundResult = null;
     _matchEnd = null;
     _errorMessage = null;
+    _roundVersion = 0;
+    _skipAudioReadySignal = false;
+    _localAudioReady = false;
   }
 
   void _setStatus(DuelStatus s) {

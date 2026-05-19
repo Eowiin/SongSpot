@@ -6,11 +6,15 @@ import 'websocket_channel_factory.dart';
 enum WsStatus { disconnected, connecting, connected, error }
 
 class WebSocketService {
-  static const int _maxRetries = 3;
+  /// Maximum number of automatic reconnect attempts before giving up.
+  /// Pass a large value (e.g. 20) for connections that should retry aggressively.
+  final int maxRetries;
+
   static const Duration _baseBackoff = Duration(seconds: 2);
+  static const Duration _maxBackoff = Duration(seconds: 30);
 
   Uri? _uri;
-  dynamic _channel;          // WebSocketChannel (avoid import coupling)
+  dynamic _channel;
   StreamSubscription? _sub;
 
   WsStatus _status = WsStatus.disconnected;
@@ -24,6 +28,8 @@ class WebSocketService {
 
   int _retries = 0;
   bool _intentionalClose = false;
+
+  WebSocketService({this.maxRetries = 3});
 
   Future<void> connect(Uri uri) async {
     _uri = uri;
@@ -89,14 +95,23 @@ class WebSocketService {
   }
 
   void _scheduleRetry() {
-    if (_intentionalClose || _retries >= _maxRetries) return;
+    if (_intentionalClose) return;
+    if (_retries >= maxRetries) {
+      debugPrint('[WS] Max retries ($maxRetries) reached, giving up');
+      _setStatus(WsStatus.disconnected);
+      return;
+    }
     _retries++;
-    final delay = _baseBackoff * _retries;
-    debugPrint('[WS] Retrying in ${delay.inSeconds}s (attempt $_retries)');
+    // Exponential backoff capped at _maxBackoff.
+    final delay = _capDuration(_baseBackoff * (1 << (_retries - 1)));
+    debugPrint('[WS] Retrying in ${delay.inSeconds}s (attempt $_retries/$maxRetries)');
     Future.delayed(delay, () {
       if (!_intentionalClose) _doConnect();
     });
   }
+
+  Duration _capDuration(Duration d) =>
+      d > _maxBackoff ? _maxBackoff : d;
 
   Future<void> _cleanup() async {
     await _sub?.cancel();
