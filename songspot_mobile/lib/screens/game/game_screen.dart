@@ -69,6 +69,11 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     if (_provider?.endReason == SessionEndReason.poolCleared && mounted) {
       _endSession(reason: SessionEndReason.poolCleared);
     }
+    if (_provider?.revealAnswer == true &&
+        mounted &&
+        _revealAnimController.status == AnimationStatus.dismissed) {
+      _revealAnimController.forward();
+    }
   }
 
   Future<void> _nextSong() async {
@@ -106,11 +111,6 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   Widget build(BuildContext context) {
     return Consumer<GameSessionProvider>(
       builder: (context, provider, _) {
-        final wasRevealed = provider.revealAnswer;
-        if (wasRevealed && _revealAnimController.status == AnimationStatus.dismissed) {
-          _revealAnimController.forward();
-        }
-
         return Scaffold(
           backgroundColor: AppTheme.backgroundColor,
           appBar: _buildAppBar(provider),
