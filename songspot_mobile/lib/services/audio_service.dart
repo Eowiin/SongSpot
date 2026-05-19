@@ -8,10 +8,17 @@ class AudioService {
   static final AudioService _instance = AudioService._();
   factory AudioService() => _instance;
 
-  final AudioPlayer _player = AudioPlayer();
+  final AudioPlayer _playerA = AudioPlayer();
+  final AudioPlayer _playerB = AudioPlayer();
+  bool _usingA = true;
+  bool _prefetchReady = false;
+  int _playbackRequestId = 0;
+  int _prefetchRequestId = 0;
   bool _isPlaying = false;
   bool _isInitialized = false;
-  int _playbackRequestId = 0;
+
+  AudioPlayer get _active => _usingA ? _playerA : _playerB;
+  AudioPlayer get _prefetch => _usingA ? _playerB : _playerA;
 
   bool get isPlaying => _isPlaying;
 
@@ -30,17 +37,19 @@ class AudioService {
     } catch (_) {}
   }
 
-  /// Load a URL into the player (no playback yet).
+  /// Load a URL into the active player (no playback yet). Aborts any in-progress prefetch.
   Future<void> loadAudio(String url) async {
     final requestId = ++_playbackRequestId;
+    _prefetchReady = false;
+    ++_prefetchRequestId;
     debugPrint('[AudioService] loadAudio: url=$url requestId=$requestId');
     try {
       await initializeAudioSession();
       _setPlaying(false);
-      await _player.stop();
-      await _player.setUrl(url).timeout(const Duration(seconds: 15));
+      await _active.stop();
+      await _active.setUrl(url).timeout(const Duration(seconds: 15));
       if (requestId != _playbackRequestId) {
-        debugPrint('[AudioService] loadAudio: stale requestId, aborting');
+        debugPrint('[AudioService] loadAudio: stale, aborting');
         return;
       }
       debugPrint('[AudioService] loadAudio: ready');
@@ -50,36 +59,57 @@ class AudioService {
     }
   }
 
-  /// Play a snippet of audio up to [duration] (frame-accurate via setClip, no wall-clock timer).
-  /// setClip is re-applied on every call to reset the player from any completed state.
-  /// We wait for processingState.completed rather than awaiting play() directly,
-  /// because play() resolves as soon as playback starts, not when it ends.
+  /// Silently buffer a URL in the prefetch player. Does not affect active playback.
+  /// Returns true if buffering succeeded, false otherwise.
+  Future<bool> prefetchAudio(String url) async {
+    final requestId = ++_prefetchRequestId;
+    _prefetchReady = false;
+    debugPrint('[AudioService] prefetchAudio: url=$url requestId=$requestId');
+    try {
+      await _prefetch.stop();
+      await _prefetch.setUrl(url).timeout(const Duration(seconds: 15));
+      if (requestId != _prefetchRequestId) {
+        debugPrint('[AudioService] prefetchAudio: stale, aborting');
+        return false;
+      }
+      _prefetchReady = true;
+      debugPrint('[AudioService] prefetchAudio: ready');
+      return true;
+    } catch (e) {
+      debugPrint('[AudioService] prefetchAudio: FAILED $e');
+      return false;
+    }
+  }
+
+  /// Swap the prefetch player to active. Returns true if prefetch was ready (instant swap).
+  /// Returns false if not ready — caller must fall back to loadAudio().
+  bool swapToPrefetch() {
+    if (!_prefetchReady) return false;
+    _usingA = !_usingA;
+    _prefetchReady = false;
+    ++_prefetchRequestId;
+    debugPrint('[AudioService] swapToPrefetch: swapped');
+    return true;
+  }
+
+  /// Play a snippet of [duration] from the active player.
   Future<void> playSnippet({
     Duration duration = const Duration(seconds: 1),
     void Function()? onPlaybackStopped,
   }) async {
-    debugPrint('[AudioService] playSnippet: duration=$duration requestId=${_playbackRequestId + 1}');
+    debugPrint('[AudioService] playSnippet: duration=$duration');
     final requestId = ++_playbackRequestId;
     try {
-      await _player.setClip(
-        start: Duration.zero,
-        end: duration,
-      );
+      await _active.setClip(start: Duration.zero, end: duration);
       if (requestId != _playbackRequestId) return;
 
-      // Subscribe before play() to avoid missing the completed event.
-      // Also accepts idle so that stop() or an audio interruption resolves
-      // this immediately rather than hanging until the 5s timeout.
-      // Safe to include idle here because setClip is already awaited above —
-      // we won't catch the transient idle emitted during clip setup.
-      // Timeout = snippet length + 5s buffer so longer snippets (Easy: 15s) don't time out mid-play.
-      final doneFuture = _player.processingStateStream
+      final doneFuture = _active.processingStateStream
           .firstWhere((s) =>
               s == ProcessingState.completed || s == ProcessingState.idle)
           .timeout(duration + const Duration(seconds: 5));
 
       _setPlaying(true);
-      _player.play(); // intentionally not awaited
+      _active.play();
 
       await doneFuture;
 
@@ -96,12 +126,13 @@ class AudioService {
 
   Future<void> stop() async {
     _playbackRequestId += 1;
-    await _player.stop();
-    await _player.seek(Duration.zero);
+    await _active.stop();
+    await _active.seek(Duration.zero);
     _setPlaying(false);
   }
 
   Future<void> dispose() async {
-    await _player.dispose();
+    await _playerA.dispose();
+    await _playerB.dispose();
   }
 }

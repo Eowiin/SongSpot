@@ -73,6 +73,11 @@ class GameSessionProvider extends ChangeNotifier {
   // Session identity (for checkpointing)
   String? _sessionUuid;
 
+  // Prefetch state
+  Track? _prefetchedTrack;
+  bool _isPrefetching = false;
+  bool _prefetchPoolExhausted = false;
+
   // Session stats (in memory, submitted at end)
   int _songsPlayed = 0;
   int _songsCorrect = 0;
@@ -134,6 +139,9 @@ class GameSessionProvider extends ChangeNotifier {
     _difficulty = difficulty;
     _isGuest = isGuest;
     _sessionUuid = const Uuid().v4();
+    _prefetchedTrack = null;
+    _isPrefetching = false;
+    _prefetchPoolExhausted = false;
     _songsPlayed = 0;
     _songsCorrect = 0;
     _currentStreak = 0;
@@ -150,6 +158,37 @@ class GameSessionProvider extends ChangeNotifier {
   }
 
   Future<void> loadNextSong() async {
+    // Pool already known exhausted from silent prefetch
+    if (_prefetchPoolExhausted) {
+      _endReason = SessionEndReason.poolCleared;
+      _currentTrack = null;
+      _isLoadingTrack = false;
+      notifyListeners();
+      return;
+    }
+
+    // Consume prefetch if available
+    if (_prefetchedTrack != null) {
+      _lastGuessResult = GuessResult.none;
+      _revealAnswer = false;
+      _searchResults = [];
+      _currentTrack = _prefetchedTrack;
+      _seenTrackIds.add(_currentTrack!.id);
+      _prefetchedTrack = null;
+
+      final swapped = _audio.swapToPrefetch();
+      if (!swapped && _currentTrack!.previewUrl != null) {
+        _isLoadingTrack = true;
+        notifyListeners();
+        await _loadAudioWithRetry(_currentTrack!.previewUrl!, _currentTrack!.id);
+        _isLoadingTrack = false;
+      }
+      notifyListeners();
+      prefetchNextSong();
+      return;
+    }
+
+    // Full load path
     _isLoadingTrack = true;
     _trackError = null;
     _lastGuessResult = GuessResult.none;
@@ -169,6 +208,7 @@ class GameSessionProvider extends ChangeNotifier {
       if (_currentTrack!.previewUrl != null) {
         await _loadAudioWithRetry(_currentTrack!.previewUrl!, _currentTrack!.id);
       }
+      prefetchNextSong();
     } catch (e) {
       final msg = e.toString();
       // 404 = pool exhausted — the user has heard every available song
@@ -235,6 +275,53 @@ class GameSessionProvider extends ChangeNotifier {
   Future<void> replaySnippet() async {
     if (_isPlaying) return;
     await _playSnippet();
+  }
+
+  // ── Prefetch ─────────────────────────────────────────────────────────────
+
+  Future<void> prefetchNextSong() async {
+    if (_isPrefetching || _endReason != null) return;
+    _isPrefetching = true;
+    try {
+      final data = await _api.getNextSong(
+        playlist: _category?.id,
+        artist: _artistFilter,
+        excludeIds: List.from(_seenTrackIds),
+      );
+      _prefetchedTrack = Track.fromJson(data);
+      if (_prefetchedTrack!.previewUrl != null) {
+        final ok = await _audio.prefetchAudio(_prefetchedTrack!.previewUrl!);
+        if (!ok) {
+          // URL may be stale — refresh from Deezer and retry once
+          try {
+            final refreshed = await _api.refreshTrackPreview(trackId: _prefetchedTrack!.id);
+            final newUrl = refreshed['preview_url'] as String?;
+            if (newUrl != null && newUrl.isNotEmpty && newUrl != _prefetchedTrack!.previewUrl) {
+              _prefetchedTrack = Track.fromJson({
+                'id': _prefetchedTrack!.id,
+                'title': _prefetchedTrack!.title,
+                'artist': _prefetchedTrack!.artist,
+                'preview_url': newUrl,
+                'cover_url': _prefetchedTrack!.coverUrl,
+                'release_year': _prefetchedTrack!.releaseYear,
+                'genre': _prefetchedTrack!.genre,
+              });
+              await _audio.prefetchAudio(newUrl);
+            }
+          } catch (_) {
+            // Refresh failed — track metadata is still stored, audio will load on demand
+          }
+        }
+      }
+    } catch (e) {
+      final msg = e.toString();
+      if (msg.contains('404') || msg.contains('Not found') || msg.contains('No tracks')) {
+        _prefetchPoolExhausted = true;
+      }
+      _prefetchedTrack = null;
+    } finally {
+      _isPrefetching = false;
+    }
   }
 
   // ── Checkpointing ────────────────────────────────────────────────────────
