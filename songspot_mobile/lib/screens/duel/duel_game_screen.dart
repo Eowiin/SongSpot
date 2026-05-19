@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../l10n/app_localizations.dart';
 import '../../models/track.dart';
 import '../../providers/duel_provider.dart';
 import '../../services/api_service.dart';
@@ -208,17 +209,18 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Consumer<DuelProvider>(
       builder: (context, duel, _) {
         return Scaffold(
           backgroundColor: AppTheme.backgroundColor,
-          appBar: _buildAppBar(duel),
+          appBar: _buildAppBar(duel, l10n),
           body: SafeArea(
             child: Stack(
               children: [
                 Column(
                   children: [
-                    _buildOpponentPanel(duel),
+                    _buildOpponentPanel(duel, l10n),
                     const SizedBox(height: 8),
                     Expanded(
                       child: SingleChildScrollView(
@@ -230,21 +232,15 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
                               _buildConnectionBanner(duel.errorMessage!),
                             _buildRoundIndicator(duel),
                             const SizedBox(height: 20),
-                            _buildTrackCard(duel),
+                            _buildTrackCard(duel, l10n),
                             const SizedBox(height: 16),
-                            _buildSnippetControls(duel),
+                            _buildSnippetControls(duel, l10n),
                             const SizedBox(height: 16),
                           ],
                         ),
                       ),
                     ),
-                    // Fixed bottom section — always visible above keyboard.
-                    // _showRevealOverlay (not duel.status) gates the overlay so the
-                    // submitted banner always renders for ≥800ms before it appears.
                     if (!duel.hasSubmitted && !_showRevealOverlay) ...[
-                      // Always at position 0 so the TextField never shifts position
-                      // (Flutter reconciles Column children by index — inserting a
-                      // widget above the TextField would recreate it and lose focus)
                       Padding(
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
                         child: (_searchResults.isNotEmpty || _isSearching)
@@ -253,14 +249,14 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
                       ),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                        child: _buildGuessField(),
+                        child: _buildGuessField(l10n),
                       ),
                     ] else if (duel.hasSubmitted && !_showRevealOverlay)
-                      _buildSubmittedBanner(),
+                      _buildSubmittedBanner(l10n),
                   ],
                 ),
                 if (duel.status == DuelStatus.loading)
-                  _buildReadyOverlay(duel),
+                  _buildReadyOverlay(duel, l10n),
                 if (_showRevealOverlay) _buildRoundResultOverlay(context, duel),
               ],
             ),
@@ -270,7 +266,7 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
     );
   }
 
-  AppBar _buildAppBar(DuelProvider duel) {
+  AppBar _buildAppBar(DuelProvider duel, AppLocalizations l10n) {
     final timeRemaining = duel.roundTimeRemaining;
     final showTimer = duel.status == DuelStatus.playing && timeRemaining > 0;
     final timerColor = timeRemaining <= 10
@@ -306,7 +302,7 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
                       fontFeatures: const [FontFeature.tabularFigures()],
                     ),
                   )
-                : const Text('vs', style: TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
+                : Text(l10n.duelVs, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
           ),
           Text(
             '${duel.opponentScore}',
@@ -322,7 +318,7 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
     );
   }
 
-  Widget _buildOpponentPanel(DuelProvider duel) {
+  Widget _buildOpponentPanel(DuelProvider duel, AppLocalizations l10n) {
     final opponent = duel.opponent;
     return Container(
       color: AppTheme.surfaceColor,
@@ -373,7 +369,7 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
                 children: [
                   Icon(Icons.check_rounded, color: AppTheme.successColor, size: 14),
                   SizedBox(width: 4),
-                  Text('Submitted', style: TextStyle(color: AppTheme.successColor, fontSize: 12)),
+                  Text(l10n.duelOpponentSubmitted, style: const TextStyle(color: AppTheme.successColor, fontSize: 12)),
                 ],
               ),
             ),
@@ -405,21 +401,19 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
     );
   }
 
-  Widget _buildTrackCard(DuelProvider duel) {
+  Widget _buildTrackCard(DuelProvider duel, AppLocalizations l10n) {
     final snippetIdx = (duel.snippetsUsed - 1).clamp(0, _snippetDurations.length - 1);
     final snippetDuration = _snippetDurations[snippetIdx];
     final seconds = snippetDuration.inSeconds;
-    final durationLabel = seconds >= 60
-        ? '${seconds ~/ 60}m'
-        : '${seconds}s snippet';
+    final durationLabel = l10n.duelSnippetLabel(seconds);
 
-    String statusLabel;
+    final String statusLabel;
     if (_isAudioLoading) {
-      statusLabel = 'Loading...';
+      statusLabel = l10n.duelLoadingAudio;
     } else if (_isPlaying) {
-      statusLabel = 'Playing $durationLabel...';
+      statusLabel = l10n.duelPlayingSnippet(durationLabel);
     } else {
-      statusLabel = 'Tap to listen · $durationLabel';
+      statusLabel = l10n.duelTapToListen(durationLabel);
     }
 
     return Container(
@@ -473,7 +467,7 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
     );
   }
 
-  Widget _buildSnippetControls(DuelProvider duel) {
+  Widget _buildSnippetControls(DuelProvider duel, AppLocalizations l10n) {
     const max = 5;
     final current = duel.snippetsUsed;
     final points = [100, 80, 60, 40, 20];
@@ -509,7 +503,7 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                '${points[(current - 1).clamp(0, 4)]} pts',
+                '${points[(current - 1).clamp(0, 4)]} ${l10n.duelPts}',
                 style: const TextStyle(
                   color: AppTheme.primaryColor,
                   fontWeight: FontWeight.bold,
@@ -524,7 +518,7 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
           TextButton.icon(
             onPressed: _extendSnippet,
             icon: const Icon(Icons.expand_more_rounded, size: 16),
-            label: Text('Extend to $nextDuration'),
+            label: Text(l10n.duelExtendTo(nextDuration!)),
             style: TextButton.styleFrom(
               foregroundColor: AppTheme.textSecondary,
               textStyle: const TextStyle(fontSize: 13),
@@ -535,13 +529,13 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
     );
   }
 
-  Widget _buildGuessField() {
+  Widget _buildGuessField(AppLocalizations l10n) {
     return TextField(
       controller: _guessController,
       focusNode: _guessFocus,
       style: const TextStyle(color: AppTheme.textPrimary),
       decoration: InputDecoration(
-        hintText: 'Search for a song...',
+        hintText: l10n.duelSearchHint,
         hintStyle: const TextStyle(color: AppTheme.textSecondary),
         filled: true,
         fillColor: AppTheme.surfaceColor,
@@ -617,7 +611,7 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
     );
   }
 
-  Widget _buildSubmittedBanner() {
+  Widget _buildSubmittedBanner(AppLocalizations l10n) {
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -646,9 +640,9 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 const SizedBox(height: 2),
-                const Text(
-                  'Submitted — waiting for opponent...',
-                  style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+                Text(
+                  l10n.duelYouSubmittedWaiting,
+                  style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
                 ),
               ],
             ),
@@ -671,10 +665,10 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
     );
   }
 
-  Widget _buildReadyOverlay(DuelProvider duel) {
+  Widget _buildReadyOverlay(DuelProvider duel, AppLocalizations l10n) {
     final label = duel.localAudioReady
-        ? 'Waiting for opponent...'
-        : 'Loading audio...';
+        ? l10n.duelWaitingOpponent
+        : l10n.duelLoadingAudio;
     return Positioned.fill(
       child: Container(
         color: Colors.black.withValues(alpha: 0.65),
@@ -696,6 +690,7 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
   }
 
   Widget _buildRoundResultOverlay(BuildContext context, DuelProvider duel) {
+    final l10n = AppLocalizations.of(context);
     final result = duel.lastRoundResult;
     if (result == null) return const SizedBox.shrink();
 
@@ -726,7 +721,7 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  isCorrect ? '+${result.player.points} pts' : 'Wrong!',
+                  isCorrect ? '+${result.player.points} ${l10n.duelPts}' : l10n.duelWrong,
                   style: TextStyle(
                     color: isCorrect ? AppTheme.successColor : AppTheme.errorColor,
                     fontSize: 28,
@@ -744,7 +739,7 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     _buildResultCell(
-                      'You',
+                      l10n.duelYou,
                       '${result.playerScore}',
                       AppTheme.primaryColor,
                     ),
@@ -756,9 +751,9 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  'Next round starting...',
-                  style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+                Text(
+                  l10n.duelNextRound,
+                  style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
                 ),
               ],
             ),

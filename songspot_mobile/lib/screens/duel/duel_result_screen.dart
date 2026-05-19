@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/duel_provider.dart';
 
 class DuelResultScreen extends StatelessWidget {
@@ -8,6 +9,7 @@ class DuelResultScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final duel = context.read<DuelProvider>();
     final end = duel.matchEnd;
     if (end == null) {
@@ -29,19 +31,18 @@ class DuelResultScreen extends StatelessWidget {
           child: Column(
             children: [
               const SizedBox(height: 32),
-              _buildWinnerBanner(isWin, isDraw),
+              _buildWinnerBanner(isWin, isDraw, l10n),
               const SizedBox(height: 20),
-              _buildEloChange(end.eloChange, end.newElo, eloPositive),
+              _buildEloChange(end.eloChange, end.newElo, eloPositive, l10n),
               const SizedBox(height: 24),
-              _buildScoreRow(end.playerFinalScore, end.opponentFinalScore, duel),
+              _buildScoreRow(end.playerFinalScore, end.opponentFinalScore, duel, l10n),
               const SizedBox(height: 24),
-              // Round breakdown
               if (duel.lastRoundResult != null) ...[
-                const Align(
+                Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Match Summary',
-                    style: TextStyle(
+                    l10n.duelMatchSummary,
+                    style: const TextStyle(
                       color: AppTheme.textSecondary,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -50,10 +51,10 @@ class DuelResultScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                _buildSummaryCard(duel),
+                _buildSummaryCard(duel, l10n),
               ],
               const Spacer(),
-              _buildActions(context, duel),
+              _buildActions(context, duel, l10n),
               const SizedBox(height: 32),
             ],
           ),
@@ -62,12 +63,12 @@ class DuelResultScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildWinnerBanner(bool isWin, bool isDraw) {
+  Widget _buildWinnerBanner(bool isWin, bool isDraw, AppLocalizations l10n) {
     final (emoji, label, color) = isDraw
-        ? ('🤝', 'Draw!', AppTheme.textSecondary)
+        ? ('🤝', l10n.duelDraw, AppTheme.textSecondary)
         : isWin
-            ? ('🏆', 'You Win!', AppTheme.successColor)
-            : ('💀', 'You Lost', AppTheme.errorColor);
+            ? ('🏆', l10n.duelWin, AppTheme.successColor)
+            : ('💀', l10n.duelLost, AppTheme.errorColor);
 
     return Column(
       children: [
@@ -85,7 +86,7 @@ class DuelResultScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildEloChange(int change, int newElo, bool positive) {
+  Widget _buildEloChange(int change, int newElo, bool positive, AppLocalizations l10n) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -105,14 +106,14 @@ class DuelResultScreen extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         Text(
-          'New ELO: $newElo',
+          l10n.duelNewElo(newElo),
           style: const TextStyle(color: AppTheme.textSecondary, fontSize: 16),
         ),
       ],
     );
   }
 
-  Widget _buildScoreRow(int playerScore, int opponentScore, DuelProvider duel) {
+  Widget _buildScoreRow(int playerScore, int opponentScore, DuelProvider duel, AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 32),
       decoration: BoxDecoration(
@@ -123,7 +124,7 @@ class DuelResultScreen extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _buildScoreCell('You', '$playerScore', AppTheme.primaryColor),
+          _buildScoreCell(l10n.duelYou, '$playerScore', AppTheme.primaryColor),
           const Text('—', style: TextStyle(color: AppTheme.textSecondary, fontSize: 24)),
           _buildScoreCell(
             duel.opponent?.username ?? 'Opponent',
@@ -148,7 +149,7 @@ class DuelResultScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSummaryCard(DuelProvider duel) {
+  Widget _buildSummaryCard(DuelProvider duel, AppLocalizations l10n) {
     final result = duel.lastRoundResult!;
     return Container(
       padding: const EdgeInsets.all(16),
@@ -163,7 +164,7 @@ class DuelResultScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Round ${result.round}',
+                  l10n.duelRoundLabel(result.round),
                   style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11),
                 ),
                 Text(
@@ -184,7 +185,7 @@ class DuelResultScreen extends StatelessWidget {
           const SizedBox(width: 12),
           _buildRoundResultBadge(result.player.correct, result.player.points),
           const SizedBox(width: 8),
-          Text('vs', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11)),
+          Text(l10n.duelVs, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11)),
           const SizedBox(width: 8),
           _buildRoundResultBadge(result.opponent.correct, result.opponent.points),
         ],
@@ -212,7 +213,7 @@ class DuelResultScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildActions(BuildContext context, DuelProvider duel) {
+  Widget _buildActions(BuildContext context, DuelProvider duel, AppLocalizations l10n) {
     return Column(
       children: [
         SizedBox(
@@ -235,9 +236,9 @@ class DuelResultScreen extends StatelessWidget {
               style: TextButton.styleFrom(
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
-              child: const Text(
-                'Play Again',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              child: Text(
+                l10n.duelPlayAgain,
+                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
           ),
@@ -255,9 +256,9 @@ class DuelResultScreen extends StatelessWidget {
               side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             ),
-            child: const Text(
-              'Back to Home',
-              style: TextStyle(color: AppTheme.textSecondary, fontSize: 16),
+            child: Text(
+              l10n.duelBackToHome,
+              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 16),
             ),
           ),
         ),
