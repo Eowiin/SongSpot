@@ -338,7 +338,7 @@ class GameSessionProvider extends ChangeNotifier {
       songsCorrect: _songsCorrect,
       bestStreak: _bestStreak,
       totalScore: _totalScore,
-    ).catchError((_) {});
+    ).catchError((_) => <String, dynamic>{});
   }
 
   // ── Guess logic ──────────────────────────────────────────────────────────
