@@ -1039,6 +1039,192 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Password updated. Please log in again.'**
   String get changePasswordSuccess;
+
+  /// Matchmaking searching state title
+  ///
+  /// In en, this message translates to:
+  /// **'Finding opponent...'**
+  String get duelFindingOpponent;
+
+  /// ELO card label in duel lobby
+  ///
+  /// In en, this message translates to:
+  /// **'Your ELO'**
+  String get duelYourElo;
+
+  /// ELO rank and win/loss/draw stats
+  ///
+  /// In en, this message translates to:
+  /// **'Rank #{rank}  •  {wins}W {losses}L {draws}D'**
+  String duelRankStats(int rank, int wins, int losses, int draws);
+
+  /// Info section header in duel lobby
+  ///
+  /// In en, this message translates to:
+  /// **'How it works'**
+  String get duelHowItWorks;
+
+  /// Duel lobby info row 1
+  ///
+  /// In en, this message translates to:
+  /// **'Same song, same round for both players'**
+  String get duelInfoSameSong;
+
+  /// Duel lobby info row 2
+  ///
+  /// In en, this message translates to:
+  /// **'Guess early = more points (up to 100)'**
+  String get duelInfoGuessEarly;
+
+  /// Duel lobby info row 3
+  ///
+  /// In en, this message translates to:
+  /// **'Extend snippet for more confidence, fewer points'**
+  String get duelInfoExtendSnippet;
+
+  /// Duel lobby info row 4
+  ///
+  /// In en, this message translates to:
+  /// **'5 rounds — highest score wins ELO'**
+  String get duelInfoFiveRounds;
+
+  /// Primary CTA button in duel lobby
+  ///
+  /// In en, this message translates to:
+  /// **'Find Match'**
+  String get duelFindMatch;
+
+  /// Score separator in duel game app bar
+  ///
+  /// In en, this message translates to:
+  /// **'vs'**
+  String get duelVs;
+
+  /// Snippet duration label
+  ///
+  /// In en, this message translates to:
+  /// **'{seconds}s snippet'**
+  String duelSnippetLabel(int seconds);
+
+  /// Overlay text while audio is buffering
+  ///
+  /// In en, this message translates to:
+  /// **'Loading audio...'**
+  String get duelLoadingAudio;
+
+  /// Overlay text after local audio is ready, waiting for opponent
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for opponent...'**
+  String get duelWaitingOpponent;
+
+  /// Track card status when snippet is playing
+  ///
+  /// In en, this message translates to:
+  /// **'Playing {duration}...'**
+  String duelPlayingSnippet(String duration);
+
+  /// Track card idle status
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to listen · {duration}'**
+  String duelTapToListen(String duration);
+
+  /// Extend snippet button label
+  ///
+  /// In en, this message translates to:
+  /// **'Extend to {duration}'**
+  String duelExtendTo(String duration);
+
+  /// Guess text field hint
+  ///
+  /// In en, this message translates to:
+  /// **'Search for a song...'**
+  String get duelSearchHint;
+
+  /// Badge shown when opponent has submitted their guess
+  ///
+  /// In en, this message translates to:
+  /// **'Submitted'**
+  String get duelOpponentSubmitted;
+
+  /// Banner after player submits, waiting for opponent
+  ///
+  /// In en, this message translates to:
+  /// **'Submitted — waiting for opponent...'**
+  String get duelYouSubmittedWaiting;
+
+  /// Points abbreviation in snippet controls
+  ///
+  /// In en, this message translates to:
+  /// **'pts'**
+  String get duelPts;
+
+  /// Round result label when guess was incorrect
+  ///
+  /// In en, this message translates to:
+  /// **'Wrong!'**
+  String get duelWrong;
+
+  /// Footer in round result overlay
+  ///
+  /// In en, this message translates to:
+  /// **'Next round starting...'**
+  String get duelNextRound;
+
+  /// Label for the local player in score displays
+  ///
+  /// In en, this message translates to:
+  /// **'You'**
+  String get duelYou;
+
+  /// Match result: victory
+  ///
+  /// In en, this message translates to:
+  /// **'You Win!'**
+  String get duelWin;
+
+  /// Match result: defeat
+  ///
+  /// In en, this message translates to:
+  /// **'You Lost'**
+  String get duelLost;
+
+  /// Match result: draw
+  ///
+  /// In en, this message translates to:
+  /// **'Draw!'**
+  String get duelDraw;
+
+  /// New ELO display after match
+  ///
+  /// In en, this message translates to:
+  /// **'New ELO: {elo}'**
+  String duelNewElo(int elo);
+
+  /// Section header in match result screen
+  ///
+  /// In en, this message translates to:
+  /// **'Match Summary'**
+  String get duelMatchSummary;
+
+  /// Round number label
+  ///
+  /// In en, this message translates to:
+  /// **'Round {round}'**
+  String duelRoundLabel(int round);
+
+  /// Play again button in match result screen
+  ///
+  /// In en, this message translates to:
+  /// **'Play Again'**
+  String get duelPlayAgain;
+
+  /// Back to home button in match result screen
+  ///
+  /// In en, this message translates to:
+  /// **'Back to Home'**
+  String get duelBackToHome;
 }
 
 class _AppLocalizationsDelegate

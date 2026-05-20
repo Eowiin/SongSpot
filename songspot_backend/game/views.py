@@ -13,6 +13,7 @@ from songspot.throttling import GameSearchThrottle
 from .models import (
     Track, GameScore, UserBest, FavouriteArtist,
     Playlist, PlaylistTrack,
+    DuelMatch, UserElo,
     CATEGORY_CHOICES,
 )
 from .serializers import (
@@ -23,6 +24,9 @@ from .serializers import (
     UserBestSerializer,
     LeaderboardEntrySerializer,
     MigrateGuestStatsSerializer,
+    DuelMatchSerializer,
+    UserEloSerializer,
+    DuelLeaderboardEntrySerializer,
 )
 
 class PlaylistListView(APIView):
@@ -220,19 +224,32 @@ class SubmitScoreView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
+        session_uuid = data.get('session_uuid')
+        is_partial = data.get('is_partial', False)
+        score_fields = {
+            'genre': data.get('genre') or None,
+            'artist_filter': data.get('artist_filter', ''),
+            'difficulty': data.get('difficulty', 'medium'),
+            'songs_played': data['songs_played'],
+            'songs_correct': data['songs_correct'],
+            'best_streak': data['best_streak'],
+            'total_score': data['total_score'],
+            'is_partial': is_partial,
+        }
+
         with transaction.atomic():
-            score = GameScore.objects.create(
-                user=request.user,
-                genre=data.get('genre') or None,
-                artist_filter=data.get('artist_filter', ''),
-                difficulty=data.get('difficulty', 'medium'),
-                songs_played=data['songs_played'],
-                songs_correct=data['songs_correct'],
-                best_streak=data['best_streak'],
-                total_score=data['total_score'],
-            )
-            best, _ = UserBest.objects.select_for_update().get_or_create(user=request.user)
-            best.update_from_score(score)
+            if session_uuid:
+                score, _ = GameScore.objects.update_or_create(
+                    user=request.user,
+                    session_uuid=session_uuid,
+                    defaults=score_fields,
+                )
+            else:
+                score = GameScore.objects.create(user=request.user, **score_fields)
+
+            if not is_partial:
+                best, _ = UserBest.objects.select_for_update().get_or_create(user=request.user)
+                best.update_from_score(score)
 
         return Response(GameScoreSerializer(score).data, status=status.HTTP_201_CREATED)
 
@@ -304,3 +321,64 @@ class MigrateGuestStatsView(APIView):
             best.save()
 
         return Response({'status': 'migrated'})
+
+
+# ── Duel views ────────────────────────────────────────────────────────────────
+
+class DuelMatchDetailView(APIView):
+    """Return full match state (used for reconnection after app restart)."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            match = DuelMatch.objects.prefetch_related('rounds__track').get(id=pk)
+        except DuelMatch.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if not match.is_player(request.user):
+            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
+        return Response(DuelMatchSerializer(match).data)
+
+
+class DuelHistoryView(APIView):
+    """Paginated list of completed duels for the current user."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        limit = min(int(request.query_params.get('limit', 20)), 50)
+        qs = (
+            DuelMatch.objects
+            .filter(
+                Q(player1=request.user) | Q(player2=request.user),
+                status='completed',
+            )
+            .select_related('player1', 'player2', 'playlist')
+            .prefetch_related('rounds__track')
+            .order_by('-updated_at')[:limit]
+        )
+        return Response(DuelMatchSerializer(qs, many=True).data)
+
+
+class DuelEloView(APIView):
+    """Current user's ELO and global rank."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        elo_obj, _ = UserElo.objects.get_or_create(user=request.user, defaults={'elo': 1000})
+        return Response(UserEloSerializer(elo_obj).data)
+
+
+class DuelLeaderboardView(APIView):
+    """Top players ranked by ELO."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        limit = min(int(request.query_params.get('limit', 50)), 100)
+        top = list(
+            UserElo.objects
+            .select_related('user')
+            .order_by('-elo')[:limit]
+        )
+        ranks = {entry.user_id: idx + 1 for idx, entry in enumerate(top)}
+        return Response(
+            DuelLeaderboardEntrySerializer(top, many=True, context={'ranks': ranks}).data
+        )

@@ -499,4 +499,112 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get changePasswordSuccess => 'Password updated. Please log in again.';
+
+  @override
+  String get duelFindingOpponent => 'Finding opponent...';
+
+  @override
+  String get duelYourElo => 'Your ELO';
+
+  @override
+  String duelRankStats(int rank, int wins, int losses, int draws) {
+    return 'Rank #$rank  •  ${wins}W ${losses}L ${draws}D';
+  }
+
+  @override
+  String get duelHowItWorks => 'How it works';
+
+  @override
+  String get duelInfoSameSong => 'Same song, same round for both players';
+
+  @override
+  String get duelInfoGuessEarly => 'Guess early = more points (up to 100)';
+
+  @override
+  String get duelInfoExtendSnippet =>
+      'Extend snippet for more confidence, fewer points';
+
+  @override
+  String get duelInfoFiveRounds => '5 rounds — highest score wins ELO';
+
+  @override
+  String get duelFindMatch => 'Find Match';
+
+  @override
+  String get duelVs => 'vs';
+
+  @override
+  String duelSnippetLabel(int seconds) {
+    return '${seconds}s snippet';
+  }
+
+  @override
+  String get duelLoadingAudio => 'Loading audio...';
+
+  @override
+  String get duelWaitingOpponent => 'Waiting for opponent...';
+
+  @override
+  String duelPlayingSnippet(String duration) {
+    return 'Playing $duration...';
+  }
+
+  @override
+  String duelTapToListen(String duration) {
+    return 'Tap to listen · $duration';
+  }
+
+  @override
+  String duelExtendTo(String duration) {
+    return 'Extend to $duration';
+  }
+
+  @override
+  String get duelSearchHint => 'Search for a song...';
+
+  @override
+  String get duelOpponentSubmitted => 'Submitted';
+
+  @override
+  String get duelYouSubmittedWaiting => 'Submitted — waiting for opponent...';
+
+  @override
+  String get duelPts => 'pts';
+
+  @override
+  String get duelWrong => 'Wrong!';
+
+  @override
+  String get duelNextRound => 'Next round starting...';
+
+  @override
+  String get duelYou => 'You';
+
+  @override
+  String get duelWin => 'You Win!';
+
+  @override
+  String get duelLost => 'You Lost';
+
+  @override
+  String get duelDraw => 'Draw!';
+
+  @override
+  String duelNewElo(int elo) {
+    return 'New ELO: $elo';
+  }
+
+  @override
+  String get duelMatchSummary => 'Match Summary';
+
+  @override
+  String duelRoundLabel(int round) {
+    return 'Round $round';
+  }
+
+  @override
+  String get duelPlayAgain => 'Play Again';
+
+  @override
+  String get duelBackToHome => 'Back to Home';
 }

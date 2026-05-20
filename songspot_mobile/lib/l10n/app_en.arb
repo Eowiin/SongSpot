@@ -487,5 +487,94 @@
   "sessionEndStatAccuracy": "Accuracy",
   "appTitle": "SongSpot",
   "changeEmailSuccess": "Email updated successfully",
-  "changePasswordSuccess": "Password updated. Please log in again."
+  "changePasswordSuccess": "Password updated. Please log in again.",
+
+  "duelFindingOpponent": "Finding opponent...",
+  "@duelFindingOpponent": { "description": "Matchmaking searching state title" },
+  "duelYourElo": "Your ELO",
+  "@duelYourElo": { "description": "ELO card label in duel lobby" },
+  "duelRankStats": "Rank #{rank}  •  {wins}W {losses}L {draws}D",
+  "@duelRankStats": {
+    "description": "ELO rank and win/loss/draw stats",
+    "placeholders": {
+      "rank": { "type": "int" },
+      "wins": { "type": "int" },
+      "losses": { "type": "int" },
+      "draws": { "type": "int" }
+    }
+  },
+  "duelHowItWorks": "How it works",
+  "@duelHowItWorks": { "description": "Info section header in duel lobby" },
+  "duelInfoSameSong": "Same song, same round for both players",
+  "@duelInfoSameSong": { "description": "Duel lobby info row 1" },
+  "duelInfoGuessEarly": "Guess early = more points (up to 100)",
+  "@duelInfoGuessEarly": { "description": "Duel lobby info row 2" },
+  "duelInfoExtendSnippet": "Extend snippet for more confidence, fewer points",
+  "@duelInfoExtendSnippet": { "description": "Duel lobby info row 3" },
+  "duelInfoFiveRounds": "5 rounds — highest score wins ELO",
+  "@duelInfoFiveRounds": { "description": "Duel lobby info row 4" },
+  "duelFindMatch": "Find Match",
+  "@duelFindMatch": { "description": "Primary CTA button in duel lobby" },
+  "duelVs": "vs",
+  "@duelVs": { "description": "Score separator in duel game app bar" },
+  "duelSnippetLabel": "{seconds}s snippet",
+  "@duelSnippetLabel": {
+    "description": "Snippet duration label",
+    "placeholders": { "seconds": { "type": "int" } }
+  },
+  "duelLoadingAudio": "Loading audio...",
+  "@duelLoadingAudio": { "description": "Overlay text while audio is buffering" },
+  "duelWaitingOpponent": "Waiting for opponent...",
+  "@duelWaitingOpponent": { "description": "Overlay text after local audio is ready, waiting for opponent" },
+  "duelPlayingSnippet": "Playing {duration}...",
+  "@duelPlayingSnippet": {
+    "description": "Track card status when snippet is playing",
+    "placeholders": { "duration": { "type": "String" } }
+  },
+  "duelTapToListen": "Tap to listen · {duration}",
+  "@duelTapToListen": {
+    "description": "Track card idle status",
+    "placeholders": { "duration": { "type": "String" } }
+  },
+  "duelExtendTo": "Extend to {duration}",
+  "@duelExtendTo": {
+    "description": "Extend snippet button label",
+    "placeholders": { "duration": { "type": "String" } }
+  },
+  "duelSearchHint": "Search for a song...",
+  "@duelSearchHint": { "description": "Guess text field hint" },
+  "duelOpponentSubmitted": "Submitted",
+  "@duelOpponentSubmitted": { "description": "Badge shown when opponent has submitted their guess" },
+  "duelYouSubmittedWaiting": "Submitted — waiting for opponent...",
+  "@duelYouSubmittedWaiting": { "description": "Banner after player submits, waiting for opponent" },
+  "duelPts": "pts",
+  "@duelPts": { "description": "Points abbreviation in snippet controls" },
+  "duelWrong": "Wrong!",
+  "@duelWrong": { "description": "Round result label when guess was incorrect" },
+  "duelNextRound": "Next round starting...",
+  "@duelNextRound": { "description": "Footer in round result overlay" },
+  "duelYou": "You",
+  "@duelYou": { "description": "Label for the local player in score displays" },
+  "duelWin": "You Win!",
+  "@duelWin": { "description": "Match result: victory" },
+  "duelLost": "You Lost",
+  "@duelLost": { "description": "Match result: defeat" },
+  "duelDraw": "Draw!",
+  "@duelDraw": { "description": "Match result: draw" },
+  "duelNewElo": "New ELO: {elo}",
+  "@duelNewElo": {
+    "description": "New ELO display after match",
+    "placeholders": { "elo": { "type": "int" } }
+  },
+  "duelMatchSummary": "Match Summary",
+  "@duelMatchSummary": { "description": "Section header in match result screen" },
+  "duelRoundLabel": "Round {round}",
+  "@duelRoundLabel": {
+    "description": "Round number label",
+    "placeholders": { "round": { "type": "int" } }
+  },
+  "duelPlayAgain": "Play Again",
+  "@duelPlayAgain": { "description": "Play again button in match result screen" },
+  "duelBackToHome": "Back to Home",
+  "@duelBackToHome": { "description": "Back to home button in match result screen" }
 }
