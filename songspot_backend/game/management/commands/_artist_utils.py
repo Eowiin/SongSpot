@@ -1,6 +1,7 @@
 """
 Shared helpers for artist-seeding management commands.
 """
+import re
 import time
 from typing import Optional
 
@@ -8,6 +9,35 @@ from game.models import Track
 from game.services import DeezerService
 
 UPDATABLE_FIELDS = ('cover_url', 'deezer_id', 'release_year', 'genre', 'artist_picture_url')
+
+# Matches parenthetical/bracketed variant suffixes, e.g. "(2011 Remaster)", "[Live at Wembley]", "(Acoustic Version)"
+_VARIANT_RE = re.compile(
+    r'[\(\[]\s*(?:\d{4}\s+)?'
+    r'(?:remaster(?:ed)?'
+    r'|live(?:\s+(?:at|from|version|recording))?'
+    r'|acoustic(?:\s+version)?'
+    r'|demo(?:\s+version)?'
+    r'|instrumental(?:\s+version)?'
+    r'|karaoke'
+    r'|radio\s+edit'
+    r'|single\s+(?:version|edit)'
+    r'|album\s+version'
+    r'|anniversary\s+edition'
+    r'|mono(?:\s+version)?'
+    r')',
+    re.IGNORECASE,
+)
+
+# Matches dash-separated suffixes, e.g. "Song Title - Live" or "Song Title - Remastered"
+_VARIANT_SUFFIX_RE = re.compile(
+    r'\s+[-–]\s+(?:live|remaster(?:ed)?|acoustic|demo|instrumental|karaoke)(?:\s+.*)?$',
+    re.IGNORECASE,
+)
+
+
+def is_variant_title(title: str) -> bool:
+    """Return True if the title looks like a remaster, live, acoustic, demo or similar variant."""
+    return bool(_VARIANT_RE.search(title) or _VARIANT_SUFFIX_RE.search(title))
 
 
 def save_track(track_info: dict) -> str:
@@ -17,6 +47,9 @@ def save_track(track_info: dict) -> str:
     Returns one of: 'added', 'updated', 'skipped'.
     """
     if not track_info.get('preview_url'):
+        return 'skipped'
+
+    if is_variant_title(track_info.get('title', '')):
         return 'skipped'
 
     existing = Track.objects.filter(

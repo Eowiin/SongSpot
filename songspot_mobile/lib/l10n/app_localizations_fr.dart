@@ -506,4 +506,116 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get changePasswordSuccess =>
       'Mot de passe mis à jour. Veuillez vous reconnecter.';
+
+  @override
+  String get duelFindingOpponent => 'Recherche d\'adversaire...';
+
+  @override
+  String get duelYourElo => 'Votre ELO';
+
+  @override
+  String duelRankStats(int rank, int wins, int losses, int draws) {
+    return 'Rang #$rank  •  ${wins}V ${losses}D ${draws}N';
+  }
+
+  @override
+  String get duelHowItWorks => 'Comment ça marche';
+
+  @override
+  String get duelInfoSameSong =>
+      'Même chanson, même round pour les deux joueurs';
+
+  @override
+  String get duelInfoGuessEarly =>
+      'Devinez vite = plus de points (jusqu\'à 100)';
+
+  @override
+  String get duelInfoExtendSnippet =>
+      'Étendez l\'extrait pour plus de confiance, moins de points';
+
+  @override
+  String get duelInfoFiveRounds =>
+      '5 rounds — le meilleur score remporte l\'ELO';
+
+  @override
+  String get duelFindMatch => 'Trouver un adversaire';
+
+  @override
+  String get duelVs => 'vs';
+
+  @override
+  String duelSnippetLabel(int seconds) {
+    return 'extrait ${seconds}s';
+  }
+
+  @override
+  String get duelLoadingAudio => 'Chargement audio...';
+
+  @override
+  String get duelWaitingOpponent => 'En attente de l\'adversaire...';
+
+  @override
+  String duelPlayingSnippet(String duration) {
+    return 'Lecture $duration...';
+  }
+
+  @override
+  String duelTapToListen(String duration) {
+    return 'Appuyer pour écouter · $duration';
+  }
+
+  @override
+  String duelExtendTo(String duration) {
+    return 'Étendre à $duration';
+  }
+
+  @override
+  String get duelSearchHint => 'Rechercher une chanson...';
+
+  @override
+  String get duelOpponentSubmitted => 'Répondu';
+
+  @override
+  String get duelYouSubmittedWaiting =>
+      'Réponse envoyée — en attente de l\'adversaire...';
+
+  @override
+  String get duelPts => 'pts';
+
+  @override
+  String get duelWrong => 'Faux !';
+
+  @override
+  String get duelNextRound => 'Prochain round en cours...';
+
+  @override
+  String get duelYou => 'Vous';
+
+  @override
+  String get duelWin => 'Vous gagnez !';
+
+  @override
+  String get duelLost => 'Vous avez perdu';
+
+  @override
+  String get duelDraw => 'Match nul !';
+
+  @override
+  String duelNewElo(int elo) {
+    return 'Nouvel ELO : $elo';
+  }
+
+  @override
+  String get duelMatchSummary => 'Résumé du match';
+
+  @override
+  String duelRoundLabel(int round) {
+    return 'Round $round';
+  }
+
+  @override
+  String get duelPlayAgain => 'Rejouer';
+
+  @override
+  String get duelBackToHome => 'Retour à l\'accueil';
 }

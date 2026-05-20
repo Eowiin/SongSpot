@@ -1,6 +1,7 @@
 from django.core.management.base import BaseCommand
 from game.models import Track
 from game.services import DeezerService
+from ._artist_utils import is_variant_title
 
 
 class Command(BaseCommand):
@@ -57,6 +58,11 @@ class Command(BaseCommand):
 
                 # Skip if no preview URL
                 if not track_info['preview_url']:
+                    tracks_skipped += 1
+                    continue
+
+                # Skip remastered, live, acoustic, demo and similar variants
+                if is_variant_title(track_info['title']):
                     tracks_skipped += 1
                     continue
 

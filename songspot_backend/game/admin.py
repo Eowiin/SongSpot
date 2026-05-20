@@ -35,10 +35,10 @@ class PlaylistTrackAdmin(admin.ModelAdmin):
 
 @admin.register(GameScore)
 class GameScoreAdmin(admin.ModelAdmin):
-    list_display = ('user', 'genre', 'artist_filter', 'total_score', 'best_streak', 'songs_played', 'played_at')
-    list_filter = ('genre', 'played_at')
+    list_display = ('user', 'genre', 'artist_filter', 'total_score', 'best_streak', 'songs_played', 'is_partial', 'session_uuid', 'played_at')
+    list_filter = ('genre', 'is_partial', 'played_at')
     search_fields = ('user__username', 'user__email', 'artist_filter')
-    readonly_fields = ('id', 'played_at')
+    readonly_fields = ('id', 'played_at', 'session_uuid')
     ordering = ('-played_at',)
 
 

@@ -12,6 +12,10 @@ from .views import (
     UserStatsView,
     LeaderboardView,
     MigrateGuestStatsView,
+    DuelMatchDetailView,
+    DuelHistoryView,
+    DuelEloView,
+    DuelLeaderboardView,
 )
 
 app_name = 'game'
@@ -29,4 +33,8 @@ urlpatterns = [
     path('stats/', UserStatsView.as_view(), name='user_stats'),
     path('leaderboard/', LeaderboardView.as_view(), name='leaderboard'),
     path('migrate-guest-stats/', MigrateGuestStatsView.as_view(), name='migrate_guest_stats'),
+    path('duel/<uuid:pk>/', DuelMatchDetailView.as_view(), name='duel_match'),
+    path('duel/history/', DuelHistoryView.as_view(), name='duel_history'),
+    path('duel/elo/', DuelEloView.as_view(), name='duel_elo'),
+    path('duel/leaderboard/', DuelLeaderboardView.as_view(), name='duel_leaderboard'),
 ]

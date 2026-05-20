@@ -16,19 +16,40 @@ class Command(BaseCommand):
             default=0.1,
             help='Seconds to wait between Deezer requests (default: 0.1)',
         )
+        parser.add_argument(
+            '--force',
+            action='store_true',
+            default=False,
+            help='Re-fetch and overwrite existing artist pictures (fixes wrong images)',
+        )
+        parser.add_argument(
+            '--artist',
+            type=str,
+            default=None,
+            help='Re-fetch a single artist by name (case-insensitive)',
+        )
 
     def handle(self, *args, **options):
         delay = options['delay']
+        force = options['force']
+        single_artist = options['artist']
         deezer = DeezerService()
 
-        # One representative track per artist that is missing a picture
-        artists_missing = (
-            Track.objects
-            .filter(artist_picture_url__isnull=True, deezer_id__isnull=False)
-            .values('artist')
-            .distinct()
-        )
-        artist_names = [row['artist'] for row in artists_missing]
+        if single_artist:
+            artist_names = [single_artist]
+        elif force:
+            artist_names = list(
+                Track.objects.values_list('artist', flat=True).distinct()
+            )
+        else:
+            # One representative track per artist that is missing a picture
+            artists_missing = (
+                Track.objects
+                .filter(artist_picture_url__isnull=True, deezer_id__isnull=False)
+                .values('artist')
+                .distinct()
+            )
+            artist_names = [row['artist'] for row in artists_missing]
 
         total = len(artist_names)
         self.stdout.write(f'Artists to backfill: {total}')

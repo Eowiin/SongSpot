@@ -69,6 +69,11 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     if (_provider?.endReason == SessionEndReason.poolCleared && mounted) {
       _endSession(reason: SessionEndReason.poolCleared);
     }
+    if (_provider?.revealAnswer == true &&
+        mounted &&
+        _revealAnimController.status == AnimationStatus.dismissed) {
+      _revealAnimController.forward();
+    }
   }
 
   Future<void> _nextSong() async {
@@ -106,11 +111,6 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   Widget build(BuildContext context) {
     return Consumer<GameSessionProvider>(
       builder: (context, provider, _) {
-        final wasRevealed = provider.revealAnswer;
-        if (wasRevealed && _revealAnimController.status == AnimationStatus.dismissed) {
-          _revealAnimController.forward();
-        }
-
         return Scaffold(
           backgroundColor: AppTheme.backgroundColor,
           appBar: _buildAppBar(provider),
@@ -312,19 +312,23 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
 
   Widget _buildPlaybackRow(GameSessionProvider provider) {
     final l10n = AppLocalizations.of(context);
+    final isLoading = provider.isLoadingTrack;
+    final isPlaying = provider.isPlaying;
+    final inactive = isPlaying || isLoading;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         GestureDetector(
-          onTap: provider.isPlaying ? null : provider.replaySnippet,
+          onTap: inactive ? null : provider.replaySnippet,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
             decoration: BoxDecoration(
-              gradient: provider.isPlaying ? null : AppTheme.primaryGradient,
-              color: provider.isPlaying ? AppTheme.surfaceColor : null,
+              gradient: inactive ? null : AppTheme.primaryGradient,
+              color: inactive ? AppTheme.surfaceColor : null,
               borderRadius: BorderRadius.circular(50),
-              boxShadow: provider.isPlaying
+              boxShadow: inactive
                   ? null
                   : [
                       BoxShadow(
@@ -337,18 +341,28 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  provider.isPlaying
-                      ? Icons.volume_up_rounded
-                      : Icons.play_arrow_rounded,
-                  color: Colors.white,
-                  size: 22,
-                ),
+                if (isLoading)
+                  const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2.5,
+                    ),
+                  )
+                else
+                  Icon(
+                    isPlaying ? Icons.volume_up_rounded : Icons.play_arrow_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
                 const SizedBox(width: 8),
                 Text(
-                  provider.isPlaying
-                      ? l10n.gamePlaying
-                      : l10n.gamePlayWithDuration(_snippetLabel(provider.difficulty)),
+                  isLoading
+                      ? l10n.loading
+                      : isPlaying
+                          ? l10n.gamePlaying
+                          : l10n.gamePlayWithDuration(_snippetLabel(provider.difficulty)),
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,

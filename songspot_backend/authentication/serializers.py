@@ -2,6 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from .models import UserDevicePushToken
+from .utils import normalize_locale
 
 User = get_user_model()
 
@@ -124,8 +125,7 @@ class PasswordResetRequestSerializer(serializers.Serializer):
         return User.normalize_email_value(value)
 
     def validate_locale(self, value):
-        value = (value or '').strip().lower()
-        return 'fr' if value.startswith('fr') else 'en'
+        return normalize_locale(value)
 
 
 class ChangePasswordSerializer(serializers.Serializer):
