@@ -49,7 +49,6 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _duel = context.read<DuelProvider>();
-      debugPrint('[DuelGame] initState postFrame: status=${_duel!.status} trackUrl=${_duel!.currentTrack?.previewUrl}');
       _lastLoadedVersion = _duel!.roundVersion;
       _duel!.addListener(_onDuelChanged);
       _loadAndSignalReady();
@@ -115,40 +114,28 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
   Future<void> _loadAudio() async {
     final track = _duel?.currentTrack;
     final url = track?.previewUrl;
-    debugPrint('[DuelGame] _loadAudio: url=$url loadedUrl=$_loadedUrl');
-    if (url == null || url.isEmpty || url == _loadedUrl) {
-      debugPrint('[DuelGame] _loadAudio: skipped (null/empty/same)');
-      return;
-    }
+    if (url == null || url.isEmpty || url == _loadedUrl) return;
     _loadedUrl = url;
     if (mounted) setState(() => _isAudioLoading = true);
     try {
-      debugPrint('[DuelGame] _loadAudio: calling loadAudio($url)');
       await _audio.loadAudio(url);
-      debugPrint('[DuelGame] _loadAudio: loadAudio succeeded');
     } catch (e) {
-      debugPrint('[DuelGame] _loadAudio: loadAudio failed: $e — trying refresh');
       final trackId = track?.id;
       if (trackId != null && trackId.isNotEmpty) {
         try {
           final refreshed = await _api.refreshTrackPreview(trackId: trackId);
           final newUrl = refreshed['preview_url'] as String?;
-          debugPrint('[DuelGame] _loadAudio: refreshed url=$newUrl');
           if (newUrl != null && newUrl.isNotEmpty && newUrl != url) {
             _loadedUrl = newUrl;
             await _audio.loadAudio(newUrl);
-            debugPrint('[DuelGame] _loadAudio: retry succeeded');
           }
-        } catch (e2) {
-          debugPrint('[DuelGame] _loadAudio: refresh also failed: $e2');
-        }
+        } catch (_) {}
       }
     }
     if (mounted) setState(() => _isAudioLoading = false);
   }
 
   Future<void> _playSnippet() async {
-    debugPrint('[DuelGame] _playSnippet: isPlaying=$_isPlaying isLoading=$_isAudioLoading duel=${_duel?.status}');
     if (_isPlaying) return;
     final duel = _duel;
     if (duel == null) return;
