@@ -351,11 +351,11 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: AppTheme.successColor.withValues(alpha: 0.4)),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.check_rounded, color: AppTheme.successColor, size: 14),
-                  SizedBox(width: 4),
+                  const Icon(Icons.check_rounded, color: AppTheme.successColor, size: 14),
+                  const SizedBox(width: 4),
                   Text(l10n.duelOpponentSubmitted, style: const TextStyle(color: AppTheme.successColor, fontSize: 12)),
                 ],
               ),
