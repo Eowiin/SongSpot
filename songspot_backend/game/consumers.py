@@ -161,47 +161,47 @@ class MatchmakingConsumer(AsyncWebsocketConsumer):
 
     @sync_to_async
     def _try_create_match(self, elo_range):
-        with transaction.atomic():
-            try:
+        try:
+            with transaction.atomic():
                 my_entry = MatchmakingQueue.objects.select_for_update(nowait=True).get(user=self.user)
-            except MatchmakingQueue.DoesNotExist:
-                return None
-            except Exception as e:
-                logger.warning('[matchmaking] select_for_update failed user=%s: %s', self.user.id, e)
-                return None
 
-            opp = (
-                MatchmakingQueue.objects
-                .select_for_update(skip_locked=True)
-                .filter(
-                    elo_at_join__gte=self.current_elo - elo_range,
-                    elo_at_join__lte=self.current_elo + elo_range,
+                opp = (
+                    MatchmakingQueue.objects
+                    .select_for_update(skip_locked=True)
+                    .filter(
+                        elo_at_join__gte=self.current_elo - elo_range,
+                        elo_at_join__lte=self.current_elo + elo_range,
+                    )
+                    .exclude(user=self.user)
+                    .order_by('joined_at')
+                    .select_related('user', 'playlist')
+                    .first()
                 )
-                .exclude(user=self.user)
-                .order_by('joined_at')
-                .select_related('user', 'playlist')
-                .first()
-            )
-            if not opp:
-                logger.info('[matchmaking] no opponent found for user=%s elo=%s range=%s', self.user.id, self.current_elo, elo_range)
-                return None
+                if not opp:
+                    logger.info('[matchmaking] no opponent found for user=%s elo=%s range=%s', self.user.id, self.current_elo, elo_range)
+                    return None
 
-            logger.info('[matchmaking] opponent found user=%s opp=%s creating match', self.user.id, opp.user.id)
-            playlist = my_entry.playlist or opp.playlist
-            match = DuelMatch.objects.create(
-                player1=self.user,
-                player2=opp.user,
-                playlist=playlist,
-                status='waiting',
-                total_rounds=TOTAL_ROUNDS,
-            )
-            tracks = _pick_tracks(playlist.id if playlist else None, TOTAL_ROUNDS)
-            for i, track in enumerate(tracks, 1):
-                DuelRound.objects.create(match=match, round_number=i, track=track)
+                logger.info('[matchmaking] opponent found user=%s opp=%s creating match', self.user.id, opp.user.id)
+                playlist = my_entry.playlist or opp.playlist
+                match = DuelMatch.objects.create(
+                    player1=self.user,
+                    player2=opp.user,
+                    playlist=playlist,
+                    status='waiting',
+                    total_rounds=TOTAL_ROUNDS,
+                )
+                tracks = _pick_tracks(playlist.id if playlist else None, TOTAL_ROUNDS)
+                for i, track in enumerate(tracks, 1):
+                    DuelRound.objects.create(match=match, round_number=i, track=track)
 
-            my_entry.delete()
-            opp.delete()
-            return match, opp.user, playlist
+                my_entry.delete()
+                opp.delete()
+                return match, opp.user, playlist
+        except MatchmakingQueue.DoesNotExist:
+            return None
+        except Exception as e:
+            logger.warning('[matchmaking] error user=%s: %s', self.user.id, e)
+            return None
 
     @sync_to_async
     def _join_queue(self):
