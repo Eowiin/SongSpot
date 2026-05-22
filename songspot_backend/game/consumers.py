@@ -121,12 +121,14 @@ class MatchmakingConsumer(AsyncWebsocketConsumer):
     # ── Matching loop ─────────────────────────────────────────────────────────
 
     async def _match_loop(self):
+        logger.info('[matchmaking] loop started user=%s', self.user.id)
         elo_range = 100
         iterations = 0
         try:
             while True:
                 await asyncio.sleep(5)
                 iterations += 1
+                logger.info('[matchmaking] loop iter=%s user=%s elo_range=%s', iterations, self.user.id, elo_range)
                 if iterations % 6 == 0:  # every ~30s
                     elo_range += 50
 
@@ -164,7 +166,8 @@ class MatchmakingConsumer(AsyncWebsocketConsumer):
                 my_entry = MatchmakingQueue.objects.select_for_update(nowait=True).get(user=self.user)
             except MatchmakingQueue.DoesNotExist:
                 return None
-            except Exception:
+            except Exception as e:
+                logger.warning('[matchmaking] select_for_update failed user=%s: %s', self.user.id, e)
                 return None
 
             opp = (
@@ -180,8 +183,10 @@ class MatchmakingConsumer(AsyncWebsocketConsumer):
                 .first()
             )
             if not opp:
+                logger.info('[matchmaking] no opponent found for user=%s elo=%s range=%s', self.user.id, self.current_elo, elo_range)
                 return None
 
+            logger.info('[matchmaking] opponent found user=%s opp=%s creating match', self.user.id, opp.user.id)
             playlist = my_entry.playlist or opp.playlist
             match = DuelMatch.objects.create(
                 player1=self.user,
