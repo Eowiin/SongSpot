@@ -174,7 +174,7 @@ class MatchmakingConsumer(AsyncWebsocketConsumer):
                     )
                     .exclude(user=self.user)
                     .order_by('joined_at')
-                    .select_related('user', 'playlist')
+                    .select_related('user')
                     .first()
                 )
                 if not opp:
