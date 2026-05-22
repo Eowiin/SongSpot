@@ -126,7 +126,6 @@ class MatchmakingConsumer(AsyncWebsocketConsumer):
         iterations = 0
         try:
             while True:
-                await asyncio.sleep(5)
                 iterations += 1
                 logger.info('[matchmaking] loop iter=%s user=%s elo_range=%s', iterations, self.user.id, elo_range)
                 if iterations % 6 == 0:  # every ~30s
@@ -134,6 +133,7 @@ class MatchmakingConsumer(AsyncWebsocketConsumer):
 
                 result = await self._try_create_match(elo_range)
                 if result is None:
+                    await asyncio.sleep(5)
                     continue
 
                 match, opponent_user, playlist = result
