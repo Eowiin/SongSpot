@@ -362,7 +362,9 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                       ? l10n.loading
                       : isPlaying
                           ? l10n.gamePlaying
-                          : l10n.gamePlayWithDuration(_snippetLabel(provider.difficulty)),
+                          : provider.revealAnswer
+                              ? l10n.gamePlayWithDuration('30s')
+                              : l10n.gamePlayWithDuration(_snippetLabel(provider.difficulty)),
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,

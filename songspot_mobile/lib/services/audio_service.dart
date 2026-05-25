@@ -93,8 +93,9 @@ class AudioService {
   }
 
   /// Play a snippet of [duration] from the active player.
+  /// If [duration] is null, plays the full clip until natural end.
   Future<void> playSnippet({
-    Duration duration = const Duration(seconds: 1),
+    Duration? duration = const Duration(seconds: 1),
     void Function()? onPlaybackStopped,
   }) async {
     debugPrint('[AudioService] playSnippet: duration=$duration');
@@ -103,10 +104,14 @@ class AudioService {
       await _active.setClip(start: Duration.zero, end: duration);
       if (requestId != _playbackRequestId) return;
 
+      final timeout = duration != null
+          ? duration + const Duration(seconds: 5)
+          : const Duration(seconds: 35);
+
       final doneFuture = _active.processingStateStream
           .firstWhere((s) =>
               s == ProcessingState.completed || s == ProcessingState.idle)
-          .timeout(duration + const Duration(seconds: 5));
+          .timeout(timeout);
 
       _setPlaying(true);
       _active.play();
