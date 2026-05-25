@@ -62,7 +62,7 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
     _revealTimer?.cancel();
     _guessController.dispose();
     _guessFocus.dispose();
-    _audio.dispose();
+    _audio.stop(); // AudioService is a singleton — never call dispose() on it
     super.dispose();
   }
 
@@ -107,6 +107,7 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
   }
 
   Future<void> _loadAndSignalReady() async {
+    if (_duel?.currentTrack == null) return; // round_start not yet received; _onDuelChanged will retry
     await _loadAudio();
     _duel?.notifyAudioReady();
   }

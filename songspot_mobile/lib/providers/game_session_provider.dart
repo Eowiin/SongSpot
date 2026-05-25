@@ -252,13 +252,13 @@ class GameSessionProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _playSnippet() async {
+  Future<void> _playSnippet({bool fullPreview = false}) async {
     if (_currentTrack?.previewUrl == null) return;
     _isPlaying = true;
     notifyListeners();
     try {
       await _audio.playSnippet(
-        duration: _difficulty.snippetDuration,
+        duration: fullPreview ? null : _difficulty.snippetDuration,
         onPlaybackStopped: () {
           _isPlaying = false;
           notifyListeners();
@@ -274,7 +274,7 @@ class GameSessionProvider extends ChangeNotifier {
 
   Future<void> replaySnippet() async {
     if (_isPlaying) return;
-    await _playSnippet();
+    await _playSnippet(fullPreview: _revealAnswer);
   }
 
   // ── Prefetch ─────────────────────────────────────────────────────────────
@@ -470,7 +470,7 @@ class GameSessionProvider extends ChangeNotifier {
   @override
   void dispose() {
     _searchDebounce?.cancel();
-    _audio.dispose();
+    _audio.stop(); // AudioService is a singleton — never call dispose() on it
     super.dispose();
   }
 }
