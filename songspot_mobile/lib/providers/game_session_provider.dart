@@ -470,7 +470,7 @@ class GameSessionProvider extends ChangeNotifier {
   @override
   void dispose() {
     _searchDebounce?.cancel();
-    _audio.dispose();
+    _audio.stop(); // AudioService is a singleton — never call dispose() on it
     super.dispose();
   }
 }

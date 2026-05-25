@@ -131,8 +131,9 @@ class AudioService {
     _setPlaying(false);
   }
 
+  // AudioService is a singleton — the players must never be disposed.
+  // Call stop() when leaving a screen instead.
   Future<void> dispose() async {
-    await _playerA.dispose();
-    await _playerB.dispose();
+    await stop();
   }
 }
