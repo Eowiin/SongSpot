@@ -7,13 +7,13 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
-        <!-- AdMob App ID (Google test ID by default; replace for production) -->
+        <!-- AdMob intentionally disabled — the app does not serve ads.
+             Kept for reference only; do not re-enable without revisiting
+             the licensing of the audio previews.
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3940256099942544~3347511713" />
-        <!-- <meta-data
-            android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-2260442058102246~1152808566" /> -->
+            android:value="ca-app-pub-2260442058102246~1152808566" />
+        -->
         <activity
             android:name=".MainActivity"
             android:exported="true"

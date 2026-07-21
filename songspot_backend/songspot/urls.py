@@ -35,7 +35,7 @@ urlpatterns = [
         PasswordResetConfirmPageView.as_view(),
         name='password_reset_confirm',
     ),
-    path('app-ads.txt', views.app_ads_txt, name='app_ads_txt'),
+    # app-ads.txt intentionally not served — the app does not serve ads.
     path('admin/', admin.site.urls),
     path('api/auth/', include('authentication.urls')),
     path('api/game/', include('game.urls')),

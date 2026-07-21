@@ -1,16 +1,7 @@
-from django.conf import settings
 from django.http import FileResponse
 from django.http import Http404
-from django.http import HttpResponse
 from django.shortcuts import render
 from pathlib import Path
-
-
-def app_ads_txt(request):
-    content = settings.APP_ADS_TXT.strip()
-    if not content:
-        return HttpResponse("", content_type="text/plain; charset=utf-8")
-    return HttpResponse(f"{content}\n", content_type="text/plain; charset=utf-8")
 
 
 def landing_page(request):

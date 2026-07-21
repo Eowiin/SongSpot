@@ -23,9 +23,12 @@
 		<string>6.0</string>
 			<key>CFBundleName</key>
 			<string>SongSpot</string>
-			<!-- AdMob App ID (Google test ID by default; replace for production) -->
+			<!-- AdMob intentionally disabled — the app does not serve ads.
+			     Kept for reference only; do not re-enable without revisiting
+			     the licensing of the audio previews.
 			<key>GADApplicationIdentifier</key>
 			<string>ca-app-pub-2260442058102246~7067480229</string>
+			-->
 			<key>CFBundlePackageType</key>
 			<string>APPL</string>
 		<key>CFBundleShortVersionString</key>
@@ -33,7 +36,7 @@
 		<key>CFBundleSignature</key>
 		<string>????</string>
 		<key>CFBundleVersion</key>
-		<string>32</string>
+		<string>37</string>
 		<key>LSRequiresIPhoneOS</key>
 		<true/>
 		<key>UIApplicationSceneManifest</key>
