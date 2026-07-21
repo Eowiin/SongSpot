@@ -126,7 +126,12 @@ platform :ios do
       destination: :app_store,
       ipa: ipa_path,
       app_store_options: {
-        skip_metadata: true,
+        # skip_metadata must stay false: it gates deliver's whole metadata step,
+        # and release_notes (-> whatsNew) is uploaded by that step. Apple rejects
+        # a review submission for an update with no whatsNew value.
+        skip_metadata: false,
+        # Skip deliver's HTML metadata preview + confirmation prompt.
+        force: true,
         skip_screenshots: true,
         precheck_include_in_app_purchases: false,
         release_notes: release_notes,

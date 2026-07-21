@@ -1,20 +1,28 @@
 default_platform(:android)
 
 platform :android do
+  private_lane :track_version_codes do |options|
+    begin
+      google_play_track_version_codes(
+        package_name: "com.songspot.app",
+        track: options[:track],
+        json_key: "fastlane/google-play-key.json"
+      )
+    rescue => e
+      UI.message("Skipping Play track #{options[:track]} while resolving version code: #{e.message}")
+      []
+    end
+  end
+
+  private_lane :latest_version_code_on do |options|
+    codes = track_version_codes(track: options[:track]).compact.map(&:to_i)
+    UI.user_error!("No version code found on track #{options[:track]}") if codes.empty?
+    codes.max
+  end
+
   private_lane :next_play_store_build_number do
     tracks = %w[internal alpha beta production]
-    version_codes = tracks.flat_map do |track|
-      begin
-        google_play_track_version_codes(
-          package_name: "com.songspot.app",
-          track: track,
-          json_key: "fastlane/google-play-key.json"
-        )
-      rescue => e
-        UI.message("Skipping Play track #{track} while resolving version code: #{e.message}")
-        []
-      end
-    end
+    version_codes = tracks.flat_map { |track| track_version_codes(track: track) }
 
     latest_version_code = version_codes.compact.map(&:to_i).max || 0
     latest_version_code + 1
@@ -71,17 +79,21 @@ platform :android do
         ENV['SENTRY_AUTH_TOKEN'] && ENV['SENTRY_ORG'] && ENV['SENTRY_PROJECT']
       sh("dart", "run", "sentry_dart_plugin")
     end
-    File.expand_path("../../build/app/outputs/bundle/release/app-release.aab", __dir__)
+    {
+      aab_path: File.expand_path("../../build/app/outputs/bundle/release/app-release.aab", __dir__),
+      version_code: build_number
+    }
   end
 
   desc "Build and upload to internal testing track."
   lane :internal do
-    aab_path = build_aab
+    build = build_aab
     release_notes = localized_release_notes
     upload_options = play_store_upload_options(release_notes: release_notes)
     upload_to_play_store(
       track: "internal",
-      aab: aab_path,
+      aab: build[:aab_path],
+      version_code: build[:version_code],
       release_status: "completed",
       **upload_options
     )
@@ -99,6 +111,7 @@ platform :android do
     upload_to_play_store(
       track: "internal",
       track_promote_to: "alpha",
+      version_code: latest_version_code_on(track: "internal"),
       **upload_options
     )
   end
@@ -110,24 +123,27 @@ platform :android do
     upload_to_play_store(
       track: "alpha",
       track_promote_to: "production",
+      version_code: latest_version_code_on(track: "alpha"),
       **upload_options
     )
   end
 
   desc "Build, upload to internal, then promote straight to production."
   lane :play_store do
-    aab_path = build_aab
+    build = build_aab
     release_notes = localized_release_notes
     upload_options = play_store_upload_options(release_notes: release_notes)
     upload_to_play_store(
       track: "internal",
-      aab: aab_path,
+      aab: build[:aab_path],
+      version_code: build[:version_code],
       release_status: "completed",
       **upload_options
     )
     upload_to_play_store(
       track: "internal",
       track_promote_to: "production",
+      version_code: build[:version_code],
       rollout: "1.0",
       **upload_options
     )

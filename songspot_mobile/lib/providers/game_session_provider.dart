@@ -252,8 +252,9 @@ class GameSessionProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _playSnippet({bool fullPreview = false}) async {
-    if (_currentTrack?.previewUrl == null) return;
+  // Returns false when playback failed (source expired, network drop, interruption).
+  Future<bool> _playSnippet({bool fullPreview = false}) async {
+    if (_currentTrack?.previewUrl == null) return false;
     _isPlaying = true;
     notifyListeners();
     try {
@@ -264,16 +265,25 @@ class GameSessionProvider extends ChangeNotifier {
           notifyListeners();
         },
       );
+      return true;
     } catch (e) {
       debugPrint('Playback error: $e');
       _isPlaying = false;
       notifyListeners();
-      rethrow;
+      return false;
     }
   }
 
+  // Never throws: callers wire this straight to onTap, so an escaping error
+  // would surface as an unhandled async error and kill the app.
   Future<void> replaySnippet() async {
     if (_isPlaying) return;
+    if (await _playSnippet(fullPreview: _revealAnswer)) return;
+
+    // Preview URLs expire — refresh the source and retry once before giving up.
+    final track = _currentTrack;
+    if (track?.previewUrl == null) return;
+    await _loadAudioWithRetry(track!.previewUrl!, track.id);
     await _playSnippet(fullPreview: _revealAnswer);
   }
 

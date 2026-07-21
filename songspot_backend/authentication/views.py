@@ -587,49 +587,41 @@ class DataExportView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from game.models import DailyGameSession, GuessAttempt, RoomUser, RoomMessage, UserPack, PackBundleMessage
+        from django.db.models import Q
+        from game.models import DuelMatch, FavouriteArtist, GameScore, UserBest, UserElo
 
         user = request.user
 
-        game_sessions = list(
-            DailyGameSession.objects.filter(user=user).values(
-                'id', 'room_id', 'correct_guess', 'guesses_made',
-                'current_snippet', 'retries_used', 'retry_credits',
-                'awaiting_retry_unlock',
-                'points_earned', 'completed_at', 'created_at',
+        game_scores = list(
+            GameScore.objects.filter(user=user).values(
+                'id', 'genre', 'artist_filter', 'difficulty',
+                'songs_played', 'songs_correct', 'best_streak',
+                'total_score', 'is_partial', 'played_at',
             )
         )
 
-        guess_attempts = list(
-            GuessAttempt.objects.filter(game_session__user=user).values(
-                'id', 'game_session_id', 'guessed_title', 'guessed_artist',
-                'snippet_number', 'is_correct', 'created_at',
+        favourite_artists = list(
+            FavouriteArtist.objects.filter(user=user).values(
+                'artist_name', 'created_at',
             )
         )
 
-        room_memberships = list(
-            RoomUser.objects.filter(user=user).values(
-                'room_id', 'room__name', 'joined_at',
+        duels = list(
+            DuelMatch.objects.filter(Q(player1=user) | Q(player2=user)).values(
+                'id', 'status', 'total_rounds', 'current_round',
+                'player1_id', 'player2_id', 'player1_score', 'player2_score',
+                'winner_id', 'created_at',
             )
         )
 
-        messages_sent = list(
-            RoomMessage.objects.filter(user=user).values(
-                'id', 'room_id', 'message', 'created_at',
-            )
-        )
+        elo = UserElo.objects.filter(user=user).values(
+            'elo', 'wins', 'losses', 'draws', 'updated_at',
+        ).first()
 
-        bundle_messages_sent = list(
-            PackBundleMessage.objects.filter(user=user).values(
-                'id', 'room_id', 'pack_id', 'message', 'created_at',
-            )
-        )
-
-        packs_purchased = list(
-            UserPack.objects.filter(user=user).values(
-                'pack_id', 'pack__name', 'purchased_at',
-            )
-        )
+        best = UserBest.objects.filter(user=user).values(
+            'best_score_overall', 'best_streak_overall',
+            'total_songs_played', 'total_songs_correct', 'per_genre',
+        ).first()
 
         payload = {
             'exported_at': timezone.now().isoformat(),
@@ -645,30 +637,30 @@ class DataExportView(APIView):
                 'perfect_games': user.perfect_games,
                 'created_at': user.created_at.isoformat(),
             },
-            'game_sessions': [
-                {**s, 'id': str(s['id']), 'room_id': str(s['room_id']), 'created_at': s['created_at'].isoformat() if s['created_at'] else None}
-                for s in game_sessions
+            'game_scores': [
+                {**s, 'id': str(s['id']), 'played_at': s['played_at'].isoformat() if s['played_at'] else None}
+                for s in game_scores
             ],
-            'guess_attempts': [
-                {**g, 'id': str(g['id']), 'game_session_id': str(g['game_session_id']), 'created_at': g['created_at'].isoformat() if g['created_at'] else None}
-                for g in guess_attempts
+            'favourite_artists': [
+                {**a, 'created_at': a['created_at'].isoformat() if a['created_at'] else None}
+                for a in favourite_artists
             ],
-            'room_memberships': [
-                {**r, 'room_id': str(r['room_id']), 'joined_at': r['joined_at'].isoformat() if r['joined_at'] else None}
-                for r in room_memberships
+            'duels': [
+                {
+                    **d,
+                    'id': str(d['id']),
+                    'player1_id': str(d['player1_id']),
+                    'player2_id': str(d['player2_id']),
+                    'winner_id': str(d['winner_id']) if d['winner_id'] else None,
+                    'created_at': d['created_at'].isoformat() if d['created_at'] else None,
+                }
+                for d in duels
             ],
-            'messages_sent': [
-                {**m, 'id': str(m['id']), 'room_id': str(m['room_id']), 'created_at': m['created_at'].isoformat() if m['created_at'] else None}
-                for m in messages_sent
-            ],
-            'bundle_messages_sent': [
-                {**m, 'id': str(m['id']), 'created_at': m['created_at'].isoformat() if m['created_at'] else None}
-                for m in bundle_messages_sent
-            ],
-            'packs_purchased': [
-                {**p, 'pack_id': str(p['pack_id']), 'purchased_at': p['purchased_at'].isoformat() if p['purchased_at'] else None}
-                for p in packs_purchased
-            ],
+            'elo': (
+                {**elo, 'updated_at': elo['updated_at'].isoformat() if elo['updated_at'] else None}
+                if elo else None
+            ),
+            'personal_bests': best,
         }
 
         json_bytes = json.dumps(payload, indent=2, default=str).encode('utf-8')
