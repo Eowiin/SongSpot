@@ -71,6 +71,8 @@ class MatchmakingConsumer(AsyncWebsocketConsumer):
       {type: "cancel"}
     """
 
+    matching_task = None
+
     async def connect(self):
         user = self.scope['user']
         if not user.is_authenticated:
@@ -79,7 +81,6 @@ class MatchmakingConsumer(AsyncWebsocketConsumer):
 
         self.user = user
         self.personal_group = f'queue_user_{user.id}'
-        self.matching_task = None
 
         qs = _parse_qs(self.scope)
         self.playlist_id = qs.get('playlist') or None
@@ -236,6 +237,9 @@ class DuelConsumer(AsyncWebsocketConsumer):
     player disconnect — only when both players are gone is the match abandoned.
     """
 
+    match_id = None
+    player_num = None
+
     async def connect(self):
         user = self.scope['user']
         if not user.is_authenticated:
@@ -284,6 +288,8 @@ class DuelConsumer(AsyncWebsocketConsumer):
             })
 
     async def disconnect(self, code):
+        if self.match_id is None:
+            return
         _connected.get(self.match_id, set()).discard(self.player_num)
 
         still_connected = _connected.get(self.match_id, set())

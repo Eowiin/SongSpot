@@ -114,7 +114,7 @@ class AudioService {
           .timeout(timeout);
 
       _setPlaying(true);
-      _active.play();
+      await _active.play();
 
       await doneFuture;
 
