@@ -72,6 +72,7 @@ class MatchmakingConsumer(AsyncWebsocketConsumer):
     """
 
     matching_task = None
+    user = None
 
     async def connect(self):
         user = self.scope['user']
@@ -97,6 +98,8 @@ class MatchmakingConsumer(AsyncWebsocketConsumer):
         self.matching_task = asyncio.create_task(self._match_loop())
 
     async def disconnect(self, code):
+        if self.user is None:
+            return
         if self.matching_task:
             self.matching_task.cancel()
         await self._leave_queue()

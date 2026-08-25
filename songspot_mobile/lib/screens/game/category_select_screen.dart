@@ -80,6 +80,7 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
   Future<void> _loadCategories() async {
     try {
       final data = await _api.getCategories();
+      if (!mounted) return;
       setState(() {
         _categories = data
             .map((j) => Category.fromJson(j as Map<String, dynamic>))
@@ -88,6 +89,7 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString();
         _isLoading = false;

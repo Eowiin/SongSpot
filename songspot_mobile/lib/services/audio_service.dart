@@ -108,13 +108,14 @@ class AudioService {
           ? duration + const Duration(seconds: 5)
           : const Duration(seconds: 35);
 
+      _setPlaying(true);
+      await _active.play();
+      if (requestId != _playbackRequestId) return;
+
       final doneFuture = _active.processingStateStream
           .firstWhere((s) =>
               s == ProcessingState.completed || s == ProcessingState.idle)
           .timeout(timeout);
-
-      _setPlaying(true);
-      await _active.play();
 
       await doneFuture;
 

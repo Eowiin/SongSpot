@@ -52,3 +52,7 @@ app.*.map.json
 # iOS build artifacts
 /ios/build/
 *.dSYM.zip
+
+# Fastlane build reports (generated per-run)
+/android/fastlane/report.xml
+/ios/fastlane/report.xml
