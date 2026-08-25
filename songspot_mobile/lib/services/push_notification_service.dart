@@ -139,7 +139,13 @@ class PushNotificationService {
     final messaging = _messaging;
     if (messaging == null) return;
 
-    final token = await messaging.getToken();
+    String? token;
+    try {
+      token = await messaging.getToken();
+    } catch (e) {
+      debugPrint('FCM getToken failed: $e');
+      return;
+    }
     if (token == null || token.isEmpty) return;
 
     await _registerToken(token);

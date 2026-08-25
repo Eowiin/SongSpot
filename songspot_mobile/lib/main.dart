@@ -32,7 +32,16 @@ Future<void> main() async {
           defaultValue: 'development',
         );
         options.tracesSampleRate = 0.1;
-        options.beforeSend = (event, hint) => kDebugMode ? null : event;
+        options.beforeSend = (event, hint) {
+          if (kDebugMode) return null;
+          // google_fonts fetches TTFs over the network on first use; on a
+          // dropped/offline connection it throws unhandled, which is a
+          // device connectivity issue rather than an app bug. Drop it to
+          // avoid flooding Sentry with non-actionable noise.
+          final message = event.throwable?.toString() ?? '';
+          if (message.contains('Failed to load font with url')) return null;
+          return event;
+        };
       },
       appRunner: () async {
         await dotenv.load(fileName: '.env');

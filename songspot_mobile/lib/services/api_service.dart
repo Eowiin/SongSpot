@@ -372,7 +372,8 @@ class ApiService {
   // ── Game ──────────────────────────────────────────────────────────────────
 
   Future<List<dynamic>> getCategories() async {
-    return await get(ApiConfig.categories, includeAuth: true);
+    final result = await get(ApiConfig.categories, includeAuth: true);
+    return result is List ? result : <dynamic>[];
   }
 
   Future<Map<String, dynamic>> getNextSong({
@@ -391,13 +392,15 @@ class ApiService {
 
   Future<List<dynamic>> searchArtists(String query) async {
     if (query.length < 2) return [];
-    return await get(ApiConfig.artists, includeAuth: true,
+    final result = await get(ApiConfig.artists, includeAuth: true,
         queryParameters: {'q': query});
+    return result is List ? result : <dynamic>[];
   }
 
   Future<List<dynamic>> searchTracks(String query, {int limit = 20}) async {
-    return await get(ApiConfig.searchTracks, includeAuth: true,
+    final result = await get(ApiConfig.searchTracks, includeAuth: true,
         queryParameters: {'q': query, 'limit': limit.toString()});
+    return result is List ? result : <dynamic>[];
   }
 
   Future<Map<String, dynamic>> submitScore({
@@ -439,11 +442,13 @@ class ApiService {
   }
 
   Future<List<dynamic>> getTrendingArtists() async {
-    return await get(ApiConfig.artistsTrending, includeAuth: true);
+    final result = await get(ApiConfig.artistsTrending, includeAuth: true);
+    return result is List ? result : <dynamic>[];
   }
 
   Future<List<dynamic>> getFavouriteArtists() async {
-    return await get(ApiConfig.artistsFavourites, includeAuth: true);
+    final result = await get(ApiConfig.artistsFavourites, includeAuth: true);
+    return result is List ? result : <dynamic>[];
   }
 
   Future<void> addFavouriteArtist(String artistName) async {
@@ -470,7 +475,8 @@ class ApiService {
       'limit': limit.toString(),
     };
     if (categoryId != null) params['category'] = categoryId;
-    return await get(ApiConfig.leaderboard, includeAuth: true, queryParameters: params);
+    final result = await get(ApiConfig.leaderboard, includeAuth: true, queryParameters: params);
+    return result is List ? result : <dynamic>[];
   }
 
   Future<Map<String, dynamic>> refreshTrackPreview({required String trackId}) async {
@@ -484,8 +490,9 @@ class ApiService {
   }
 
   Future<List<dynamic>> getDuelHistory({int limit = 20}) async {
-    return await get(ApiConfig.duelHistory, includeAuth: true,
+    final result = await get(ApiConfig.duelHistory, includeAuth: true,
         queryParameters: {'limit': limit.toString()});
+    return result is List ? result : <dynamic>[];
   }
 
   Future<Map<String, dynamic>> getDuelMatch(String matchId) async {
@@ -493,7 +500,8 @@ class ApiService {
   }
 
   Future<List<dynamic>> getDuelLeaderboard({int limit = 50}) async {
-    return await get(ApiConfig.duelLeaderboard, includeAuth: true,
+    final result = await get(ApiConfig.duelLeaderboard, includeAuth: true,
         queryParameters: {'limit': limit.toString()});
+    return result is List ? result : <dynamic>[];
   }
 }
