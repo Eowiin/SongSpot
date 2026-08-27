@@ -180,6 +180,17 @@ class GameScore(models.Model):
             models.Index(fields=['-total_score']),
             models.Index(fields=['played_at']),
         ]
+        constraints = [
+            # A session submits several times (partial checkpoints, then the
+            # final score). Without this, concurrent submits both miss on
+            # get_or_create and insert, leaving duplicates that make every
+            # later update_or_create raise MultipleObjectsReturned.
+            models.UniqueConstraint(
+                fields=['user', 'session_uuid'],
+                condition=models.Q(session_uuid__isnull=False),
+                name='uniq_gamescore_user_session',
+            ),
+        ]
 
     def __str__(self):
         label = self.genre or self.artist_filter or 'Mix'
