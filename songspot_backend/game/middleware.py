@@ -6,6 +6,7 @@ import logging
 
 from channels.db import database_sync_to_async
 from channels.middleware import BaseMiddleware
+from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from rest_framework_simplejwt.tokens import AccessToken
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
@@ -95,5 +96,31 @@ class JWTAuthMiddleware(BaseMiddleware):
                 host,
                 origin,
             )
+
+        return await super().__call__(scope, receive, send)
+
+
+class OriginValidatorMiddleware(BaseMiddleware):
+    """
+    Restricts browser-originated WebSocket connections to known origins.
+
+    Native mobile clients send no ``Origin`` header, so they are always let
+    through — only browsers (which the user agent forces to send a truthful
+    Origin) are checked. When ``WEBSOCKET_ALLOWED_ORIGINS`` is empty the check
+    is disabled entirely, which keeps local development friction-free.
+    """
+
+    async def __call__(self, scope, receive, send):
+        allowed = getattr(settings, 'WEBSOCKET_ALLOWED_ORIGINS', None) or []
+        origin = _header_value(scope, 'origin')
+
+        if allowed and origin and origin.rstrip('/') not in allowed:
+            logger.warning(
+                'WebSocket rejected disallowed origin=%s path=%s',
+                origin,
+                scope.get('path', ''),
+            )
+            await send({'type': 'websocket.close', 'code': 4003})
+            return
 
         return await super().__call__(scope, receive, send)

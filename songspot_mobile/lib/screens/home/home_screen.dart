@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/responsive.dart';
 import '../../l10n/app_localizations.dart';
 import '../../main.dart' show routeObserver;
 import '../../providers/auth_provider.dart';
@@ -53,19 +54,57 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     final isGuest = auth.isGuest;
     final username = isGuest ? l10n.homeGuest : (auth.user?.username ?? '');
 
+    final isWide = context.isWide;
+
+    final soloCard = _buildModeCard(
+      context,
+      icon: Icons.music_note_rounded,
+      label: l10n.homeSoloLabel,
+      sublabel: l10n.homeTagline,
+      gradient: AppTheme.primaryGradient,
+      tall: isWide,
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const CategorySelectScreen()),
+      ),
+    );
+
+    final duelCard = _buildModeCard(
+      context,
+      icon: Icons.people_rounded,
+      label: '1v1',
+      sublabel: isGuest ? l10n.homeSignInToPlay : 'Challenge opponents online',
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFF5C3A8C), Color(0xFF3A2A6A)],
+      ),
+      tall: isWide,
+      onTap: isGuest
+          ? _showSignInPrompt
+          : () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DuelFlowScreen()),
+              ),
+    );
+
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: ResponsiveCenter(
+          maxWidth: 1080,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 24),
+              SizedBox(height: isWide ? 40 : 24),
               _buildHeader(context, l10n, username),
-              const SizedBox(height: 32),
-              _buildStatsBanner(context, l10n, stats),
-              const SizedBox(height: 40),
+              // The banner hides itself until the player has a stat to show;
+              // skip its surrounding spacing too so the page doesn't gap.
+              if (stats.isLoadingStats || stats.userBest.totalSongsPlayed > 0) ...[
+                SizedBox(height: isWide ? 40 : 32),
+                _buildStatsBanner(context, l10n, stats),
+              ],
+              SizedBox(height: isWide ? 56 : 40),
               Text(
                 l10n.homePlay,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -75,37 +114,25 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                 ),
               ),
               const SizedBox(height: 16),
-              _buildModeCard(
-                context,
-                icon: Icons.music_note_rounded,
-                label: l10n.homeSoloLabel,
-                sublabel: l10n.homeTagline,
-                gradient: AppTheme.primaryGradient,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const CategorySelectScreen()),
-                ),
-              ),
-              const SizedBox(height: 16),
-              _buildModeCard(
-                context,
-                icon: Icons.people_rounded,
-                label: '1v1',
-                sublabel: isGuest ? l10n.homeSignInToPlay : 'Challenge opponents online',
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFF5C3A8C), Color(0xFF3A2A6A)],
-                ),
-                onTap: isGuest
-                    ? _showSignInPrompt
-                    : () => Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const DuelFlowScreen()),
-                        ),
-              ),
+              // Side by side once there is room; stacked on a phone.
+              if (isWide)
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(child: soloCard),
+                      const SizedBox(width: 20),
+                      Expanded(child: duelCard),
+                    ],
+                  ),
+                )
+              else ...[
+                soloCard,
+                const SizedBox(height: 16),
+                duelCard,
+              ],
               const Spacer(),
-              _buildDeezerAttribution(),
+              Center(child: _buildDeezerAttribution()),
               const SizedBox(height: 16),
             ],
           ),
@@ -272,12 +299,15 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     required LinearGradient gradient,
     required VoidCallback? onTap,
     bool disabled = false,
+    bool tall = false,
   }) {
+    // On a wide viewport the two cards sit side by side, so they get room to
+    // breathe as hero tiles instead of staying phone-sized banners.
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: double.infinity,
-        height: 110,
+        height: tall ? 190 : 110,
         decoration: BoxDecoration(
           gradient: gradient,
           borderRadius: BorderRadius.circular(20),
@@ -292,12 +322,17 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                 ],
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Row(
+          padding: EdgeInsets.symmetric(horizontal: tall ? 32 : 24),
+          child: Flex(
+            direction: tall ? Axis.vertical : Axis.horizontal,
+            mainAxisAlignment:
+                tall ? MainAxisAlignment.center : MainAxisAlignment.start,
+            crossAxisAlignment:
+                tall ? CrossAxisAlignment.start : CrossAxisAlignment.center,
             children: [
               Container(
-                width: 52,
-                height: 52,
+                width: tall ? 64 : 52,
+                height: tall ? 64 : 52,
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: disabled ? 0.08 : 0.15),
                   shape: BoxShape.circle,
@@ -305,11 +340,12 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                 child: Icon(
                   icon,
                   color: disabled ? AppTheme.textSecondary : Colors.white,
-                  size: 26,
+                  size: tall ? 32 : 26,
                 ),
               ),
-              const SizedBox(width: 20),
-              Expanded(
+              SizedBox(width: tall ? 0 : 20, height: tall ? 20 : 0),
+              Flexible(
+                fit: tall ? FlexFit.loose : FlexFit.tight,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -318,7 +354,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                       label,
                       style: TextStyle(
                         color: disabled ? AppTheme.textSecondary : Colors.white,
-                        fontSize: 22,
+                        fontSize: tall ? 28 : 22,
                         fontWeight: FontWeight.bold,
                       ),
                       maxLines: 1,
@@ -331,7 +367,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                         color: disabled
                             ? AppTheme.textSecondary
                             : Colors.white.withValues(alpha: 0.7),
-                        fontSize: 13,
+                        fontSize: tall ? 15 : 13,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -339,8 +375,8 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                   ],
                 ),
               ),
-              const Spacer(),
-              if (!disabled)
+              if (!tall) const Spacer(),
+              if (!disabled && !tall)
                 const Icon(
                   Icons.arrow_forward_ios_rounded,
                   color: Colors.white,

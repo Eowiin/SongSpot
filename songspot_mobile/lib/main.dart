@@ -14,6 +14,7 @@ import 'providers/settings_provider.dart';
 import 'providers/stats_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
+import 'services/boot_splash.dart';
 import 'services/consent_service.dart';
 import 'services/push_notification_service.dart';
 
@@ -79,6 +80,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Hand the screen over from the HTML boot splash to the Flutter one.
+    WidgetsBinding.instance.addPostFrameCallback((_) => dismissBootSplash());
   }
 
   @override

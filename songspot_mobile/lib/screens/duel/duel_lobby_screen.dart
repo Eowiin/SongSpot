@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/responsive.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/duel_provider.dart';
 import '../../models/duel.dart';
@@ -79,8 +80,8 @@ class _DuelLobbyScreenState extends State<DuelLobbyScreen>
             centerTitle: true,
           ),
           body: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: ResponsiveCenter(
+              maxWidth: 680,
               child: isQueuing
                   ? _buildSearchingState(duel, l10n)
                   : _buildIdleState(duel, l10n),

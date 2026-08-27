@@ -30,6 +30,12 @@ class AudioService {
 
   Future<void> initializeAudioSession() async {
     if (_isInitialized) return;
+    // audio_session has no web implementation; the browser owns the audio
+    // focus policy. Mark it done so we don't retry on every load.
+    if (kIsWeb) {
+      _isInitialized = true;
+      return;
+    }
     try {
       final session = await AudioSession.instance;
       await session.configure(const AudioSessionConfiguration.music());
@@ -101,23 +107,33 @@ class AudioService {
     debugPrint('[AudioService] playSnippet: duration=$duration');
     final requestId = ++_playbackRequestId;
     try {
-      await _active.setClip(start: Duration.zero, end: duration);
+      // The snippet length is enforced with an explicit timer rather than
+      // setClip: just_audio's web backend ignores setClip's end boundary and
+      // plays the full ~30s preview, which hands the player the answer.
+      await _active.seek(Duration.zero);
       if (requestId != _playbackRequestId) return;
-
-      final timeout = duration != null
-          ? duration + const Duration(seconds: 5)
-          : const Duration(seconds: 35);
 
       _setPlaying(true);
-      await _active.play();
-      if (requestId != _playbackRequestId) return;
 
-      final doneFuture = _active.processingStateStream
-          .firstWhere((s) =>
-              s == ProcessingState.completed || s == ProcessingState.idle)
-          .timeout(timeout);
-
-      await doneFuture;
+      if (duration == null) {
+        // Full preview — let it run to its natural end.
+        await _active.play();
+        if (requestId != _playbackRequestId) return;
+        await _active.processingStateStream
+            .firstWhere((s) =>
+                s == ProcessingState.completed || s == ProcessingState.idle)
+            .timeout(const Duration(seconds: 35));
+      } else {
+        // Don't await play(): it only completes when playback stops, which is
+        // the whole preview. Cut it off at the snippet boundary instead.
+        unawaited(_active.play().catchError((Object e) {
+          debugPrint('[AudioService] playSnippet: play failed $e');
+        }));
+        await Future<void>.delayed(duration);
+        if (requestId != _playbackRequestId) return;
+        await _active.pause();
+        await _active.seek(Duration.zero);
+      }
 
       if (requestId == _playbackRequestId) {
         _setPlaying(false, onChanged: onPlaybackStopped);

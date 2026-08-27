@@ -36,6 +36,14 @@ class PushNotificationService {
   Future<void> initializeCore() async {
     if (_initialized) return;
 
+    // Web push needs a service worker, a VAPID key and per-origin FCM
+    // credentials that the mobile config does not carry. The web build plays
+    // fine without notifications, so skip the whole stack there.
+    if (kIsWeb) {
+      debugPrint('Push notifications are not enabled on web');
+      return;
+    }
+
     try {
       await Firebase.initializeApp();
     } catch (e) {

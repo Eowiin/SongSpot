@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/responsive.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/category.dart';
 import '../../providers/auth_provider.dart';
@@ -251,150 +252,158 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
     return showModalBottomSheet<Difficulty>(
       context: context,
       backgroundColor: AppTheme.surfaceColor,
+      // Short viewports (a laptop browser window, a phone in landscape)
+      // cannot fit this sheet in the default 9/16 of the screen, which
+      // clipped the start button off the bottom. Let it scroll instead.
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) {
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(24, 20, 24, 36),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Handle
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                // Title
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 4),
-                  Text(subtitle,
-                      style: const TextStyle(
-                          color: AppTheme.textSecondary, fontSize: 14)),
-                ],
-                const SizedBox(height: 24),
-                const Text(
-                  'DIFFICULTY',
-                  style: TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Difficulty options
-                ...Difficulty.values.map((d) {
-                  final isSelected = selected == d;
-                  final color = _difficultyColor(d);
-                  return GestureDetector(
-                    onTap: () => setModalState(() => selected = d),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 14),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? color.withValues(alpha: 0.12)
-                            : Colors.white.withValues(alpha: 0.04),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: isSelected
-                              ? color.withValues(alpha: 0.6)
-                              : Colors.white.withValues(alpha: 0.08),
-                          width: isSelected ? 1.5 : 1,
+          return SafeArea(
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 36),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Handle
+                    Center(
+                      child: Container(
+                        width: 36,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            isSelected
-                                ? Icons.radio_button_checked_rounded
-                                : Icons.radio_button_off_rounded,
-                            color: isSelected ? color : AppTheme.textSecondary,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  d.label,
-                                  style: TextStyle(
-                                    color: isSelected
-                                        ? AppTheme.textPrimary
-                                        : AppTheme.textSecondary,
-                                    fontWeight: isSelected
-                                        ? FontWeight.w700
-                                        : FontWeight.w400,
-                                    fontSize: 15,
-                                  ),
-                                ),
-                                Text(
-                                  _difficultyDescription(d),
-                                  style: TextStyle(
-                                    color: isSelected
-                                        ? color
-                                        : AppTheme.textSecondary
-                                            .withValues(alpha: 0.5),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Text(
-                            _difficultyMultiplier(d),
-                            style: TextStyle(
-                              color: isSelected ? color : AppTheme.textSecondary,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
+                    ),
+                    const SizedBox(height: 20),
+                    // Title
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  );
-                }),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(ctx, selected),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primaryColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
-                      elevation: 0,
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 4),
+                      Text(subtitle,
+                          style: const TextStyle(
+                              color: AppTheme.textSecondary, fontSize: 14)),
+                    ],
+                    const SizedBox(height: 24),
+                    const Text(
+                      'DIFFICULTY',
+                      style: TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.2,
+                      ),
                     ),
-                    child: Text(
-                      l10n.categoryStartRun,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    const SizedBox(height: 12),
+                    // Difficulty options
+                    ...Difficulty.values.map((d) {
+                      final isSelected = selected == d;
+                      final color = _difficultyColor(d);
+                      return GestureDetector(
+                        onTap: () => setModalState(() => selected = d),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? color.withValues(alpha: 0.12)
+                                : Colors.white.withValues(alpha: 0.04),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: isSelected
+                                  ? color.withValues(alpha: 0.6)
+                                  : Colors.white.withValues(alpha: 0.08),
+                              width: isSelected ? 1.5 : 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                isSelected
+                                    ? Icons.radio_button_checked_rounded
+                                    : Icons.radio_button_off_rounded,
+                                color: isSelected ? color : AppTheme.textSecondary,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      d.label,
+                                      style: TextStyle(
+                                        color: isSelected
+                                            ? AppTheme.textPrimary
+                                            : AppTheme.textSecondary,
+                                        fontWeight: isSelected
+                                            ? FontWeight.w700
+                                            : FontWeight.w400,
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                                    Text(
+                                      _difficultyDescription(d),
+                                      style: TextStyle(
+                                        color: isSelected
+                                            ? color
+                                            : AppTheme.textSecondary
+                                                .withValues(alpha: 0.5),
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Text(
+                                _difficultyMultiplier(d),
+                                style: TextStyle(
+                                  color: isSelected ? color : AppTheme.textSecondary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(ctx, selected),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14)),
+                          elevation: 0,
+                        ),
+                        child: Text(
+                          l10n.categoryStartRun,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           );
         },
@@ -475,16 +484,27 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
       );
     }
 
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.4,
+    // Column count follows the viewport so tiles keep a readable size instead
+    // of stretching into two giant banners on a monitor.
+    return ResponsiveCenter(
+      maxWidth: 1240,
+      padding: EdgeInsets.symmetric(horizontal: context.pageGutter * 0.8),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final columns = gridColumnsFor(constraints.maxWidth);
+          return GridView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              crossAxisSpacing: 14,
+              mainAxisSpacing: 14,
+              childAspectRatio: 1.4,
+            ),
+            itemCount: _categories.length,
+            itemBuilder: (context, i) => _buildCategoryCard(_categories[i]),
+          );
+        },
       ),
-      itemCount: _categories.length,
-      itemBuilder: (context, i) => _buildCategoryCard(_categories[i]),
     );
   }
 
@@ -546,7 +566,10 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
     final l10n = AppLocalizations.of(context);
     final showSearch = _artistController.text.trim().length >= 2;
 
-    return Column(
+    return ResponsiveCenter(
+      maxWidth: 760,
+      padding: EdgeInsets.symmetric(horizontal: context.pageGutter * 0.4),
+      child: Column(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -590,6 +613,7 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
               : _buildArtistSuggestions(),
         ),
       ],
+      ),
     );
   }
 

@@ -18,12 +18,14 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'songspot.settings')
 # is populated before importing code that may import ORM models.
 django_asgi_app = get_asgi_application()
 
-from game.middleware import JWTAuthMiddleware
+from game.middleware import JWTAuthMiddleware, OriginValidatorMiddleware
 from game.routing import websocket_urlpatterns
 
 application = ProtocolTypeRouter({
     'http': django_asgi_app,
-    'websocket': JWTAuthMiddleware(
-        URLRouter(websocket_urlpatterns)
+    'websocket': OriginValidatorMiddleware(
+        JWTAuthMiddleware(
+            URLRouter(websocket_urlpatterns)
+        )
     ),
 })
