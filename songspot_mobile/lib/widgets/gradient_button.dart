@@ -21,7 +21,6 @@ class GradientButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: width ?? double.infinity,
-      height: 56,
       decoration: BoxDecoration(
         gradient: AppTheme.primaryGradient,
         borderRadius: BorderRadius.circular(AppTheme.borderRadius),
@@ -38,7 +37,13 @@ class GradientButton extends StatelessWidget {
         child: InkWell(
           onTap: isLoading ? null : onPressed,
           borderRadius: BorderRadius.circular(AppTheme.borderRadius),
-          child: Center(
+          // Height grows with the label instead of being pinned to 56, so a
+          // long or scaled-up label wraps rather than overflowing.
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 56),
+            padding: padding ??
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            alignment: Alignment.center,
             child: isLoading
                 ? const SizedBox(
                     width: 24,
@@ -50,6 +55,7 @@ class GradientButton extends StatelessWidget {
                   )
                 : Text(
                     text,
+                    textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,

@@ -79,11 +79,23 @@ class _DuelLobbyScreenState extends State<DuelLobbyScreen>
             centerTitle: true,
           ),
           body: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: isQueuing
-                  ? _buildSearchingState(duel, l10n)
-                  : _buildIdleState(duel, l10n),
+            // Scrolls once the content outgrows the viewport (large text
+            // scales, short screens); the Spacer still pins the bottom
+            // section when there is room to spare.
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: IntrinsicHeight(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: isQueuing
+                          ? _buildSearchingState(duel, l10n)
+                          : _buildIdleState(duel, l10n),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         );
@@ -248,7 +260,6 @@ class _DuelLobbyScreenState extends State<DuelLobbyScreen>
   Widget _buildFindMatchButton(AppLocalizations l10n) {
     return SizedBox(
       width: double.infinity,
-      height: 56,
       child: DecoratedBox(
         decoration: BoxDecoration(
           gradient: AppTheme.primaryGradient,
@@ -264,10 +275,13 @@ class _DuelLobbyScreenState extends State<DuelLobbyScreen>
         child: TextButton(
           onPressed: _onFindMatch,
           style: TextButton.styleFrom(
+            minimumSize: const Size.fromHeight(56),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           ),
           child: Text(
             l10n.duelFindMatch,
+            textAlign: TextAlign.center,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 18,

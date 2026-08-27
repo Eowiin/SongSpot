@@ -56,58 +56,70 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 24),
-              _buildHeader(context, l10n, username),
-              const SizedBox(height: 32),
-              _buildStatsBanner(context, l10n, stats),
-              const SizedBox(height: 40),
-              Text(
-                l10n.homePlay,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: AppTheme.textSecondary,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1.2,
+        // Scrolls once the content outgrows the viewport (large text scales,
+        // short screens); the Spacer still pins the bottom section when there
+        // is room to spare.
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: IntrinsicHeight(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                    const SizedBox(height: 24),
+                    _buildHeader(context, l10n, username),
+                    const SizedBox(height: 32),
+                    _buildStatsBanner(context, l10n, stats),
+                    const SizedBox(height: 40),
+                    Text(
+                      l10n.homePlay,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: AppTheme.textSecondary,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildModeCard(
+                      context,
+                      icon: Icons.music_note_rounded,
+                      label: l10n.homeSoloLabel,
+                      sublabel: l10n.homeTagline,
+                      gradient: AppTheme.primaryGradient,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const CategorySelectScreen()),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildModeCard(
+                      context,
+                      icon: Icons.people_rounded,
+                      label: '1v1',
+                      sublabel: isGuest ? l10n.homeSignInToPlay : 'Challenge opponents online',
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFF5C3A8C), Color(0xFF3A2A6A)],
+                      ),
+                      onTap: isGuest
+                          ? _showSignInPrompt
+                          : () => Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const DuelFlowScreen()),
+                              ),
+                    ),
+                      const Spacer(),
+                      _buildDeezerAttribution(),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 16),
-              _buildModeCard(
-                context,
-                icon: Icons.music_note_rounded,
-                label: l10n.homeSoloLabel,
-                sublabel: l10n.homeTagline,
-                gradient: AppTheme.primaryGradient,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const CategorySelectScreen()),
-                ),
-              ),
-              const SizedBox(height: 16),
-              _buildModeCard(
-                context,
-                icon: Icons.people_rounded,
-                label: '1v1',
-                sublabel: isGuest ? l10n.homeSignInToPlay : 'Challenge opponents online',
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFF5C3A8C), Color(0xFF3A2A6A)],
-                ),
-                onTap: isGuest
-                    ? _showSignInPrompt
-                    : () => Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const DuelFlowScreen()),
-                        ),
-              ),
-              const Spacer(),
-              _buildDeezerAttribution(),
-              const SizedBox(height: 16),
-            ],
+            ),
           ),
         ),
       ),
@@ -231,32 +243,47 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   }
 
   Widget _buildSkeletonStat() {
-    return Column(
-      children: [
-        _SkeletonBox(width: 48, height: 20),
-        const SizedBox(height: 6),
-        _SkeletonBox(width: 36, height: 10),
-      ],
+    return Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _SkeletonBox(width: 48, height: 20),
+          const SizedBox(height: 6),
+          _SkeletonBox(width: 36, height: 10),
+        ],
+      ),
     );
   }
 
   Widget _buildStat(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            color: AppTheme.textPrimary,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
+    // Expanded + scale-down: three localized labels at 160% text scale no
+    // longer overrun the banner width.
+    return Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              maxLines: 1,
+              style: const TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11),
-        ),
-      ],
+          const SizedBox(height: 4),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+          ),
+        ],
+      ),
     );
   }
 
@@ -277,7 +304,8 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
       onTap: onTap,
       child: Container(
         width: double.infinity,
-        height: 110,
+        // Grows past 110 when the label wraps at large text scales.
+        constraints: const BoxConstraints(minHeight: 110),
         decoration: BoxDecoration(
           gradient: gradient,
           borderRadius: BorderRadius.circular(20),
@@ -292,7 +320,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                 ],
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           child: Row(
             children: [
               Container(
@@ -311,6 +339,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
               const SizedBox(width: 20),
               Expanded(
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -339,13 +368,14 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                   ],
                 ),
               ),
-              const Spacer(),
-              if (!disabled)
+              if (!disabled) ...[
+                const SizedBox(width: 12),
                 const Icon(
                   Icons.arrow_forward_ios_rounded,
                   color: Colors.white,
                   size: 18,
                 ),
+              ],
             ],
           ),
         ),

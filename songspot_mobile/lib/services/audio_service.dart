@@ -100,29 +100,57 @@ class AudioService {
   }) async {
     debugPrint('[AudioService] playSnippet: duration=$duration');
     final requestId = ++_playbackRequestId;
+    // Captured once: swapToPrefetch() can flip `_active` mid-playback.
+    final player = _active;
     try {
-      await _active.setClip(start: Duration.zero, end: duration);
+      await player.setClip(start: Duration.zero, end: duration);
       if (requestId != _playbackRequestId) return;
 
-      final timeout = duration != null
-          ? duration + const Duration(seconds: 5)
-          : const Duration(seconds: 35);
+      // Subscribe *before* play(). play()'s future only resolves once
+      // playback has already stopped, so a listener attached after it would
+      // miss the `completed` event and hang until the timeout fired.
+      // onError swallows late stream errors so they can never surface as an
+      // unhandled async error after we have stopped listening.
+      final done = player.processingStateStream
+          .firstWhere(
+            (s) => s == ProcessingState.completed || s == ProcessingState.idle,
+          )
+          .then<void>((_) {}, onError: (Object _) {});
 
       _setPlaying(true);
-      await _active.play();
-      if (requestId != _playbackRequestId) return;
+      // Deliberately not awaited — `done` already tracks the end of playback.
+      unawaited(
+        player.play().catchError((Object e) {
+          debugPrint('[AudioService] playSnippet: play() failed $e');
+        }),
+      );
 
-      final doneFuture = _active.processingStateStream
-          .firstWhere((s) =>
-              s == ProcessingState.completed || s == ProcessingState.idle)
-          .timeout(timeout);
-
-      await doneFuture;
+      // Wall-clock ceiling. An interruption (incoming call, backgrounding,
+      // lost audio focus) pauses the player without ever reaching
+      // `completed`, which would otherwise leave the play button stuck.
+      // Hitting the ceiling is a normal end of snippet, never an error.
+      final budget =
+          (duration ?? const Duration(seconds: 30)) +
+          const Duration(seconds: 5);
+      await done.timeout(
+        budget,
+        onTimeout: () async {
+          debugPrint('[AudioService] playSnippet: budget elapsed, pausing');
+          if (requestId == _playbackRequestId) {
+            try {
+              await player.pause();
+            } catch (_) {}
+          }
+        },
+      );
 
       if (requestId == _playbackRequestId) {
         _setPlaying(false, onChanged: onPlaybackStopped);
       }
     } catch (e) {
+      // Real failures (expired source, decode error) still propagate: callers
+      // refresh the preview URL and retry on them.
+      debugPrint('[AudioService] playSnippet: FAILED $e');
       if (requestId == _playbackRequestId) {
         _setPlaying(false, onChanged: onPlaybackStopped);
       }

@@ -40,20 +40,33 @@ class SessionEndScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            children: [
-              const SizedBox(height: 40),
-              _buildTitle(l10n),
-              const SizedBox(height: 32),
-              _buildStatsCard(l10n),
-              const SizedBox(height: 16),
-              _buildBadgesRow(),
-              const Spacer(),
-              _buildActions(context),
-              const SizedBox(height: 32),
-            ],
+        // The content was a bare Column: at large text scales it simply ran
+        // past the bottom of the screen. It now scrolls when it no longer
+        // fits, while the Spacer still pins the actions to the bottom
+        // whenever there is room to spare.
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: IntrinsicHeight(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 40),
+                      _buildTitle(l10n),
+                      const SizedBox(height: 32),
+                      _buildStatsCard(l10n),
+                      const SizedBox(height: 16),
+                      _buildBadgesRow(),
+                      const Spacer(),
+                      _buildActions(context),
+                      const SizedBox(height: 32),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -135,22 +148,34 @@ class SessionEndScreen extends StatelessWidget {
   }
 
   Widget _buildStat(String label, String value, Color valueColor) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: TextStyle(
-            color: valueColor,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
+    // Four localized labels share one row here, so each column takes an equal
+    // slice and shrinks its value rather than overrunning at large text scales.
+    return Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              maxLines: 1,
+              style: TextStyle(
+                color: valueColor,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11),
-        ),
-      ],
+          const SizedBox(height: 4),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+          ),
+        ],
+      ),
     );
   }
 
@@ -197,12 +222,16 @@ class SessionEndScreen extends StatelessWidget {
         children: [
           Icon(icon, color: color, size: 14),
           const SizedBox(width: 6),
-          Text(
-            '$label  $sublabel',
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
+          Flexible(
+            child: Text(
+              '$label  $sublabel',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
             ),
           ),
         ],

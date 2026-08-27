@@ -405,8 +405,9 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
     }
 
     return Container(
-      height: 180,
+      constraints: const BoxConstraints(minHeight: 180),
       width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       decoration: BoxDecoration(
         gradient: AppTheme.cardGradient,
         borderRadius: BorderRadius.circular(20),
@@ -448,6 +449,9 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
           const SizedBox(height: 16),
           Text(
             statusLabel,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
           ),
         ],

@@ -357,18 +357,23 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                     size: 22,
                   ),
                 const SizedBox(width: 8),
-                Text(
-                  isLoading
-                      ? l10n.loading
-                      : isPlaying
-                          ? l10n.gamePlaying
-                          : provider.revealAnswer
-                              ? l10n.gamePlayWithDuration('30s')
-                              : l10n.gamePlayWithDuration(_snippetLabel(provider.difficulty)),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
+                Flexible(
+                  child: Text(
+                    isLoading
+                        ? l10n.loading
+                        : isPlaying
+                            ? l10n.gamePlaying
+                            : provider.revealAnswer
+                                ? l10n.gamePlayWithDuration('30s')
+                                : l10n.gamePlayWithDuration(
+                                    _snippetLabel(provider.difficulty)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
                   ),
                 ),
               ],
@@ -628,11 +633,16 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                   child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                 )
               : Row(
+                  mainAxisSize: MainAxisSize.min,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      isGameOver ? l10n.gameSeeResults : l10n.gameNextButton,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    Flexible(
+                      child: Text(
+                        isGameOver ? l10n.gameSeeResults : l10n.gameNextButton,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
                     ),
                     const SizedBox(width: 6),
                     Icon(
