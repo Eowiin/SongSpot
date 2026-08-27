@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../models/user.dart';
+import '../services/analytics_service.dart';
 import '../services/api_service.dart';
 import '../services/push_notification_service.dart';
 import '../services/storage_service.dart';
@@ -88,6 +89,9 @@ class AuthProvider with ChangeNotifier {
     required String password,
     required String passwordConfirm,
   }) async {
+    // Captured before the status flips to loading, which would otherwise
+    // clear the guest flag we want to report.
+    final wasGuest = isGuest;
     try {
       _status = AuthStatus.loading;
       _errorMessage = null;
@@ -117,6 +121,7 @@ class AuthProvider with ChangeNotifier {
       _status = AuthStatus.authenticated;
       await _pushNotificationService.syncTokenWithBackend();
       await _migrateGuestStatsIfNeeded();
+      AnalyticsService().signupCompleted(fromGuest: wasGuest);
 
       notifyListeners();
       return true;

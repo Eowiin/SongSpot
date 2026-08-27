@@ -202,5 +202,8 @@
   "duelMatchSummary": "Résumé du match",
   "duelRoundLabel": "Round {round}",
   "duelPlayAgain": "Rejouer",
-  "duelBackToHome": "Retour à l'accueil"
+  "duelBackToHome": "Retour à l'accueil",
+  "settingsSectionPrivacy": "Confidentialité",
+  "settingsAnalytics": "Partager les statistiques d'usage",
+  "settingsAnalyticsSubtitle": "Nous aide à voir quels genres et difficultés fonctionnent. N'inclut jamais vos réponses ni vos données personnelles."
 }

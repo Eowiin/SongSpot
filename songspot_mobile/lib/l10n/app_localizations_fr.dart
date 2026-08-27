@@ -618,4 +618,14 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get duelBackToHome => 'Retour à l\'accueil';
+
+  @override
+  String get settingsSectionPrivacy => 'Confidentialité';
+
+  @override
+  String get settingsAnalytics => 'Partager les statistiques d\'usage';
+
+  @override
+  String get settingsAnalyticsSubtitle =>
+      'Nous aide à voir quels genres et difficultés fonctionnent. N\'inclut jamais vos réponses ni vos données personnelles.';
 }

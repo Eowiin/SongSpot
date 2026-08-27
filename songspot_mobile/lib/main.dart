@@ -14,7 +14,9 @@ import 'providers/settings_provider.dart';
 import 'providers/stats_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
+import 'services/analytics_service.dart';
 import 'services/consent_service.dart';
+import 'services/firebase_bootstrap.dart';
 import 'services/push_notification_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -57,6 +59,10 @@ Future<void> main() async {
 }
 
 Future<void> _initializeServices() async {
+  // Firebase first and on its own: analytics and push both need it, and
+  // neither should be able to take the other down by failing.
+  await _run(FirebaseBootstrap.ensureInitialized);
+  await _run(AnalyticsService().initialize);
   await _run(ConsentService().gatherConsent);
   await _run(PushNotificationService().initializeCore);
 }

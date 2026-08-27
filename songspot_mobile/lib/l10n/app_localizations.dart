@@ -1225,6 +1225,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Back to Home'**
   String get duelBackToHome;
+
+  /// Privacy section header in settings
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy'**
+  String get settingsSectionPrivacy;
+
+  /// Analytics opt-out switch in settings
+  ///
+  /// In en, this message translates to:
+  /// **'Share usage statistics'**
+  String get settingsAnalytics;
+
+  /// Explanation under the analytics switch
+  ///
+  /// In en, this message translates to:
+  /// **'Helps us see which genres and difficulties work. Never includes your guesses or personal data.'**
+  String get settingsAnalyticsSubtitle;
 }
 
 class _AppLocalizationsDelegate

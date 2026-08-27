@@ -1,15 +1,15 @@
 import 'dart:async';
 
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 
 import 'api_service.dart';
+import 'firebase_bootstrap.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
-    await Firebase.initializeApp();
+    await FirebaseBootstrap.ensureInitialized();
   } catch (_) {
     // Firebase may already be initialized in the background isolate.
   }
@@ -37,7 +37,7 @@ class PushNotificationService {
     if (_initialized) return;
 
     try {
-      await Firebase.initializeApp();
+      await FirebaseBootstrap.ensureInitialized();
     } catch (e) {
       debugPrint('Firebase initialization skipped: $e');
       return;

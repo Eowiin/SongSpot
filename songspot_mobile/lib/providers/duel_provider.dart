@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../config/api_config.dart';
 import '../models/duel.dart';
+import '../services/analytics_service.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../services/websocket_service.dart';
@@ -197,6 +198,7 @@ class DuelProvider extends ChangeNotifier {
     _playlist = pl != null ? DuelPlaylist.fromJson(pl as Map<String, dynamic>) : null;
 
     _setStatus(DuelStatus.matched);
+    AnalyticsService().duelMatched();
 
     // Disconnect matchmaking WS, connect to game WS
     await _queueWs.disconnect();
@@ -350,6 +352,10 @@ class DuelProvider extends ChangeNotifier {
       );
     }
     _setStatus(DuelStatus.finished);
+    AnalyticsService().duelFinished(
+      result: _matchEnd!.winner,
+      eloChange: _matchEnd!.eloChange,
+    );
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────

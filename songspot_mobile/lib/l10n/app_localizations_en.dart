@@ -607,4 +607,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get duelBackToHome => 'Back to Home';
+
+  @override
+  String get settingsSectionPrivacy => 'Privacy';
+
+  @override
+  String get settingsAnalytics => 'Share usage statistics';
+
+  @override
+  String get settingsAnalyticsSubtitle =>
+      'Helps us see which genres and difficulties work. Never includes your guesses or personal data.';
 }

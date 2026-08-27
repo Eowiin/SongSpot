@@ -237,6 +237,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const SizedBox(height: 8),
                     ],
 
+                    // ── Privacy ───────────────────────────────────────────
+                    _SectionHeader(l10n.settingsSectionPrivacy),
+                    _SettingsSwitch(
+                      icon: Icons.insights_outlined,
+                      title: l10n.settingsAnalytics,
+                      subtitle: l10n.settingsAnalyticsSubtitle,
+                      value: settings.analyticsEnabled,
+                      onChanged: (v) => settings.setAnalyticsEnabled(v),
+                    ),
+                    const SizedBox(height: 8),
+
                     // ── About ─────────────────────────────────────────────
                     _SectionHeader(l10n.settingsSectionAbout),
                     _SettingsTile(
@@ -409,12 +420,14 @@ class _SettingsSwitch extends StatelessWidget {
   const _SettingsSwitch({
     required this.icon,
     required this.title,
+    this.subtitle,
     required this.value,
     required this.onChanged,
   });
 
   final IconData icon;
   final String title;
+  final String? subtitle;
   final bool value;
   final ValueChanged<bool> onChanged;
 
@@ -429,6 +442,10 @@ class _SettingsSwitch extends StatelessWidget {
       child: SwitchListTile(
         secondary: Icon(icon, color: AppTheme.primaryColor),
         title: Text(title, style: Theme.of(context).textTheme.bodyLarge),
+        subtitle: subtitle == null
+            ? null
+            : Text(subtitle!, style: Theme.of(context).textTheme.bodyMedium),
+        isThreeLine: subtitle != null,
         value: value,
         onChanged: onChanged,
         activeThumbColor: AppTheme.primaryColor,

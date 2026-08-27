@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/app_localizations.dart';
 import '../config/app_theme.dart';
+import '../services/analytics_service.dart';
 import '../services/push_notification_service.dart';
 
 class SettingsProvider extends ChangeNotifier {
@@ -28,6 +29,7 @@ class SettingsProvider extends ChangeNotifier {
   bool _dailySongNotifications = true;
   bool _messagesNotifications = true;
   bool _enhancedSemantics = false;
+  bool _analyticsEnabled = AnalyticsService.defaultEnabled;
 
   double get textScaleFactor => _textScaleFactor;
   bool get reduceAnimations => _reduceAnimations;
@@ -37,6 +39,7 @@ class SettingsProvider extends ChangeNotifier {
   bool get dailySongNotifications => _dailySongNotifications;
   bool get messagesNotifications => _messagesNotifications;
   bool get enhancedSemantics => _enhancedSemantics;
+  bool get analyticsEnabled => _analyticsEnabled;
 
   ThemeData get currentTheme {
     if (_highContrast) return AppTheme.highContrastTheme;
@@ -62,6 +65,8 @@ class SettingsProvider extends ChangeNotifier {
     _dailySongNotifications = prefs.getBool(_keyDailySongNotifs) ?? true;
     _messagesNotifications = prefs.getBool(_keyMessagesNotifs) ?? true;
     _enhancedSemantics = prefs.getBool(_keyEnhancedSemantics) ?? false;
+    _analyticsEnabled = prefs.getBool(AnalyticsService.prefsKeyEnabled) ??
+        AnalyticsService.defaultEnabled;
     notifyListeners();
   }
 
@@ -89,6 +94,14 @@ class SettingsProvider extends ChangeNotifier {
       }
     }
     return const Locale('en');
+  }
+
+  /// AnalyticsService owns the persistence and applies it to the SDK; this
+  /// only mirrors the value for the UI.
+  Future<void> setAnalyticsEnabled(bool value) async {
+    _analyticsEnabled = value;
+    notifyListeners();
+    await AnalyticsService().setEnabled(value);
   }
 
   Future<void> setTextScaleFactor(double value) async {

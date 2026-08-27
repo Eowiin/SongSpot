@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import '../models/track.dart';
 import '../models/game_score.dart';
 import '../models/category.dart' as app_models;
+import '../services/analytics_service.dart';
 import '../services/api_service.dart';
 import '../services/audio_service.dart';
 import '../services/storage_service.dart';
@@ -75,6 +76,10 @@ class GameSessionProvider extends ChangeNotifier {
 
   // Prefetch state
   Track? _prefetchedTrack;
+  final AnalyticsService _analytics = AnalyticsService();
+  int _snippetPlaysForTrack = 0;
+  bool _runEndLogged = false;
+
   bool _isPrefetching = false;
   bool _prefetchPoolExhausted = false;
 
@@ -154,7 +159,15 @@ class GameSessionProvider extends ChangeNotifier {
     _lastGuessResult = GuessResult.none;
     _revealAnswer = false;
     _searchResults = [];
+    _snippetPlaysForTrack = 0;
+    _runEndLogged = false;
     notifyListeners();
+    _analytics.sessionStarted(
+      mode: 'solo',
+      genre: category?.category,
+      artist: artistFilter,
+      difficulty: difficulty.name,
+    );
   }
 
   Future<void> loadNextSong() async {
@@ -172,6 +185,7 @@ class GameSessionProvider extends ChangeNotifier {
       _lastGuessResult = GuessResult.none;
       _revealAnswer = false;
       _searchResults = [];
+      _snippetPlaysForTrack = 0;
       _currentTrack = _prefetchedTrack;
       _seenTrackIds.add(_currentTrack!.id);
       _prefetchedTrack = null;
@@ -194,6 +208,7 @@ class GameSessionProvider extends ChangeNotifier {
     _lastGuessResult = GuessResult.none;
     _revealAnswer = false;
     _searchResults = [];
+    _snippetPlaysForTrack = 0;
     notifyListeners();
 
     try {
@@ -230,6 +245,7 @@ class GameSessionProvider extends ChangeNotifier {
       await _audio.loadAudio(url);
     } catch (e) {
       debugPrint('Audio load failed, refreshing URL: $e');
+      var recovered = false;
       try {
         final refreshed = await _api.refreshTrackPreview(trackId: trackId);
         final newUrl = refreshed['preview_url'] as String?;
@@ -244,11 +260,13 @@ class GameSessionProvider extends ChangeNotifier {
             'genre': _currentTrack!.genre,
           });
           await _audio.loadAudio(newUrl);
+          recovered = true;
         }
       } catch (retryError) {
         debugPrint('Audio retry also failed: $retryError');
         // Non-fatal — user can tap Play manually
       }
+      _analytics.audioLoadFailed(retrySucceeded: recovered);
     }
   }
 
@@ -278,6 +296,12 @@ class GameSessionProvider extends ChangeNotifier {
   // would surface as an unhandled async error and kill the app.
   Future<void> replaySnippet() async {
     if (_isPlaying) return;
+    // Counted before the attempt: a play that fails is still a play the user
+    // asked for, and the failure shows up as audio_load_failed.
+    _analytics.snippetPlayed(
+      difficulty: _difficulty.name,
+      replayCount: _snippetPlaysForTrack++,
+    );
     if (await _playSnippet(fullPreview: _revealAnswer)) return;
 
     // Preview URLs expire — refresh the source and retry once before giving up.
@@ -381,6 +405,12 @@ class GameSessionProvider extends ChangeNotifier {
     }
 
     _checkpoint();
+    _analytics.guessSubmitted(
+      correct: isCorrect,
+      gaveUp: false,
+      songIndex: _songsPlayed,
+      difficulty: _difficulty.name,
+    );
     notifyListeners();
   }
 
@@ -401,6 +431,12 @@ class GameSessionProvider extends ChangeNotifier {
       _endReason = SessionEndReason.outOfLives;
     }
     _checkpoint();
+    _analytics.guessSubmitted(
+      correct: false,
+      gaveUp: true,
+      songIndex: _songsPlayed,
+      difficulty: _difficulty.name,
+    );
     notifyListeners();
   }
 
@@ -442,6 +478,17 @@ class GameSessionProvider extends ChangeNotifier {
 
   Future<GameScore?> endSession() async {
     await _audio.stop();
+    if (!_runEndLogged) {
+      _runEndLogged = true;
+      _analytics.sessionEnded(
+        mode: 'solo',
+        songsPlayed: _songsPlayed,
+        songsCorrect: _songsCorrect,
+        bestStreak: _bestStreak,
+        score: _totalScore,
+        endReason: (_endReason ?? SessionEndReason.quit).name,
+      );
+    }
     if (_songsPlayed == 0) return null;
 
     if (_isGuest) {
