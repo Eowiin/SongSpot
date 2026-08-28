@@ -212,6 +212,9 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ),
     # Rate limiting / Throttling
+    # Same proxy caveat as axes: without NUM_PROXIES, DRF keys throttles on the
+    # raw X-Forwarded-For string, which a client can pad.
+    'NUM_PROXIES': 1,
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle',
         'rest_framework.throttling.UserRateThrottle',
@@ -287,6 +290,21 @@ AXES_FAILURE_LIMIT = 5          # lock after 5 failed attempts
 AXES_COOLOFF_TIME = 1           # lockout duration in hours
 AXES_LOCKOUT_CALLABLE = None    # use default 403 response
 AXES_RESET_ON_SUCCESS = True    # reset failure count on successful login
+
+# The app runs behind nginx, so REMOTE_ADDR is always the proxy (127.0.0.1).
+# Without these, axes buckets every failed login on earth under one address and
+# locks out the whole site, admin and API alike.
+AXES_IPWARE_META_PRECEDENCE_ORDER = ('HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR')
+AXES_IPWARE_PROXY_COUNT = 1     # exactly one proxy: nginx
+
+# Lock the (username, IP) pair, not the bare IP: mobile carriers put many
+# players behind one CGNAT address.
+AXES_LOCKOUT_PARAMETERS = [['username', 'ip_address']]
+
+# Do not push the cool-off deadline forward on every failure that arrives
+# while already locked out, otherwise a steady trickle of bot attempts makes
+# the lockout permanent.
+AXES_RESET_COOL_OFF_ON_FAILURE_DURING_LOCKOUT = False
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),
