@@ -453,6 +453,10 @@
 
     @media (max-width: 560px) {
       .step { grid-template-columns: 1fr; gap: 0.7rem; }
+      /* Undo the two-column placement from the 900px rule, or the single
+         column gains an implicit second one and squeezes the text. */
+      .step .subtitle,
+      .step p { grid-column: auto; }
       .fact { flex-basis: 50%; }
     }
 {% endblock %}
