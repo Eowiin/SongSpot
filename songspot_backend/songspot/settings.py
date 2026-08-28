@@ -291,11 +291,12 @@ AXES_COOLOFF_TIME = 1           # lockout duration in hours
 AXES_LOCKOUT_CALLABLE = None    # use default 403 response
 AXES_RESET_ON_SUCCESS = True    # reset failure count on successful login
 
-# The app runs behind nginx, so REMOTE_ADDR is always the proxy (127.0.0.1).
-# Without these, axes buckets every failed login on earth under one address and
-# locks out the whole site, admin and API alike.
-AXES_IPWARE_META_PRECEDENCE_ORDER = ('HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR')
-AXES_IPWARE_PROXY_COUNT = 1     # exactly one proxy: nginx
+# The app runs behind nginx, so REMOTE_ADDR is always the proxy (127.0.0.1) and
+# axes buckets every failed login on earth under one address, locking out the
+# whole site. The AXES_IPWARE_* settings cannot fix this: axes only reads them
+# when the optional django-ipware package is installed, which it is not. This
+# callable is consulted first and needs no extra dependency.
+AXES_CLIENT_IP_CALLABLE = 'songspot.client_ip.client_ip'
 
 # Lock the (username, IP) pair, not the bare IP: mobile carriers put many
 # players behind one CGNAT address.
