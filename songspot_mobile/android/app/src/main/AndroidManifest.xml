@@ -1,12 +1,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-<uses-permission android:name="com.google.android.gms.permission.AD_ID"/>
     <application
         android:label="SongSpot"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
+        <!-- No ads: keep Analytics off the advertising id. Without this the
+             SDK collects the AAID whenever the AD_ID permission is present,
+             which would force an "Advertising ID" entry in Play Data Safety. -->
+        <meta-data
+            android:name="google_analytics_adid_collection_enabled"
+            android:value="false" />
         <!-- AdMob intentionally disabled — the app does not serve ads.
              Kept for reference only; do not re-enable without revisiting
              the licensing of the audio previews.

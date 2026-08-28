@@ -28,7 +28,11 @@ class AnalyticsService {
   /// Opt-out rather than opt-in. Revisit for EU users: collection without a
   /// prior prompt is the part a CNIL/GDPR review would question. Flipping this
   /// to `false` makes the app opt-in with no other code change.
-  static const bool defaultEnabled = true;
+  /// Opt-in: collection stays off until the user turns it on. Required by
+  /// ePrivacy art. 5(3) (FR/IT/DE transpositions) for our EU-majority
+  /// audience — Firebase Analytics writes an app-instance id to the device
+  /// and is not strictly necessary to the service.
+  static const bool defaultEnabled = false;
 
   FirebaseAnalytics? _analytics;
   bool _enabled = defaultEnabled;

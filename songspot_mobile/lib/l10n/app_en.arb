@@ -580,7 +580,7 @@
   "settingsSectionPrivacy": "Privacy",
   "@settingsSectionPrivacy": { "description": "Privacy section header in settings" },
   "settingsAnalytics": "Share usage statistics",
-  "@settingsAnalytics": { "description": "Analytics opt-out switch in settings" },
+  "@settingsAnalytics": { "description": "Analytics opt-in switch in settings" },
   "settingsAnalyticsSubtitle": "Helps us see which genres and difficulties work. Never includes your guesses or personal data.",
   "@settingsAnalyticsSubtitle": { "description": "Explanation under the analytics switch" }
 }

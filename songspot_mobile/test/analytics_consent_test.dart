@@ -12,6 +12,12 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
+  test('collection is opt-in: the default is off', () {
+    // Compliance-relevant: flipping this back to true makes the app collect
+    // before consent in the EU. Assert the value, not the constant.
+    expect(AnalyticsService.defaultEnabled, isFalse);
+  });
+
   test('defaults to the declared default when nothing is stored', () async {
     await AnalyticsService().initialize();
 
