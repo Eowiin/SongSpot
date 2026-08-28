@@ -1,38 +1,489 @@
 {% extends "site/base.html" %}
 
-{% block title %}SongSpot | Music Guessing Game{% endblock %}
+{% block title %}SongSpot — Guess the song in one second{% endblock %}
+
+{% block extra_css %}
+    /* Hero --------------------------------------------------------- */
+
+    .hero { padding-block: clamp(3rem, 8vw, 6rem) clamp(3rem, 7vw, 5rem); }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+      gap: clamp(2rem, 6vw, 4.5rem);
+      align-items: center;
+    }
+
+    .hero .display { margin-bottom: 1.9rem; }
+    .hero .lede { max-width: 42ch; }
+
+    .facts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0;
+      margin: 2.75rem 0 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .fact {
+      flex: 1 1 0;
+      min-width: 104px;
+      padding: 1.15rem 1.1rem 0 0;
+    }
+
+    .fact dt {
+      font-weight: 900;
+      font-size: clamp(1.5rem, 3vw, 2rem);
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+
+    .fact:nth-child(1) dt { color: var(--accent); }
+    .fact:nth-child(2) dt { color: var(--secondary); }
+    .fact:nth-child(3) dt { color: var(--primary); }
+
+    .fact dd {
+      margin: 0.5rem 0 0;
+      font-size: 0.74rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--ink-3);
+    }
+
+    /* Device mockup ------------------------------------------------ */
+
+    .hero-device {
+      display: flex;
+      justify-content: center;
+    }
+
+    .device {
+      position: relative;
+      width: min(300px, 100%);
+      border: 1px solid var(--line-strong);
+      border-radius: 34px;
+      padding: 12px;
+      background: var(--bg-deep);
+      box-shadow: 0 30px 70px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Offset colour plate behind the phone — poster print register. */
+    .device::before {
+      content: "";
+      position: absolute;
+      inset: 22px -18px -18px 22px;
+      border: 2px solid var(--primary);
+      border-radius: 34px;
+      z-index: -1;
+    }
+
+    .device-screen {
+      border-radius: 24px;
+      background: var(--surface);
+      padding: 1.15rem 1rem 1.25rem;
+      overflow: hidden;
+    }
+
+    .device-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+
+    .device-chip {
+      padding: 0.22rem 0.5rem;
+      border-radius: 3px;
+      background: var(--secondary);
+      color: #1a1a2e;
+      font-size: 0.58rem;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .device-score {
+      font-size: 0.62rem;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-3);
+    }
+    .device-score b { color: var(--ink); font-size: 0.82rem; }
+
+    .device-art {
+      position: relative;
+      margin-top: 0.95rem;
+      aspect-ratio: 1;
+      border-radius: 12px;
+      background:
+        radial-gradient(circle at 30% 25%, rgba(255, 101, 132, 0.85), transparent 58%),
+        radial-gradient(circle at 75% 70%, rgba(78, 205, 196, 0.75), transparent 55%),
+        var(--primary);
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+    }
+
+    /* The artwork is hidden until you answer — that is the game. */
+    .device-art::after {
+      content: "?";
+      font-size: 3.6rem;
+      font-weight: 900;
+      color: rgba(255, 255, 255, 0.92);
+      text-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+    }
+
+    .device-wave {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 2px;
+      height: 40px;
+      margin-top: 1.1rem;
+    }
+
+    .device-wave span {
+      flex: 1;
+      min-width: 2px;
+      border-radius: 1px;
+      background: var(--accent);
+      opacity: 0.55;
+      height: var(--h);
+      animation: pulse 1.1s ease-in-out infinite alternate;
+      animation-delay: var(--d);
+    }
+
+    @keyframes pulse {
+      from { transform: scaleY(0.42); opacity: 0.35; }
+      to { transform: scaleY(1); opacity: 0.9; }
+    }
+
+    .device-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      margin-top: 1.1rem;
+    }
+
+    .device-play {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--accent);
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+
+    .device-play::after {
+      content: "";
+      width: 0;
+      height: 0;
+      margin-left: 3px;
+      border-left: 11px solid #12121f;
+      border-block: 7px solid transparent;
+    }
+
+    .device-time {
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      color: var(--ink-3);
+    }
+
+    .device-lives {
+      margin-left: auto;
+      display: flex;
+      gap: 4px;
+    }
+
+    .device-lives i {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--secondary);
+    }
+    .device-lives i.spent { background: transparent; border: 1px solid var(--line-strong); }
+
+    .device-input {
+      margin-top: 1rem;
+      padding: 0.62rem 0.7rem;
+      border: 1px solid var(--line-strong);
+      border-radius: 6px;
+      font-size: 0.72rem;
+      color: var(--ink-3);
+      display: flex;
+      align-items: center;
+    }
+
+    .device-input::after {
+      content: "";
+      width: 1px;
+      height: 0.9rem;
+      margin-left: 2px;
+      background: var(--accent);
+      animation: caret 1s step-end infinite;
+    }
+
+    @keyframes caret { 50% { opacity: 0; } }
+
+    /* Rules -------------------------------------------------------- */
+
+    .steps { counter-reset: step; }
+
+    .step {
+      display: grid;
+      grid-template-columns: minmax(0, 5.5rem) minmax(0, 0.85fr) minmax(0, 1.25fr);
+      gap: clamp(1rem, 4vw, 2.75rem);
+      align-items: start;
+      padding-block: clamp(1.6rem, 3.5vw, 2.4rem);
+      border-top: 1px solid var(--line);
+    }
+
+    .step:last-child { border-bottom: 1px solid var(--line); }
+
+    .step-num {
+      font-weight: 900;
+      font-size: clamp(2.2rem, 5vw, 3.4rem);
+      line-height: 0.85;
+      letter-spacing: -0.05em;
+      color: transparent;
+      -webkit-text-stroke: 1.5px var(--line-strong);
+    }
+
+    .step:nth-child(1) .step-num { -webkit-text-stroke-color: var(--accent); }
+    .step:nth-child(2) .step-num { -webkit-text-stroke-color: var(--secondary); }
+    .step:nth-child(3) .step-num { -webkit-text-stroke-color: var(--primary); }
+
+    .step p { max-width: 54ch; }
+    .step .subtitle { color: var(--ink); }
+
+    /* Difficulty --------------------------------------------------- */
+
+    .levels {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+      gap: 1px;
+      background: var(--line);
+      border: 1px solid var(--line);
+    }
+
+    .level {
+      background: var(--bg-deep);
+      padding: clamp(1.5rem, 3.5vw, 2.25rem);
+    }
+
+    .level-secs {
+      font-weight: 900;
+      font-size: clamp(3rem, 8vw, 4.6rem);
+      line-height: 0.82;
+      letter-spacing: -0.06em;
+    }
+
+    .level-secs small {
+      font-size: 0.28em;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      margin-left: 0.12em;
+    }
+
+    .level:nth-child(1) .level-secs { color: var(--accent); }
+    .level:nth-child(2) .level-secs { color: var(--secondary); }
+    .level:nth-child(3) .level-secs { color: var(--primary); }
+
+    .level-name {
+      margin-top: 1.15rem;
+      font-size: 0.74rem;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink);
+    }
+
+    .level p { margin-top: 0.55rem; font-size: 0.9rem; }
+
+    .level-mult {
+      display: inline-block;
+      margin-top: 1.1rem;
+      padding: 0.25rem 0.55rem;
+      border: 1px solid var(--line-strong);
+      font-size: 0.7rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      color: var(--ink-3);
+    }
+
+    /* Closing CTA -------------------------------------------------- */
+
+    .cta { text-align: center; }
+    .cta .lede { margin-top: 1.5rem; margin-inline: auto; text-align: center; }
+    .cta .btn-row { justify-content: center; }
+
+    @media (max-width: 900px) {
+      .step { grid-template-columns: minmax(0, 4rem) minmax(0, 1fr); }
+      .step .subtitle { grid-column: 2; }
+      .step p { grid-column: 2; max-width: none; }
+      .hero-grid { grid-template-columns: 1fr; }
+      .hero-device { order: -1; }
+      .device { width: min(260px, 100%); }
+      .device::before { inset: 18px -14px -14px 18px; }
+    }
+
+    @media (max-width: 560px) {
+      .step { grid-template-columns: 1fr; gap: 0.7rem; }
+      .fact { flex-basis: 50%; }
+    }
+{% endblock %}
 
 {% block content %}
-  <section class="hero hero-full">
-    <div class="hero-inner">
-      <div class="hero-copy">
-        <p class="eyebrow">SongSpot Mobile</p>
-        <h1>Guess the song. Build your streak.</h1>
-        <p>
-          SongSpot is a music guessing game for iOS and Android. Hear a short snippet, identify the track before your lives run out, and see how far your streak can go.
+
+  <section class="wrap hero">
+    <div class="hero-grid">
+      <div>
+        <span class="kicker">Music guessing game</span>
+        <h1 class="display">
+          Guess<br>
+          the song<br>
+          <span class="tint">in one second</span>
+        </h1>
+        <p class="lede">
+          A snippet plays. You get three lives and a text box. That is the whole game —
+          and it is much harder than it sounds.
         </p>
+        <div class="btn-row">
+          <a class="btn btn-primary" href="{{ play_url }}">Play in your browser</a>
+          {% if play_store_url %}
+            <a class="btn btn-ghost" href="{{ play_store_url }}">Get it on Android</a>
+          {% endif %}
+          {% if app_store_url %}
+            <a class="btn btn-ghost" href="{{ app_store_url }}">Get it on iOS</a>
+          {% endif %}
+        </div>
+        <dl class="facts">
+          <div class="fact"><dt>{{ genre_count }}</dt><dd>Genres</dd></div>
+          <div class="fact"><dt>3</dt><dd>Lives</dd></div>
+          <div class="fact"><dt>1v1</dt><dd>Live duels</dd></div>
+        </dl>
+      </div>
+
+      <div class="hero-device">
+        <div class="device" role="img" aria-label="The SongSpot game screen: a hidden cover, a waveform, three lives and a guess field.">
+          <div class="device-screen">
+            <div class="device-row">
+              <span class="device-chip">Hard &middot; 1s</span>
+              <span class="device-score">Score <b>120</b></span>
+            </div>
+            <div class="device-art"></div>
+            <div class="device-wave" aria-hidden="true">
+              {% for bar in waveform %}<span style="--h: {{ bar.h }}%; --d: {{ bar.d }}ms"></span>{% endfor %}
+            </div>
+            <div class="device-controls">
+              <span class="device-play" aria-hidden="true"></span>
+              <span class="device-time">0:01</span>
+              <span class="device-lives" aria-hidden="true">
+                <i></i><i></i><i class="spent"></i>
+              </span>
+            </div>
+            <div class="device-input">Type your guess</div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
 
-  <section class="section">
-    <div class="section-head">
-      <h2>How it works</h2>
-      <p>Simple rules. Surprisingly hard.</p>
+  <div class="marquee" aria-hidden="true">
+    <div class="marquee-track">
+      <div class="marquee-group">
+        {% for genre in genres %}<span>{{ genre }}</span><i>&bull;</i>{% endfor %}
+      </div>
+      <div class="marquee-group">
+        {% for genre in genres %}<span>{{ genre }}</span><i>&bull;</i>{% endfor %}
+      </div>
     </div>
-    <div class="grid">
-      <article class="tile">
-        <h3>1. Pick a category</h3>
-        <p>Choose a music genre or search by artist to play songs you actually know.</p>
-      </article>
-      <article class="tile">
-        <h3>2. Hear the snippet</h3>
-        <p>A short clip plays — 1 second on Hard, 5 on Medium, 15 on Easy. Type your guess.</p>
-      </article>
-      <article class="tile">
-        <h3>3. Don't lose your lives</h3>
-        <p>You have 3 lives per session. Wrong answers cost one. Streak bonuses reward consistency.</p>
-      </article>
+  </div>
+
+  <section class="band">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="kicker kicker--pink">How it goes</span>
+        <h2 class="title">Three rules,<br>no tutorial</h2>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">01</div>
+          <p class="subtitle">Pick what you actually listen to</p>
+          <p>
+              {{ genre_count }} genres, from pop and rock to K-pop, afrobeats, reggaeton and rap
+              français. Or skip the genres entirely and search for one artist to play only their
+              catalogue.
+            </p>
+        </div>
+        <div class="step">
+          <div class="step-num">02</div>
+          <p class="subtitle">Listen, then type</p>
+          <p>
+              The cover art stays hidden. You get the snippet and a text field with
+              autocomplete — no multiple choice to guess your way through.
+            </p>
+        </div>
+        <div class="step">
+          <div class="step-num">03</div>
+          <p class="subtitle">Three lives, and a streak worth protecting</p>
+          <p>
+              A wrong answer costs a life. Every third correct answer in a row adds a bonus,
+              so the run you are afraid to lose is always the one you are on.
+            </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band band--deep">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="kicker kicker--violet">Difficulty</span>
+        <h2 class="title">How much<br>do you need?</h2>
+        <p class="lede">
+          The difficulty is simply how long the snippet plays. Shorter snippet, bigger multiplier.
+        </p>
+      </div>
+      <div class="levels">
+        <div class="level">
+          <div class="level-secs">15<small>s</small></div>
+          <div class="level-name">Easy</div>
+          <p>Enough for a chorus. Good for a genre you are still learning.</p>
+          <span class="level-mult">Points &times; 1</span>
+        </div>
+        <div class="level">
+          <div class="level-secs">5<small>s</small></div>
+          <div class="level-name">Medium</div>
+          <p>An intro, a bar, a voice. Where most sessions settle.</p>
+          <span class="level-mult">Points &times; 1.5</span>
+        </div>
+        <div class="level">
+          <div class="level-secs">1<small>s</small></div>
+          <div class="level-name">Hard</div>
+          <p>One second. You either know it in the first note or you do not.</p>
+          <span class="level-mult">Points &times; 2</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band cta">
+    <div class="wrap">
+      <span class="kicker">No install, no account</span>
+      <h2 class="title">Try one second<br>right now</h2>
+      <p class="lede">
+        The browser version is the full game. Play as a guest — your scores follow you if you
+        create an account later.
+      </p>
+      <div class="btn-row">
+        <a class="btn btn-primary" href="{{ play_url }}">Play in your browser</a>
+        <a class="btn btn-ghost" href="/support">Need help?</a>
+      </div>
     </div>
   </section>
 

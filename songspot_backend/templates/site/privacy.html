@@ -1,73 +1,90 @@
 {% extends "site/base.html" %}
 
-{% block title %}SongSpot | Privacy Policy{% endblock %}
+{% block title %}SongSpot — Privacy Policy{% endblock %}
+{% block meta_description %}What SongSpot collects, why, and the controls you have over your data.{% endblock %}
 
 {% block content %}
-  <section class="hero">
-    <div class="hero-inner">
-      <div class="hero-copy">
-        <p class="eyebrow">Legal</p>
-        <h1>Privacy Policy</h1>
-        <p>Last updated: March 2, 2026</p>
-        <p>
-          This policy explains what SongSpot collects, why it is used, and what choices users have when
-          using the mobile app and related services.
-        </p>
+
+  <section class="wrap page-head">
+    <span class="kicker">Legal</span>
+    <h1 class="display">Privacy<br><span class="tint">policy</span></h1>
+    <p class="lede">
+      What SongSpot collects, why it is used, and what you can do about it. Plain list, no
+      surprises buried in the middle.
+    </p>
+    <span class="stamp">Last updated &middot; March 2, 2026</span>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <div class="cols cols--2">
+        <div class="col col--rule">
+          <h3>What we collect</h3>
+          <ul class="list">
+            <li>Account details: username and email.</li>
+            <li>Gameplay activity: scores, streaks, sessions and duels.</li>
+            <li>Technical diagnostics: device model and app version.</li>
+            <li>Purchase events, when you buy something.</li>
+          </ul>
+        </div>
+        <div class="col col--rule is-pink">
+          <h3>What it is used for</h3>
+          <ul class="list">
+            <li>Running the game and your account.</li>
+            <li>Protecting the service from abuse and fraud.</li>
+            <li>Fixing crashes and improving stability.</li>
+            <li>Processing rewarded ads and the ad-free pass.</li>
+          </ul>
+        </div>
       </div>
     </div>
   </section>
 
-  <section class="section">
-    <div class="grid">
-      <article class="tile">
-        <h3>Information we collect</h3>
-        <ul>
-          <li>Account details such as username and email.</li>
-          <li>Gameplay activity, scores, and room participation.</li>
-          <li>Technical diagnostics like device and app version.</li>
-          <li>Monetization and transaction-related events.</li>
-        </ul>
-      </article>
-      <article class="tile">
-        <h3>How we use it</h3>
-        <ul>
-          <li>Run core game features and account services.</li>
-          <li>Protect the service from abuse and fraud.</li>
-          <li>Improve stability, quality, and support handling.</li>
-          <li>Process rewarded ads and ad-free pass logic.</li>
-        </ul>
-      </article>
+  <section class="band band--deep">
+    <div class="wrap">
+      <div class="cols cols--2">
+        <div class="col col--rule is-violet">
+          <h3>Ads, analytics and consent</h3>
+          <p>
+            SongSpot may use advertising and analytics providers. Analytics is
+            <strong>opt-in</strong>: it stays off until you turn it on. In regulated regions the
+            consent options are shown when you first open the app, and every choice can be changed
+            later from Settings.
+          </p>
+        </div>
+        <div class="col col--rule">
+          <h3>Sharing and retention</h3>
+          <ul class="list">
+            <li>SongSpot does not sell personal data.</li>
+            <li>Data is shared only with the providers required to run the app.</li>
+            <li>Retention is limited to operational, legal and fraud-prevention needs.</li>
+          </ul>
+        </div>
+      </div>
     </div>
   </section>
 
-  <section class="section">
-    <div class="grid">
-      <article class="tile">
-        <h3>Ads and consent</h3>
-        <p>
-          SongSpot may use ad and analytics providers. In regulated regions, consent options are shown
-          in-app and can be changed from settings.
-        </p>
-      </article>
-      <article class="tile">
-        <h3>Data sharing and retention</h3>
-        <ul>
-          <li>SongSpot does not sell personal data.</li>
-          <li>Data is shared only with providers required to run the app.</li>
-          <li>Retention is limited to operational, legal, and fraud-prevention needs.</li>
-        </ul>
-      </article>
+  <section class="band">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="kicker kicker--pink">Your controls</span>
+        <h2 class="title">You can take<br>your data back</h2>
+      </div>
+      <div class="cols">
+        <div class="col col--rule">
+          <h3>Export</h3>
+          <p>Settings &rarr; My Data &rarr; Export data. You get a JSON file of everything tied to your account.</p>
+        </div>
+        <div class="col col--rule is-pink">
+          <h3>Deletion</h3>
+          <p>Settings &rarr; My Data &rarr; Delete account. It is permanent, and it removes the associated data.</p>
+        </div>
+        <div class="col col--rule is-violet">
+          <h3>Ask a person</h3>
+          <p>Privacy questions go to <a href="mailto:{{ support_email }}">{{ support_email }}</a>.</p>
+        </div>
+      </div>
     </div>
   </section>
 
-  <section class="section">
-    <div class="section-head">
-      <h2>Your controls</h2>
-      <ul>
-        <li>Request export or deletion from the app's data settings.</li>
-        <li>Manage notification and consent preferences inside the app.</li>
-      </ul>
-      <p>Privacy questions: <a href="mailto:eowin.dev@gmail.com">eowin.dev@gmail.com</a>.</p>
-    </div>
-  </section>
 {% endblock %}

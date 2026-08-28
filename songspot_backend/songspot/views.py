@@ -1,7 +1,7 @@
-from django.http import FileResponse
-from django.http import Http404
-from django.shortcuts import render
 from pathlib import Path
+
+from django.http import FileResponse, Http404
+from django.shortcuts import render
 
 
 def landing_page(request):
@@ -25,19 +25,11 @@ def account_page(request):
 
 
 def account_delete_page(request):
-    return render(
-        request,
-        "site/account_delete.html",
-        {"active_page": "account"},
-    )
+    return render(request, "site/account_delete.html", {"active_page": "account"})
 
 
 def account_export_page(request):
-    return render(
-        request,
-        "site/account_export.html",
-        {"active_page": "account"},
-    )
+    return render(request, "site/account_export.html", {"active_page": "account"})
 
 
 def site_logo(request):
