@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../config/app_theme.dart';
+import '../../config/responsive.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/settings_provider.dart';
@@ -105,7 +107,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: Container(
         decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
         child: SafeArea(
-          child: Column(
+          child: ResponsiveCenter(
+            maxWidth: 760,
+            padding: EdgeInsets.symmetric(horizontal: context.pageGutter * 0.5),
+            child: Column(
             children: [
               // App bar
               Padding(
@@ -161,20 +166,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const SizedBox(height: 8),
 
                       // ── Notifications ───────────────────────────────────
-                      _SectionHeader(l10n.settingsSectionNotifications),
-                      _SettingsSwitch(
-                        icon: Icons.music_note_outlined,
-                        title: l10n.settingsDailySongNotifications,
-                        value: settings.dailySongNotifications,
-                        onChanged: (v) => settings.setDailySongNotifications(v),
-                      ),
-                      _SettingsSwitch(
-                        icon: Icons.chat_bubble_outline,
-                        title: l10n.settingsMessageNotifications,
-                        value: settings.messagesNotifications,
-                        onChanged: (v) => settings.setMessagesNotifications(v),
-                      ),
-                      const SizedBox(height: 8),
+                      // Push is mobile-only; hide the toggles rather than
+                      // offer switches that cannot do anything in a browser.
+                      if (!kIsWeb) ...[
+                        _SectionHeader(l10n.settingsSectionNotifications),
+                        _SettingsSwitch(
+                          icon: Icons.music_note_outlined,
+                          title: l10n.settingsDailySongNotifications,
+                          value: settings.dailySongNotifications,
+                          onChanged: (v) =>
+                              settings.setDailySongNotifications(v),
+                        ),
+                        _SettingsSwitch(
+                          icon: Icons.chat_bubble_outline,
+                          title: l10n.settingsMessageNotifications,
+                          value: settings.messagesNotifications,
+                          onChanged: (v) =>
+                              settings.setMessagesNotifications(v),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
                     ],
 
                     // ── Accessibility ─────────────────────────────────────
@@ -330,6 +341,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ],
+          ),
           ),
         ),
       ),

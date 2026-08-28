@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/responsive.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/category.dart';
 import '../../providers/auth_provider.dart';
@@ -490,17 +491,28 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
     // Cards get taller as text scales up, otherwise the name + track count
     // overflow the fixed 1.4 ratio.
     final textScale = MediaQuery.textScalerOf(context).scale(16) / 16;
-    return GridView.builder(
-      padding: EdgeInsets.fromLTRB(
-          16, 16, 16, 16 + MediaQuery.viewPaddingOf(context).bottom),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.4 / textScale.clamp(1.0, 1.6),
+    // Column count follows the viewport so tiles keep a readable size instead
+    // of stretching into two giant banners on a monitor.
+    return ResponsiveCenter(
+      maxWidth: 1240,
+      padding: EdgeInsets.symmetric(horizontal: context.pageGutter * 0.8),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final columns = gridColumnsFor(constraints.maxWidth);
+          return GridView.builder(
+            padding: EdgeInsets.fromLTRB(
+                0, 16, 0, 16 + MediaQuery.viewPaddingOf(context).bottom),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              crossAxisSpacing: 14,
+              mainAxisSpacing: 14,
+              childAspectRatio: 1.4 / textScale.clamp(1.0, 1.6),
+            ),
+            itemCount: _categories.length,
+            itemBuilder: (context, i) => _buildCategoryCard(_categories[i]),
+          );
+        },
       ),
-      itemCount: _categories.length,
-      itemBuilder: (context, i) => _buildCategoryCard(_categories[i]),
     );
   }
 
@@ -564,7 +576,10 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
     final l10n = AppLocalizations.of(context);
     final showSearch = _artistController.text.trim().length >= 2;
 
-    return Column(
+    return ResponsiveCenter(
+      maxWidth: 760,
+      padding: EdgeInsets.symmetric(horizontal: context.pageGutter * 0.4),
+      child: Column(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -608,6 +623,7 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
               : _buildArtistSuggestions(),
         ),
       ],
+      ),
     );
   }
 

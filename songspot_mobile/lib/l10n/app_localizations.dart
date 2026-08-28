@@ -1232,7 +1232,7 @@ abstract class AppLocalizations {
   /// **'Privacy'**
   String get settingsSectionPrivacy;
 
-  /// Analytics opt-out switch in settings
+  /// Analytics opt-in switch in settings
   ///
   /// In en, this message translates to:
   /// **'Share usage statistics'**

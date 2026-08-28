@@ -649,3 +649,101 @@ class MigrateGuestStatsViewTests(APITestCase):
     def test_missing_fields_returns_400(self):
         response = self.client.post(self.url, {}, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class WebSocketOriginValidatorTests(TestCase):
+    """
+    The web build connects over WebSockets from a browser, which always sends
+    an Origin header. Native clients send none and must never be blocked.
+    """
+
+    def setUp(self):
+        from .middleware import OriginValidatorMiddleware
+
+        self.sent = []
+
+        async def inner(scope, receive, send):
+            self.sent.append({'type': 'reached_inner'})
+
+        self.middleware = OriginValidatorMiddleware(inner)
+
+    def _scope(self, origin=None):
+        headers = [(b'host', b'api.example.com')]
+        if origin is not None:
+            headers.append((b'origin', origin.encode()))
+        return {'type': 'websocket', 'path': '/ws/duel/queue/', 'headers': headers}
+
+    def _run(self, scope):
+        import asyncio
+
+        async def send(message):
+            self.sent.append(message)
+
+        async def receive():
+            return {'type': 'websocket.connect'}
+
+        asyncio.run(self.middleware(scope, receive, send))
+        return self.sent
+
+    @override_settings(WEBSOCKET_ALLOWED_ORIGINS=['https://play.example.com'])
+    def test_allowed_origin_reaches_inner_app(self):
+        sent = self._run(self._scope('https://play.example.com'))
+        self.assertEqual(sent, [{'type': 'reached_inner'}])
+
+    @override_settings(WEBSOCKET_ALLOWED_ORIGINS=['https://play.example.com'])
+    def test_trailing_slash_on_origin_is_tolerated(self):
+        sent = self._run(self._scope('https://play.example.com/'))
+        self.assertEqual(sent, [{'type': 'reached_inner'}])
+
+    @override_settings(WEBSOCKET_ALLOWED_ORIGINS=['https://play.example.com'])
+    def test_disallowed_origin_is_closed(self):
+        sent = self._run(self._scope('https://evil.example.com'))
+        self.assertEqual(sent, [{'type': 'websocket.close', 'code': 4003}])
+
+    @override_settings(WEBSOCKET_ALLOWED_ORIGINS=['https://play.example.com'])
+    def test_missing_origin_is_allowed_for_native_clients(self):
+        sent = self._run(self._scope(None))
+        self.assertEqual(sent, [{'type': 'reached_inner'}])
+
+    @override_settings(WEBSOCKET_ALLOWED_ORIGINS=[])
+    def test_empty_allowlist_disables_the_check(self):
+        sent = self._run(self._scope('https://anything.example.com'))
+        self.assertEqual(sent, [{'type': 'reached_inner'}])
+
+
+class CorsHeaderTests(APITestCase):
+    """The web build calls the API cross-origin; mobile clients never do."""
+
+    @override_settings(CORS_ALLOWED_ORIGINS=['https://play.example.com'],
+                       CORS_ALLOWED_ORIGIN_REGEXES=[])
+    def test_allowed_origin_gets_cors_header(self):
+        response = self.client.get(
+            '/api/game/categories/', HTTP_ORIGIN='https://play.example.com'
+        )
+        self.assertEqual(
+            response.headers.get('Access-Control-Allow-Origin'),
+            'https://play.example.com',
+        )
+
+    @override_settings(CORS_ALLOWED_ORIGINS=['https://play.example.com'],
+                       CORS_ALLOWED_ORIGIN_REGEXES=[])
+    def test_unknown_origin_gets_no_cors_header(self):
+        response = self.client.get(
+            '/api/game/categories/', HTTP_ORIGIN='https://evil.example.com'
+        )
+        self.assertIsNone(response.headers.get('Access-Control-Allow-Origin'))
+
+    @override_settings(CORS_ALLOWED_ORIGINS=['https://play.example.com'],
+                       CORS_ALLOWED_ORIGIN_REGEXES=[])
+    def test_preflight_is_answered_without_auth(self):
+        response = self.client.options(
+            '/api/game/categories/',
+            HTTP_ORIGIN='https://play.example.com',
+            HTTP_ACCESS_CONTROL_REQUEST_METHOD='GET',
+            HTTP_ACCESS_CONTROL_REQUEST_HEADERS='authorization',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            'authorization',
+            response.headers.get('Access-Control-Allow-Headers', ''),
+        )
