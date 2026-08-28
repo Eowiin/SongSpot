@@ -315,6 +315,125 @@
       color: var(--ink-3);
     }
 
+    /* Head to head -------------------------------------------------- */
+
+    .duel-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+      gap: clamp(2rem, 6vw, 4.5rem);
+      align-items: center;
+    }
+
+    .duel-grid .lede { margin-top: 1.5rem; }
+    .duel-grid .list { margin-top: 1.75rem; }
+
+    .versus {
+      border: 1px solid var(--line);
+      border-top: 2px solid var(--secondary);
+      background: var(--bg-deep);
+      padding: clamp(1.25rem, 3vw, 1.75rem);
+    }
+
+    .versus-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 0.9rem;
+      border-bottom: 1px solid var(--line);
+      font-size: 0.7rem;
+      font-weight: 800;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--ink-3);
+    }
+
+    .versus-live {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: var(--secondary);
+    }
+
+    .versus-live::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--secondary);
+      animation: blink 1.4s ease-in-out infinite;
+    }
+
+    @keyframes blink { 50% { opacity: 0.25; } }
+
+    .versus-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      align-items: baseline;
+      gap: 0.9rem;
+      padding: 1rem 0;
+    }
+
+    .versus-name {
+      font-weight: 800;
+      font-size: 1.02rem;
+      letter-spacing: -0.01em;
+    }
+
+    .versus-elo {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--ink-3);
+    }
+
+    .versus-score {
+      min-width: 1.6ch;
+      text-align: right;
+      font-weight: 900;
+      font-size: 1.9rem;
+      line-height: 1;
+      letter-spacing: -0.04em;
+      color: var(--accent);
+    }
+
+    .versus-row.is-opponent .versus-score { color: var(--ink-3); }
+
+    .versus-split {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      color: var(--ink-3);
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.2em;
+    }
+
+    .versus-split::before,
+    .versus-split::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--line);
+    }
+
+    .versus-pips {
+      display: flex;
+      gap: 6px;
+      margin-top: 0.35rem;
+      padding-top: 1.1rem;
+      border-top: 1px solid var(--line);
+    }
+
+    .versus-pips i {
+      flex: 1;
+      height: 4px;
+      background: var(--line-strong);
+    }
+
+    .versus-pips i.done { background: var(--accent); }
+    .versus-pips i.now { background: var(--secondary); }
+
     /* Closing CTA -------------------------------------------------- */
 
     .cta { text-align: center; }
@@ -322,6 +441,7 @@
     .cta .btn-row { justify-content: center; }
 
     @media (max-width: 900px) {
+      .duel-grid { grid-template-columns: 1fr; }
       .step { grid-template-columns: minmax(0, 4rem) minmax(0, 1fr); }
       .step .subtitle { grid-column: 2; }
       .step p { grid-column: 2; max-width: none; }
@@ -467,6 +587,46 @@
           <div class="level-name">Hard</div>
           <p>One second. You either know it in the first note or you do not.</p>
           <span class="level-mult">Points &times; 2</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap duel-grid">
+      <div>
+        <span class="kicker kicker--pink">Head to head</span>
+        <h2 class="title">Five rounds,<br>one opponent</h2>
+        <p class="lede">
+          Matchmaking pairs you on rating, starting inside 100 points and widening the longer
+          you wait. Then it is the same five tracks, in the same order, at the same moment.
+        </p>
+        <ul class="list">
+          <li>Everyone starts at 1000. The bigger the upset, the more rating changes hands.</li>
+          <li>A browser player and a phone player land in the same queue — matchmaking has no
+              notion of platform.</li>
+          <li>Duels need an account. Solo runs do not.</li>
+        </ul>
+      </div>
+
+      <div class="versus" role="img" aria-label="A duel in progress: round 3 of 5, you lead 2 to 1.">
+        <div class="versus-head">
+          <span>Round 3 / 5</span>
+          <span class="versus-live">Live</span>
+        </div>
+        <div class="versus-row">
+          <span class="versus-name">You</span>
+          <span class="versus-elo">1000</span>
+          <span class="versus-score">2</span>
+        </div>
+        <div class="versus-split">VS</div>
+        <div class="versus-row is-opponent">
+          <span class="versus-name">Opponent</span>
+          <span class="versus-elo">1214</span>
+          <span class="versus-score">1</span>
+        </div>
+        <div class="versus-pips" aria-hidden="true">
+          <i class="done"></i><i class="done"></i><i class="now"></i><i></i><i></i>
         </div>
       </div>
     </div>
