@@ -16,6 +16,7 @@ class AudioService {
   int _prefetchRequestId = 0;
   bool _isPlaying = false;
   bool _isInitialized = false;
+  StreamSubscription<AudioInterruptionEvent>? _interruptionSub;
 
   AudioPlayer get _active => _usingA ? _playerA : _playerB;
   AudioPlayer get _prefetch => _usingA ? _playerB : _playerA;
@@ -33,7 +34,31 @@ class AudioService {
     try {
       final session = await AudioSession.instance;
       await session.configure(const AudioSessionConfiguration.music());
+      // A phone call, Siri, or another app (Spotify) grabbing audio focus
+      // pauses the player without ever reaching `completed`. Without this the
+      // snippet would only end at playSnippet's wall-clock ceiling, leaving the
+      // play button stuck for the whole budget. Stop on the interruption's
+      // start so the button is released at once; do not auto-resume on end —
+      // the player taps play again.
+      _interruptionSub ??= session.interruptionEventStream.listen((event) {
+        if (event.begin) {
+          unawaited(haltForInterruption());
+        }
+      });
       _isInitialized = true;
+    } catch (_) {}
+  }
+
+  /// End the current snippet immediately because the app was backgrounded or
+  /// audio was interrupted. Stopping the active player drives it to `idle`,
+  /// which resolves playSnippet's completion future on its normal path — so the
+  /// caller's onPlaybackStopped fires and the play button is released. The
+  /// request id is deliberately left untouched so that path is not skipped.
+  Future<void> haltForInterruption() async {
+    if (!_isPlaying) return;
+    debugPrint('[AudioService] haltForInterruption');
+    try {
+      await _active.stop();
     } catch (_) {}
   }
 

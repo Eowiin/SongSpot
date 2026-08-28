@@ -15,6 +15,7 @@ import 'providers/stats_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'services/analytics_service.dart';
+import 'services/audio_service.dart';
 import 'services/consent_service.dart';
 import 'services/firebase_bootstrap.dart';
 import 'services/push_notification_service.dart';
@@ -101,6 +102,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
         FocusManager.instance.primaryFocus?.unfocus();
+        // Stop any snippet when the app leaves the foreground: on Android the
+        // audio would otherwise keep playing off-screen, and on iOS it would
+        // resume mid-clip on return instead of resetting. Ending it here also
+        // releases the play button so the player taps to replay from the start.
+        AudioService().haltForInterruption();
         break;
       case AppLifecycleState.resumed:
         break;
