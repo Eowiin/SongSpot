@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/responsive.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/track.dart';
 import '../../providers/duel_provider.dart';
@@ -206,43 +207,9 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
           body: SafeArea(
             child: Stack(
               children: [
-                Column(
-                  children: [
-                    _buildOpponentPanel(duel, l10n),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: Column(
-                          children: [
-                            const SizedBox(height: 8),
-                            if (duel.errorMessage != null)
-                              _buildConnectionBanner(duel.errorMessage!),
-                            _buildRoundIndicator(duel),
-                            const SizedBox(height: 20),
-                            _buildTrackCard(duel, l10n),
-                            const SizedBox(height: 16),
-                            _buildSnippetControls(duel, l10n),
-                            const SizedBox(height: 16),
-                          ],
-                        ),
-                      ),
-                    ),
-                    if (!duel.hasSubmitted && !_showRevealOverlay) ...[
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-                        child: (_searchResults.isNotEmpty || _isSearching)
-                            ? _buildSearchResults()
-                            : const SizedBox.shrink(),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                        child: _buildGuessField(l10n),
-                      ),
-                    ] else if (duel.hasSubmitted && !_showRevealOverlay)
-                      _buildSubmittedBanner(l10n),
-                  ],
-                ),
+                context.isWide
+                    ? _buildWideDuelBody(duel, l10n)
+                    : _buildNarrowDuelBody(duel, l10n),
                 if (duel.status == DuelStatus.loading)
                   _buildReadyOverlay(duel, l10n),
                 if (_showRevealOverlay) _buildRoundResultOverlay(context, duel),
@@ -251,6 +218,101 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
           ),
         );
       },
+    );
+  }
+
+  /// Desktop-style split: the track and its controls on the left, the guess
+  /// box and opponent state on the right. Phones keep the stacked layout so
+  /// the guess field stays pinned above the soft keyboard.
+  Widget _buildWideDuelBody(DuelProvider duel, AppLocalizations l10n) {
+    return ResponsiveCenter(
+      maxWidth: 1100,
+      child: Column(
+        children: [
+          _buildOpponentPanel(duel, l10n),
+          const SizedBox(height: 16),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 6,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        if (duel.errorMessage != null)
+                          _buildConnectionBanner(duel.errorMessage!),
+                        _buildRoundIndicator(duel),
+                        const SizedBox(height: 24),
+                        _buildTrackCard(duel, l10n),
+                        const SizedBox(height: 20),
+                        _buildSnippetControls(duel, l10n),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 36),
+                Expanded(
+                  flex: 5,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (!duel.hasSubmitted && !_showRevealOverlay) ...[
+                        if (_searchResults.isNotEmpty || _isSearching)
+                          Flexible(child: _buildSearchResults()),
+                        const SizedBox(height: 12),
+                        _buildGuessField(l10n),
+                      ] else if (duel.hasSubmitted && !_showRevealOverlay)
+                        _buildSubmittedBanner(l10n),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNarrowDuelBody(DuelProvider duel, AppLocalizations l10n) {
+    return Column(
+      children: [
+        _buildOpponentPanel(duel, l10n),
+        const SizedBox(height: 8),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              children: [
+                const SizedBox(height: 8),
+                if (duel.errorMessage != null)
+                  _buildConnectionBanner(duel.errorMessage!),
+                _buildRoundIndicator(duel),
+                const SizedBox(height: 20),
+                _buildTrackCard(duel, l10n),
+                const SizedBox(height: 16),
+                _buildSnippetControls(duel, l10n),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        ),
+        if (!duel.hasSubmitted && !_showRevealOverlay) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+            child: (_searchResults.isNotEmpty || _isSearching)
+                ? _buildSearchResults()
+                : const SizedBox.shrink(),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+            child: _buildGuessField(l10n),
+          ),
+        ] else if (duel.hasSubmitted && !_showRevealOverlay)
+          _buildSubmittedBanner(l10n),
+      ],
     );
   }
 

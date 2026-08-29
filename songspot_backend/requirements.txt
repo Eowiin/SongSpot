@@ -17,6 +17,7 @@ daphne==4.2.1
 dj-database-url==3.1.0
 Django==6.0.1
 django-axes==8.3.1
+django-cors-headers==4.9.0
 django-ratelimit==4.1.0
 djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1

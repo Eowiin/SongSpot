@@ -1,12 +1,12 @@
-import 'dart:io';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
 import '../../config/app_theme.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
+import '../../services/file_saver.dart';
 import '../../widgets/gradient_button.dart';
 import '../auth/login_screen.dart';
 
@@ -57,14 +57,16 @@ class _MyDataScreenState extends State<MyDataScreen> {
 
     try {
       final apiService = ApiService();
-      final bytes = await apiService.exportData();
+      final payload = await apiService.exportData();
+      // The endpoint returns decoded JSON, so re-encode it before saving.
+      final bytes = utf8.encode(
+        const JsonEncoder.withIndent('  ').convert(payload),
+      );
 
-      final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/songspot_data.json');
-      await file.writeAsBytes(bytes);
-
-      await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'application/json')],
+      await saveBytesAsFile(
+        bytes: bytes,
+        fileName: 'songspot_data.json',
+        mimeType: 'application/json',
         subject: 'SongSpot — My data export',
       );
     } on ApiException catch (e) {

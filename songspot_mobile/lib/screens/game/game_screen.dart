@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/responsive.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/category.dart';
 import '../../models/track.dart';
@@ -227,6 +228,64 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   }
 
   Widget _buildGameBody(BuildContext context, GameSessionProvider provider) {
+    if (context.isWide) return _buildWideGameBody(context, provider);
+    return _buildNarrowGameBody(context, provider);
+  }
+
+  /// Desktop-style layout: artwork and playback on the left, everything the
+  /// player interacts with on the right. There is no soft keyboard to avoid
+  /// here, so this can be a plain two-column split.
+  Widget _buildWideGameBody(
+    BuildContext context, GameSessionProvider provider) {
+    final track = provider.currentTrack;
+    final revealed = provider.revealAnswer;
+
+    return ResponsiveCenter(
+      maxWidth: 1180,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 6,
+              child: Column(
+                children: [
+                  _buildAlbumArt(provider, track, height: 420),
+                  const SizedBox(height: 28),
+                  _buildPlaybackRow(provider),
+                ],
+              ),
+            ),
+            const SizedBox(width: 40),
+            Expanded(
+              flex: 5,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (revealed) ...[
+                    _buildResultCard(provider, track),
+                    const Spacer(),
+                    _buildBottomBar(provider),
+                  ] else ...[
+                    if (provider.searchResults.isNotEmpty)
+                      Flexible(child: _buildAutocomplete(provider)),
+                    const SizedBox(height: 12),
+                    _buildGuessInput(provider),
+                    const SizedBox(height: 16),
+                    _buildGiveUpButton(provider),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNarrowGameBody(
+    BuildContext context, GameSessionProvider provider) {
     final track = provider.currentTrack;
     final revealed = provider.revealAnswer;
 
@@ -267,14 +326,18 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildAlbumArt(GameSessionProvider provider, Track? track) {
+  Widget _buildAlbumArt(
+    GameSessionProvider provider,
+    Track? track, {
+    double height = 240,
+  }) {
     return AnimatedBuilder(
       animation: _revealAnim,
       builder: (context, child) {
         final blurSigma = (1 - _revealAnim.value) * 20.0;
         return Container(
           width: double.infinity,
-          height: 240,
+          height: height,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             color: AppTheme.surfaceColor,
