@@ -1,50 +1,52 @@
 {% extends "site/base.html" %}
 
-{% block title %}SongSpot | Request Data Export{% endblock %}
+{% block title %}SongSpot — Request a Data Export{% endblock %}
+{% block meta_description %}How to export all the data attached to your SongSpot account.{% endblock %}
 
 {% block content %}
-  <section class="hero">
-    <div class="hero-inner">
-      <div class="hero-copy">
-        <p class="eyebrow">Data Export</p>
-        <h1>Request your SongSpot data export</h1>
-        <p>
-          You can export your personal data directly in-app, or request support help by email.
-        </p>
-        <div class="actions">
-          <a class="btn btn-primary" href="mailto:eowin.dev@gmail.com?subject=SongSpot%20Data%20Export%20Request">Email Export Request</a>
-          <a class="btn btn-secondary" href="/account">Back to Account</a>
+
+  <section class="wrap page-head">
+    <span class="kicker">Account &middot; Export</span>
+    <h1 class="display">Get a copy<br><span class="tint">of everything</span></h1>
+    <p class="lede">
+      Fastest route is inside the app — it takes three taps and returns a JSON file. Email works
+      too if you cannot reach your account.
+    </p>
+    <div class="btn-row">
+      <a class="btn btn-primary" href="mailto:{{ support_email }}?subject=SongSpot%20Data%20Export%20Request">Request by email</a>
+      <a class="btn btn-ghost" href="/account">Back to account</a>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <div class="cols">
+        <div class="col col--rule">
+          <h3>In the app</h3>
+          <ul class="list">
+            <li>Open SongSpot.</li>
+            <li>Settings &rarr; My Data.</li>
+            <li>Tap &ldquo;Export data&rdquo;.</li>
+          </ul>
+        </div>
+        <div class="col col--rule is-pink">
+          <h3>Through the API</h3>
+          <ul class="list">
+            <li><code>GET /api/auth/data/export/</code></li>
+            <li>Requires an authenticated token.</li>
+            <li>Returns a JSON file attachment.</li>
+          </ul>
+        </div>
+        <div class="col col--rule is-violet">
+          <h3>By email</h3>
+          <ul class="list">
+            <li>Write from your account email if you can.</li>
+            <li>Include your username and app version.</li>
+            <li><a href="mailto:{{ support_email }}">{{ support_email }}</a></li>
+          </ul>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="section">
-    <div class="grid">
-      <article class="tile">
-        <h3>In-app export</h3>
-        <ul>
-          <li>Open SongSpot.</li>
-          <li>Go to Settings -> My Data.</li>
-          <li>Tap "Export data".</li>
-        </ul>
-      </article>
-      <article class="tile">
-        <h3>API export</h3>
-        <ul>
-          <li>Endpoint: <code>GET /api/auth/data/export/</code></li>
-          <li>Requires authenticated user token.</li>
-          <li>Returns a JSON file attachment.</li>
-        </ul>
-      </article>
-      <article class="tile">
-        <h3>Email request details</h3>
-        <ul>
-          <li>Send from your account email if possible.</li>
-          <li>Include username and app version.</li>
-          <li>Contact: <a href="mailto:eowin.dev@gmail.com">eowin.dev@gmail.com</a></li>
-        </ul>
-      </article>
-    </div>
-  </section>
 {% endblock %}
