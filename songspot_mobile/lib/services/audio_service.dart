@@ -183,10 +183,21 @@ class AudioService {
     }
   }
 
+  // Callers wire this straight into sync handlers (submitGuess, giveUp,
+  // screen dispose) without awaiting, so an escaping error would surface as an
+  // unhandled async error and kill the app. iOS throws PlatformException
+  // 561015905 ('!pla', session activation failed) here whenever the session
+  // cannot be activated — routinely when the app is already in the background —
+  // and there is nothing to recover: playback is being torn down anyway.
+  // _setPlaying stays outside the guard so the play button is released either way.
   Future<void> stop() async {
     _playbackRequestId += 1;
-    await _active.stop();
-    await _active.seek(Duration.zero);
+    try {
+      await _active.stop();
+      await _active.seek(Duration.zero);
+    } catch (e) {
+      debugPrint('[AudioService] stop: FAILED $e');
+    }
     _setPlaying(false);
   }
 
