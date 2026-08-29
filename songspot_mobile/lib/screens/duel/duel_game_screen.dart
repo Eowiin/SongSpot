@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../config/responsive.dart';
@@ -8,6 +9,8 @@ import '../../models/track.dart';
 import '../../providers/duel_provider.dart';
 import '../../services/api_service.dart';
 import '../../services/audio_service.dart';
+import '../../widgets/guess_field.dart';
+import '../../widgets/pressable.dart';
 
 // Snippet durations matching the plan: 1s, 3s, 5s, 10s, 15s
 const _snippetDurations = [
@@ -30,6 +33,9 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
   final _api = ApiService();
   final _guessController = TextEditingController();
   final _guessFocus = FocusNode();
+  /// Holds keyboard focus whenever the guess box does not, so Space reaches
+  /// the replay shortcut.
+  final _shortcutFocus = FocusNode(debugLabel: 'duel shortcuts');
 
   bool _isPlaying = false;
   bool _isAudioLoading = false;
@@ -63,6 +69,7 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
     _revealTimer?.cancel();
     _guessController.dispose();
     _guessFocus.dispose();
+    _shortcutFocus.dispose();
     _audio.stop(); // AudioService is a singleton — never call dispose() on it
     super.dispose();
   }
@@ -188,7 +195,7 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
 
   void _selectTrack(Track track) {
     _duel?.submitGuess(track.id);
-    _guessFocus.unfocus();
+    _shortcutFocus.requestFocus();
     _guessController.clear();
     setState(() {
       _searchResults = [];
@@ -205,19 +212,48 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
           backgroundColor: AppTheme.backgroundColor,
           appBar: _buildAppBar(duel, l10n),
           body: SafeArea(
-            child: Stack(
-              children: [
-                context.isWide
-                    ? _buildWideDuelBody(duel, l10n)
-                    : _buildNarrowDuelBody(duel, l10n),
-                if (duel.status == DuelStatus.loading)
-                  _buildReadyOverlay(duel, l10n),
-                if (_showRevealOverlay) _buildRoundResultOverlay(context, duel),
-              ],
+            child: _withDuelShortcuts(
+              duel,
+              Stack(
+                children: [
+                  context.isWide
+                      ? _buildWideDuelBody(duel, l10n)
+                      : _buildNarrowDuelBody(duel, l10n),
+                  if (duel.status == DuelStatus.loading)
+                    _buildReadyOverlay(duel, l10n),
+                  if (_showRevealOverlay)
+                    _buildRoundResultOverlay(context, duel),
+                ],
+              ),
             ),
           ),
         );
       },
+    );
+  }
+
+  /// Space replays the snippet without leaving the keyboard. It stands down
+  /// unless the shortcut host itself holds focus, so the key still types a
+  /// space in the guess box and still activates a focused button.
+  Widget _withDuelShortcuts(DuelProvider duel, Widget child) {
+    return Shortcuts(
+      shortcuts: const <ShortcutActivator, Intent>{
+        SingleActivator(LogicalKeyboardKey.space): _ReplayDuelSnippetIntent(),
+        SingleActivator(LogicalKeyboardKey.keyR): _ReplayDuelSnippetIntent(),
+      },
+      child: Actions(
+        actions: <Type, Action<Intent>>{
+          _ReplayDuelSnippetIntent: _DuelShortcutAction(
+            enabled: () =>
+                _shortcutFocus.hasPrimaryFocus &&
+                !_isPlaying &&
+                !_isAudioLoading &&
+                duel.status == DuelStatus.playing,
+            onInvoke: _playSnippet,
+          ),
+        },
+        child: Focus(focusNode: _shortcutFocus, autofocus: true, child: child),
+      ),
     );
   }
 
@@ -257,12 +293,9 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (!duel.hasSubmitted && !_showRevealOverlay) ...[
-                        if (_searchResults.isNotEmpty || _isSearching)
-                          Flexible(child: _buildSearchResults()),
-                        const SizedBox(height: 12),
-                        _buildGuessField(l10n),
-                      ] else if (duel.hasSubmitted && !_showRevealOverlay)
+                      if (!duel.hasSubmitted && !_showRevealOverlay)
+                        _buildGuessField(l10n, resultsBelow: true)
+                      else if (duel.hasSubmitted && !_showRevealOverlay)
                         _buildSubmittedBanner(l10n),
                     ],
                   ),
@@ -299,18 +332,12 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
             ),
           ),
         ),
-        if (!duel.hasSubmitted && !_showRevealOverlay) ...[
+        if (!duel.hasSubmitted && !_showRevealOverlay)
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-            child: (_searchResults.isNotEmpty || _isSearching)
-                ? _buildSearchResults()
-                : const SizedBox.shrink(),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-            child: _buildGuessField(l10n),
-          ),
-        ] else if (duel.hasSubmitted && !_showRevealOverlay)
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+            child: _buildGuessField(l10n, resultsBelow: false),
+          )
+        else if (duel.hasSubmitted && !_showRevealOverlay)
           _buildSubmittedBanner(l10n),
       ],
     );
@@ -411,8 +438,9 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: AppTheme.successColor.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppTheme.successColor.withValues(alpha: 0.4)),
+                borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+                border: Border.all(
+                    color: AppTheme.successColor.withValues(alpha: 0.4)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -472,26 +500,21 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       decoration: BoxDecoration(
         gradient: AppTheme.cardGradient,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+        border: Border.all(color: AppTheme.line),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          GestureDetector(
+          Pressable(
             onTap: (_isPlaying || _isAudioLoading) ? null : _playSnippet,
+            borderRadius: AppTheme.borderRadius,
             child: Container(
               width: 70,
               height: 70,
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(AppTheme.borderRadius),
                 gradient: AppTheme.primaryGradient,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.primaryColor.withValues(alpha: 0.4),
-                    blurRadius: 16,
-                  ),
-                ],
               ),
               child: _isAudioLoading
                   ? const Padding(
@@ -554,15 +577,12 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: AppTheme.primaryColor.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(AppTheme.borderRadius),
               ),
               child: Text(
                 '${points[(current - 1).clamp(0, 4)]} ${l10n.duelPts}',
-                style: const TextStyle(
-                  color: AppTheme.primaryColor,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
+                style: AppTheme.action(
+                    color: AppTheme.primaryColor, size: 12),
               ),
             ),
           ],
@@ -583,85 +603,25 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
     );
   }
 
-  Widget _buildGuessField(AppLocalizations l10n) {
-    return TextField(
+  Widget _buildGuessField(
+    AppLocalizations l10n, {
+    required bool resultsBelow,
+  }) {
+    return GuessField(
       controller: _guessController,
       focusNode: _guessFocus,
-      style: const TextStyle(color: AppTheme.textPrimary),
-      decoration: InputDecoration(
-        hintText: l10n.duelSearchHint,
-        hintStyle: const TextStyle(color: AppTheme.textSecondary),
-        filled: true,
-        fillColor: AppTheme.surfaceColor,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        prefixIcon: const Icon(Icons.search_rounded, color: AppTheme.textSecondary),
-        suffixIcon: _isSearching
-            ? const Padding(
-                padding: EdgeInsets.all(12),
-                child: SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppTheme.primaryColor,
-                  ),
-                ),
-              )
-            : null,
-      ),
+      results: _searchResults,
+      isSearching: _isSearching,
+      hintText: l10n.duelSearchHint,
+      keyboardHint: resultsBelow ? l10n.gameKeyboardHintGuess : null,
+      resultsBelow: resultsBelow,
+      // Focusing the box on arrival would swallow the Space shortcut, and the
+      // duel opens on a "get ready" overlay anyway.
+      autofocus: false,
+      maxResultsHeight: 220,
       onChanged: _searchTracks,
-    );
-  }
-
-  Widget _buildSearchResults() {
-    return Container(
-      constraints: const BoxConstraints(maxHeight: 200),
-      margin: const EdgeInsets.only(top: 4),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: ListView.builder(
-        shrinkWrap: true,
-        padding: EdgeInsets.zero,
-        itemCount: _searchResults.length,
-        itemBuilder: (_, i) {
-          final track = _searchResults[i];
-          return ListTile(
-            dense: true,
-            leading: ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: track.coverUrl != null
-                  ? Image.network(
-                      track.coverUrl!,
-                      width: 40,
-                      height: 40,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stack) => const _CoverPlaceholder(),
-                    )
-                  : const _CoverPlaceholder(),
-            ),
-            title: Text(
-              track.title,
-              style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            subtitle: Text(
-              track.artist,
-              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            onTap: () => _selectTrack(track),
-          );
-        },
-      ),
+      onClear: () => setState(() => _searchResults = []),
+      onSelected: _selectTrack,
     );
   }
 
@@ -671,7 +631,7 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: AppTheme.successColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
         border: Border.all(color: AppTheme.successColor.withValues(alpha: 0.35)),
       ),
       child: Row(
@@ -758,7 +718,7 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
             padding: const EdgeInsets.all(28),
             decoration: BoxDecoration(
               color: AppTheme.surfaceColor,
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
               border: Border.all(
                 color: isCorrect
                     ? AppTheme.successColor.withValues(alpha: 0.4)
@@ -775,11 +735,14 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  isCorrect ? '+${result.player.points} ${l10n.duelPts}' : l10n.duelWrong,
-                  style: TextStyle(
-                    color: isCorrect ? AppTheme.successColor : AppTheme.errorColor,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
+                  isCorrect
+                      ? '+${result.player.points} ${l10n.duelPts}'
+                      : l10n.duelWrong,
+                  textAlign: TextAlign.center,
+                  style: AppTheme.display(
+                    28,
+                    color:
+                        isCorrect ? AppTheme.successColor : AppTheme.errorColor,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -830,16 +793,23 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
   }
 }
 
-class _CoverPlaceholder extends StatelessWidget {
-  const _CoverPlaceholder();
+class _ReplayDuelSnippetIntent extends Intent {
+  const _ReplayDuelSnippetIntent();
+}
+
+class _DuelShortcutAction extends Action<_ReplayDuelSnippetIntent> {
+  _DuelShortcutAction({required this.enabled, required this.onInvoke});
+
+  final bool Function() enabled;
+  final VoidCallback onInvoke;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 40,
-      height: 40,
-      color: AppTheme.surfaceColor,
-      child: const Icon(Icons.music_note_rounded, color: AppTheme.textSecondary, size: 20),
-    );
+  bool isEnabled(_ReplayDuelSnippetIntent intent, [BuildContext? context]) =>
+      enabled();
+
+  @override
+  Object? invoke(_ReplayDuelSnippetIntent intent) {
+    onInvoke();
+    return null;
   }
 }

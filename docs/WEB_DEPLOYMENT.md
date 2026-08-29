@@ -38,6 +38,52 @@ which is why the game and duel screens have separate `_buildWide*` / `_buildNarr
 bodies rather than one adaptive tree. **Change the narrow body when you change phone
 behaviour.**
 
+## Playing with a keyboard and a mouse
+
+A browser player never touches the screen, so the two inputs a phone build can
+ignore have to be handled explicitly.
+
+**Keyboard.** `lib/widgets/guess_field.dart` is the shared search box used by
+the solo game and the duel:
+
+| Key | Effect |
+| --- | --- |
+| `↑` / `↓` | move the highlight through the results |
+| `Enter` | pick the highlighted result (the first one by default) |
+| `Esc` | clear the box |
+| `Space` / `R` | replay the snippet |
+| `Enter` (answer revealed) | next song / see results |
+
+The arrow keys work because `GuessField` binds them in a `Shortcuts` widget
+*nearer* than `DefaultTextEditingShortcuts`, which lives at the app root; the
+actions disable themselves when there is nothing to navigate so the keys fall
+back to moving the caret. The same trick gates `Space` and `R`: the game and
+duel screens hold a dedicated `_shortcutFocus` node, and the replay action only
+fires while that node has primary focus — so `Space` still types a space in the
+guess box and still activates whichever button was tabbed to.
+`test/guess_field_test.dart` covers the lot.
+
+On a wide viewport the guess box takes focus when a track loads and the results
+hang *below* it, like any browser dropdown. On a phone the list stays *above*
+the box, because the box is pinned over the soft keyboard.
+
+**Pointer.** `lib/widgets/pressable.dart` wraps anything clickable in a pointer
+cursor, a hover lift and a focus ring. A bare `GestureDetector` gives none of
+those in a browser, which made half the home screen read as decoration. Use
+`Pressable` for new tappable surfaces; `ListTile` and the Material buttons
+already carry their own hover states.
+
+## Design language
+
+The app and the marketing site share one system, and the tokens are mirrored on
+both sides — `lib/config/app_theme.dart` and the `:root` block in
+`songspot_backend/templates/site/base.html`. Same palette, near-square corners
+(4px on controls, 6px on large surfaces), hairline rules instead of shadows, and
+heavy uppercase display type. `AppTheme.display/title/kicker/action` are the
+type ramp; `SectionLabel` and `RuledPanel` in `lib/widgets/pressable.dart` are
+the shared editorial pieces. Change a token in one place and change it in the
+other, or the two drift.
+
 ## 1. Point the build at a backend
 
 The web build bundles `songspot_mobile/.env` as an asset, same as mobile:
