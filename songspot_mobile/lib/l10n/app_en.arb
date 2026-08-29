@@ -442,6 +442,18 @@
   "gameWrong": "Wrong",
   "gameSeeResults": "See Results",
   "gameNextButton": "Next",
+  "gameKeyboardHintGuess": "↑ ↓ browse · Enter picks · Esc clears",
+  "@gameKeyboardHintGuess": {
+    "description": "Shortcut reminder under the guess box on keyboard/pointer layouts."
+  },
+  "gameKeyboardHintReplay": "Space replays",
+  "@gameKeyboardHintReplay": {
+    "description": "Shortcut reminder next to the replay button on keyboard/pointer layouts."
+  },
+  "gameKeyboardHintNext": "Enter continues",
+  "@gameKeyboardHintNext": {
+    "description": "Shortcut reminder next to the next-song button on keyboard/pointer layouts."
+  },
   "sessionEndHeadlineCleared": "You cleared it!",
   "sessionEndHeadlineOutOfLives": "Out of lives!",
   "sessionEndHeadlineEnded": "Session ended",
@@ -468,6 +480,27 @@
   "homeSoloLabel": "Solo",
   "homeTagline": "Test your music knowledge",
   "homeSignInToPlay": "Sign in to play",
+  "categoryDifficulty": "Difficulty",
+  "@categoryDifficulty": {
+    "description": "Label above the difficulty picker in the pre-game panel."
+  },
+  "categorySongCount": "{count, plural, =1{1 song} other{{count} songs}}",
+  "@categorySongCount": {
+    "description": "Track count on a genre card.",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "homeDuelSignInPrompt": "1v1 needs an account. Sign in or create one to play against someone else.",
+  "@homeDuelSignInPrompt": {
+    "description": "Body of the dialog shown when a guest taps the 1v1 card."
+  },
+  "homeSoloSublabel": "One track at a time, three lives",
+  "@homeSoloSublabel": {
+    "description": "Sublabel on the solo mode card on the home screen."
+  },
+  "homeDuelSublabel": "Race someone else, round for round",
+  "@homeDuelSublabel": {
+    "description": "Sublabel on the 1v1 mode card on the home screen."
+  },
   "homeComingSoon": "Coming soon",
   "homeGreeting": "Hi, {username}",
   "@homeGreeting": {

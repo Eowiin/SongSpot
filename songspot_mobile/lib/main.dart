@@ -200,29 +200,46 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Picks up where the HTML boot splash leaves off, so the handover on web
+    // is not a jump between two different identities.
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.music_note, size: 100, color: AppTheme.primaryColor),
-              const SizedBox(height: 24),
-              Text(
-                AppLocalizations.of(context).appTitle,
-                style: const TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.textPrimary,
-                ),
+      backgroundColor: AppTheme.backgroundColor,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                gradient: AppTheme.primaryGradient,
+                borderRadius: BorderRadius.circular(AppTheme.borderRadius),
               ),
-              const SizedBox(height: 32),
-              const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+            ),
+            const SizedBox(height: 22),
+            Text.rich(
+              TextSpan(
+                text: AppLocalizations.of(context).appTitle.toUpperCase(),
+                children: [
+                  TextSpan(
+                    text: '.',
+                    style: AppTheme.display(24, color: AppTheme.accentColor),
+                  ),
+                ],
               ),
-            ],
-          ),
+              style: AppTheme.display(24).copyWith(letterSpacing: 3),
+            ),
+            const SizedBox(height: 26),
+            const SizedBox(
+              width: 140,
+              child: LinearProgressIndicator(
+                minHeight: 2,
+                backgroundColor: AppTheme.line,
+                valueColor:
+                    AlwaysStoppedAnimation<Color>(AppTheme.accentColor),
+              ),
+            ),
+          ],
         ),
       ),
     );

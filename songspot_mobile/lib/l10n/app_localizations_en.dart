@@ -381,6 +381,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get gameNextButton => 'Next';
 
   @override
+  String get gameKeyboardHintGuess => '↑ ↓ browse · Enter picks · Esc clears';
+
+  @override
+  String get gameKeyboardHintReplay => 'Space replays';
+
+  @override
+  String get gameKeyboardHintNext => 'Enter continues';
+
+  @override
   String get sessionEndHeadlineCleared => 'You cleared it!';
 
   @override
@@ -458,6 +467,30 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get homeSignInToPlay => 'Sign in to play';
+
+  @override
+  String get categoryDifficulty => 'Difficulty';
+
+  @override
+  String categorySongCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count songs',
+      one: '1 song',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get homeDuelSignInPrompt =>
+      '1v1 needs an account. Sign in or create one to play against someone else.';
+
+  @override
+  String get homeSoloSublabel => 'One track at a time, three lives';
+
+  @override
+  String get homeDuelSublabel => 'Race someone else, round for round';
 
   @override
   String get homeComingSoon => 'Coming soon';

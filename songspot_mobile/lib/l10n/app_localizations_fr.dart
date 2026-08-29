@@ -387,6 +387,16 @@ class AppLocalizationsFr extends AppLocalizations {
   String get gameNextButton => 'Suivant';
 
   @override
+  String get gameKeyboardHintGuess =>
+      '↑ ↓ parcourir · Entrée valide · Échap efface';
+
+  @override
+  String get gameKeyboardHintReplay => 'Espace rejoue';
+
+  @override
+  String get gameKeyboardHintNext => 'Entrée continue';
+
+  @override
   String get sessionEndHeadlineCleared => 'Vous avez réussi !';
 
   @override
@@ -464,6 +474,30 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get homeSignInToPlay => 'Connectez-vous pour jouer';
+
+  @override
+  String get categoryDifficulty => 'Difficulté';
+
+  @override
+  String categorySongCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count titres',
+      one: '1 titre',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get homeDuelSignInPrompt =>
+      'Le 1v1 nécessite un compte. Connectez-vous ou créez-en un pour affronter quelqu\'un.';
+
+  @override
+  String get homeSoloSublabel => 'Un titre à la fois, trois vies';
+
+  @override
+  String get homeDuelSublabel => 'Affrontez quelqu\'un, manche par manche';
 
   @override
   String get homeComingSoon => 'Bientôt disponible';

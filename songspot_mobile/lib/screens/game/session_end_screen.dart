@@ -106,18 +106,16 @@ class SessionEndScreen extends StatelessWidget {
         Text(emoji, style: const TextStyle(fontSize: 56)),
         const SizedBox(height: 12),
         Text(
-          headline,
-          style: const TextStyle(
-            color: AppTheme.textPrimary,
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-          ),
+          headline.toUpperCase(),
+          textAlign: TextAlign.center,
+          style: AppTheme.display(28),
         ),
         if (category != null || artistFilter != null) ...[
           const SizedBox(height: 6),
           Text(
             category?.name ?? artistFilter ?? '',
-            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 15),
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppTheme.ink2, fontSize: 15),
           ),
         ],
       ],
@@ -128,9 +126,9 @@ class SessionEndScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
       decoration: BoxDecoration(
-        gradient: AppTheme.cardGradient,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        color: AppTheme.backgroundDeep,
+        borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+        border: Border.all(color: AppTheme.line),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -160,20 +158,16 @@ class SessionEndScreen extends StatelessWidget {
             child: Text(
               value,
               maxLines: 1,
-              style: TextStyle(
-                color: valueColor,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
+              style: AppTheme.display(22, color: valueColor),
             ),
           ),
           const SizedBox(height: 4),
           Text(
-            label,
+            label.toUpperCase(),
             textAlign: TextAlign.center,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+            style: AppTheme.kicker(color: AppTheme.ink3, size: 9.5),
           ),
         ],
       ),
@@ -184,7 +178,7 @@ class SessionEndScreen extends StatelessWidget {
     return Container(
       width: 1,
       height: 36,
-      color: Colors.white.withValues(alpha: 0.1),
+      color: AppTheme.line,
     );
   }
 
@@ -215,7 +209,7 @@ class SessionEndScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AppTheme.borderRadius),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
@@ -270,7 +264,7 @@ class SessionEndScreen extends StatelessWidget {
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
+                  borderRadius: BorderRadius.circular(AppTheme.borderRadius)),
               elevation: 0,
             ),
             child: Text(
@@ -295,7 +289,7 @@ class SessionEndScreen extends StatelessWidget {
               side: BorderSide(color: AppTheme.textSecondary.withValues(alpha: 0.3)),
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
+                  borderRadius: BorderRadius.circular(AppTheme.borderRadius)),
             ),
             child: Text(
               l10n.sessionEndChangeCategory,

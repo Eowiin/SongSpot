@@ -86,14 +86,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 children: [
                   const SizedBox(height: 20),
                   Text(
-                    l10n.registerTitle,
-                    style: Theme.of(context).textTheme.displayLarge,
+                    l10n.registerTitle.toUpperCase(),
+                    style: AppTheme.display(34),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                   Text(
                     l10n.registerSubtitle,
-                    style: Theme.of(context).textTheme.bodyMedium,
+                    style: const TextStyle(color: AppTheme.ink2, fontSize: 14),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 40),
@@ -101,6 +101,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   // Email field
                   CustomTextField(
                     controller: _emailController,
+                    textInputAction: TextInputAction.next,
                     hintText: l10n.emailLabel,
                     labelText: l10n.emailLabel,
                     keyboardType: TextInputType.emailAddress,
@@ -123,6 +124,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   // Username field
                   CustomTextField(
                     controller: _usernameController,
+                    textInputAction: TextInputAction.next,
                     hintText: l10n.usernameLabel,
                     labelText: l10n.usernameLabel,
                     prefixIcon: const Icon(
@@ -144,6 +146,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   // Password field
                   CustomTextField(
                     controller: _passwordController,
+                    textInputAction: TextInputAction.next,
                     hintText: l10n.passwordLabel,
                     labelText: l10n.passwordLabel,
                     obscureText: _obscurePassword,
@@ -182,6 +185,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     hintText: l10n.confirmPasswordLabel,
                     labelText: l10n.confirmPasswordLabel,
                     obscureText: _obscureConfirmPassword,
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) => _handleRegister(),
                     prefixIcon: const Icon(
                       Icons.lock,
                       color: AppTheme.textSecondary,

@@ -128,8 +128,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     Flexible(
                       child: Text(
-                        l10n.settingsTitle,
-                        style: Theme.of(context).textTheme.headlineMedium,
+                        l10n.settingsTitle.toUpperCase(),
+                        style: AppTheme.display(24),
                       ),
                     ),
                   ],
@@ -358,14 +358,14 @@ class _SectionHeader extends StatelessWidget {
     return Semantics(
       header: true,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(4, 16, 4, 6),
-        child: Text(
-          title.toUpperCase(),
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            letterSpacing: 1.2,
-            fontWeight: FontWeight.w600,
-            color: AppTheme.primaryColor,
-          ),
+        padding: const EdgeInsets.fromLTRB(4, 22, 4, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title.toUpperCase(), style: AppTheme.kicker()),
+            const SizedBox(height: 8),
+            const Divider(color: AppTheme.line, height: 1),
+          ],
         ),
       ),
     );
@@ -396,8 +396,9 @@ class _SettingsTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 2),
       decoration: BoxDecoration(
-        gradient: AppTheme.cardGradient,
+        color: AppTheme.surfaceColor,
         borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+        border: Border.all(color: AppTheme.line),
       ),
       child: ListTile(
         leading: Icon(icon, color: iconColor ?? AppTheme.primaryColor),
@@ -448,8 +449,9 @@ class _SettingsSwitch extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 2),
       decoration: BoxDecoration(
-        gradient: AppTheme.cardGradient,
+        color: AppTheme.surfaceColor,
         borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+        border: Border.all(color: AppTheme.line),
       ),
       child: SwitchListTile(
         secondary: Icon(icon, color: AppTheme.primaryColor),

@@ -57,7 +57,7 @@ class AccessibilityScreen extends StatelessWidget {
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: AppTheme.surfaceColor,
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(AppTheme.borderRadius),
                             ),
                             child: Text(
                               l10n.accessibilityTextSizePreview,
