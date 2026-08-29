@@ -43,6 +43,15 @@ extension DifficultyExt on Difficulty {
 enum SessionEndReason { outOfLives, poolCleared, quit }
 
 class GameSessionProvider extends ChangeNotifier {
+  GameSessionProvider() {
+    // Mirror the player's real state rather than inferring it from the one
+    // callback that fires when a snippet runs to its end. Playback also stops
+    // on a guess, on a new track, on an interruption and on failure; before
+    // this the play button could be left showing the wrong state after any of
+    // those, and no further press would put it right.
+    _audio.playing.addListener(_onAudioPlayingChanged);
+  }
+
   final ApiService _api = ApiService();
   final AudioService _audio = AudioService();
   final StorageService _storage = StorageService();
@@ -283,6 +292,13 @@ class GameSessionProvider extends ChangeNotifier {
           notifyListeners();
         },
       );
+      // playSnippet returns once the snippet is over — or immediately, without
+      // firing onPlaybackStopped, when a newer request superseded this one.
+      // Resync so that path cannot leave the button stuck on "playing".
+      if (_isPlaying != _audio.isPlaying) {
+        _isPlaying = _audio.isPlaying;
+        notifyListeners();
+      }
       return true;
     } catch (e) {
       debugPrint('Playback error: $e');
@@ -527,7 +543,15 @@ class GameSessionProvider extends ChangeNotifier {
   @override
   void dispose() {
     _searchDebounce?.cancel();
+    _audio.playing.removeListener(_onAudioPlayingChanged);
     _audio.stop(); // AudioService is a singleton — never call dispose() on it
     super.dispose();
+  }
+
+  void _onAudioPlayingChanged() {
+    final playing = _audio.playing.value;
+    if (_isPlaying == playing) return;
+    _isPlaying = playing;
+    notifyListeners();
   }
 }

@@ -54,6 +54,9 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
   @override
   void initState() {
     super.initState();
+    // Mirror the player's real state: a snippet also ends on a submit, a new
+    // round or an interruption, and none of those fire onPlaybackStopped.
+    _audio.playing.addListener(_onAudioPlayingChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _duel = context.read<DuelProvider>();
       _lastLoadedVersion = _duel!.roundVersion;
@@ -62,8 +65,15 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
     });
   }
 
+  void _onAudioPlayingChanged() {
+    final playing = _audio.playing.value;
+    if (!mounted || _isPlaying == playing) return;
+    setState(() => _isPlaying = playing);
+  }
+
   @override
   void dispose() {
+    _audio.playing.removeListener(_onAudioPlayingChanged);
     _duel?.removeListener(_onDuelChanged);
     _searchDebounce?.cancel();
     _revealTimer?.cancel();

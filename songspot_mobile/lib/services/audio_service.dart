@@ -23,9 +23,19 @@ class AudioService {
 
   bool get isPlaying => _isPlaying;
 
+  /// Every transition of [isPlaying], from every path — a snippet ending on
+  /// its own, [stop], an interruption, a failure, a superseded request.
+  ///
+  /// The `onPlaybackStopped` callback below only fires on the one path that
+  /// runs to the end of [playSnippet]; a caller that mirrors its own "is
+  /// playing" flag from that callback alone gets stuck showing the wrong state
+  /// whenever playback ends some other way. Listen to this instead.
+  final ValueNotifier<bool> playing = ValueNotifier<bool>(false);
+
   void _setPlaying(bool value, {void Function()? onChanged}) {
     if (_isPlaying == value) return;
     _isPlaying = value;
+    playing.value = value;
     onChanged?.call();
   }
 
