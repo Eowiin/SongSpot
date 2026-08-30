@@ -1,0 +1,10 @@
+# Notes de session temporaires
+TODO_CE_SOIR.md
+REPONSES_AVIS_PLAYSTORE.md
+
+# Métadonnées macOS. Les .gitignore de songspot_mobile/ et de ses sous-projets
+# couvrent déjà les leurs ; celui-ci vaut pour la racine et pour le backend.
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
