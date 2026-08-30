@@ -85,10 +85,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsSectionAccount => 'Account';
 
   @override
-  String get settingsSectionAccessibility => 'Accessibility';
-
-  @override
-  String get settingsSectionLanguage => 'Language';
+  String get settingsSectionPreferences => 'Preferences';
 
   @override
   String get settingsSectionMyData => 'My Data';
@@ -628,9 +625,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get duelBackToHome => 'Back to Home';
-
-  @override
-  String get settingsSectionPrivacy => 'Privacy';
 
   @override
   String get settingsAnalytics => 'Share usage statistics';

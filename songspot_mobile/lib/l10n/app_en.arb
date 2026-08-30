@@ -100,13 +100,9 @@
   "@settingsSectionAccount": {
     "description": "Account section header in settings"
   },
-  "settingsSectionAccessibility": "Accessibility",
-  "@settingsSectionAccessibility": {
-    "description": "Accessibility section header in settings"
-  },
-  "settingsSectionLanguage": "Language",
-  "@settingsSectionLanguage": {
-    "description": "Language section header in settings"
+  "settingsSectionPreferences": "Preferences",
+  "@settingsSectionPreferences": {
+    "description": "Preferences section header in settings — accessibility, language and the analytics choice"
   },
   "settingsSectionMyData": "My Data",
   "@settingsSectionMyData": {
@@ -594,8 +590,6 @@
   "@duelPlayAgain": { "description": "Play again button in match result screen" },
   "duelBackToHome": "Back to Home",
   "@duelBackToHome": { "description": "Back to home button in match result screen" },
-  "settingsSectionPrivacy": "Privacy",
-  "@settingsSectionPrivacy": { "description": "Privacy section header in settings" },
   "settingsAnalytics": "Share usage statistics",
   "@settingsAnalytics": { "description": "Analytics opt-in switch in settings" },
   "settingsAnalyticsSubtitle": "Helps us see which genres and difficulties work. Never includes your guesses or personal data.",

@@ -248,17 +248,11 @@ abstract class AppLocalizations {
   /// **'Account'**
   String get settingsSectionAccount;
 
-  /// Accessibility section header in settings
+  /// Preferences section header in settings — accessibility, language and the analytics choice
   ///
   /// In en, this message translates to:
-  /// **'Accessibility'**
-  String get settingsSectionAccessibility;
-
-  /// Language section header in settings
-  ///
-  /// In en, this message translates to:
-  /// **'Language'**
-  String get settingsSectionLanguage;
+  /// **'Preferences'**
+  String get settingsSectionPreferences;
 
   /// My Data section header in settings
   ///
@@ -1249,12 +1243,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Back to Home'**
   String get duelBackToHome;
-
-  /// Privacy section header in settings
-  ///
-  /// In en, this message translates to:
-  /// **'Privacy'**
-  String get settingsSectionPrivacy;
 
   /// Analytics opt-in switch in settings
   ///
