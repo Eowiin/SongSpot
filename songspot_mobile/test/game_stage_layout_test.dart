@@ -101,6 +101,89 @@ void main() {
         reason: 'equal space above and below the stage');
   });
 
+  // The phone layout pins the guess box and the give-up button under a
+  // scrollable stage; see _buildNarrowGameBody in game_screen.dart. With the
+  // soft keyboard up the body is only ~390pt tall, which is less than the
+  // result list's natural height plus that chrome.
+  Future<void> pumpPinnedStage(
+    WidgetTester tester, {
+    required List<Track> options,
+    double height = 390,
+    double scale = 1,
+  }) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.darkTheme,
+        home: MediaQuery(
+          data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+          child: Scaffold(
+            body: SizedBox(
+              width: 411.4,
+              height: height,
+              child: LayoutBuilder(
+                builder: (context, constraints) => Column(
+                  children: [
+                    const Expanded(
+                      child: SingleChildScrollView(
+                        child: SizedBox(key: Key('stage-top'), height: 600),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      child: GuessField(
+                        controller: controller,
+                        focusNode: focusNode,
+                        results: options,
+                        resultsBelow: false,
+                        hintText: 'Guess',
+                        maxResultsHeight: pinnedResultsMaxHeight(
+                            context, constraints.maxHeight),
+                        onChanged: (_) {},
+                        onSelected: (_) {},
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      child: SizedBox(
+                        key: const Key('stage-bottom'),
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: () {},
+                          child: const Text('GIVE UP'),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+  }
+
+  testWidgets('the pinned guess box and its list fit above the keyboard',
+      (tester) async {
+    final many = List.generate(
+      40,
+      (i) => Track(id: '$i', title: 'Song $i', artist: 'Artist $i'),
+    );
+
+    for (final scale in [1.0, 1.3, 2.0]) {
+      await pumpPinnedStage(tester, options: many, scale: scale);
+      expect(tester.takeException(), isNull,
+          reason: 'the result list must give way to the pinned controls '
+              'at text scale $scale');
+      expect(
+        tester.getBottomLeft(find.byKey(const Key('stage-bottom'))).dy,
+        lessThanOrEqualTo(390),
+        reason: 'the give-up button stays on screen at text scale $scale',
+      );
+    }
+  });
+
   testWidgets('a short window scrolls instead of overflowing', (tester) async {
     await pumpStage(tester, options: results, height: 300);
     expect(tester.takeException(), isNull);

@@ -132,6 +132,7 @@ class SnippetButton extends StatefulWidget {
     required this.label,
     required this.snippetDuration,
     required this.playing,
+    required this.sounding,
     required this.loading,
     required this.onTap,
     this.width = 260,
@@ -140,6 +141,13 @@ class SnippetButton extends StatefulWidget {
   final String label;
   final Duration snippetDuration;
   final bool playing;
+
+  /// Whether the snippet is actually coming out of the speaker. The rail runs
+  /// off this rather than [playing], which is already true while the player
+  /// buffers: a rail started at the tap ends that much before the sound does,
+  /// which on a 1s snippet is most of the bar.
+  final bool sounding;
+
   final bool loading;
   final VoidCallback? onTap;
 
@@ -149,41 +157,10 @@ class SnippetButton extends StatefulWidget {
   State<SnippetButton> createState() => _SnippetButtonState();
 }
 
-class _SnippetButtonState extends State<SnippetButton>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _rail = AnimationController(
-    vsync: this,
-    duration: widget.snippetDuration,
-  );
-
-  @override
-  void didUpdateWidget(SnippetButton old) {
-    super.didUpdateWidget(old);
-    if (widget.snippetDuration != old.snippetDuration) {
-      _rail.duration = widget.snippetDuration;
-    }
-    if (widget.playing != old.playing) {
-      if (widget.playing) {
-        _rail.forward(from: 0);
-      } else {
-        _rail.stop();
-        _rail.value = 0;
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _rail.dispose();
-    super.dispose();
-  }
-
+class _SnippetButtonState extends State<SnippetButton> {
   @override
   Widget build(BuildContext context) {
     final busy = widget.playing || widget.loading;
-    // With animations off the rail cannot tell the story, so it simply sits
-    // full while the snippet plays.
-    final animate = !(MediaQuery.maybeOf(context)?.disableAnimations ?? false);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -236,33 +213,110 @@ class _SnippetButtonState extends State<SnippetButton>
           ),
         ),
         const SizedBox(height: 10),
-        SizedBox(
+        SnippetProgressRail(
+          duration: widget.snippetDuration,
+          sounding: widget.sounding,
           width: widget.width,
-          height: 2,
-          child: AnimatedBuilder(
-            animation: _rail,
-            builder: (context, _) {
-              final value = !widget.playing
-                  ? 0.0
-                  : animate
-                      ? _rail.value
-                      : 1.0;
-              return Align(
-                alignment: Alignment.centerLeft,
-                child: Stack(
-                  children: [
-                    Container(width: widget.width, color: AppTheme.line),
-                    Container(
-                      width: widget.width * value,
-                      color: AppTheme.accentColor,
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
         ),
       ],
+    );
+  }
+}
+
+/// The thin line under a play button that runs the length of the snippet.
+///
+/// It is driven by [sounding] — the audio actually coming out of the speaker —
+/// rather than by the tap that asked for it, so a player who has waited a
+/// moment for the audio to buffer does not watch the rail finish early.
+class SnippetProgressRail extends StatefulWidget {
+  const SnippetProgressRail({
+    super.key,
+    required this.duration,
+    required this.sounding,
+    this.width = 260,
+  });
+
+  /// How long the snippet lasts — the time the rail takes to cross.
+  final Duration duration;
+
+  /// Whether the snippet is sounding right now. The rail runs while this is
+  /// true and sits empty the rest of the time.
+  final bool sounding;
+
+  final double width;
+
+  @override
+  State<SnippetProgressRail> createState() => _SnippetProgressRailState();
+}
+
+class _SnippetProgressRailState extends State<SnippetProgressRail>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _rail = AnimationController(
+    vsync: this,
+    duration: widget.duration,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    // The duel rebuilds this widget mid-round, so a rail that comes into
+    // being while the snippet is already sounding has to pick it up.
+    if (widget.sounding) _rail.forward(from: 0);
+  }
+
+  @override
+  void didUpdateWidget(SnippetProgressRail old) {
+    super.didUpdateWidget(old);
+    if (widget.duration != old.duration) {
+      _rail.duration = widget.duration;
+    }
+    if (widget.sounding != old.sounding) {
+      if (widget.sounding) {
+        _rail.forward(from: 0);
+      } else {
+        _rail.stop();
+        _rail.value = 0;
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _rail.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // With animations off the rail cannot tell the story, so it simply sits
+    // full while the snippet plays.
+    final animate = !(MediaQuery.maybeOf(context)?.disableAnimations ?? false);
+
+    return SizedBox(
+      width: widget.width,
+      height: 2,
+      child: AnimatedBuilder(
+        animation: _rail,
+        builder: (context, _) {
+          final value = !widget.sounding
+              ? 0.0
+              : animate
+                  ? _rail.value
+                  : 1.0;
+          return Align(
+            alignment: Alignment.centerLeft,
+            child: Stack(
+              children: [
+                Container(width: widget.width, color: AppTheme.line),
+                Container(
+                  width: widget.width * value,
+                  color: AppTheme.accentColor,
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }

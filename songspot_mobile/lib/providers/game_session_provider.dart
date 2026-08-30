@@ -50,6 +50,7 @@ class GameSessionProvider extends ChangeNotifier {
     // this the play button could be left showing the wrong state after any of
     // those, and no further press would put it right.
     _audio.playing.addListener(_onAudioPlayingChanged);
+    _audio.sounding.addListener(_onAudioSoundingChanged);
   }
 
   final ApiService _api = ApiService();
@@ -69,6 +70,7 @@ class GameSessionProvider extends ChangeNotifier {
 
   // Audio
   bool _isPlaying = false;
+  bool _isSnippetSounding = false;
 
   // Guess state
   GuessResult _lastGuessResult = GuessResult.none;
@@ -113,6 +115,11 @@ class GameSessionProvider extends ChangeNotifier {
   bool get isLoadingTrack => _isLoadingTrack;
   String? get trackError => _trackError;
   bool get isPlaying => _isPlaying;
+
+  /// True only while the snippet is actually coming out of the speaker, as
+  /// opposed to [isPlaying], which also covers the buffering gap after the
+  /// tap. The progress rail runs off this so it cannot get ahead of the sound.
+  bool get isSnippetSounding => _isSnippetSounding;
   GuessResult get lastGuessResult => _lastGuessResult;
   bool get revealAnswer => _revealAnswer;
   int get livesRemaining => _livesRemaining;
@@ -289,6 +296,7 @@ class GameSessionProvider extends ChangeNotifier {
         duration: fullPreview ? null : _difficulty.snippetDuration,
         onPlaybackStopped: () {
           _isPlaying = false;
+          _isSnippetSounding = false;
           notifyListeners();
         },
       );
@@ -303,6 +311,7 @@ class GameSessionProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('Playback error: $e');
       _isPlaying = false;
+      _isSnippetSounding = false;
       notifyListeners();
       return false;
     }
@@ -398,6 +407,7 @@ class GameSessionProvider extends ChangeNotifier {
 
     _audio.stop();
     _isPlaying = false;
+    _isSnippetSounding = false;
 
     final isCorrect = guessedTrack.id == _currentTrack!.id;
     _songsPlayed++;
@@ -435,6 +445,7 @@ class GameSessionProvider extends ChangeNotifier {
 
     _audio.stop();
     _isPlaying = false;
+    _isSnippetSounding = false;
 
     _songsPlayed++;
     _lastGuessResult = GuessResult.wrong;
@@ -544,6 +555,7 @@ class GameSessionProvider extends ChangeNotifier {
   void dispose() {
     _searchDebounce?.cancel();
     _audio.playing.removeListener(_onAudioPlayingChanged);
+    _audio.sounding.removeListener(_onAudioSoundingChanged);
     _audio.stop(); // AudioService is a singleton — never call dispose() on it
     super.dispose();
   }
@@ -552,6 +564,13 @@ class GameSessionProvider extends ChangeNotifier {
     final playing = _audio.playing.value;
     if (_isPlaying == playing) return;
     _isPlaying = playing;
+    notifyListeners();
+  }
+
+  void _onAudioSoundingChanged() {
+    final sounding = _audio.sounding.value;
+    if (_isSnippetSounding == sounding) return;
+    _isSnippetSounding = sounding;
     notifyListeners();
   }
 }

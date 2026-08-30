@@ -11,6 +11,7 @@ import '../../services/audio_service.dart';
 import '../../widgets/game_shortcuts.dart';
 import '../../widgets/guess_field.dart';
 import '../../widgets/pressable.dart';
+import '../../widgets/snippet_stage.dart';
 
 // Snippet durations matching the plan: 1s, 3s, 5s, 10s, 15s
 const _snippetDurations = [
@@ -38,6 +39,9 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
   final _shortcutFocus = FocusNode(debugLabel: 'duel shortcuts');
 
   bool _isPlaying = false;
+  /// The snippet is actually sounding, as opposed to [_isPlaying], which is
+  /// already true while the player buffers. The progress rail runs off this.
+  bool _isSounding = false;
   bool _isAudioLoading = false;
   List<Track> _searchResults = [];
   bool _isSearching = false;
@@ -57,6 +61,7 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
     // Mirror the player's real state: a snippet also ends on a submit, a new
     // round or an interruption, and none of those fire onPlaybackStopped.
     _audio.playing.addListener(_onAudioPlayingChanged);
+    _audio.sounding.addListener(_onAudioSoundingChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _duel = context.read<DuelProvider>();
       _lastLoadedVersion = _duel!.roundVersion;
@@ -71,9 +76,16 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
     setState(() => _isPlaying = playing);
   }
 
+  void _onAudioSoundingChanged() {
+    final sounding = _audio.sounding.value;
+    if (!mounted || _isSounding == sounding) return;
+    setState(() => _isSounding = sounding);
+  }
+
   @override
   void dispose() {
     _audio.playing.removeListener(_onAudioPlayingChanged);
+    _audio.sounding.removeListener(_onAudioSoundingChanged);
     _duel?.removeListener(_onDuelChanged);
     _searchDebounce?.cancel();
     _revealTimer?.cancel();
@@ -115,6 +127,7 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
     _revealTimer = null;
     setState(() {
       _isPlaying = false;
+      _isSounding = false;
       _isAudioLoading = false;
       _searchResults = [];
       _submittedTrackLabel = null;
@@ -164,11 +177,21 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
       await _audio.playSnippet(
         duration: _snippetDurations[snippetIdx],
         onPlaybackStopped: () {
-          if (mounted) setState(() => _isPlaying = false);
+          if (mounted) {
+            setState(() {
+              _isPlaying = false;
+              _isSounding = false;
+            });
+          }
         },
       );
     } catch (_) {
-      if (mounted) setState(() => _isPlaying = false);
+      if (mounted) {
+        setState(() {
+          _isPlaying = false;
+          _isSounding = false;
+        });
+      }
     }
   }
 
@@ -176,7 +199,10 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
     final duel = _duel;
     if (duel == null || duel.hasSubmitted || duel.snippetsUsed >= 5) return;
     _audio.stop();
-    setState(() => _isPlaying = false);
+    setState(() {
+      _isPlaying = false;
+      _isSounding = false;
+    });
     duel.requestNextSnippet();
   }
 
@@ -532,7 +558,13 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
                     ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
+          SnippetProgressRail(
+            duration: snippetDuration,
+            sounding: _isSounding,
+            width: 200,
+          ),
+          const SizedBox(height: 14),
           Text(
             statusLabel,
             textAlign: TextAlign.center,

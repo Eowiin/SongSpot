@@ -380,51 +380,59 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
             ),
           ),
         ),
-        Column(
-          children: [
-            // Scrollable top section — shrinks when the keyboard opens.
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final coverSize =
-                        constraints.maxWidth.clamp(120.0, 260.0);
-                    return Column(
-                      children: [
-                        SectionLabel(_stageLabel()),
-                        const SizedBox(height: 16),
-                        _buildCover(provider, track, coverSize),
-                        const SizedBox(height: 24),
-                        _buildSnippetButton(provider),
-                        if (revealed) ...[
+        LayoutBuilder(builder: (context, bodyConstraints) {
+          final resultsMax =
+              pinnedResultsMaxHeight(context, bodyConstraints.maxHeight);
+          return Column(
+            children: [
+              // Scrollable top section — shrinks when the keyboard opens.
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final coverSize =
+                          constraints.maxWidth.clamp(120.0, 260.0);
+                      return Column(
+                        children: [
+                          SectionLabel(_stageLabel()),
+                          const SizedBox(height: 16),
+                          _buildCover(provider, track, coverSize),
                           const SizedBox(height: 24),
-                          _buildResultCard(provider, track),
+                          _buildSnippetButton(provider),
+                          if (revealed) ...[
+                            const SizedBox(height: 24),
+                            _buildResultCard(provider, track),
+                          ],
                         ],
-                      ],
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
               ),
-            ),
-            // Fixed bottom section — always visible above the keyboard.
-            if (!revealed) ...[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: _buildGuessField(provider, resultsBelow: false),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: _buildGiveUpButton(provider),
-              ),
+              // Fixed bottom section — always visible above the keyboard.
+              if (!revealed) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: _buildGuessField(
+                    provider,
+                    resultsBelow: false,
+                    maxResultsHeight: resultsMax,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: _buildGiveUpButton(provider),
+                ),
+              ],
+              if (revealed)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                  child: _buildAdvanceButton(provider),
+                ),
             ],
-            if (revealed)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                child: _buildAdvanceButton(provider),
-              ),
-          ],
-        ),
+          );
+        }),
       ],
     );
   }
@@ -470,6 +478,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
       label: label,
       snippetDuration: duration,
       playing: provider.isPlaying,
+      sounding: provider.isSnippetSounding,
       loading: provider.isLoadingTrack,
       onTap: provider.isPlaying || provider.isLoadingTrack
           ? null
@@ -492,9 +501,11 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   Widget _buildGuessField(
     GameSessionProvider provider, {
     required bool resultsBelow,
+    double maxResultsHeight = 260,
   }) {
     final l10n = AppLocalizations.of(context);
     return GuessField(
+      maxResultsHeight: maxResultsHeight,
       controller: _guessController,
       focusNode: _guessFocus,
       results: provider.searchResults,
