@@ -43,6 +43,16 @@ extension DifficultyExt on Difficulty {
 enum SessionEndReason { outOfLives, poolCleared, quit }
 
 class GameSessionProvider extends ChangeNotifier {
+  GameSessionProvider() {
+    // Mirror the player's real state rather than inferring it from the one
+    // callback that fires when a snippet runs to its end. Playback also stops
+    // on a guess, on a new track, on an interruption and on failure; before
+    // this the play button could be left showing the wrong state after any of
+    // those, and no further press would put it right.
+    _audio.playing.addListener(_onAudioPlayingChanged);
+    _audio.sounding.addListener(_onAudioSoundingChanged);
+  }
+
   final ApiService _api = ApiService();
   final AudioService _audio = AudioService();
   final StorageService _storage = StorageService();
@@ -60,6 +70,7 @@ class GameSessionProvider extends ChangeNotifier {
 
   // Audio
   bool _isPlaying = false;
+  bool _isSnippetSounding = false;
 
   // Guess state
   GuessResult _lastGuessResult = GuessResult.none;
@@ -104,6 +115,11 @@ class GameSessionProvider extends ChangeNotifier {
   bool get isLoadingTrack => _isLoadingTrack;
   String? get trackError => _trackError;
   bool get isPlaying => _isPlaying;
+
+  /// True only while the snippet is actually coming out of the speaker, as
+  /// opposed to [isPlaying], which also covers the buffering gap after the
+  /// tap. The progress rail runs off this so it cannot get ahead of the sound.
+  bool get isSnippetSounding => _isSnippetSounding;
   GuessResult get lastGuessResult => _lastGuessResult;
   bool get revealAnswer => _revealAnswer;
   int get livesRemaining => _livesRemaining;
@@ -280,13 +296,22 @@ class GameSessionProvider extends ChangeNotifier {
         duration: fullPreview ? null : _difficulty.snippetDuration,
         onPlaybackStopped: () {
           _isPlaying = false;
+          _isSnippetSounding = false;
           notifyListeners();
         },
       );
+      // playSnippet returns once the snippet is over — or immediately, without
+      // firing onPlaybackStopped, when a newer request superseded this one.
+      // Resync so that path cannot leave the button stuck on "playing".
+      if (_isPlaying != _audio.isPlaying) {
+        _isPlaying = _audio.isPlaying;
+        notifyListeners();
+      }
       return true;
     } catch (e) {
       debugPrint('Playback error: $e');
       _isPlaying = false;
+      _isSnippetSounding = false;
       notifyListeners();
       return false;
     }
@@ -382,6 +407,7 @@ class GameSessionProvider extends ChangeNotifier {
 
     _audio.stop();
     _isPlaying = false;
+    _isSnippetSounding = false;
 
     final isCorrect = guessedTrack.id == _currentTrack!.id;
     _songsPlayed++;
@@ -419,6 +445,7 @@ class GameSessionProvider extends ChangeNotifier {
 
     _audio.stop();
     _isPlaying = false;
+    _isSnippetSounding = false;
 
     _songsPlayed++;
     _lastGuessResult = GuessResult.wrong;
@@ -527,7 +554,23 @@ class GameSessionProvider extends ChangeNotifier {
   @override
   void dispose() {
     _searchDebounce?.cancel();
+    _audio.playing.removeListener(_onAudioPlayingChanged);
+    _audio.sounding.removeListener(_onAudioSoundingChanged);
     _audio.stop(); // AudioService is a singleton — never call dispose() on it
     super.dispose();
+  }
+
+  void _onAudioPlayingChanged() {
+    final playing = _audio.playing.value;
+    if (_isPlaying == playing) return;
+    _isPlaying = playing;
+    notifyListeners();
+  }
+
+  void _onAudioSoundingChanged() {
+    final sounding = _audio.sounding.value;
+    if (_isSnippetSounding == sounding) return;
+    _isSnippetSounding = sounding;
+    notifyListeners();
   }
 }

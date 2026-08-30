@@ -1,12 +1,16 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/responsive.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/category.dart';
 import '../../models/track.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/game_session_provider.dart';
+import '../../widgets/game_shortcuts.dart';
+import '../../widgets/guess_field.dart';
+import '../../widgets/pressable.dart';
+import '../../widgets/snippet_stage.dart';
 import 'session_end_screen.dart';
 
 class GameScreen extends StatefulWidget {
@@ -28,6 +32,9 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateMixin {
   final TextEditingController _guessController = TextEditingController();
   final FocusNode _guessFocus = FocusNode();
+  /// Holds keyboard focus whenever the guess box does not, so Space and Enter
+  /// reach the shortcut handler instead of falling on the floor.
+  final FocusNode _shortcutFocus = FocusNode(debugLabel: 'game shortcuts');
   late AnimationController _revealAnimController;
   late Animation<double> _revealAnim;
   // Cached to avoid context.read() in dispose() on a deactivated widget.
@@ -44,6 +51,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      _focusGuessOnPointerLayout();
       _provider = context.read<GameSessionProvider>();
       _provider!.startSession(
         category: widget.category,
@@ -61,6 +69,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     _provider?.removeListener(_onProviderChanged);
     _guessController.dispose();
     _guessFocus.dispose();
+    _shortcutFocus.dispose();
     _revealAnimController.dispose();
     super.dispose();
   }
@@ -73,14 +82,31 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
         mounted &&
         _revealAnimController.status == AnimationStatus.dismissed) {
       _revealAnimController.forward();
+      // Whatever was focused (the give-up button, say) is about to leave the
+      // tree; take focus back so Enter still advances to the next song.
+      _shortcutFocus.requestFocus();
     }
+  }
+
+  /// Puts the caret in the guess box so a desktop player can start typing the
+  /// moment a track loads. Skipped on phones, where it would raise the soft
+  /// keyboard over the artwork before the snippet has even played.
+  ///
+  /// Deferred by a frame: the shortcut host above the body autofocuses itself,
+  /// and whichever request lands last wins.
+  void _focusGuessOnPointerLayout() {
+    if (!mounted || !context.isWide) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _guessFocus.requestFocus();
+    });
   }
 
   Future<void> _nextSong() async {
     _revealAnimController.reset();
     _guessController.clear();
-    _guessFocus.unfocus();
+    _shortcutFocus.requestFocus();
     await _provider?.loadNextSong();
+    _focusGuessOnPointerLayout();
   }
 
   Future<void> _endSession({SessionEndReason reason = SessionEndReason.quit}) async {
@@ -115,14 +141,39 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
           backgroundColor: AppTheme.backgroundColor,
           appBar: _buildAppBar(provider),
           body: SafeArea(
-            child: provider.isLoadingTrack && provider.currentTrack == null
-                ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor))
-                : provider.trackError != null && provider.currentTrack == null
-                    ? _buildError(provider)
-                    : _buildGameBody(context, provider),
+            child: _withGameShortcuts(
+              provider,
+              provider.isLoadingTrack && provider.currentTrack == null
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                          color: AppTheme.primaryColor))
+                  : provider.trackError != null && provider.currentTrack == null
+                      ? _buildError(provider)
+                      : _buildGameBody(context, provider),
+            ),
           ),
         );
       },
+    );
+  }
+
+  /// See [GameShortcuts] for why Space is live inside an empty guess box.
+  Widget _withGameShortcuts(GameSessionProvider provider, Widget child) {
+    return GameShortcuts(
+      hostFocus: _shortcutFocus,
+      guessFocus: _guessFocus,
+      guessController: _guessController,
+      canReplay: () => !provider.isPlaying && !provider.isLoadingTrack,
+      onReplay: provider.replaySnippet,
+      canAdvance: () => provider.revealAnswer && !provider.isLoadingTrack,
+      onAdvance: () {
+        if (provider.endReason == SessionEndReason.outOfLives) {
+          _endSession(reason: SessionEndReason.outOfLives);
+        } else {
+          _nextSong();
+        }
+      },
+      child: child,
     );
   }
 
@@ -227,160 +278,217 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   }
 
   Widget _buildGameBody(BuildContext context, GameSessionProvider provider) {
+    if (context.isWide) return _buildWideGameBody(context, provider);
+    return _buildNarrowGameBody(context, provider);
+  }
+
+  /// One centred stage, not a two-column split.
+  ///
+  /// The split put a 440px blurred square on the left and three small controls
+  /// at the top of an otherwise empty right-hand column — the browser window
+  /// made the emptiness worse, not better. Everything now sits on the centre
+  /// line, in the order the round is played: listen, then guess.
+  Widget _buildWideGameBody(
+      BuildContext context, GameSessionProvider provider) {
     final track = provider.currentTrack;
     final revealed = provider.revealAnswer;
 
-    return Column(
+    return Stack(
       children: [
-        // Scrollable top section — shrinks when keyboard opens
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-            child: Column(
-              children: [
-                _buildAlbumArt(provider, track),
-                const SizedBox(height: 24),
-                _buildPlaybackRow(provider),
-                if (revealed) ...[
-                  const SizedBox(height: 24),
-                  _buildResultCard(provider, track),
-                ],
-              ],
+        CoverBackdrop(coverUrl: track?.coverUrl),
+        // Keeps text legible over the wash, whatever the artwork's colours.
+        Positioned.fill(
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    AppTheme.backgroundColor.withValues(alpha: 0.72),
+                    AppTheme.backgroundColor.withValues(alpha: 0.93),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
-        // Fixed bottom section — always visible above keyboard
-        if (!revealed) ...[
-          if (provider.searchResults.isNotEmpty)
-            _buildAutocomplete(provider),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: _buildGuessInput(provider),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: _buildGiveUpButton(provider),
-          ),
-        ],
-        if (revealed) _buildBottomBar(provider),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            // The cover takes the height the rest of the stage does not need,
+            // so a short browser window shrinks the artwork instead of pushing
+            // the guess box off the bottom.
+            final coverSize = constraints.maxHeight.isFinite
+                ? (constraints.maxHeight - 430).clamp(120.0, 300.0)
+                : 280.0;
+            // Centred by [FullHeightScroll], which hands the column the
+            // viewport's height without measuring the subtree — the result
+            // list below the guess box cannot be measured.
+            return FullHeightScroll(
+              maxWidth: 620,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 28),
+                  Center(child: SectionLabel(_stageLabel())),
+                  const SizedBox(height: 18),
+                  Center(child: _buildCover(provider, track, coverSize)),
+                  const SizedBox(height: 28),
+                  Center(child: _buildSnippetButton(provider)),
+                  const SizedBox(height: 32),
+                  if (revealed) ...[
+                    _buildResultCard(provider, track),
+                    const SizedBox(height: 20),
+                    _buildAdvanceButton(provider, hint: true),
+                  ] else ...[
+                    _buildGuessField(provider, resultsBelow: true),
+                    const SizedBox(height: 20),
+                    Center(child: _buildGiveUpButton(provider)),
+                  ],
+                  const SizedBox(height: 28),
+                ],
+              ),
+            );
+          },
+        ),
       ],
     );
   }
 
-  Widget _buildAlbumArt(GameSessionProvider provider, Track? track) {
-    return AnimatedBuilder(
-      animation: _revealAnim,
-      builder: (context, child) {
-        final blurSigma = (1 - _revealAnim.value) * 20.0;
-        return Container(
-          width: double.infinity,
-          height: 240,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            color: AppTheme.surfaceColor,
-          ),
-          clipBehavior: Clip.hardEdge,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              if (track?.coverUrl != null)
-                Image.network(
-                  track!.coverUrl!,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const _PlaceholderArt(),
-                )
-              else
-                const _PlaceholderArt(),
-              if (blurSigma > 0.5)
-                BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
-                  child: Container(color: Colors.black.withValues(alpha: 0.2)),
+  Widget _buildNarrowGameBody(
+    BuildContext context, GameSessionProvider provider) {
+    final track = provider.currentTrack;
+    final revealed = provider.revealAnswer;
+
+    return Stack(
+      children: [
+        CoverBackdrop(coverUrl: track?.coverUrl),
+        Positioned.fill(
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    AppTheme.backgroundColor.withValues(alpha: 0.72),
+                    AppTheme.backgroundColor.withValues(alpha: 0.93),
+                  ],
                 ),
-              if (provider.isLoadingTrack)
-                Container(
-                  color: Colors.black.withValues(alpha: 0.4),
-                  child: const Center(
-                    child: CircularProgressIndicator(color: Colors.white),
+              ),
+            ),
+          ),
+        ),
+        LayoutBuilder(builder: (context, bodyConstraints) {
+          final resultsMax =
+              pinnedResultsMaxHeight(context, bodyConstraints.maxHeight);
+          return Column(
+            children: [
+              // Scrollable top section — shrinks when the keyboard opens.
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final coverSize =
+                          constraints.maxWidth.clamp(120.0, 260.0);
+                      return Column(
+                        children: [
+                          SectionLabel(_stageLabel()),
+                          const SizedBox(height: 16),
+                          _buildCover(provider, track, coverSize),
+                          const SizedBox(height: 24),
+                          _buildSnippetButton(provider),
+                          if (revealed) ...[
+                            const SizedBox(height: 24),
+                            _buildResultCard(provider, track),
+                          ],
+                        ],
+                      );
+                    },
                   ),
+                ),
+              ),
+              // Fixed bottom section — always visible above the keyboard.
+              if (!revealed) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: _buildGuessField(
+                    provider,
+                    resultsBelow: false,
+                    maxResultsHeight: resultsMax,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: _buildGiveUpButton(provider),
+                ),
+              ],
+              if (revealed)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                  child: _buildAdvanceButton(provider),
                 ),
             ],
-          ),
-        );
-      },
+          );
+        }),
+      ],
     );
   }
 
-  Widget _buildPlaybackRow(GameSessionProvider provider) {
-    final l10n = AppLocalizations.of(context);
-    final isLoading = provider.isLoadingTrack;
-    final isPlaying = provider.isPlaying;
-    final inactive = isPlaying || isLoading;
+  /// What is being played — "RAP FR · HARD" — above the artwork. The run's
+  /// own settings are the only context the screen has room for.
+  String _stageLabel() {
+    final source = widget.category?.name ?? widget.artistFilter;
+    final difficulty = widget.difficulty.label;
+    return source == null ? difficulty : '$source · $difficulty';
+  }
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        GestureDetector(
-          onTap: inactive ? null : provider.replaySnippet,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-            decoration: BoxDecoration(
-              gradient: inactive ? null : AppTheme.primaryGradient,
-              color: inactive ? AppTheme.surfaceColor : null,
-              borderRadius: BorderRadius.circular(50),
-              boxShadow: inactive
-                  ? null
-                  : [
-                      BoxShadow(
-                        color: AppTheme.primaryColor.withValues(alpha: 0.4),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (isLoading)
-                  const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2.5,
-                    ),
-                  )
-                else
-                  Icon(
-                    isPlaying ? Icons.volume_up_rounded : Icons.play_arrow_rounded,
-                    color: Colors.white,
-                    size: 22,
-                  ),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    isLoading
-                        ? l10n.loading
-                        : isPlaying
-                            ? l10n.gamePlaying
-                            : provider.revealAnswer
-                                ? l10n.gamePlayWithDuration('30s')
-                                : l10n.gamePlayWithDuration(
-                                    _snippetLabel(provider.difficulty)),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
+  Widget _buildCover(
+      GameSessionProvider provider, Track? track, double size) {
+    return AnimatedBuilder(
+      animation: _revealAnim,
+      builder: (context, _) => CoverStage(
+        coverUrl: track?.coverUrl,
+        reveal: _revealAnim.value,
+        size: size,
+        loading: provider.isLoadingTrack,
+      ),
+    );
+  }
+
+  Widget _buildSnippetButton(GameSessionProvider provider) {
+    final l10n = AppLocalizations.of(context);
+    final revealed = provider.revealAnswer;
+    // Once the answer is out the button plays the whole preview, so the rail
+    // has to run over that length instead of the snippet's.
+    final duration = revealed
+        ? const Duration(seconds: 30)
+        : provider.difficulty.snippetDuration;
+    final label = provider.isLoadingTrack
+        ? l10n.loading
+        : provider.isPlaying
+            ? l10n.gamePlaying
+            : l10n.gamePlayWithDuration(revealed
+                ? '30s'
+                : _snippetLabel(provider.difficulty));
+
+    return SnippetButton(
+      label: label,
+      snippetDuration: duration,
+      playing: provider.isPlaying,
+      sounding: provider.isSnippetSounding,
+      loading: provider.isLoadingTrack,
+      onTap: provider.isPlaying || provider.isLoadingTrack
+          ? null
+          // Clicking the button took the caret out of the guess box. Put it
+          // back, so the player can type the answer without reaching for the
+          // mouse again — and so Space still replays.
+          : () {
+              provider.replaySnippet();
+              _focusGuessOnPointerLayout();
+            },
     );
   }
 
@@ -390,98 +498,32 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
         Difficulty.hard => '1s',
       };
 
-  Widget _buildGuessInput(GameSessionProvider provider) {
+  Widget _buildGuessField(
+    GameSessionProvider provider, {
+    required bool resultsBelow,
+    double maxResultsHeight = 260,
+  }) {
     final l10n = AppLocalizations.of(context);
-    return TextField(
+    return GuessField(
+      maxResultsHeight: maxResultsHeight,
       controller: _guessController,
       focusNode: _guessFocus,
-      style: const TextStyle(color: AppTheme.textPrimary),
-      decoration: InputDecoration(
-        hintText: l10n.gameSongInputHint,
-        hintStyle: const TextStyle(color: AppTheme.textSecondary),
-        prefixIcon: const Icon(Icons.search_rounded, color: AppTheme.textSecondary),
-        suffixIcon: provider.isSearching
-            ? const Padding(
-                padding: EdgeInsets.all(12),
-                child: SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: AppTheme.primaryColor),
-                ),
-              )
-            : _guessController.text.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear_rounded, color: AppTheme.textSecondary),
-                    onPressed: () {
-                      _guessController.clear();
-                      provider.clearSearch();
-                    },
-                  )
-                : null,
-        filled: true,
-        fillColor: AppTheme.surfaceColor,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide.none,
-        ),
-      ),
-      onChanged: (q) => provider.searchTracks(q),
-    );
-  }
-
-  Widget _buildAutocomplete(GameSessionProvider provider) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-      constraints: const BoxConstraints(maxHeight: 220),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: ListView.separated(
-        shrinkWrap: true,
-        itemCount: provider.searchResults.length.clamp(0, 40),
-        separatorBuilder: (_, _) =>
-            Divider(height: 1, color: Colors.white.withValues(alpha: 0.06)),
-        itemBuilder: (context, i) {
-          final t = provider.searchResults[i];
-          return ListTile(
-            dense: true,
-            leading: t.coverUrl != null
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: Image.network(t.coverUrl!,
-                        width: 40, height: 40, fit: BoxFit.cover),
-                  )
-                : Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryColor.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Icon(Icons.music_note_rounded,
-                        color: AppTheme.primaryColor, size: 20),
-                  ),
-            title: Text(t.title,
-                style: const TextStyle(
-                    color: AppTheme.textPrimary, fontSize: 14),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis),
-            subtitle: Text(t.artist,
-                style: const TextStyle(
-                    color: AppTheme.textSecondary, fontSize: 12),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis),
-            onTap: () {
-              _guessFocus.unfocus();
-              _guessController.clear();
-              provider.submitGuess(t);
-            },
-          );
-        },
-      ),
+      results: provider.searchResults,
+      isSearching: provider.isSearching,
+      hintText: l10n.gameSongInputHint,
+      // The shortcut line is only useful where there is a physical keyboard,
+      // which on this codebase is the same place the wide layout is used.
+      keyboardHint: resultsBelow ? l10n.gameKeyboardHintGuess : null,
+      resultsBelow: resultsBelow,
+      onChanged: provider.searchTracks,
+      onClear: provider.clearSearch,
+      onSelected: (track) {
+        // Focus moves to the shortcut host rather than nowhere, so Enter
+        // advances to the next song straight after the answer is revealed.
+        _shortcutFocus.requestFocus();
+        _guessController.clear();
+        provider.submitGuess(track);
+      },
     );
   }
 
@@ -491,13 +533,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
       width: double.infinity,
       child: OutlinedButton(
         onPressed: provider.giveUp,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppTheme.textSecondary,
-          side: BorderSide(color: AppTheme.textSecondary.withValues(alpha: 0.3)),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        child: Text(l10n.gameGiveUp),
+        child: Text(l10n.gameGiveUp.toUpperCase()),
       ),
     );
   }
@@ -520,8 +556,8 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: color.withValues(alpha: 0.3)),
+                borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+                border: Border.all(color: color.withValues(alpha: 0.35)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -530,12 +566,13 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                     children: [
                       Icon(icon, color: color, size: 22),
                       const SizedBox(width: 8),
-                      Text(
-                        isCorrect ? l10n.gameCorrect : l10n.gameWrong,
-                        style: TextStyle(
-                          color: color,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                      Flexible(
+                        child: Text(
+                          (isCorrect ? l10n.gameCorrect : l10n.gameWrong)
+                              .toUpperCase(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTheme.action(color: color, size: 15),
                         ),
                       ),
                       if (isCorrect) ...[
@@ -545,7 +582,8 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                               horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
                             color: color.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius:
+                                BorderRadius.circular(AppTheme.borderRadius),
                           ),
                           child: Text(
                             '+${provider.totalScore > 0 ? (provider.songsCorrect > 0 ? 10 : 0) : 0} pts',
@@ -565,11 +603,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                     const SizedBox(height: 12),
                     Text(
                       track.title,
-                      style: const TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
+                      style: AppTheme.title(19),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -599,73 +633,73 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildBottomBar(GameSessionProvider provider) {
+  Widget _buildAdvanceButton(
+    GameSessionProvider provider, {
+    bool hint = false,
+  }) {
     final l10n = AppLocalizations.of(context);
     final isGameOver = provider.endReason == SessionEndReason.outOfLives;
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-      decoration: BoxDecoration(
-        color: AppTheme.backgroundColor,
-        border: Border(
-          top: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
-        ),
-      ),
-      child: SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: provider.isLoadingTrack
-              ? null
-              : isGameOver
-                  ? () => _endSession(reason: SessionEndReason.outOfLives)
-                  : _nextSong,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: isGameOver ? const Color(0xFFE53935) : AppTheme.primaryColor,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            elevation: 0,
-          ),
-          child: provider.isLoadingTrack
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : Row(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        isGameOver ? l10n.gameSeeResults : l10n.gameNextButton,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 16),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: provider.isLoadingTrack
+                ? null
+                : isGameOver
+                    ? () => _endSession(reason: SessionEndReason.outOfLives)
+                    : _nextSong,
+            style: ElevatedButton.styleFrom(
+              backgroundColor:
+                  isGameOver ? const Color(0xFFE53935) : AppTheme.primaryColor,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppTheme.borderRadius)),
+              elevation: 0,
+            ),
+            child: provider.isLoadingTrack
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  )
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          (isGameOver
+                                  ? l10n.gameSeeResults
+                                  : l10n.gameNextButton)
+                              .toUpperCase(),
+                          textAlign: TextAlign.center,
+                          style: AppTheme.action(size: 15),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    Icon(
-                      isGameOver ? Icons.emoji_events_rounded : Icons.arrow_forward_rounded,
-                      size: 18,
-                    ),
-                  ],
-                ),
+                      const SizedBox(width: 8),
+                      Icon(
+                        isGameOver
+                            ? Icons.emoji_events_rounded
+                            : Icons.arrow_forward_rounded,
+                        size: 18,
+                      ),
+                    ],
+                  ),
+          ),
         ),
-      ),
-    );
-  }
-}
-
-class _PlaceholderArt extends StatelessWidget {
-  const _PlaceholderArt();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: AppTheme.surfaceColor,
-      child: const Icon(Icons.music_note_rounded,
-          color: AppTheme.textSecondary, size: 64),
+        if (hint) ...[
+          const SizedBox(height: 10),
+          Text(
+            l10n.gameKeyboardHintNext,
+            style: AppTheme.kicker(color: AppTheme.ink3, size: 9.5),
+          ),
+        ],
+      ],
     );
   }
 }

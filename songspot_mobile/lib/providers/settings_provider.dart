@@ -3,7 +3,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/app_localizations.dart';
 import '../config/app_theme.dart';
 import '../services/analytics_service.dart';
-import '../services/push_notification_service.dart';
 
 class SettingsProvider extends ChangeNotifier {
   static const _keyTextScale = 'settings_text_scale';
@@ -12,8 +11,6 @@ class SettingsProvider extends ChangeNotifier {
   static const _keyColorBlindness = 'settings_color_blindness';
   static const _keyLocale = 'settings_locale';
   static const _keyLocaleManual = 'settings_locale_manual';
-  static const _keyDailySongNotifs = 'settings_daily_song_notifs';
-  static const _keyMessagesNotifs = 'settings_messages_notifs';
   static const _keyEnhancedSemantics = 'settings_enhanced_semantics';
 
   static final Set<String> _supportedLanguageCodes = AppLocalizations
@@ -26,8 +23,6 @@ class SettingsProvider extends ChangeNotifier {
   bool _highContrast = false;
   ColorBlindnessMode _colorBlindnessMode = ColorBlindnessMode.none;
   Locale _locale = _resolveSystemLocale();
-  bool _dailySongNotifications = true;
-  bool _messagesNotifications = true;
   bool _enhancedSemantics = false;
   bool _analyticsEnabled = AnalyticsService.defaultEnabled;
 
@@ -36,8 +31,6 @@ class SettingsProvider extends ChangeNotifier {
   bool get highContrast => _highContrast;
   ColorBlindnessMode get colorBlindnessMode => _colorBlindnessMode;
   Locale get locale => _locale;
-  bool get dailySongNotifications => _dailySongNotifications;
-  bool get messagesNotifications => _messagesNotifications;
   bool get enhancedSemantics => _enhancedSemantics;
   bool get analyticsEnabled => _analyticsEnabled;
 
@@ -62,8 +55,6 @@ class SettingsProvider extends ChangeNotifier {
       rawLanguageCode: prefs.getString(_keyLocale),
       localeManuallySelected: localeManuallySelected,
     );
-    _dailySongNotifications = prefs.getBool(_keyDailySongNotifs) ?? true;
-    _messagesNotifications = prefs.getBool(_keyMessagesNotifs) ?? true;
     _enhancedSemantics = prefs.getBool(_keyEnhancedSemantics) ?? false;
     _analyticsEnabled = prefs.getBool(AnalyticsService.prefsKeyEnabled) ??
         AnalyticsService.defaultEnabled;
@@ -138,28 +129,6 @@ class SettingsProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyLocale, locale.languageCode);
     await prefs.setBool(_keyLocaleManual, true);
-  }
-
-  Future<void> setDailySongNotifications(bool value) async {
-    _dailySongNotifications = value;
-    notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyDailySongNotifs, value);
-    await PushNotificationService().updateNotificationPrefs(
-      dailySong: _dailySongNotifications,
-      messages: _messagesNotifications,
-    );
-  }
-
-  Future<void> setMessagesNotifications(bool value) async {
-    _messagesNotifications = value;
-    notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyMessagesNotifs, value);
-    await PushNotificationService().updateNotificationPrefs(
-      dailySong: _dailySongNotifications,
-      messages: _messagesNotifications,
-    );
   }
 
   Future<void> setEnhancedSemantics(bool value) async {

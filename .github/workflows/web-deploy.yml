@@ -1,0 +1,143 @@
+name: Deploy Web Client to VPS
+
+# The browser client is the same Flutter app as the store builds, compiled for
+# the web and served as static files from /play/ on the API's own origin.
+# See docs/WEB_DEPLOYMENT.md.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "songspot_mobile/**"
+      # The store projects and the test suite cannot change the bundle.
+      - "!songspot_mobile/android/**"
+      - "!songspot_mobile/ios/**"
+      - "!songspot_mobile/test/**"
+      - "scripts/build_web.sh"
+      - ".github/workflows/web-deploy.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-web-production
+  # Not cancel-in-progress: a cancelled rsync leaves the bundle half replaced,
+  # with an index.html asking for assets that are no longer there.
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and publish /play/
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      # The path nginx serves the bundle from. It is compiled into every asset
+      # URL, so it must match the nginx location or the whole bundle 404s.
+      BASE_HREF: ${{ vars.WEB_BASE_HREF || '/play/' }}
+      # Deliberately not named WEB_ROOT: build_web.sh publishes to WEB_ROOT
+      # with a *local* rsync, which on the runner would mean copying the bundle
+      # into the runner's own /var/www and failing on permissions.
+      REMOTE_WEB_ROOT: ${{ vars.VPS_WEB_ROOT || '/var/www/songspot-web/play' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Write the .env the build bundles
+        env:
+          SERVER_URL: ${{ vars.WEB_SERVER_URL || 'https://songspot.eowinstudio.com' }}
+          API_BASE_URL: ${{ vars.WEB_API_BASE_URL || 'https://songspot.eowinstudio.com/api' }}
+        run: |
+          set -euo pipefail
+
+          # songspot_mobile/.env is not in the repository — it is a per-machine
+          # file, and the one on a developer's Mac points at their localhost.
+          # Writing it here is what keeps a local .env from ever reaching the
+          # deployed client. It holds public URLs only; ApiConfig derives the
+          # WebSocket origin from API_BASE_URL.
+          cat > songspot_mobile/.env <<EOF
+          SERVER_URL=${SERVER_URL}
+          API_BASE_URL=${API_BASE_URL}
+          EOF
+
+      - name: Build the release bundle
+        run: |
+          set -euo pipefail
+          chmod +x scripts/build_web.sh
+          ./scripts/build_web.sh
+
+      - name: Validate required secrets
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+
+          for variable in VPS_HOST VPS_USER; do
+            if [ -z "${!variable:-}" ]; then
+              echo "Missing required secret: ${variable}" >&2
+              exit 1
+            fi
+          done
+
+      - name: Load SSH private key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+
+      - name: Configure known hosts
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_HOST_KEY: ${{ secrets.VPS_HOST_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+
+          if [ -n "${VPS_HOST_KEY:-}" ]; then
+            echo "${VPS_HOST_KEY}" >> ~/.ssh/known_hosts
+            exit 0
+          fi
+
+          port="${VPS_PORT:-22}"
+          ssh-keyscan -p "${port}" -H "${VPS_HOST}" >> ~/.ssh/known_hosts
+
+      - name: Publish the bundle
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+
+          port="${VPS_PORT:-22}"
+
+          # --delete drops the previous build's hashed assets. index.html and
+          # the service worker are served no-cache (see the nginx block in
+          # docs/WEB_DEPLOYMENT.md), so a browser picks the new build up on its
+          # next load rather than staying pinned to the old one.
+          rsync -az --delete \
+            -e "ssh -p ${port}" \
+            songspot_mobile/build/web/ \
+            "${VPS_USER}@${VPS_HOST}:${REMOTE_WEB_ROOT}/"
+
+      - name: Verify the deployed client answers
+        env:
+          PUBLIC_URL: ${{ vars.WEB_PUBLIC_URL || 'https://songspot.eowinstudio.com/play/' }}
+        run: |
+          set -euo pipefail
+
+          status="$(curl -fsS -o /tmp/play.html -w '%{http_code}' "${PUBLIC_URL}")"
+          echo "[verify] ${PUBLIC_URL} -> ${status}"
+
+          # A bundle built with the wrong base href serves its index fine and
+          # then 404s every asset, which no status code would reveal.
+          if ! grep -q "<base href=\"${BASE_HREF}\">" /tmp/play.html; then
+            echo "Served index.html does not carry base href ${BASE_HREF}" >&2
+            exit 1
+          fi
+          echo "[verify] base href ${BASE_HREF} confirmed"

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/responsive.dart';
 import '../../l10n/app_localizations.dart';
 import '../../main.dart' show routeObserver;
 import '../../providers/auth_provider.dart';
 import '../../providers/stats_provider.dart';
+import '../../widgets/pressable.dart';
 import '../auth/login_screen.dart';
 import '../duel/duel_flow_screen.dart';
 import '../game/category_select_screen.dart';
@@ -53,6 +55,40 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     final isGuest = auth.isGuest;
     final username = isGuest ? l10n.homeGuest : (auth.user?.username ?? '');
 
+    final isWide = context.isWide;
+
+    final soloCard = _buildModeCard(
+      context,
+      icon: Icons.music_note_rounded,
+      label: l10n.homeSoloLabel,
+      sublabel: l10n.homeSoloSublabel,
+      gradient: AppTheme.primaryGradient,
+      tall: isWide,
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const CategorySelectScreen()),
+      ),
+    );
+
+    final duelCard = _buildModeCard(
+      context,
+      icon: Icons.people_rounded,
+      label: '1v1',
+      sublabel: isGuest ? l10n.homeSignInToPlay : l10n.homeDuelSublabel,
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFF5C3A8C), Color(0xFF3A2A6A)],
+      ),
+      tall: isWide,
+      onTap: isGuest
+          ? _showSignInPrompt
+          : () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DuelFlowScreen()),
+              ),
+    );
+
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       body: SafeArea(
@@ -64,54 +100,43 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: constraints.maxHeight),
               child: IntrinsicHeight(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: ResponsiveCenter(
+                  maxWidth: 1080,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                    const SizedBox(height: 24),
-                    _buildHeader(context, l10n, username),
-                    const SizedBox(height: 32),
-                    _buildStatsBanner(context, l10n, stats),
-                    const SizedBox(height: 40),
-                    Text(
-                      l10n.homePlay,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: AppTheme.textSecondary,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildModeCard(
-                      context,
-                      icon: Icons.music_note_rounded,
-                      label: l10n.homeSoloLabel,
-                      sublabel: l10n.homeTagline,
-                      gradient: AppTheme.primaryGradient,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const CategorySelectScreen()),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildModeCard(
-                      context,
-                      icon: Icons.people_rounded,
-                      label: '1v1',
-                      sublabel: isGuest ? l10n.homeSignInToPlay : 'Challenge opponents online',
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFF5C3A8C), Color(0xFF3A2A6A)],
-                      ),
-                      onTap: isGuest
-                          ? _showSignInPrompt
-                          : () => Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const DuelFlowScreen()),
-                              ),
-                    ),
+                      SizedBox(height: isWide ? 40 : 24),
+                      _buildHeader(context, l10n, username),
+                      // The banner hides itself until the player has a stat to
+                      // show; skip its surrounding spacing too so the page
+                      // doesn't gap.
+                      if (stats.isLoadingStats ||
+                          stats.userBest.totalSongsPlayed > 0) ...[
+                        SizedBox(height: isWide ? 40 : 32),
+                        _buildStatsBanner(context, l10n, stats),
+                      ],
+                      SizedBox(height: isWide ? 56 : 40),
+                      SectionLabel(l10n.homePlay, color: AppTheme.secondaryColor),
+                      const SizedBox(height: 8),
+                      const Divider(color: AppTheme.line, height: 17),
+                      const SizedBox(height: 16),
+                      // Side by side once there is room; stacked on a phone.
+                      if (isWide)
+                        IntrinsicHeight(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(child: soloCard),
+                              const SizedBox(width: 20),
+                              Expanded(child: duelCard),
+                            ],
+                          ),
+                        )
+                      else ...[
+                        soloCard,
+                        const SizedBox(height: 16),
+                        duelCard,
+                      ],
                       const Spacer(),
                       _buildDeezerAttribution(),
                       const SizedBox(height: 16),
@@ -137,7 +162,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
           style: const TextStyle(color: AppTheme.textPrimary),
         ),
         content: Text(
-          '1v1 mode requires an account. Sign in or create one to play against others.',
+          l10n.homeDuelSignInPrompt,
           style: const TextStyle(color: AppTheme.textSecondary),
         ),
         actions: [
@@ -163,31 +188,34 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   }
 
   Widget _buildHeader(BuildContext context, AppLocalizations l10n, String username) {
+    // The wordmark and the greeting carry the site's editorial voice: a spaced
+    // kicker over a heavy, tight, uppercase line.
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const SectionLabel('SongSpot'),
+              const SizedBox(height: 10),
               Text(
-                l10n.homeGreeting(username),
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: AppTheme.textPrimary,
-                  fontWeight: FontWeight.bold,
-                ),
+                l10n.homeGreeting(username).toUpperCase(),
+                style: AppTheme.display(context.isWide ? 40 : 30),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 8),
               Text(
                 l10n.homeTagline,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppTheme.textSecondary,
+                  color: AppTheme.ink2,
                 ),
               ),
             ],
           ),
         ),
         IconButton(
-          icon: const Icon(Icons.settings_rounded, color: AppTheme.textSecondary),
+          icon: const Icon(Icons.settings_rounded, color: AppTheme.ink3),
+          tooltip: l10n.settingsTitle,
           onPressed: () => Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const SettingsScreen()),
@@ -204,9 +232,9 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
-        gradient: AppTheme.cardGradient,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        color: AppTheme.backgroundDeep,
+        borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+        border: Border.all(color: AppTheme.line),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -225,9 +253,9 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
-        gradient: AppTheme.cardGradient,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        color: AppTheme.backgroundDeep,
+        borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+        border: Border.all(color: AppTheme.line),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -267,20 +295,16 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
             child: Text(
               value,
               maxLines: 1,
-              style: const TextStyle(
-                color: AppTheme.textPrimary,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
+              style: AppTheme.display(22),
             ),
           ),
           const SizedBox(height: 4),
           Text(
-            label,
+            label.toUpperCase(),
             textAlign: TextAlign.center,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+            style: AppTheme.kicker(color: AppTheme.ink3, size: 9.5),
           ),
         ],
       ),
@@ -288,7 +312,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   }
 
   Widget _buildStatDivider() {
-    return Container(width: 1, height: 32, color: Colors.white.withValues(alpha: 0.12));
+    return Container(width: 1, height: 32, color: AppTheme.line);
   }
 
   Widget _buildModeCard(
@@ -299,68 +323,79 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     required LinearGradient gradient,
     required VoidCallback? onTap,
     bool disabled = false,
+    bool tall = false,
   }) {
-    return GestureDetector(
+    // On a wide viewport the two cards sit side by side, so they get room to
+    // breathe as hero tiles instead of staying phone-sized banners.
+    return Pressable(
       onTap: onTap,
-      child: Container(
+      borderRadius: AppTheme.cardBorderRadius,
+      lift: 3,
+      semanticLabel: '$label. $sublabel',
+      builder: (context, hovered) => Container(
         width: double.infinity,
-        // Grows past 110 when the label wraps at large text scales.
-        constraints: const BoxConstraints(minHeight: 110),
+        // Grows past the floor when the label wraps at large text scales.
+        constraints: BoxConstraints(minHeight: tall ? 190 : 110),
         decoration: BoxDecoration(
           gradient: gradient,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: disabled
-              ? null
-              : [
-                  BoxShadow(
-                    color: AppTheme.primaryColor.withValues(alpha: 0.3),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
+          borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+          // Hover replaces the permanent purple glow the cards used to carry:
+          // feedback when the pointer is on the card, flat otherwise.
+          border: Border.all(
+            color: hovered ? Colors.white : Colors.white.withValues(alpha: 0.14),
+          ),
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          child: Row(
+          padding: EdgeInsets.symmetric(
+            horizontal: tall ? 32 : 24,
+            vertical: 16,
+          ),
+          child: Flex(
+            direction: tall ? Axis.vertical : Axis.horizontal,
+            mainAxisAlignment:
+                tall ? MainAxisAlignment.center : MainAxisAlignment.start,
+            crossAxisAlignment:
+                tall ? CrossAxisAlignment.start : CrossAxisAlignment.center,
             children: [
               Container(
-                width: 52,
-                height: 52,
+                width: tall ? 60 : 48,
+                height: tall ? 60 : 48,
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: disabled ? 0.08 : 0.15),
-                  shape: BoxShape.circle,
+                  borderRadius: BorderRadius.circular(AppTheme.borderRadius),
                 ),
                 child: Icon(
                   icon,
                   color: disabled ? AppTheme.textSecondary : Colors.white,
-                  size: 26,
+                  size: tall ? 32 : 26,
                 ),
               ),
-              const SizedBox(width: 20),
-              Expanded(
+              SizedBox(width: tall ? 0 : 20, height: tall ? 20 : 0),
+              Flexible(
+                fit: tall ? FlexFit.loose : FlexFit.tight,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      label,
-                      style: TextStyle(
-                        color: disabled ? AppTheme.textSecondary : Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
+                      label.toUpperCase(),
+                      style: AppTheme.display(
+                        tall ? 30 : 24,
+                        color:
+                            disabled ? AppTheme.textSecondary : Colors.white,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Text(
                       sublabel,
                       style: TextStyle(
                         color: disabled
                             ? AppTheme.textSecondary
                             : Colors.white.withValues(alpha: 0.7),
-                        fontSize: 13,
+                        fontSize: tall ? 15 : 13,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -368,12 +403,12 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                   ],
                 ),
               ),
-              if (!disabled) ...[
+              if (!disabled && !tall) ...[
                 const SizedBox(width: 12),
                 const Icon(
-                  Icons.arrow_forward_ios_rounded,
+                  Icons.arrow_forward_rounded,
                   color: Colors.white,
-                  size: 18,
+                  size: 20,
                 ),
               ],
             ],
@@ -388,10 +423,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     return Center(
       child: Text(
         l10n.homeDeezerCredits,
-        style: TextStyle(
-          color: AppTheme.textSecondary.withValues(alpha: 0.5),
-          fontSize: 11,
-        ),
+        style: const TextStyle(color: AppTheme.ink3, fontSize: 11),
       ),
     );
   }

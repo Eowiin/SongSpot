@@ -1,55 +1,70 @@
 {% extends "site/base.html" %}
 
-{% block title %}SongSpot | Support{% endblock %}
+{% block title %}SongSpot — Support{% endblock %}
+{% block meta_description %}Something broken in SongSpot? Here is what to send so it gets fixed on the first reply.{% endblock %}
 
 {% block content %}
-  <section class="hero">
-    <div class="hero-inner">
-      <div class="hero-copy">
-        <p class="eyebrow">Support</p>
-        <h1>Need help with SongSpot?</h1>
-        <p>
-          For account, purchase, room sync, or bug issues, contact support and include the technical
-          details below so we can resolve it quickly.
-        </p>
-        <div class="actions">
-          <a class="btn btn-primary" href="mailto:eowin.dev@gmail.com">eowin.dev@gmail.com</a>
-          <a class="btn btn-secondary" href="/privacy">Privacy policy</a>
+
+  <section class="wrap page-head">
+    <span class="kicker">Support</span>
+    <h1 class="display">Something<br><span class="tint-2">broken?</span></h1>
+    <p class="lede">
+      One person reads this inbox. Send the details below and it usually gets resolved on the
+      first reply instead of the fourth.
+    </p>
+    <div class="btn-row">
+      <a class="btn btn-primary" href="mailto:{{ support_email }}">{{ support_email }}</a>
+      <a class="btn btn-ghost" href="/privacy">Privacy policy</a>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="kicker kicker--pink">Before you send</span>
+        <h2 class="title">Put this<br>in the email</h2>
+      </div>
+      <div class="cols">
+        <div class="col col--rule">
+          <h3>Technical context</h3>
+          <ul class="list">
+            <li>App version, from Settings.</li>
+            <li>Device model and OS version.</li>
+            <li>Roughly when it happened.</li>
+          </ul>
+        </div>
+        <div class="col col--rule is-pink">
+          <h3>What went wrong</h3>
+          <ul class="list">
+            <li>The exact error text, or a screenshot.</li>
+            <li>The steps that trigger it.</li>
+            <li>What you expected instead.</li>
+          </ul>
+        </div>
+        <div class="col col--rule is-violet">
+          <h3>Common requests</h3>
+          <ul class="list">
+            <li>Login and account recovery.</li>
+            <li>A snippet that will not play.</li>
+            <li>Duel sync, leaderboards, lost sessions.</li>
+          </ul>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="section">
-    <div class="section-head">
-      <h2>Include this in your message</h2>
-      <p>These details usually cut troubleshooting time significantly:</p>
-    </div>
-    <div class="grid">
-      <article class="tile">
-        <h3>Technical context</h3>
-        <ul>
-          <li>App version from Settings.</li>
-          <li>Device model and OS version.</li>
-          <li>Rough time when issue happened.</li>
-        </ul>
-      </article>
-      <article class="tile">
-        <h3>Issue details</h3>
-        <ul>
-          <li>Exact error message or screenshot text.</li>
-          <li>Steps that trigger the issue.</li>
-          <li>Expected behavior vs actual behavior.</li>
-        </ul>
-      </article>
-      <article class="tile">
-        <h3>Common request types</h3>
-        <ul>
-          <li>Account recovery and login issues.</li>
-          <li>Purchase or coin credit discrepancies.</li>
-          <li>Room sync, leaderboard, or session bugs.</li>
-        </ul>
-      </article>
+  <section class="band band--deep band--tight">
+    <div class="wrap">
+      <div class="cols cols--2">
+        <div class="col col--rule">
+          <h3>Account data</h3>
+          <p>Export or deletion requests are handled from <a href="/account">the account page</a>.</p>
+        </div>
+        <div class="col col--rule is-pink">
+          <h3>Want to play right now?</h3>
+          <p>The <a href="{{ play_url }}">browser version</a> needs no install and no account.</p>
+        </div>
+      </div>
     </div>
   </section>
 

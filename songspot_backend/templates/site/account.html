@@ -1,47 +1,46 @@
 {% extends "site/base.html" %}
 
-{% block title %}SongSpot | Account Management{% endblock %}
+{% block title %}SongSpot — Account & Data{% endblock %}
+{% block meta_description %}Export or delete your SongSpot account data.{% endblock %}
 
 {% block content %}
-  <section class="hero">
-    <div class="hero-inner">
-      <div class="hero-copy">
-        <p class="eyebrow">Account</p>
-        <h1>Manage your SongSpot account data</h1>
-        <p>
-          This page provides public GET links for data export and account deletion requests,
-          suitable for store compliance pages.
-        </p>
-        <div class="actions">
-          <a class="btn btn-primary" href="/account/export">Data Export Page</a>
-          <a class="btn btn-secondary" href="/account/delete">Account Deletion Page</a>
+
+  <section class="wrap page-head">
+    <span class="kicker">Account</span>
+    <h1 class="display">Your data,<br><span class="tint">your call</span></h1>
+    <p class="lede">
+      Export everything, or delete the account entirely. Both work from inside the app, and both
+      have a public page here for store compliance.
+    </p>
+    <div class="btn-row">
+      <a class="btn btn-primary" href="/account/export">Export my data</a>
+      <a class="btn btn-ghost" href="/account/delete">Delete my account</a>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <div class="cols">
+        <div class="col col--rule">
+          <h3>Data export</h3>
+          <p>
+            Page: <a href="/account/export">/account/export</a><br>
+            API: <code>GET /api/auth/data/export/</code>
+          </p>
+        </div>
+        <div class="col col--rule is-pink">
+          <h3>Account deletion</h3>
+          <p>
+            Page: <a href="/account/delete">/account/delete</a><br>
+            API: <code>DELETE /api/auth/account/</code>
+          </p>
+        </div>
+        <div class="col col--rule is-violet">
+          <h3>Contact</h3>
+          <p><a href="mailto:{{ support_email }}">{{ support_email }}</a></p>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="section">
-    <div class="grid">
-      <article class="tile">
-        <h3>Data export</h3>
-        <p>
-          Public URL: <a href="/account/export">/account/export</a><br>
-          API (authenticated): <code>GET /api/auth/data/export/</code>
-        </p>
-      </article>
-      <article class="tile">
-        <h3>Account deletion</h3>
-        <p>
-          Public URL: <a href="/account/delete">/account/delete</a><br>
-          API (authenticated): <code>DELETE /api/auth/account/</code>
-        </p>
-      </article>
-      <article class="tile">
-        <h3>Support contact</h3>
-        <p>
-          Email: <a href="mailto:eowin.dev@gmail.com">eowin.dev@gmail.com</a>
-        </p>
-      </article>
-    </div>
-  </section>
 {% endblock %}

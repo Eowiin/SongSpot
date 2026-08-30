@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!--
+    Base href is rewritten by `flutter build web --base-href`. Keep the
+    placeholder so the same build can be served from a sub-path.
+  -->
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="SongSpot — guess the song from a few seconds of audio. Play solo or challenge someone in a 1v1 duel.">
+  <meta name="theme-color" content="#1A1A2E">
+
+  <!-- Open Graph / social preview -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="SongSpot — Music guessing game">
+  <meta property="og:description" content="Guess the song from a few seconds of audio. Play solo or challenge someone in a 1v1 duel.">
+  <meta property="og:image" content="icons/Icon-512.png">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SongSpot">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>SongSpot</title>
+  <link rel="manifest" href="manifest.json">
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: #1A1A2E;
+      /* Flutter draws its own text; this only covers the boot splash. */
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overscroll-behavior: none;
+    }
+
+    /* Boot splash — removed by main.dart once the first frame is painted. */
+    #boot {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 22px;
+      background: #1A1A2E;
+      color: #FFFFFF;
+      transition: opacity 250ms ease-out;
+      z-index: 10;
+    }
+
+    #boot.boot--done {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* Matches the marketing site's editorial identity: square block, heavy
+       uppercase wordmark, hairline progress rule. */
+    #boot .boot__mark {
+      width: 72px;
+      height: 72px;
+      border-radius: 4px;
+      background: linear-gradient(135deg, #6C63FF 0%, #9D5CFF 100%);
+    }
+
+    #boot .boot__name {
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    #boot .boot__name i {
+      font-style: normal;
+      color: #4ECDC4;
+    }
+
+    #boot .boot__bar {
+      width: 140px;
+      height: 2px;
+      background: rgba(255, 255, 255, 0.12);
+      overflow: hidden;
+    }
+
+    #boot .boot__bar::after {
+      content: "";
+      display: block;
+      width: 40%;
+      height: 100%;
+      background: #4ECDC4;
+      animation: boot-slide 1.1s ease-in-out infinite;
+    }
+
+    @keyframes boot-slide {
+      0%   { transform: translateX(-100%); }
+      100% { transform: translateX(350%); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #boot .boot__bar::after { animation: none; width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div id="boot">
+    <div class="boot__mark"></div>
+    <div class="boot__name">SongSpot<i>.</i></div>
+    <div class="boot__bar"></div>
+  </div>
+
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

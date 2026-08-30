@@ -248,23 +248,11 @@ abstract class AppLocalizations {
   /// **'Account'**
   String get settingsSectionAccount;
 
-  /// Notifications section header in settings
+  /// Preferences section header in settings — accessibility, language and the analytics choice
   ///
   /// In en, this message translates to:
-  /// **'Notifications'**
-  String get settingsSectionNotifications;
-
-  /// Accessibility section header in settings
-  ///
-  /// In en, this message translates to:
-  /// **'Accessibility'**
-  String get settingsSectionAccessibility;
-
-  /// Language section header in settings
-  ///
-  /// In en, this message translates to:
-  /// **'Language'**
-  String get settingsSectionLanguage;
+  /// **'Preferences'**
+  String get settingsSectionPreferences;
 
   /// My Data section header in settings
   ///
@@ -289,18 +277,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Change password'**
   String get settingsChangePassword;
-
-  /// Daily song notifications toggle
-  ///
-  /// In en, this message translates to:
-  /// **'Daily song notifications'**
-  String get settingsDailySongNotifications;
-
-  /// Message notifications toggle
-  ///
-  /// In en, this message translates to:
-  /// **'Message notifications'**
-  String get settingsMessageNotifications;
 
   /// Accessibility tile
   ///
@@ -806,6 +782,18 @@ abstract class AppLocalizations {
   /// **'Next'**
   String get gameNextButton;
 
+  /// Shortcut reminder under the guess box on keyboard/pointer layouts.
+  ///
+  /// In en, this message translates to:
+  /// **'↑ ↓ browse · Enter picks · Esc clears'**
+  String get gameKeyboardHintGuess;
+
+  /// Shortcut reminder next to the next-song button on keyboard/pointer layouts.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter continues'**
+  String get gameKeyboardHintNext;
+
   /// No description provided for @sessionEndHeadlineCleared.
   ///
   /// In en, this message translates to:
@@ -961,6 +949,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sign in to play'**
   String get homeSignInToPlay;
+
+  /// Label above the difficulty picker in the pre-game panel.
+  ///
+  /// In en, this message translates to:
+  /// **'Difficulty'**
+  String get categoryDifficulty;
+
+  /// Track count on a genre card.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 song} other{{count} songs}}'**
+  String categorySongCount(int count);
+
+  /// Body of the dialog shown when a guest taps the 1v1 card.
+  ///
+  /// In en, this message translates to:
+  /// **'1v1 needs an account. Sign in or create one to play against someone else.'**
+  String get homeDuelSignInPrompt;
+
+  /// Sublabel on the solo mode card on the home screen.
+  ///
+  /// In en, this message translates to:
+  /// **'One track at a time, three lives'**
+  String get homeSoloSublabel;
+
+  /// Sublabel on the 1v1 mode card on the home screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Race someone else, round for round'**
+  String get homeDuelSublabel;
 
   /// No description provided for @homeComingSoon.
   ///
@@ -1226,13 +1244,7 @@ abstract class AppLocalizations {
   /// **'Back to Home'**
   String get duelBackToHome;
 
-  /// Privacy section header in settings
-  ///
-  /// In en, this message translates to:
-  /// **'Privacy'**
-  String get settingsSectionPrivacy;
-
-  /// Analytics opt-out switch in settings
+  /// Analytics opt-in switch in settings
   ///
   /// In en, this message translates to:
   /// **'Share usage statistics'**

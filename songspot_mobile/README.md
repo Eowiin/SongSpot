@@ -25,7 +25,7 @@ A Flutter mobile application for the SongSpot music guessing game.
 
 - Flutter SDK 3.35.5 or higher
 - Dart 3.9.2 or higher
-- iOS Simulator or Android Emulator
+- iOS Simulator, Android Emulator, or Chrome (for the web build)
 - Django backend server running (see backend README)
 
 ## Getting Started
@@ -62,10 +62,18 @@ flutter run
 # Run on Android
 flutter run
 
+# Run in a browser
+flutter run -d chrome
+
 # Or select a device
 flutter devices
 flutter run -d <device-id>
 ```
+
+The same codebase targets iOS, Android and the web. For a release web bundle and
+how to host it, see [`docs/WEB_DEPLOYMENT.md`](../docs/WEB_DEPLOYMENT.md) — the
+backend needs the web origin in `CORS_ALLOWED_ORIGINS` before the browser build
+can reach it.
 
 ## Project Structure
 

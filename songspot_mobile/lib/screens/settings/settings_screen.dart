@@ -4,6 +4,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../config/app_theme.dart';
+import '../../config/responsive.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/settings_provider.dart';
@@ -105,7 +106,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: Container(
         decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
         child: SafeArea(
-          child: Column(
+          child: ResponsiveCenter(
+            maxWidth: 760,
+            padding: EdgeInsets.symmetric(horizontal: context.pageGutter * 0.5),
+            child: Column(
             children: [
               // App bar
               Padding(
@@ -123,8 +127,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     Flexible(
                       child: Text(
-                        l10n.settingsTitle,
-                        style: Theme.of(context).textTheme.headlineMedium,
+                        l10n.settingsTitle.toUpperCase(),
+                        style: AppTheme.display(24),
                       ),
                     ),
                   ],
@@ -159,26 +163,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-
-                      // ── Notifications ───────────────────────────────────
-                      _SectionHeader(l10n.settingsSectionNotifications),
-                      _SettingsSwitch(
-                        icon: Icons.music_note_outlined,
-                        title: l10n.settingsDailySongNotifications,
-                        value: settings.dailySongNotifications,
-                        onChanged: (v) => settings.setDailySongNotifications(v),
-                      ),
-                      _SettingsSwitch(
-                        icon: Icons.chat_bubble_outline,
-                        title: l10n.settingsMessageNotifications,
-                        value: settings.messagesNotifications,
-                        onChanged: (v) => settings.setMessagesNotifications(v),
-                      ),
-                      const SizedBox(height: 8),
                     ],
 
-                    // ── Accessibility ─────────────────────────────────────
-                    _SectionHeader(l10n.settingsSectionAccessibility),
+                    // ── Preferences ───────────────────────────────────────
+                    // One header over the three rows that used to carry one
+                    // each: "Accessibility" above a row reading
+                    // "Accessibility" said the word twice and spent a gap
+                    // saying it. The analytics consent lives here rather than
+                    // under My Data because that section is hidden from
+                    // guests, and the choice has to stay reachable for them.
+                    _SectionHeader(l10n.settingsSectionPreferences),
                     _SettingsTile(
                       icon: Icons.accessibility_new_outlined,
                       title: l10n.settingsAccessibility,
@@ -188,10 +182,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8),
-
-                    // ── Language ──────────────────────────────────────────
-                    _SectionHeader(l10n.settingsSectionLanguage),
                     _SettingsTile(
                       icon: Icons.language_outlined,
                       title: l10n.settingsLanguage,
@@ -206,6 +196,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           builder: (_) => const LanguageScreen(),
                         ),
                       ),
+                    ),
+                    _SettingsSwitch(
+                      icon: Icons.insights_outlined,
+                      title: l10n.settingsAnalytics,
+                      subtitle: l10n.settingsAnalyticsSubtitle,
+                      value: settings.analyticsEnabled,
+                      onChanged: (v) => settings.setAnalyticsEnabled(v),
                     ),
                     const SizedBox(height: 8),
 
@@ -236,17 +233,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       const SizedBox(height: 8),
                     ],
-
-                    // ── Privacy ───────────────────────────────────────────
-                    _SectionHeader(l10n.settingsSectionPrivacy),
-                    _SettingsSwitch(
-                      icon: Icons.insights_outlined,
-                      title: l10n.settingsAnalytics,
-                      subtitle: l10n.settingsAnalyticsSubtitle,
-                      value: settings.analyticsEnabled,
-                      onChanged: (v) => settings.setAnalyticsEnabled(v),
-                    ),
-                    const SizedBox(height: 8),
 
                     // ── About ─────────────────────────────────────────────
                     _SectionHeader(l10n.settingsSectionAbout),
@@ -331,6 +317,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ],
           ),
+          ),
         ),
       ),
     );
@@ -346,14 +333,14 @@ class _SectionHeader extends StatelessWidget {
     return Semantics(
       header: true,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(4, 16, 4, 6),
-        child: Text(
-          title.toUpperCase(),
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            letterSpacing: 1.2,
-            fontWeight: FontWeight.w600,
-            color: AppTheme.primaryColor,
-          ),
+        padding: const EdgeInsets.fromLTRB(4, 22, 4, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title.toUpperCase(), style: AppTheme.kicker()),
+            const SizedBox(height: 8),
+            const Divider(color: AppTheme.line, height: 1),
+          ],
         ),
       ),
     );
@@ -384,8 +371,9 @@ class _SettingsTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 2),
       decoration: BoxDecoration(
-        gradient: AppTheme.cardGradient,
+        color: AppTheme.surfaceColor,
         borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+        border: Border.all(color: AppTheme.line),
       ),
       child: ListTile(
         leading: Icon(icon, color: iconColor ?? AppTheme.primaryColor),
@@ -436,8 +424,9 @@ class _SettingsSwitch extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 2),
       decoration: BoxDecoration(
-        gradient: AppTheme.cardGradient,
+        color: AppTheme.surfaceColor,
         borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+        border: Border.all(color: AppTheme.line),
       ),
       child: SwitchListTile(
         secondary: Icon(icon, color: AppTheme.primaryColor),

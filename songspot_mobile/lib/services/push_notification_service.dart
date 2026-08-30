@@ -36,6 +36,14 @@ class PushNotificationService {
   Future<void> initializeCore() async {
     if (_initialized) return;
 
+    // Web push needs a service worker, a VAPID key and per-origin FCM
+    // credentials that the mobile config does not carry. The web build plays
+    // fine without notifications, so skip the whole stack there.
+    if (kIsWeb) {
+      debugPrint('Push notifications are not enabled on web');
+      return;
+    }
+
     try {
       await FirebaseBootstrap.ensureInitialized();
     } catch (e) {
@@ -128,27 +136,6 @@ class PushNotificationService {
     } catch (e) {
       debugPrint('FCM token register failed: $e');
     }
-  }
-
-  /// Update notification preferences on the backend for the current device.
-  Future<void> updateNotificationPrefs({
-    required bool dailySong,
-    required bool messages,
-  }) async {
-    if (!_initialized) return;
-    final messaging = _messaging;
-    if (messaging == null) return;
-
-    String? token;
-    try {
-      token = await messaging.getToken();
-    } catch (e) {
-      debugPrint('FCM getToken failed: $e');
-      return;
-    }
-    if (token == null || token.isEmpty) return;
-
-    await _registerToken(token);
   }
 
   String get _platformName {

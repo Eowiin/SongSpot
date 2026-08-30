@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/responsive.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/duel_provider.dart';
 import '../../models/duel.dart';
@@ -87,8 +88,8 @@ class _DuelLobbyScreenState extends State<DuelLobbyScreen>
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minHeight: constraints.maxHeight),
                   child: IntrinsicHeight(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: ResponsiveCenter(
+                      maxWidth: 680,
                       child: isQueuing
                           ? _buildSearchingState(duel, l10n)
                           : _buildIdleState(duel, l10n),
@@ -191,7 +192,7 @@ class _DuelLobbyScreenState extends State<DuelLobbyScreen>
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
       decoration: BoxDecoration(
         gradient: AppTheme.cardGradient,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
@@ -263,7 +264,7 @@ class _DuelLobbyScreenState extends State<DuelLobbyScreen>
       child: DecoratedBox(
         decoration: BoxDecoration(
           gradient: AppTheme.primaryGradient,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppTheme.borderRadius),
           boxShadow: [
             BoxShadow(
               color: AppTheme.primaryColor.withValues(alpha: 0.4),
@@ -277,7 +278,7 @@ class _DuelLobbyScreenState extends State<DuelLobbyScreen>
           style: TextButton.styleFrom(
             minimumSize: const Size.fromHeight(56),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.borderRadius)),
           ),
           child: Text(
             l10n.duelFindMatch,

@@ -40,6 +40,39 @@ CSRF_TRUSTED_ORIGINS = [
     if origin.strip()
 ]
 
+# ── CORS ──────────────────────────────────────────────────────────────────────
+# Native mobile clients send no Origin header and are unaffected by CORS. The
+# Flutter web build runs on its own origin, so that origin must be allowlisted
+# here for both the REST API and the duel WebSockets.
+CORS_ALLOWED_ORIGINS = [
+    origin.strip().rstrip('/')
+    for origin in os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
+    if origin.strip()
+]
+
+# Optional regex allowlist, e.g. for preview deployments:
+#   CORS_ALLOWED_ORIGIN_REGEXES=^https://.*\.songspot\.app$
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    pattern.strip()
+    for pattern in os.environ.get('CORS_ALLOWED_ORIGIN_REGEXES', '').split(',')
+    if pattern.strip()
+]
+
+# Auth is bearer-token only — no cookies cross-origin.
+CORS_ALLOW_CREDENTIALS = False
+
+if DEBUG and not CORS_ALLOWED_ORIGINS and not CORS_ALLOWED_ORIGIN_REGEXES:
+    # `flutter run -d chrome` picks a random localhost port on every launch.
+    CORS_ALLOWED_ORIGIN_REGEXES = [r'^http://(localhost|127\.0\.0\.1):\d+$']
+
+# Origins allowed to open a duel WebSocket. Falls back to the CORS list so
+# there is a single place to configure the web origin.
+WEBSOCKET_ALLOWED_ORIGINS = [
+    origin.strip().rstrip('/')
+    for origin in os.environ.get('WEBSOCKET_ALLOWED_ORIGINS', '').split(',')
+    if origin.strip()
+] or CORS_ALLOWED_ORIGINS
+
 # Trust HTTPS offloading at Nginx.
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
@@ -65,6 +98,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'axes',
     'channels',
+    'corsheaders',
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
@@ -74,6 +108,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # Must sit above CommonMiddleware so preflight/redirect responses carry
+    # the CORS headers the web build needs.
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -95,6 +132,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'songspot.context_processors.site',
             ],
         },
     },

@@ -23,14 +23,68 @@ class AudioService {
 
   bool get isPlaying => _isPlaying;
 
+  /// Every transition of [isPlaying], from every path — a snippet ending on
+  /// its own, [stop], an interruption, a failure, a superseded request.
+  ///
+  /// The `onPlaybackStopped` callback below only fires on the one path that
+  /// runs to the end of [playSnippet]; a caller that mirrors its own "is
+  /// playing" flag from that callback alone gets stuck showing the wrong state
+  /// whenever playback ends some other way. Listen to this instead.
+  final ValueNotifier<bool> playing = ValueNotifier<bool>(false);
+
+  /// True only once the player is really producing sound. [playing] flips as
+  /// soon as a snippet is asked for — the button has to lock right away — but
+  /// the first sample can land a few hundred milliseconds later while the
+  /// platform buffers. Anything that has to line up with what is heard, such
+  /// as the progress rail under the play button, runs off this instead.
+  final ValueNotifier<bool> sounding = ValueNotifier<bool>(false);
+
   void _setPlaying(bool value, {void Function()? onChanged}) {
+    if (!value) sounding.value = false;
     if (_isPlaying == value) return;
     _isPlaying = value;
+    playing.value = value;
     onChanged?.call();
+  }
+
+  /// How long to wait for the player to report that it has started before
+  /// running the snippet anyway: a signal that never comes must not hang the
+  /// round. The source is already loaded by the time we get here, so a start
+  /// that has not been reported within a second is not coming.
+  static const Duration _startBudget = Duration(seconds: 1);
+
+  /// Resolves when the player actually starts playing. just_audio's state
+  /// stream replays its latest value on listen, so a start that has already
+  /// happened resolves straight away.
+  ///
+  /// Platform players only — on the web `ready` does not mean what this needs
+  /// it to mean; see the web branch of [playSnippet].
+  Future<void> _awaitAudibleStart(AudioPlayer player) async {
+    try {
+      await player.playerStateStream
+          .firstWhere(
+            (s) =>
+                s.playing &&
+                (s.processingState == ProcessingState.ready ||
+                    // A very short clip can be over before we get here; that
+                    // is a start too, and waiting on one that has passed
+                    // would stall the snippet.
+                    s.processingState == ProcessingState.completed),
+          )
+          .timeout(_startBudget);
+    } catch (_) {
+      // Timed out, or the stream closed under us — carry on regardless.
+    }
   }
 
   Future<void> initializeAudioSession() async {
     if (_isInitialized) return;
+    // audio_session has no web implementation; the browser owns the audio
+    // focus policy. Mark it done so we don't retry on every load.
+    if (kIsWeb) {
+      _isInitialized = true;
+      return;
+    }
     try {
       final session = await AudioSession.instance;
       await session.configure(const AudioSessionConfiguration.music());
@@ -128,46 +182,89 @@ class AudioService {
     // Captured once: swapToPrefetch() can flip `_active` mid-playback.
     final player = _active;
     try {
-      await player.setClip(start: Duration.zero, end: duration);
+      if (kIsWeb) {
+        // just_audio's web backend ignores setClip's end boundary and plays the
+        // whole ~30s preview, which would hand the player the answer. On web the
+        // snippet is bounded with an explicit timer instead (see below).
+        await player.seek(Duration.zero);
+      } else {
+        await player.setClip(start: Duration.zero, end: duration);
+      }
       if (requestId != _playbackRequestId) return;
 
-      // Subscribe *before* play(). play()'s future only resolves once
-      // playback has already stopped, so a listener attached after it would
-      // miss the `completed` event and hang until the timeout fired.
-      // onError swallows late stream errors so they can never surface as an
-      // unhandled async error after we have stopped listening.
-      final done = player.processingStateStream
-          .firstWhere(
-            (s) => s == ProcessingState.completed || s == ProcessingState.idle,
-          )
-          .then<void>((_) {}, onError: (Object _) {});
+      if (kIsWeb && duration != null) {
+        _setPlaying(true);
+        // Deliberately not awaited: play() only resolves once playback stops,
+        // which without setClip is the end of the full preview.
+        unawaited(
+          player.play().catchError((Object e) {
+            debugPrint('[AudioService] playSnippet: play() failed $e');
+          }),
+        );
+        // The web player has no setClip, so the timer below is what cuts the
+        // snippet — and it starts here, at the tap, with no wait for the first
+        // sample. Waiting was tried and measured in Chrome: on the web
+        // `ProcessingState.ready` is the element's `canplaythrough`, meaning
+        // enough is buffered to play the whole preview through, not that sound
+        // has started. It therefore cannot report the real start — when the
+        // source is loaded it is already `ready` at the tap (the wait resolved
+        // in ~1ms, the sound came ~110ms later), and when the buffer is thin
+        // the element plays while just_audio still says `buffering`, so the
+        // wait runs out its whole budget and the timer then hands out that
+        // much extra song: a 1s snippet was heard for 1.9s on a starved
+        // connection. Starting at the tap costs the browser's start latency
+        // off the front of the snippet instead, which is the safe direction —
+        // Hard gets slightly less than its second, never more.
+        sounding.value = true;
+        await Future<void>.delayed(duration);
+        if (requestId != _playbackRequestId) return;
+        try {
+          await player.pause();
+          await player.seek(Duration.zero);
+        } catch (_) {}
+      } else {
+        // Subscribe *before* play(). play()'s future only resolves once
+        // playback has already stopped, so a listener attached after it would
+        // miss the `completed` event and hang until the timeout fired.
+        // onError swallows late stream errors so they can never surface as an
+        // unhandled async error after we have stopped listening.
+        final done = player.processingStateStream
+            .firstWhere(
+              (s) => s == ProcessingState.completed || s == ProcessingState.idle,
+            )
+            .then<void>((_) {}, onError: (Object _) {});
 
-      _setPlaying(true);
-      // Deliberately not awaited — `done` already tracks the end of playback.
-      unawaited(
-        player.play().catchError((Object e) {
-          debugPrint('[AudioService] playSnippet: play() failed $e');
-        }),
-      );
+        _setPlaying(true);
+        // Deliberately not awaited — `done` already tracks the end of playback.
+        unawaited(
+          player.play().catchError((Object e) {
+            debugPrint('[AudioService] playSnippet: play() failed $e');
+          }),
+        );
 
-      // Wall-clock ceiling. An interruption (incoming call, backgrounding,
-      // lost audio focus) pauses the player without ever reaching
-      // `completed`, which would otherwise leave the play button stuck.
-      // Hitting the ceiling is a normal end of snippet, never an error.
-      final budget =
-          (duration ?? const Duration(seconds: 30)) +
-          const Duration(seconds: 5);
-      await done.timeout(
-        budget,
-        onTimeout: () async {
-          debugPrint('[AudioService] playSnippet: budget elapsed, pausing');
-          if (requestId == _playbackRequestId) {
-            try {
-              await player.pause();
-            } catch (_) {}
-          }
-        },
-      );
+        await _awaitAudibleStart(player);
+        if (requestId != _playbackRequestId) return;
+        sounding.value = true;
+
+        // Wall-clock ceiling. An interruption (incoming call, backgrounding,
+        // lost audio focus) pauses the player without ever reaching
+        // `completed`, which would otherwise leave the play button stuck.
+        // Hitting the ceiling is a normal end of snippet, never an error.
+        final budget =
+            (duration ?? const Duration(seconds: 30)) +
+            const Duration(seconds: 5);
+        await done.timeout(
+          budget,
+          onTimeout: () async {
+            debugPrint('[AudioService] playSnippet: budget elapsed, pausing');
+            if (requestId == _playbackRequestId) {
+              try {
+                await player.pause();
+              } catch (_) {}
+            }
+          },
+        );
+      }
 
       if (requestId == _playbackRequestId) {
         _setPlaying(false, onChanged: onPlaybackStopped);
@@ -183,10 +280,21 @@ class AudioService {
     }
   }
 
+  // Callers wire this straight into sync handlers (submitGuess, giveUp,
+  // screen dispose) without awaiting, so an escaping error would surface as an
+  // unhandled async error and kill the app. iOS throws PlatformException
+  // 561015905 ('!pla', session activation failed) here whenever the session
+  // cannot be activated — routinely when the app is already in the background —
+  // and there is nothing to recover: playback is being torn down anyway.
+  // _setPlaying stays outside the guard so the play button is released either way.
   Future<void> stop() async {
     _playbackRequestId += 1;
-    await _active.stop();
-    await _active.seek(Duration.zero);
+    try {
+      await _active.stop();
+      await _active.seek(Duration.zero);
+    } catch (e) {
+      debugPrint('[AudioService] stop: FAILED $e');
+    }
     _setPlaying(false);
   }
 

@@ -111,3 +111,8 @@ jobs:
 
       - name: Flutter tests
         run: flutter test
+
+      # Catches web-only breakage (dart:io leaking into shared code, plugins
+      # without a web implementation) before it reaches the deployed web app.
+      - name: Flutter build web
+        run: flutter build web --release

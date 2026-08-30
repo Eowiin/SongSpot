@@ -100,17 +100,9 @@
   "@settingsSectionAccount": {
     "description": "Account section header in settings"
   },
-  "settingsSectionNotifications": "Notifications",
-  "@settingsSectionNotifications": {
-    "description": "Notifications section header in settings"
-  },
-  "settingsSectionAccessibility": "Accessibility",
-  "@settingsSectionAccessibility": {
-    "description": "Accessibility section header in settings"
-  },
-  "settingsSectionLanguage": "Language",
-  "@settingsSectionLanguage": {
-    "description": "Language section header in settings"
+  "settingsSectionPreferences": "Preferences",
+  "@settingsSectionPreferences": {
+    "description": "Preferences section header in settings — accessibility, language and the analytics choice"
   },
   "settingsSectionMyData": "My Data",
   "@settingsSectionMyData": {
@@ -127,14 +119,6 @@
   "settingsChangePassword": "Change password",
   "@settingsChangePassword": {
     "description": "Change password tile"
-  },
-  "settingsDailySongNotifications": "Daily song notifications",
-  "@settingsDailySongNotifications": {
-    "description": "Daily song notifications toggle"
-  },
-  "settingsMessageNotifications": "Message notifications",
-  "@settingsMessageNotifications": {
-    "description": "Message notifications toggle"
   },
   "settingsAccessibility": "Accessibility",
   "@settingsAccessibility": {
@@ -442,6 +426,14 @@
   "gameWrong": "Wrong",
   "gameSeeResults": "See Results",
   "gameNextButton": "Next",
+  "gameKeyboardHintGuess": "↑ ↓ browse · Enter picks · Esc clears",
+  "@gameKeyboardHintGuess": {
+    "description": "Shortcut reminder under the guess box on keyboard/pointer layouts."
+  },
+  "gameKeyboardHintNext": "Enter continues",
+  "@gameKeyboardHintNext": {
+    "description": "Shortcut reminder next to the next-song button on keyboard/pointer layouts."
+  },
   "sessionEndHeadlineCleared": "You cleared it!",
   "sessionEndHeadlineOutOfLives": "Out of lives!",
   "sessionEndHeadlineEnded": "Session ended",
@@ -468,6 +460,27 @@
   "homeSoloLabel": "Solo",
   "homeTagline": "Test your music knowledge",
   "homeSignInToPlay": "Sign in to play",
+  "categoryDifficulty": "Difficulty",
+  "@categoryDifficulty": {
+    "description": "Label above the difficulty picker in the pre-game panel."
+  },
+  "categorySongCount": "{count, plural, =1{1 song} other{{count} songs}}",
+  "@categorySongCount": {
+    "description": "Track count on a genre card.",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "homeDuelSignInPrompt": "1v1 needs an account. Sign in or create one to play against someone else.",
+  "@homeDuelSignInPrompt": {
+    "description": "Body of the dialog shown when a guest taps the 1v1 card."
+  },
+  "homeSoloSublabel": "One track at a time, three lives",
+  "@homeSoloSublabel": {
+    "description": "Sublabel on the solo mode card on the home screen."
+  },
+  "homeDuelSublabel": "Race someone else, round for round",
+  "@homeDuelSublabel": {
+    "description": "Sublabel on the 1v1 mode card on the home screen."
+  },
   "homeComingSoon": "Coming soon",
   "homeGreeting": "Hi, {username}",
   "@homeGreeting": {
@@ -577,8 +590,6 @@
   "@duelPlayAgain": { "description": "Play again button in match result screen" },
   "duelBackToHome": "Back to Home",
   "@duelBackToHome": { "description": "Back to home button in match result screen" },
-  "settingsSectionPrivacy": "Privacy",
-  "@settingsSectionPrivacy": { "description": "Privacy section header in settings" },
   "settingsAnalytics": "Share usage statistics",
   "@settingsAnalytics": { "description": "Analytics opt-in switch in settings" },
   "settingsAnalyticsSubtitle": "Helps us see which genres and difficulties work. Never includes your guesses or personal data.",

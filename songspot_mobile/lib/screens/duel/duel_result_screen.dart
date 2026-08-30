@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/responsive.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/duel_provider.dart';
 
@@ -34,8 +35,8 @@ class DuelResultScreen extends StatelessWidget {
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: constraints.maxHeight),
               child: IntrinsicHeight(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: ResponsiveCenter(
+                  maxWidth: 680,
                   child: Column(
                     children: [
                       const SizedBox(height: 32),
@@ -130,7 +131,7 @@ class DuelResultScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 32),
       decoration: BoxDecoration(
         gradient: AppTheme.cardGradient,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Row(
@@ -167,7 +168,7 @@ class DuelResultScreen extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppTheme.surfaceColor,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
       ),
       child: Row(
         children: [
@@ -233,7 +234,7 @@ class DuelResultScreen extends StatelessWidget {
           child: DecoratedBox(
             decoration: BoxDecoration(
               gradient: AppTheme.primaryGradient,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(AppTheme.borderRadius),
               boxShadow: [
                 BoxShadow(
                   color: AppTheme.primaryColor.withValues(alpha: 0.4),
@@ -249,7 +250,7 @@ class DuelResultScreen extends StatelessWidget {
                 // when the label wraps at large text scales.
                 minimumSize: const Size.fromHeight(52),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.borderRadius)),
               ),
               child: Text(
                 l10n.duelPlayAgain,
@@ -271,7 +272,7 @@ class DuelResultScreen extends StatelessWidget {
               minimumSize: const Size.fromHeight(52),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.borderRadius)),
             ),
             child: Text(
               l10n.duelBackToHome,

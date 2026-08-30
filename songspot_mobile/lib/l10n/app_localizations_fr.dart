@@ -86,13 +86,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get settingsSectionAccount => 'Compte';
 
   @override
-  String get settingsSectionNotifications => 'Notifications';
-
-  @override
-  String get settingsSectionAccessibility => 'Accessibilité';
-
-  @override
-  String get settingsSectionLanguage => 'Langue';
+  String get settingsSectionPreferences => 'Préférences';
 
   @override
   String get settingsSectionMyData => 'Mes données';
@@ -105,12 +99,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get settingsChangePassword => 'Changer le mot de passe';
-
-  @override
-  String get settingsDailySongNotifications => 'Notifications chanson du jour';
-
-  @override
-  String get settingsMessageNotifications => 'Notifications de messages';
 
   @override
   String get settingsAccessibility => 'Accessibilité';
@@ -387,6 +375,13 @@ class AppLocalizationsFr extends AppLocalizations {
   String get gameNextButton => 'Suivant';
 
   @override
+  String get gameKeyboardHintGuess =>
+      '↑ ↓ parcourir · Entrée valide · Échap efface';
+
+  @override
+  String get gameKeyboardHintNext => 'Entrée continue';
+
+  @override
   String get sessionEndHeadlineCleared => 'Vous avez réussi !';
 
   @override
@@ -464,6 +459,30 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get homeSignInToPlay => 'Connectez-vous pour jouer';
+
+  @override
+  String get categoryDifficulty => 'Difficulté';
+
+  @override
+  String categorySongCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count titres',
+      one: '1 titre',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get homeDuelSignInPrompt =>
+      'Le 1v1 nécessite un compte. Connectez-vous ou créez-en un pour affronter quelqu\'un.';
+
+  @override
+  String get homeSoloSublabel => 'Un titre à la fois, trois vies';
+
+  @override
+  String get homeDuelSublabel => 'Affrontez quelqu\'un, manche par manche';
 
   @override
   String get homeComingSoon => 'Bientôt disponible';
@@ -618,9 +637,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get duelBackToHome => 'Retour à l\'accueil';
-
-  @override
-  String get settingsSectionPrivacy => 'Confidentialité';
 
   @override
   String get settingsAnalytics => 'Partager les statistiques d\'usage';

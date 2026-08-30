@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/responsive.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/category.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/game_session_provider.dart';
 import '../../services/api_service.dart';
+import '../../widgets/pressable.dart';
 import '../auth/login_screen.dart';
 import 'game_screen.dart';
 
@@ -219,7 +221,9 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
   Future<void> _startWithCategory(Category category) async {
     final difficulty = await _showPreGameModal(
       title: category.name,
-      subtitle: '${category.trackCount} songs',
+      subtitle: AppLocalizations.of(context).categorySongCount(
+        category.trackCount,
+      ),
     );
     if (difficulty == null || !mounted) return;
     Navigator.pushReplacement(
@@ -241,12 +245,53 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
     );
   }
 
+  /// The pre-game panel — pick a difficulty, then start.
+  ///
+  /// A bottom sheet is right on a phone and wrong in a browser window, where
+  /// it lands as a full-width strip a long way from the pointer. Wide
+  /// viewports get a centred dialog with the same content.
   Future<Difficulty?> _showPreGameModal({
     required String title,
     String? subtitle,
   }) async {
-    final l10n = AppLocalizations.of(context);
     Difficulty selected = Difficulty.medium;
+
+    Widget content(BuildContext ctx, StateSetter setModalState,
+        {required bool sheet}) {
+      return _buildPreGameBody(
+        ctx,
+        title: title,
+        subtitle: subtitle,
+        selected: selected,
+        onSelect: (d) => setModalState(() => selected = d),
+        showHandle: sheet,
+      );
+    }
+
+    if (context.isWide) {
+      return showDialog<Difficulty>(
+        context: context,
+        builder: (ctx) => Dialog(
+          backgroundColor: AppTheme.surfaceColor,
+          insetPadding: const EdgeInsets.all(32),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+            side: const BorderSide(color: AppTheme.line),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: StatefulBuilder(
+              builder: (ctx, setModalState) => SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(28),
+                  child: content(ctx, setModalState, sheet: false),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     return showModalBottomSheet<Difficulty>(
       context: context,
@@ -259,156 +304,132 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
       isScrollControlled: true,
       useSafeArea: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(
+            top: Radius.circular(AppTheme.cardBorderRadius)),
       ),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) {
-          return SingleChildScrollView(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                  24, 20, 24, 24 + MediaQuery.viewPaddingOf(ctx).bottom),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Handle
-                  Center(
-                    child: Container(
-                      width: 36,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
+        builder: (ctx, setModalState) => SingleChildScrollView(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+                24, 20, 24, 24 + MediaQuery.viewPaddingOf(ctx).bottom),
+            child: content(ctx, setModalState, sheet: true),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPreGameBody(
+    BuildContext ctx, {
+    required String title,
+    String? subtitle,
+    required Difficulty selected,
+    required ValueChanged<Difficulty> onSelect,
+    required bool showHandle,
+  }) {
+    final l10n = AppLocalizations.of(ctx);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (showHandle) ...[
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              color: AppTheme.lineStrong,
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
+        Text(title.toUpperCase(), style: AppTheme.display(24)),
+        if (subtitle != null) ...[
+          const SizedBox(height: 6),
+          Text(subtitle,
+              style: const TextStyle(color: AppTheme.ink3, fontSize: 13)),
+        ],
+        const SizedBox(height: 24),
+        SectionLabel(l10n.categoryDifficulty),
+        const SizedBox(height: 12),
+        ...Difficulty.values.map((d) {
+          final isSelected = selected == d;
+          final color = _difficultyColor(d);
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Pressable(
+              onTap: () => onSelect(d),
+              lift: 0,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? color.withValues(alpha: 0.12)
+                      : Colors.white.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+                  border: Border.all(
+                    color: isSelected
+                        ? color.withValues(alpha: 0.6)
+                        : AppTheme.line,
+                    width: isSelected ? 1.5 : 1,
                   ),
-                  const SizedBox(height: 20),
-                  // Title
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: AppTheme.textPrimary,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      isSelected
+                          ? Icons.radio_button_checked_rounded
+                          : Icons.radio_button_off_rounded,
+                      color: isSelected ? color : AppTheme.ink3,
+                      size: 20,
                     ),
-                  ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 4),
-                    Text(subtitle,
-                        style: const TextStyle(
-                            color: AppTheme.textSecondary, fontSize: 14)),
-                  ],
-                  const SizedBox(height: 24),
-                  const Text(
-                    'DIFFICULTY',
-                    style: TextStyle(
-                      color: AppTheme.textSecondary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  // Difficulty options
-                  ...Difficulty.values.map((d) {
-                    final isSelected = selected == d;
-                    final color = _difficultyColor(d);
-                    return GestureDetector(
-                      onTap: () => setModalState(() => selected = d),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? color.withValues(alpha: 0.12)
-                              : Colors.white.withValues(alpha: 0.04),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: isSelected
-                                ? color.withValues(alpha: 0.6)
-                                : Colors.white.withValues(alpha: 0.08),
-                            width: isSelected ? 1.5 : 1,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            d.label.toUpperCase(),
+                            style: AppTheme.action(
+                              color: isSelected
+                                  ? AppTheme.textPrimary
+                                  : AppTheme.ink2,
+                              size: 13,
+                            ),
                           ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              isSelected
-                                  ? Icons.radio_button_checked_rounded
-                                  : Icons.radio_button_off_rounded,
-                              color: isSelected ? color : AppTheme.textSecondary,
-                              size: 20,
+                          Text(
+                            _difficultyDescription(d),
+                            style: TextStyle(
+                              color: isSelected ? color : AppTheme.ink3,
+                              fontSize: 12,
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    d.label,
-                                    style: TextStyle(
-                                      color: isSelected
-                                          ? AppTheme.textPrimary
-                                          : AppTheme.textSecondary,
-                                      fontWeight: isSelected
-                                          ? FontWeight.w700
-                                          : FontWeight.w400,
-                                      fontSize: 15,
-                                    ),
-                                  ),
-                                  Text(
-                                    _difficultyDescription(d),
-                                    style: TextStyle(
-                                      color: isSelected
-                                          ? color
-                                          : AppTheme.textSecondary
-                                              .withValues(alpha: 0.5),
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Text(
-                              _difficultyMultiplier(d),
-                              style: TextStyle(
-                                color: isSelected ? color : AppTheme.textSecondary,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(ctx, selected),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primaryColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
-                        elevation: 0,
-                      ),
-                      child: Text(
-                        l10n.categoryStartRun,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                ],
+                    Text(
+                      _difficultyMultiplier(d),
+                      style: AppTheme.action(
+                        color: isSelected ? color : AppTheme.ink3,
+                        size: 13,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
-        },
-      ),
+        }),
+        const SizedBox(height: 20),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, selected),
+            child: Text(l10n.categoryStartRun.toUpperCase()),
+          ),
+        ),
+      ],
     );
   }
 
@@ -442,18 +463,12 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
           icon: const Icon(Icons.arrow_back_rounded, color: AppTheme.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
-          l10n.categoryChooseCategory,
-          style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold),
-        ),
+        title: Text(l10n.categoryChooseCategory.toUpperCase()),
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: AppTheme.primaryColor,
-          labelColor: AppTheme.primaryColor,
-          unselectedLabelColor: AppTheme.textSecondary,
           tabs: [
-            Tab(text: l10n.categoryTabGenre),
-            Tab(text: l10n.categoryTabArtist),
+            Tab(text: l10n.categoryTabGenre.toUpperCase()),
+            Tab(text: l10n.categoryTabArtist.toUpperCase()),
           ],
         ),
       ),
@@ -490,32 +505,50 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
     // Cards get taller as text scales up, otherwise the name + track count
     // overflow the fixed 1.4 ratio.
     final textScale = MediaQuery.textScalerOf(context).scale(16) / 16;
-    return GridView.builder(
-      padding: EdgeInsets.fromLTRB(
-          16, 16, 16, 16 + MediaQuery.viewPaddingOf(context).bottom),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.4 / textScale.clamp(1.0, 1.6),
+    // Column count follows the viewport so tiles keep a readable size instead
+    // of stretching into two giant banners on a monitor.
+    return ResponsiveCenter(
+      maxWidth: 1240,
+      padding: EdgeInsets.symmetric(horizontal: context.pageGutter * 0.8),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final columns = gridColumnsFor(constraints.maxWidth);
+          return GridView.builder(
+            padding: EdgeInsets.fromLTRB(
+                0, 16, 0, 16 + MediaQuery.viewPaddingOf(context).bottom),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              crossAxisSpacing: 14,
+              mainAxisSpacing: 14,
+              childAspectRatio: 1.4 / textScale.clamp(1.0, 1.6),
+            ),
+            itemCount: _categories.length,
+            itemBuilder: (context, i) => _buildCategoryCard(_categories[i]),
+          );
+        },
       ),
-      itemCount: _categories.length,
-      itemBuilder: (context, i) => _buildCategoryCard(_categories[i]),
     );
   }
 
   Widget _buildCategoryCard(Category category) {
     final color = _categoryColor(category.category);
-    return GestureDetector(
+    final l10n = AppLocalizations.of(context);
+    return Pressable(
       onTap: () => _startWithCategory(category),
-      child: Container(
+      borderRadius: AppTheme.cardBorderRadius,
+      lift: 3,
+      semanticLabel: category.name,
+      builder: (context, hovered) => Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [color, color.withValues(alpha: 0.6)],
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+          border: Border.all(
+            color: hovered ? Colors.white : Colors.transparent,
+          ),
         ),
         child: Stack(
           children: [
@@ -536,20 +569,19 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
                   Icon(_categoryIcon(category.category), color: Colors.white, size: 28),
                   const Spacer(),
                   Text(
-                    category.name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
+                    category.name.toUpperCase(),
+                    style: AppTheme.display(17, color: Colors.white),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  const SizedBox(height: 2),
                   Text(
-                    '${category.trackCount} songs',
+                    l10n.categorySongCount(category.trackCount),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12),
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.75),
+                        fontSize: 12),
                   ),
                 ],
               ),
@@ -564,7 +596,10 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
     final l10n = AppLocalizations.of(context);
     final showSearch = _artistController.text.trim().length >= 2;
 
-    return Column(
+    return ResponsiveCenter(
+      maxWidth: 760,
+      padding: EdgeInsets.symmetric(horizontal: context.pageGutter * 0.4),
+      child: Column(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -595,10 +630,6 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
                       : null,
               filled: true,
               fillColor: AppTheme.surfaceColor,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
             ),
           ),
         ),
@@ -608,6 +639,7 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
               : _buildArtistSuggestions(),
         ),
       ],
+      ),
     );
   }
 
@@ -666,20 +698,13 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
 
   Widget _buildSectionHeader(String title, IconData icon) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 16, color: AppTheme.primaryColor),
-          const SizedBox(width: 6),
-          Text(
-            title.toUpperCase(),
-            style: const TextStyle(
-              color: AppTheme.primaryColor,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.1,
-            ),
-          ),
+          SectionLabel(title, icon: icon, color: AppTheme.secondaryColor),
+          const SizedBox(height: 8),
+          const Divider(color: AppTheme.line, height: 1),
         ],
       ),
     );

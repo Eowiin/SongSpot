@@ -13,6 +13,12 @@ class CustomTextField extends StatelessWidget {
   final void Function(String)? onChanged;
   final int? maxLines;
 
+  /// Set these so a browser player can move through the form and submit it
+  /// from the keyboard instead of reaching for the mouse.
+  final TextInputAction? textInputAction;
+  final void Function(String)? onFieldSubmitted;
+  final bool autofocus;
+
   const CustomTextField({
     super.key,
     required this.controller,
@@ -25,6 +31,9 @@ class CustomTextField extends StatelessWidget {
     this.validator,
     this.onChanged,
     this.maxLines = 1,
+    this.textInputAction,
+    this.onFieldSubmitted,
+    this.autofocus = false,
   });
 
   @override
@@ -34,8 +43,8 @@ class CustomTextField extends StatelessWidget {
       children: [
         if (labelText != null) ...[
           Text(
-            labelText!,
-            style: Theme.of(context).textTheme.bodyLarge,
+            labelText!.toUpperCase(),
+            style: AppTheme.kicker(color: AppTheme.ink3, size: 10),
           ),
           const SizedBox(height: 8),
         ],
@@ -44,6 +53,9 @@ class CustomTextField extends StatelessWidget {
           obscureText: obscureText,
           keyboardType: keyboardType,
           maxLines: maxLines,
+          textInputAction: textInputAction,
+          onFieldSubmitted: onFieldSubmitted,
+          autofocus: autofocus,
           style: const TextStyle(color: AppTheme.textPrimary),
           decoration: InputDecoration(
             hintText: hintText,

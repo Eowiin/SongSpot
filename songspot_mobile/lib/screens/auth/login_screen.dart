@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/responsive.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
@@ -116,31 +117,40 @@ class _LoginScreenState extends State<LoginScreen> {
         child: SafeArea(
           child: SingleChildScrollView(
             padding: AppTheme.pagePadding,
-            child: Form(
+            child: ResponsiveCenter(
+              maxWidth: 460,
+              padding: EdgeInsets.zero,
+              child: Form(
               key: _formKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const SizedBox(height: 60),
-                  // Logo/Title
-                  const Icon(
-                    Icons.music_note,
-                    size: 80,
-                    color: AppTheme.primaryColor,
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'SongSpot',
-                    style: Theme.of(context).textTheme.displayLarge,
+                  const SizedBox(height: 56),
+                  // The wordmark, set like the site's: heavy, uppercase, with
+                  // the accent full stop.
+                  Text.rich(
+                    TextSpan(
+                      text: 'SONGSPOT',
+                      children: [
+                        TextSpan(
+                          text: '.',
+                          style: AppTheme.display(
+                            40,
+                            color: AppTheme.accentColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                    style: AppTheme.display(40),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   Text(
                     l10n.loginSubtitle,
-                    style: Theme.of(context).textTheme.bodyMedium,
+                    style: const TextStyle(color: AppTheme.ink2, fontSize: 14),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 60),
+                  const SizedBox(height: 48),
 
                   // Email field
                   CustomTextField(
@@ -148,6 +158,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     hintText: l10n.emailLabel,
                     labelText: l10n.emailLabel,
                     keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
                     prefixIcon: const Icon(
                       Icons.email,
                       color: AppTheme.textSecondary,
@@ -170,6 +181,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     hintText: l10n.passwordLabel,
                     labelText: l10n.passwordLabel,
                     obscureText: _obscurePassword,
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) => _handleLogin(),
                     prefixIcon: const Icon(
                       Icons.lock,
                       color: AppTheme.textSecondary,
@@ -260,6 +273,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ],
               ),
             ),
+          ),
           ),
         ),
       ),
