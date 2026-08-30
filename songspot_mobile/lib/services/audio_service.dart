@@ -49,15 +49,16 @@ class AudioService {
 
   /// How long to wait for the player to report that it has started before
   /// running the snippet anyway: a signal that never comes must not hang the
-  /// round. Kept short because on the web this wait sits in front of the timer
-  /// that cuts the snippet, so overshooting it hands the player extra seconds
-  /// of the song. The source is already loaded by the time we get here, so a
-  /// start that has not been reported within a second is not coming.
+  /// round. The source is already loaded by the time we get here, so a start
+  /// that has not been reported within a second is not coming.
   static const Duration _startBudget = Duration(seconds: 1);
 
   /// Resolves when the player actually starts playing. just_audio's state
   /// stream replays its latest value on listen, so a start that has already
   /// happened resolves straight away.
+  ///
+  /// Platform players only — on the web `ready` does not mean what this needs
+  /// it to mean; see the web branch of [playSnippet].
   Future<void> _awaitAudibleStart(AudioPlayer player) async {
     try {
       await player.playerStateStream
@@ -200,11 +201,20 @@ class AudioService {
             debugPrint('[AudioService] playSnippet: play() failed $e');
           }),
         );
-        // The web player has no setClip, so this timer is what cuts the
-        // snippet. Started at the tap it would hand the player a snippet
-        // shortened by however long the buffering took.
-        await _awaitAudibleStart(player);
-        if (requestId != _playbackRequestId) return;
+        // The web player has no setClip, so the timer below is what cuts the
+        // snippet — and it starts here, at the tap, with no wait for the first
+        // sample. Waiting was tried and measured in Chrome: on the web
+        // `ProcessingState.ready` is the element's `canplaythrough`, meaning
+        // enough is buffered to play the whole preview through, not that sound
+        // has started. It therefore cannot report the real start — when the
+        // source is loaded it is already `ready` at the tap (the wait resolved
+        // in ~1ms, the sound came ~110ms later), and when the buffer is thin
+        // the element plays while just_audio still says `buffering`, so the
+        // wait runs out its whole budget and the timer then hands out that
+        // much extra song: a 1s snippet was heard for 1.9s on a starved
+        // connection. Starting at the tap costs the browser's start latency
+        // off the front of the snippet instead, which is the safe direction —
+        // Hard gets slightly less than its second, never more.
         sounding.value = true;
         await Future<void>.delayed(duration);
         if (requestId != _playbackRequestId) return;
