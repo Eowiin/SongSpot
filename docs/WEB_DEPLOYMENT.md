@@ -98,7 +98,14 @@ API_BASE_URL=https://songspot.eowinstudio.com/api
 > The `.env` is publicly readable in a web build. Keep secrets out of it — it
 > currently holds only public URLs.
 
-## 2. Build
+The `.env` on a developer's machine is not the one that ships: it is untracked,
+and the one on a Mac set up for local work points at `localhost:8000`. The
+deploy workflow writes its own from the repository variables below, so a local
+`.env` can never reach the deployed client. **A store build has no such
+safeguard** — Fastlane bundles whatever `.env` is on the machine, so check it
+before building for the App Store or Play Store.
+
+## 2. Build and publish
 
 SongSpot serves the web client from **`/play/` on the same origin as the API**
 (`https://songspot.eowinstudio.com/play/`). Same origin is the whole point: the
@@ -106,14 +113,45 @@ browser sends no cross-origin request, so CORS and the WebSocket origin
 allowlist have nothing to allow, and there is no extra DNS record or
 certificate to keep alive.
 
+`BASE_HREF` must match the path nginx serves the bundle from, or every asset
+request 404s.
+
+### Automatically (`.github/workflows/web-deploy.yml`)
+
+A push to `main` that touches the bundle — `songspot_mobile/**` minus the
+`android/`, `ios/` and `test/` trees — builds the release bundle and rsyncs it
+to the VPS. `workflow_dispatch` runs the same thing on demand, which is how to
+redeploy without a code change.
+
+It reuses the backend deploy's SSH secrets (`VPS_SSH_PRIVATE_KEY`, `VPS_HOST`,
+`VPS_USER`, and optionally `VPS_PORT` and `VPS_HOST_KEY`). Everything else is a
+repository *variable*, with a default, because none of it is secret:
+
+| Variable | Default | What it sets |
+| --- | --- | --- |
+| `WEB_API_BASE_URL` | `https://songspot.eowinstudio.com/api` | the API the bundle talks to |
+| `WEB_SERVER_URL` | `https://songspot.eowinstudio.com` | origin behind the legal links in Settings |
+| `WEB_BASE_HREF` | `/play/` | path nginx serves the bundle from |
+| `VPS_WEB_ROOT` | `/var/www/songspot-web` | directory rsync writes to |
+| `WEB_PUBLIC_URL` | `https://songspot.eowinstudio.com/play/` | URL the final check fetches |
+
+The deploy user must own `VPS_WEB_ROOT` — the workflow runs no `sudo`. The last
+step fetches the deployed page and fails the run unless the served `index.html`
+carries the expected `<base href>`, which is the one way a base-href mismatch
+shows up before players do: the index loads fine and every asset behind it 404s.
+
+### By hand
+
+The same build, for a first deploy or when Actions is not an option:
+
 ```bash
 BASE_HREF=/play/ ./scripts/build_web.sh
-# or, to publish in the same step:
-BASE_HREF=/play/ WEB_ROOT=/var/www/songspot-web ./scripts/build_web.sh
+rsync -avz --delete songspot_mobile/build/web/ <user>@<vps>:/var/www/songspot-web/
 ```
 
-`BASE_HREF` must match the path nginx serves the bundle from, or every asset
-request 404s. The output is a fully static bundle in `songspot_mobile/build/web`.
+`WEB_ROOT=... ./scripts/build_web.sh` publishes in the same step, but its rsync
+is *local* — it is for running the script on the VPS, which has no Flutter, not
+for pushing from a laptop.
 
 ## 3. Backend configuration
 
@@ -133,7 +171,8 @@ so `flutter run -d chrome` works out of the box.
 
 ## 4. Serve it
 
-The bundle is static files inside the existing nginx server block — no second
+One-time setup on the VPS, and the only part no workflow does for you. The
+bundle is static files inside the existing nginx server block — no second
 block, no second certificate. Add this **above** the `location /` that proxies
 to Django, so the marketing site and the API keep their routes:
 
