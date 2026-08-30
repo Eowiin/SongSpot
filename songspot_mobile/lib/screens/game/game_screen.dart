@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../config/responsive.dart';
@@ -8,6 +7,7 @@ import '../../models/category.dart';
 import '../../models/track.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/game_session_provider.dart';
+import '../../widgets/game_shortcuts.dart';
 import '../../widgets/guess_field.dart';
 import '../../widgets/pressable.dart';
 import '../../widgets/snippet_stage.dart';
@@ -157,46 +157,23 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     );
   }
 
-  /// Replay on Space or R, advance on Enter — the two things a player does
-  /// every round, without reaching for the mouse.
-  ///
-  /// Both actions stand down unless the shortcut host itself holds focus, so
-  /// Space still types a space in the guess box and still activates whichever
-  /// button the player has tabbed to. A disabled action lets the key event
-  /// fall through instead of swallowing it.
+  /// See [GameShortcuts] for why Space is live inside an empty guess box.
   Widget _withGameShortcuts(GameSessionProvider provider, Widget child) {
-    return Shortcuts(
-      shortcuts: const <ShortcutActivator, Intent>{
-        SingleActivator(LogicalKeyboardKey.space): _ReplaySnippetIntent(),
-        SingleActivator(LogicalKeyboardKey.keyR): _ReplaySnippetIntent(),
-        SingleActivator(LogicalKeyboardKey.enter): _AdvanceRoundIntent(),
-        SingleActivator(LogicalKeyboardKey.numpadEnter): _AdvanceRoundIntent(),
+    return GameShortcuts(
+      hostFocus: _shortcutFocus,
+      guessFocus: _guessFocus,
+      guessController: _guessController,
+      canReplay: () => !provider.isPlaying && !provider.isLoadingTrack,
+      onReplay: provider.replaySnippet,
+      canAdvance: () => provider.revealAnswer && !provider.isLoadingTrack,
+      onAdvance: () {
+        if (provider.endReason == SessionEndReason.outOfLives) {
+          _endSession(reason: SessionEndReason.outOfLives);
+        } else {
+          _nextSong();
+        }
       },
-      child: Actions(
-        actions: <Type, Action<Intent>>{
-          _ReplaySnippetIntent: _GameShortcutAction<_ReplaySnippetIntent>(
-            enabled: () =>
-                _shortcutFocus.hasPrimaryFocus &&
-                !provider.isPlaying &&
-                !provider.isLoadingTrack,
-            onInvoke: provider.replaySnippet,
-          ),
-          _AdvanceRoundIntent: _GameShortcutAction<_AdvanceRoundIntent>(
-            enabled: () =>
-                _shortcutFocus.hasPrimaryFocus &&
-                provider.revealAnswer &&
-                !provider.isLoadingTrack,
-            onInvoke: () {
-              if (provider.endReason == SessionEndReason.outOfLives) {
-                _endSession(reason: SessionEndReason.outOfLives);
-              } else {
-                _nextSong();
-              }
-            },
-          ),
-        },
-        child: Focus(focusNode: _shortcutFocus, autofocus: true, child: child),
-      ),
+      child: child,
     );
   }
 
@@ -344,41 +321,33 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
             final coverSize = constraints.maxHeight.isFinite
                 ? (constraints.maxHeight - 430).clamp(120.0, 300.0)
                 : 280.0;
-            return SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints:
-                    BoxConstraints(minHeight: constraints.maxHeight),
-                // IntrinsicHeight gives the column a real height to centre
-                // within, so a tall window sits the stage in the middle
-                // instead of leaving a dead band under it.
-                child: IntrinsicHeight(
-                  child: ResponsiveCenter(
-                  maxWidth: 620,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const SizedBox(height: 28),
-                      Center(child: SectionLabel(_stageLabel())),
-                      const SizedBox(height: 18),
-                      Center(child: _buildCover(provider, track, coverSize)),
-                      const SizedBox(height: 28),
-                      Center(child: _buildSnippetButton(provider, hint: true)),
-                      const SizedBox(height: 32),
-                      if (revealed) ...[
-                        _buildResultCard(provider, track),
-                        const SizedBox(height: 20),
-                        _buildAdvanceButton(provider, hint: true),
-                      ] else ...[
-                        _buildGuessField(provider, resultsBelow: true),
-                        const SizedBox(height: 20),
-                        Center(child: _buildGiveUpButton(provider)),
-                      ],
-                      const SizedBox(height: 28),
-                    ],
-                  ),
-                ),
-                ),
+            // Centred by [FullHeightScroll], which hands the column the
+            // viewport's height without measuring the subtree — the result
+            // list below the guess box cannot be measured.
+            return FullHeightScroll(
+              maxWidth: 620,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 28),
+                  Center(child: SectionLabel(_stageLabel())),
+                  const SizedBox(height: 18),
+                  Center(child: _buildCover(provider, track, coverSize)),
+                  const SizedBox(height: 28),
+                  Center(child: _buildSnippetButton(provider)),
+                  const SizedBox(height: 32),
+                  if (revealed) ...[
+                    _buildResultCard(provider, track),
+                    const SizedBox(height: 20),
+                    _buildAdvanceButton(provider, hint: true),
+                  ] else ...[
+                    _buildGuessField(provider, resultsBelow: true),
+                    const SizedBox(height: 20),
+                    Center(child: _buildGiveUpButton(provider)),
+                  ],
+                  const SizedBox(height: 28),
+                ],
               ),
             );
           },
@@ -481,10 +450,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildSnippetButton(
-    GameSessionProvider provider, {
-    bool hint = false,
-  }) {
+  Widget _buildSnippetButton(GameSessionProvider provider) {
     final l10n = AppLocalizations.of(context);
     final revealed = provider.revealAnswer;
     // Once the answer is out the button plays the whole preview, so the rail
@@ -505,10 +471,15 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
       snippetDuration: duration,
       playing: provider.isPlaying,
       loading: provider.isLoadingTrack,
-      hint: hint ? l10n.gameKeyboardHintReplay : null,
       onTap: provider.isPlaying || provider.isLoadingTrack
           ? null
-          : provider.replaySnippet,
+          // Clicking the button took the caret out of the guess box. Put it
+          // back, so the player can type the answer without reaching for the
+          // mouse again — and so Space still replays.
+          : () {
+              provider.replaySnippet();
+              _focusGuessOnPointerLayout();
+            },
     );
   }
 
@@ -719,29 +690,5 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
         ],
       ],
     );
-  }
-}
-
-class _ReplaySnippetIntent extends Intent {
-  const _ReplaySnippetIntent();
-}
-
-class _AdvanceRoundIntent extends Intent {
-  const _AdvanceRoundIntent();
-}
-
-class _GameShortcutAction<T extends Intent> extends Action<T> {
-  _GameShortcutAction({required this.enabled, required this.onInvoke});
-
-  final bool Function() enabled;
-  final VoidCallback onInvoke;
-
-  @override
-  bool isEnabled(T intent, [BuildContext? context]) => enabled();
-
-  @override
-  Object? invoke(T intent) {
-    onInvoke();
-    return null;
   }
 }

@@ -446,10 +446,6 @@
   "@gameKeyboardHintGuess": {
     "description": "Shortcut reminder under the guess box on keyboard/pointer layouts."
   },
-  "gameKeyboardHintReplay": "Space replays",
-  "@gameKeyboardHintReplay": {
-    "description": "Shortcut reminder next to the replay button on keyboard/pointer layouts."
-  },
   "gameKeyboardHintNext": "Enter continues",
   "@gameKeyboardHintNext": {
     "description": "Shortcut reminder next to the next-song button on keyboard/pointer layouts."

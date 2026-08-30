@@ -74,3 +74,53 @@ int gridColumnsFor(double availableWidth, {double targetTileWidth = 260}) {
   final columns = (availableWidth / targetTileWidth).floor();
   return columns.clamp(2, 6);
 }
+
+/// Scrolls [child] while guaranteeing it at least the height of the viewport,
+/// so a column with [MainAxisAlignment.center] really sits on the middle line
+/// of a tall window and still scrolls in a short one.
+///
+/// The minimum height is imposed *inside* [ResponsiveCenter], not around it:
+/// an [Align] loosens its child's constraints, so a minimum applied above one
+/// never reaches the column.
+///
+/// Nothing here asks the subtree for intrinsic dimensions, and nothing may.
+/// The guess result list is a shrink-wrapping viewport, which cannot answer
+/// such a query — it throws, and the whole subtree stops painting. That rules
+/// out both [IntrinsicHeight] and `SliverFillRemaining(hasScrollBody: false)`,
+/// whose `performLayout` measures its child the same way.
+///
+/// The price is that [child] gets a minimum height but no maximum, so it can
+/// hold no [Spacer] or [Expanded]. A column that needs one wants
+/// [IntrinsicHeight] instead — and then may not contain a scrollable.
+class FullHeightScroll extends StatelessWidget {
+  const FullHeightScroll({
+    super.key,
+    required this.maxWidth,
+    required this.child,
+    this.padding,
+  });
+
+  /// Widest the content is allowed to get, as for [ResponsiveCenter].
+  final double maxWidth;
+
+  final Widget child;
+
+  /// Overrides the adaptive horizontal gutter.
+  final EdgeInsetsGeometry? padding;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        child: ResponsiveCenter(
+          maxWidth: maxWidth,
+          padding: padding,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+}

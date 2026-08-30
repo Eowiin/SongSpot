@@ -126,7 +126,6 @@
   "gameSeeResults": "Voir les résultats",
   "gameNextButton": "Suivant",
   "gameKeyboardHintGuess": "↑ ↓ parcourir · Entrée valide · Échap efface",
-  "gameKeyboardHintReplay": "Espace rejoue",
   "gameKeyboardHintNext": "Entrée continue",
   "sessionEndHeadlineCleared": "Vous avez réussi !",
   "sessionEndHeadlineOutOfLives": "Plus de vies !",

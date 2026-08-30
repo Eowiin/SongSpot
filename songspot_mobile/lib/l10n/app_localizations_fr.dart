@@ -391,9 +391,6 @@ class AppLocalizationsFr extends AppLocalizations {
       '↑ ↓ parcourir · Entrée valide · Échap efface';
 
   @override
-  String get gameKeyboardHintReplay => 'Espace rejoue';
-
-  @override
   String get gameKeyboardHintNext => 'Entrée continue';
 
   @override

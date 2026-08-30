@@ -134,7 +134,6 @@ class SnippetButton extends StatefulWidget {
     required this.playing,
     required this.loading,
     required this.onTap,
-    this.hint,
     this.width = 260,
   });
 
@@ -143,9 +142,6 @@ class SnippetButton extends StatefulWidget {
   final bool playing;
   final bool loading;
   final VoidCallback? onTap;
-
-  /// Keyboard reminder under the rail; null hides it.
-  final String? hint;
 
   final double width;
 
@@ -266,13 +262,6 @@ class _SnippetButtonState extends State<SnippetButton>
             },
           ),
         ),
-        if (widget.hint != null) ...[
-          const SizedBox(height: 10),
-          Text(
-            widget.hint!,
-            style: AppTheme.kicker(color: AppTheme.ink3, size: 9.5),
-          ),
-        ],
       ],
     );
   }

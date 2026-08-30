@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../config/responsive.dart';
@@ -9,6 +8,7 @@ import '../../models/track.dart';
 import '../../providers/duel_provider.dart';
 import '../../services/api_service.dart';
 import '../../services/audio_service.dart';
+import '../../widgets/game_shortcuts.dart';
 import '../../widgets/guess_field.dart';
 import '../../widgets/pressable.dart';
 
@@ -242,28 +242,19 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
     );
   }
 
-  /// Space replays the snippet without leaving the keyboard. It stands down
-  /// unless the shortcut host itself holds focus, so the key still types a
-  /// space in the guess box and still activates a focused button.
+  /// See [GameShortcuts] for why Space is live inside an empty guess box.
+  /// The duel has no Enter action: rounds advance on the server's clock.
   Widget _withDuelShortcuts(DuelProvider duel, Widget child) {
-    return Shortcuts(
-      shortcuts: const <ShortcutActivator, Intent>{
-        SingleActivator(LogicalKeyboardKey.space): _ReplayDuelSnippetIntent(),
-        SingleActivator(LogicalKeyboardKey.keyR): _ReplayDuelSnippetIntent(),
-      },
-      child: Actions(
-        actions: <Type, Action<Intent>>{
-          _ReplayDuelSnippetIntent: _DuelShortcutAction(
-            enabled: () =>
-                _shortcutFocus.hasPrimaryFocus &&
-                !_isPlaying &&
-                !_isAudioLoading &&
-                duel.status == DuelStatus.playing,
-            onInvoke: _playSnippet,
-          ),
-        },
-        child: Focus(focusNode: _shortcutFocus, autofocus: true, child: child),
-      ),
+    return GameShortcuts(
+      hostFocus: _shortcutFocus,
+      guessFocus: _guessFocus,
+      guessController: _guessController,
+      canReplay: () =>
+          !_isPlaying &&
+          !_isAudioLoading &&
+          duel.status == DuelStatus.playing,
+      onReplay: _playSnippet,
+      child: child,
     );
   }
 
@@ -803,23 +794,3 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
   }
 }
 
-class _ReplayDuelSnippetIntent extends Intent {
-  const _ReplayDuelSnippetIntent();
-}
-
-class _DuelShortcutAction extends Action<_ReplayDuelSnippetIntent> {
-  _DuelShortcutAction({required this.enabled, required this.onInvoke});
-
-  final bool Function() enabled;
-  final VoidCallback onInvoke;
-
-  @override
-  bool isEnabled(_ReplayDuelSnippetIntent intent, [BuildContext? context]) =>
-      enabled();
-
-  @override
-  Object? invoke(_ReplayDuelSnippetIntent intent) {
-    onInvoke();
-    return null;
-  }
-}

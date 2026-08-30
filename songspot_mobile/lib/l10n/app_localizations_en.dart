@@ -384,9 +384,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get gameKeyboardHintGuess => '↑ ↓ browse · Enter picks · Esc clears';
 
   @override
-  String get gameKeyboardHintReplay => 'Space replays';
-
-  @override
   String get gameKeyboardHintNext => 'Enter continues';
 
   @override

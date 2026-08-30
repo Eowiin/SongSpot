@@ -812,12 +812,6 @@ abstract class AppLocalizations {
   /// **'↑ ↓ browse · Enter picks · Esc clears'**
   String get gameKeyboardHintGuess;
 
-  /// Shortcut reminder next to the replay button on keyboard/pointer layouts.
-  ///
-  /// In en, this message translates to:
-  /// **'Space replays'**
-  String get gameKeyboardHintReplay;
-
   /// Shortcut reminder next to the next-song button on keyboard/pointer layouts.
   ///
   /// In en, this message translates to:
