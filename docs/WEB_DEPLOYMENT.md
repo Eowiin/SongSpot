@@ -240,12 +240,10 @@ the API and `WEBSOCKET_ALLOWED_ORIGINS` has to list it.
 
 ## Known issues
 
-- **Album art does not render on the web build.** `Image.network` in the game
-  screen fetches the cover (HTTP 200, correct bytes) but paints nothing, with no
-  exception and without firing `errorBuilder`. Ruled out: CORS (the CDN sends
-  `access-control-allow-origin: *` and an in-page `fetch`/XHR of the same URL
-  returns the full body), Deezer specifically (a same-origin PNG fails the same
-  way), the `BackdropFilter` reveal blur (disabling it changes nothing), and
-  progressive JPEG (Chrome's `createImageBitmap` and `ImageDecoder` both decode
-  the covers fine). Not yet root-caused — the artwork box shows as a flat
-  placeholder in the browser.
+None open. The album art used to paint nothing in the browser — `Image.network`
+fetched the cover (HTTP 200, correct bytes) and drew a flat placeholder, with no
+exception and no `errorBuilder`, after CORS, Deezer, the reveal blur and
+progressive JPEG had each been ruled out. The covers render on the deployed
+build (confirmed by playing it on 2026-08-30), so the guessing screen's rewrite
+into `SnippetStage` and `CoverBackdrop` took the bug with it. Worth knowing if
+it ever comes back, since none of the obvious causes was the cause.
