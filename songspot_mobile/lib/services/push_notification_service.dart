@@ -138,27 +138,6 @@ class PushNotificationService {
     }
   }
 
-  /// Update notification preferences on the backend for the current device.
-  Future<void> updateNotificationPrefs({
-    required bool dailySong,
-    required bool messages,
-  }) async {
-    if (!_initialized) return;
-    final messaging = _messaging;
-    if (messaging == null) return;
-
-    String? token;
-    try {
-      token = await messaging.getToken();
-    } catch (e) {
-      debugPrint('FCM getToken failed: $e');
-      return;
-    }
-    if (token == null || token.isEmpty) return;
-
-    await _registerToken(token);
-  }
-
   String get _platformName {
     if (defaultTargetPlatform == TargetPlatform.iOS) {
       return 'ios';

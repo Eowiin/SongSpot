@@ -100,10 +100,6 @@
   "@settingsSectionAccount": {
     "description": "Account section header in settings"
   },
-  "settingsSectionNotifications": "Notifications",
-  "@settingsSectionNotifications": {
-    "description": "Notifications section header in settings"
-  },
   "settingsSectionAccessibility": "Accessibility",
   "@settingsSectionAccessibility": {
     "description": "Accessibility section header in settings"
@@ -127,14 +123,6 @@
   "settingsChangePassword": "Change password",
   "@settingsChangePassword": {
     "description": "Change password tile"
-  },
-  "settingsDailySongNotifications": "Daily song notifications",
-  "@settingsDailySongNotifications": {
-    "description": "Daily song notifications toggle"
-  },
-  "settingsMessageNotifications": "Message notifications",
-  "@settingsMessageNotifications": {
-    "description": "Message notifications toggle"
   },
   "settingsAccessibility": "Accessibility",
   "@settingsAccessibility": {

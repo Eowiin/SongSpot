@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -164,28 +163,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-
-                      // ── Notifications ───────────────────────────────────
-                      // Push is mobile-only; hide the toggles rather than
-                      // offer switches that cannot do anything in a browser.
-                      if (!kIsWeb) ...[
-                        _SectionHeader(l10n.settingsSectionNotifications),
-                        _SettingsSwitch(
-                          icon: Icons.music_note_outlined,
-                          title: l10n.settingsDailySongNotifications,
-                          value: settings.dailySongNotifications,
-                          onChanged: (v) =>
-                              settings.setDailySongNotifications(v),
-                        ),
-                        _SettingsSwitch(
-                          icon: Icons.chat_bubble_outline,
-                          title: l10n.settingsMessageNotifications,
-                          value: settings.messagesNotifications,
-                          onChanged: (v) =>
-                              settings.setMessagesNotifications(v),
-                        ),
-                        const SizedBox(height: 8),
-                      ],
                     ],
 
                     // ── Accessibility ─────────────────────────────────────

@@ -86,9 +86,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get settingsSectionAccount => 'Compte';
 
   @override
-  String get settingsSectionNotifications => 'Notifications';
-
-  @override
   String get settingsSectionAccessibility => 'Accessibilité';
 
   @override
@@ -105,12 +102,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get settingsChangePassword => 'Changer le mot de passe';
-
-  @override
-  String get settingsDailySongNotifications => 'Notifications chanson du jour';
-
-  @override
-  String get settingsMessageNotifications => 'Notifications de messages';
 
   @override
   String get settingsAccessibility => 'Accessibilité';

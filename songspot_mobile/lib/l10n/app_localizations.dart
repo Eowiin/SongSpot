@@ -248,12 +248,6 @@ abstract class AppLocalizations {
   /// **'Account'**
   String get settingsSectionAccount;
 
-  /// Notifications section header in settings
-  ///
-  /// In en, this message translates to:
-  /// **'Notifications'**
-  String get settingsSectionNotifications;
-
   /// Accessibility section header in settings
   ///
   /// In en, this message translates to:
@@ -289,18 +283,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Change password'**
   String get settingsChangePassword;
-
-  /// Daily song notifications toggle
-  ///
-  /// In en, this message translates to:
-  /// **'Daily song notifications'**
-  String get settingsDailySongNotifications;
-
-  /// Message notifications toggle
-  ///
-  /// In en, this message translates to:
-  /// **'Message notifications'**
-  String get settingsMessageNotifications;
 
   /// Accessibility tile
   ///
