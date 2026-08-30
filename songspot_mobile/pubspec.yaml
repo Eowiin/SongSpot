@@ -2,7 +2,7 @@ name: songspot_mobile
 description: "SongSpot - Music guessing game with friends"
 publish_to: 'none'
 
-version: 2.1.6+43
+version: 2.2.0+45
 
 environment:
   sdk: ^3.9.2
