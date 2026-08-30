@@ -132,7 +132,7 @@ repository *variable*, with a default, because none of it is secret:
 | `WEB_API_BASE_URL` | `https://songspot.eowinstudio.com/api` | the API the bundle talks to |
 | `WEB_SERVER_URL` | `https://songspot.eowinstudio.com` | origin behind the legal links in Settings |
 | `WEB_BASE_HREF` | `/play/` | path nginx serves the bundle from |
-| `VPS_WEB_ROOT` | `/var/www/songspot-web` | directory rsync writes to |
+| `VPS_WEB_ROOT` | `/var/www/songspot-web/play` | directory rsync writes to |
 | `WEB_PUBLIC_URL` | `https://songspot.eowinstudio.com/play/` | URL the final check fetches |
 
 The deploy user must own `VPS_WEB_ROOT` — the workflow runs no `sudo`. The last
@@ -146,7 +146,7 @@ The same build, for a first deploy or when Actions is not an option:
 
 ```bash
 BASE_HREF=/play/ ./scripts/build_web.sh
-rsync -avz --delete songspot_mobile/build/web/ <user>@<vps>:/var/www/songspot-web/
+rsync -avz --delete songspot_mobile/build/web/ <user>@<vps>:/var/www/songspot-web/play/
 ```
 
 `WEB_ROOT=... ./scripts/build_web.sh` publishes in the same step, but its rsync
@@ -176,29 +176,31 @@ bundle is static files inside the existing nginx server block — no second
 block, no second certificate. Add this **above** the `location /` that proxies
 to Django, so the marketing site and the API keep their routes:
 
+The bundle goes in a directory literally named `play` under the web root —
+`/var/www/songspot-web/play/` — so the location can use `root` and let nginx
+append the whole URI. `alias` would work too, but it does not survive contact
+with `try_files` or with a nested location, and both are needed here.
+
 ```nginx
 # Flutter web client. Same server block as the API: same origin, no CORS.
 location /play/ {
-    alias /var/www/songspot-web/;
+    root /var/www/songspot-web;              # serves /var/www/songspot-web/play/...
     try_files $uri $uri/ /play/index.html;   # single-page app fallback
 
-    # Hashed build assets never change under the same name.
-    location ~* \.(?:js|wasm|json|png|jpg|svg|ttf|otf|woff2)$ {
-        expires 30d;
-        add_header Cache-Control "public, immutable";
-    }
-}
-
-# Never cache the entrypoint, or users get pinned to an old build.
-location = /play/index.html {
-    alias /var/www/songspot-web/index.html;
-    add_header Cache-Control "no-cache, no-store, must-revalidate";
-}
-location = /play/flutter_service_worker.js {
-    alias /var/www/songspot-web/flutter_service_worker.js;
-    add_header Cache-Control "no-cache, no-store, must-revalidate";
+    # Flutter's web output carries NO content hash in its filenames: every
+    # build ships main.dart.js, flutter_bootstrap.js and assets/ under those
+    # same names. Anything cached long here pins a returning player to an old
+    # main.dart.js beside a freshly fetched index.html — a mismatched app that
+    # a reload does not fix. Revalidate instead: nginx answers an unchanged
+    # file with a 304 and no body.
+    add_header Cache-Control "no-cache";
 }
 ```
+
+That single `no-cache` covers the entrypoint, the service worker and the app
+code in one rule. `no-cache` is not `no-store`: the browser keeps the file and
+asks whether it is still current, so a returning player re-downloads only what
+actually changed in the deploy.
 
 The landing page links to `/play/` through the `play_url` template variable
 (`songspot_backend/songspot/context_processors.py`), so if the path ever

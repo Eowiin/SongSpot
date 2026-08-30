@@ -36,7 +36,7 @@ jobs:
       # Deliberately not named WEB_ROOT: build_web.sh publishes to WEB_ROOT
       # with a *local* rsync, which on the runner would mean copying the bundle
       # into the runner's own /var/www and failing on permissions.
-      REMOTE_WEB_ROOT: ${{ vars.VPS_WEB_ROOT || '/var/www/songspot-web' }}
+      REMOTE_WEB_ROOT: ${{ vars.VPS_WEB_ROOT || '/var/www/songspot-web/play' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
