@@ -22,7 +22,6 @@ class MyDataScreen extends StatefulWidget {
 
 class _MyDataScreenState extends State<MyDataScreen> {
   final _deleteScrollController = ScrollController();
-  final _passwordController = TextEditingController();
   bool _isExporting = false;
   bool _isDeleting = false;
   String? _exportError;
@@ -45,7 +44,6 @@ class _MyDataScreenState extends State<MyDataScreen> {
   @override
   void dispose() {
     _deleteScrollController.dispose();
-    _passwordController.dispose();
     super.dispose();
   }
 
@@ -80,8 +78,13 @@ class _MyDataScreenState extends State<MyDataScreen> {
 
   Future<void> _handleDelete() async {
     final l10n = AppLocalizations.of(context);
-    final password = await _showDeleteConfirmDialog(l10n);
+    final password = await _showDeleteConfirmDialog();
     if (password == null || !mounted) return;
+
+    if (password.isEmpty) {
+      setState(() => _deleteError = l10n.fieldRequired);
+      return;
+    }
 
     setState(() {
       _isDeleting = true;
@@ -90,7 +93,7 @@ class _MyDataScreenState extends State<MyDataScreen> {
 
     try {
       final apiService = ApiService();
-      await apiService.deleteAccount();
+      await apiService.deleteAccount(password: password);
 
       if (!mounted) return;
       await context.read<AuthProvider>().logout();
@@ -108,44 +111,10 @@ class _MyDataScreenState extends State<MyDataScreen> {
     }
   }
 
-  Future<String?> _showDeleteConfirmDialog(AppLocalizations l10n) async {
-    final controller = TextEditingController();
+  Future<String?> _showDeleteConfirmDialog() {
     return showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.surfaceColor,
-        title: Text(l10n.myDataDeleteConfirmTitle),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(l10n.myDataDeleteConfirmMessage),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              obscureText: true,
-              decoration: InputDecoration(
-                hintText: l10n.changePasswordCurrent,
-                filled: true,
-                fillColor: AppTheme.backgroundColor,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(l10n.cancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: Text(
-              l10n.myDataDeleteConfirmButton,
-              style: const TextStyle(color: AppTheme.errorColor),
-            ),
-          ),
-        ],
-      ),
+      builder: (_) => const _DeleteAccountDialog(),
     );
   }
 
@@ -293,6 +262,68 @@ class _DataSection extends StatelessWidget {
           child,
         ],
       ),
+    );
+  }
+}
+
+class _DeleteAccountDialog extends StatefulWidget {
+  const _DeleteAccountDialog();
+
+  @override
+  State<_DeleteAccountDialog> createState() => _DeleteAccountDialogState();
+}
+
+class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
+    return AlertDialog(
+      backgroundColor: AppTheme.surfaceColor,
+      title: Text(l10n.myDataDeleteConfirmTitle),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(l10n.myDataDeleteConfirmMessage),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _controller,
+            obscureText: true,
+            decoration: InputDecoration(
+              hintText: l10n.changePasswordCurrent,
+              filled: true,
+              fillColor: AppTheme.backgroundColor,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(l10n.cancel),
+        ),
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: _controller,
+          builder: (context, value, _) => TextButton(
+            onPressed: value.text.trim().isEmpty
+                ? null
+                : () => Navigator.pop(context, value.text.trim()),
+            child: Text(
+              l10n.myDataDeleteConfirmButton,
+              style: const TextStyle(color: AppTheme.errorColor),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

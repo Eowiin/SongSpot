@@ -268,16 +268,24 @@ class ApiService {
     }
   }
 
-  Future<dynamic> delete(String endpoint, {bool includeAuth = false}) async {
+  Future<dynamic> delete(
+    String endpoint, {
+    Map<String, dynamic>? body,
+    bool includeAuth = false,
+  }) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}$endpoint');
     final headers = await _getHeaders(includeAuth: includeAuth);
     try {
-      var response = await http.delete(uri, headers: headers).timeout(ApiConfig.timeout);
+      var response = await http
+          .delete(uri, headers: headers, body: body != null ? jsonEncode(body) : null)
+          .timeout(ApiConfig.timeout);
       if (response.statusCode == 401 && includeAuth) {
         final refreshed = await _refreshAccessToken();
         if (refreshed) {
           final newHeaders = await _getHeaders(includeAuth: includeAuth);
-          response = await http.delete(uri, headers: newHeaders).timeout(ApiConfig.timeout);
+          response = await http
+              .delete(uri, headers: newHeaders, body: body != null ? jsonEncode(body) : null)
+              .timeout(ApiConfig.timeout);
         } else {
           throw ApiException('Session expired. Please login again.', statusCode: 401);
         }
@@ -365,8 +373,12 @@ class ApiService {
     return await get(ApiConfig.dataExport, includeAuth: true);
   }
 
-  Future<void> deleteAccount() async {
-    await delete(ApiConfig.deleteAccount, includeAuth: true);
+  Future<void> deleteAccount({required String password}) async {
+    await delete(
+      ApiConfig.deleteAccount,
+      body: {'password': password},
+      includeAuth: true,
+    );
   }
 
   // ── Game ──────────────────────────────────────────────────────────────────
