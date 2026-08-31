@@ -355,8 +355,14 @@ class ApiService {
     await post(ApiConfig.pushDevicesUnregister, includeAuth: true, body: {'token': token});
   }
 
-  Future<Map<String, dynamic>> changeEmail({required String newEmail}) async {
-    return await post(ApiConfig.changeEmail, includeAuth: true, body: {'new_email': newEmail});
+  Future<Map<String, dynamic>> changeEmail({
+    required String currentPassword,
+    required String newEmail,
+  }) async {
+    return await post(ApiConfig.changeEmail, includeAuth: true, body: {
+      'current_password': currentPassword,
+      'new_email': newEmail,
+    });
   }
 
   Future<Map<String, dynamic>> changePassword({

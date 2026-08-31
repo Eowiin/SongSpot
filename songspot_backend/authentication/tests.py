@@ -442,3 +442,70 @@ class DeleteAccountViewTests(APITestCase):
             self.delete_url, {'password': 'testpass123'}, format='json'
         )
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class ChangeEmailViewTests(APITestCase):
+    """Tests for the email change endpoint."""
+
+    def setUp(self):
+        cache.clear()
+        self.change_email_url = reverse('authentication:change_email')
+        self.user = User.objects.create_user(
+            username='testuser',
+            email='test@example.com',
+            password='testpass123'
+        )
+        self.refresh = RefreshToken.for_user(self.user)
+        self.access_token = str(self.refresh.access_token)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
+
+    def test_change_email_success(self):
+        """Test the password sent in the body is read and the email updated."""
+        response = self.client.post(self.change_email_url, {
+            'current_password': 'testpass123',
+            'new_email': 'new@example.com',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, 'new@example.com')
+
+    def test_change_email_wrong_password(self):
+        """Test the change fails with a wrong password and keeps the old email."""
+        response = self.client.post(self.change_email_url, {
+            'current_password': 'wrongpass',
+            'new_email': 'new@example.com',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, 'test@example.com')
+
+    def test_change_email_without_password(self):
+        """Test the change fails when no password is sent at all."""
+        response = self.client.post(self.change_email_url, {
+            'new_email': 'new@example.com',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, 'test@example.com')
+
+    def test_change_email_already_taken(self):
+        """Test the change fails when another account already uses that email."""
+        User.objects.create_user(
+            username='other', email='taken@example.com', password='otherpass123'
+        )
+        response = self.client.post(self.change_email_url, {
+            'current_password': 'testpass123',
+            'new_email': 'taken@example.com',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, 'test@example.com')
+
+    def test_change_email_unauthenticated(self):
+        """Test the change fails without authentication."""
+        self.client.credentials()
+        response = self.client.post(self.change_email_url, {
+            'current_password': 'testpass123',
+            'new_email': 'new@example.com',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

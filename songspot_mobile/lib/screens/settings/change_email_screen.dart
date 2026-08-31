@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../l10n/app_localizations.dart';
@@ -39,11 +40,15 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
     try {
       final apiService = ApiService();
       await apiService.changeEmail(
+        // Not trimmed: a password may legitimately start or end with a space.
+        currentPassword: _passwordController.text,
         newEmail: _emailController.text.trim().toLowerCase(),
       );
 
       if (!mounted) return;
       await context.read<AuthProvider>().checkAuthStatus();
+      // The login identifier changed: let the password manager update its entry.
+      TextInput.finishAutofillContext();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -98,62 +103,69 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
                   padding: AppTheme.pagePadding,
                   child: Form(
                     key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const SizedBox(height: 16),
-                        CustomTextField(
-                          controller: _passwordController,
-                          hintText: l10n.changeEmailCurrentPassword,
-                          labelText: l10n.changeEmailCurrentPassword,
-                          prefixIcon: const Icon(
-                            Icons.lock_outline,
-                            color: AppTheme.textSecondary,
+                    child: AutofillGroup(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(height: 16),
+                          CustomTextField(
+                            controller: _passwordController,
+                            hintText: l10n.changeEmailCurrentPassword,
+                            labelText: l10n.changeEmailCurrentPassword,
+                            autofillHints: const [AutofillHints.password],
+                            prefixIcon: const Icon(
+                              Icons.lock_outline,
+                              color: AppTheme.textSecondary,
+                            ),
+                            obscureText: true,
+                            validator: (v) {
+                              if (v == null || v.isEmpty) {
+                                return l10n.fieldRequired;
+                              }
+                              return null;
+                            },
                           ),
-                          obscureText: true,
-                          validator: (v) {
-                            if (v == null || v.isEmpty) {
-                              return l10n.fieldRequired;
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        CustomTextField(
-                          controller: _emailController,
-                          hintText: l10n.changeEmailNewEmail,
-                          labelText: l10n.changeEmailNewEmail,
-                          prefixIcon: const Icon(
-                            Icons.email_outlined,
-                            color: AppTheme.textSecondary,
+                          const SizedBox(height: 16),
+                          CustomTextField(
+                            controller: _emailController,
+                            hintText: l10n.changeEmailNewEmail,
+                            labelText: l10n.changeEmailNewEmail,
+                            prefixIcon: const Icon(
+                              Icons.email_outlined,
+                              color: AppTheme.textSecondary,
+                            ),
+                            keyboardType: TextInputType.emailAddress,
+                            autofillHints: const [
+                              AutofillHints.username,
+                              AutofillHints.email,
+                            ],
+                            validator: (v) {
+                              if (v == null || v.isEmpty) {
+                                return l10n.fieldRequired;
+                              }
+                              if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v)) {
+                                return l10n.invalidEmail;
+                              }
+                              return null;
+                            },
                           ),
-                          keyboardType: TextInputType.emailAddress,
-                          validator: (v) {
-                            if (v == null || v.isEmpty) {
-                              return l10n.fieldRequired;
-                            }
-                            if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v)) {
-                              return l10n.invalidEmail;
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        if (_errorMessage != null) ...[
                           const SizedBox(height: 8),
-                          Text(
-                            _errorMessage!,
-                            style: const TextStyle(color: AppTheme.errorColor),
-                            textAlign: TextAlign.center,
+                          if (_errorMessage != null) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              _errorMessage!,
+                              style: const TextStyle(color: AppTheme.errorColor),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                          const SizedBox(height: 24),
+                          GradientButton(
+                            text: l10n.changeEmailButton,
+                            onPressed: _handleSubmit,
+                            isLoading: _isLoading,
                           ),
                         ],
-                        const SizedBox(height: 24),
-                        GradientButton(
-                          text: l10n.changeEmailButton,
-                          onPressed: _handleSubmit,
-                          isLoading: _isLoading,
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
