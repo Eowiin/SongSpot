@@ -298,6 +298,10 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
           TextField(
             controller: _controller,
             obscureText: true,
+            // No AutofillGroup around this one on purpose: the manager should
+            // offer the stored password, but never prompt to save from a
+            // delete-account dialog.
+            autofillHints: const [AutofillHints.password],
             decoration: InputDecoration(
               hintText: l10n.changePasswordCurrent,
               filled: true,

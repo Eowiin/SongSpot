@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../l10n/app_localizations.dart';
@@ -53,6 +54,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
             backgroundColor: AppTheme.successColor,
           ),
         );
+        // Password changed: let the password manager offer to update its
+        // stored entry before we drop the user back on the login screen.
+        TextInput.finishAutofillContext();
         // Password changed: force re-login
         await context.read<AuthProvider>().logout();
         if (mounted) {
@@ -108,81 +112,86 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                   padding: AppTheme.pagePadding,
                   child: Form(
                     key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const SizedBox(height: 16),
-                        CustomTextField(
-                          controller: _currentController,
-                          hintText: l10n.changePasswordCurrent,
-                          labelText: l10n.changePasswordCurrent,
-                          prefixIcon: const Icon(
-                            Icons.lock_outline,
-                            color: AppTheme.textSecondary,
+                    child: AutofillGroup(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(height: 16),
+                          CustomTextField(
+                            controller: _currentController,
+                            hintText: l10n.changePasswordCurrent,
+                            labelText: l10n.changePasswordCurrent,
+                            autofillHints: const [AutofillHints.password],
+                            prefixIcon: const Icon(
+                              Icons.lock_outline,
+                              color: AppTheme.textSecondary,
+                            ),
+                            obscureText: true,
+                            validator: (v) {
+                              if (v == null || v.isEmpty) {
+                                return l10n.fieldRequired;
+                              }
+                              return null;
+                            },
                           ),
-                          obscureText: true,
-                          validator: (v) {
-                            if (v == null || v.isEmpty) {
-                              return l10n.fieldRequired;
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        CustomTextField(
-                          controller: _newController,
-                          hintText: l10n.changePasswordNew,
-                          labelText: l10n.changePasswordNew,
-                          prefixIcon: const Icon(
-                            Icons.lock_outline,
-                            color: AppTheme.textSecondary,
+                          const SizedBox(height: 16),
+                          CustomTextField(
+                            controller: _newController,
+                            hintText: l10n.changePasswordNew,
+                            labelText: l10n.changePasswordNew,
+                            autofillHints: const [AutofillHints.newPassword],
+                            prefixIcon: const Icon(
+                              Icons.lock_outline,
+                              color: AppTheme.textSecondary,
+                            ),
+                            obscureText: true,
+                            validator: (v) {
+                              if (v == null || v.isEmpty) {
+                                return l10n.fieldRequired;
+                              }
+                              if (v.length < 8) {
+                                return l10n.passwordMinLength;
+                              }
+                              return null;
+                            },
                           ),
-                          obscureText: true,
-                          validator: (v) {
-                            if (v == null || v.isEmpty) {
-                              return l10n.fieldRequired;
-                            }
-                            if (v.length < 8) {
-                              return l10n.passwordMinLength;
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        CustomTextField(
-                          controller: _confirmController,
-                          hintText: l10n.changePasswordConfirm,
-                          labelText: l10n.changePasswordConfirm,
-                          prefixIcon: const Icon(
-                            Icons.lock_outline,
-                            color: AppTheme.textSecondary,
+                          const SizedBox(height: 16),
+                          CustomTextField(
+                            controller: _confirmController,
+                            hintText: l10n.changePasswordConfirm,
+                            labelText: l10n.changePasswordConfirm,
+                            autofillHints: const [AutofillHints.newPassword],
+                            prefixIcon: const Icon(
+                              Icons.lock_outline,
+                              color: AppTheme.textSecondary,
+                            ),
+                            obscureText: true,
+                            validator: (v) {
+                              if (v == null || v.isEmpty) {
+                                return l10n.fieldRequired;
+                              }
+                              if (v != _newController.text) {
+                                return l10n.passwordsDoNotMatch;
+                              }
+                              return null;
+                            },
                           ),
-                          obscureText: true,
-                          validator: (v) {
-                            if (v == null || v.isEmpty) {
-                              return l10n.fieldRequired;
-                            }
-                            if (v != _newController.text) {
-                              return l10n.passwordsDoNotMatch;
-                            }
-                            return null;
-                          },
-                        ),
-                        if (_errorMessage != null) ...[
-                          const SizedBox(height: 12),
-                          Text(
-                            _errorMessage!,
-                            style: const TextStyle(color: AppTheme.errorColor),
-                            textAlign: TextAlign.center,
+                          if (_errorMessage != null) ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              _errorMessage!,
+                              style: const TextStyle(color: AppTheme.errorColor),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                          const SizedBox(height: 24),
+                          GradientButton(
+                            text: l10n.changePasswordButton,
+                            onPressed: _handleSubmit,
+                            isLoading: _isLoading,
                           ),
                         ],
-                        const SizedBox(height: 24),
-                        GradientButton(
-                          text: l10n.changePasswordButton,
-                          onPressed: _handleSubmit,
-                          isLoading: _isLoading,
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),

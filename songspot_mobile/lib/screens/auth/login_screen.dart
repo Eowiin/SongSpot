@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../config/responsive.dart';
@@ -51,6 +52,9 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (success && mounted) {
+        // Signals iOS/Android that the credentials worked, so the password
+        // manager offers to save (or update) them.
+        TextInput.finishAutofillContext();
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const HomeScreen()),
         );
@@ -122,155 +126,162 @@ class _LoginScreenState extends State<LoginScreen> {
               padding: EdgeInsets.zero,
               child: Form(
               key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: 56),
-                  // The wordmark, set like the site's: heavy, uppercase, with
-                  // the accent full stop.
-                  Text.rich(
-                    TextSpan(
-                      text: 'SONGSPOT',
+              child: AutofillGroup(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 56),
+                    // The wordmark, set like the site's: heavy, uppercase, with
+                    // the accent full stop.
+                    Text.rich(
+                      TextSpan(
+                        text: 'SONGSPOT',
+                        children: [
+                          TextSpan(
+                            text: '.',
+                            style: AppTheme.display(
+                              40,
+                              color: AppTheme.accentColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                      style: AppTheme.display(40),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      l10n.loginSubtitle,
+                      style: const TextStyle(color: AppTheme.ink2, fontSize: 14),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 48),
+
+                    // Email field
+                    CustomTextField(
+                      controller: _emailController,
+                      hintText: l10n.emailLabel,
+                      labelText: l10n.emailLabel,
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
+                      autofillHints: const [
+                        AutofillHints.username,
+                        AutofillHints.email,
+                      ],
+                      prefixIcon: const Icon(
+                        Icons.email,
+                        color: AppTheme.textSecondary,
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return l10n.fieldRequired;
+                        }
+                        if (!value.contains('@')) {
+                          return l10n.invalidEmail;
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Password field
+                    CustomTextField(
+                      controller: _passwordController,
+                      hintText: l10n.passwordLabel,
+                      labelText: l10n.passwordLabel,
+                      obscureText: _obscurePassword,
+                      textInputAction: TextInputAction.done,
+                      autofillHints: const [AutofillHints.password],
+                      onFieldSubmitted: (_) => _handleLogin(),
+                      prefixIcon: const Icon(
+                        Icons.lock,
+                        color: AppTheme.textSecondary,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility
+                              : Icons.visibility_off,
+                          color: AppTheme.textSecondary,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return l10n.fieldRequired;
+                        }
+                        return null;
+                      },
+                    ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _isSendingResetEmail
+                            ? null
+                            : _handlePasswordReset,
+                        child: Text(
+                          _isSendingResetEmail
+                              ? l10n.loading
+                              : l10n.forgotPasswordLink,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+
+                    // Login button
+                    Consumer<AuthProvider>(
+                      builder: (context, authProvider, _) {
+                        return GradientButton(
+                          text: l10n.loginButton,
+                          isLoading: authProvider.status == AuthStatus.loading,
+                          onPressed: _handleLogin,
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Register link
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        TextSpan(
-                          text: '.',
-                          style: AppTheme.display(
-                            40,
-                            color: AppTheme.accentColor,
+                        Text(
+                          '${l10n.noAccountPrompt} ',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const RegisterScreen(),
+                              ),
+                            );
+                          },
+                          child: Text(
+                            l10n.registerLink,
+                            style: TextStyle(
+                              color: AppTheme.primaryColor,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    style: AppTheme.display(40),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    l10n.loginSubtitle,
-                    style: const TextStyle(color: AppTheme.ink2, fontSize: 14),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 48),
-
-                  // Email field
-                  CustomTextField(
-                    controller: _emailController,
-                    hintText: l10n.emailLabel,
-                    labelText: l10n.emailLabel,
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.next,
-                    prefixIcon: const Icon(
-                      Icons.email,
-                      color: AppTheme.textSecondary,
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return l10n.fieldRequired;
-                      }
-                      if (!value.contains('@')) {
-                        return l10n.invalidEmail;
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Password field
-                  CustomTextField(
-                    controller: _passwordController,
-                    hintText: l10n.passwordLabel,
-                    labelText: l10n.passwordLabel,
-                    obscureText: _obscurePassword,
-                    textInputAction: TextInputAction.done,
-                    onFieldSubmitted: (_) => _handleLogin(),
-                    prefixIcon: const Icon(
-                      Icons.lock,
-                      color: AppTheme.textSecondary,
-                    ),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility
-                            : Icons.visibility_off,
-                        color: AppTheme.textSecondary,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return l10n.fieldRequired;
-                      }
-                      return null;
-                    },
-                  ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: _isSendingResetEmail
-                          ? null
-                          : _handlePasswordReset,
+                    const SizedBox(height: 16),
+                    TextButton(
+                      onPressed: _handleContinueAsGuest,
                       child: Text(
-                        _isSendingResetEmail
-                            ? l10n.loading
-                            : l10n.forgotPasswordLink,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Login button
-                  Consumer<AuthProvider>(
-                    builder: (context, authProvider, _) {
-                      return GradientButton(
-                        text: l10n.loginButton,
-                        isLoading: authProvider.status == AuthStatus.loading,
-                        onPressed: _handleLogin,
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Register link
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        '${l10n.noAccountPrompt} ',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const RegisterScreen(),
-                            ),
-                          );
-                        },
-                        child: Text(
-                          l10n.registerLink,
-                          style: TextStyle(
-                            color: AppTheme.primaryColor,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        l10n.loginContinueAsGuest,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.textSecondary,
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  TextButton(
-                    onPressed: _handleContinueAsGuest,
-                    child: Text(
-                      l10n.loginContinueAsGuest,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.textSecondary,
-                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

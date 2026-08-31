@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../config/responsive.dart';
@@ -45,6 +46,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
 
       if (success && mounted) {
+        // Account created: let the password manager offer to save the
+        // email/password pair it just saw.
+        TextInput.finishAutofillContext();
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const HomeScreen()),
         );
@@ -81,172 +85,182 @@ class _RegisterScreenState extends State<RegisterScreen> {
               padding: EdgeInsets.zero,
               child: Form(
               key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: 20),
-                  Text(
-                    l10n.registerTitle.toUpperCase(),
-                    style: AppTheme.display(34),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    l10n.registerSubtitle,
-                    style: const TextStyle(color: AppTheme.ink2, fontSize: 14),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 40),
-
-                  // Email field
-                  CustomTextField(
-                    controller: _emailController,
-                    textInputAction: TextInputAction.next,
-                    hintText: l10n.emailLabel,
-                    labelText: l10n.emailLabel,
-                    keyboardType: TextInputType.emailAddress,
-                    prefixIcon: const Icon(
-                      Icons.email,
-                      color: AppTheme.textSecondary,
+              child: AutofillGroup(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 20),
+                    Text(
+                      l10n.registerTitle.toUpperCase(),
+                      style: AppTheme.display(34),
+                      textAlign: TextAlign.center,
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return l10n.fieldRequired;
-                      }
-                      if (!value.contains('@')) {
-                        return l10n.invalidEmail;
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Username field
-                  CustomTextField(
-                    controller: _usernameController,
-                    textInputAction: TextInputAction.next,
-                    hintText: l10n.usernameLabel,
-                    labelText: l10n.usernameLabel,
-                    prefixIcon: const Icon(
-                      Icons.person,
-                      color: AppTheme.textSecondary,
+                    const SizedBox(height: 10),
+                    Text(
+                      l10n.registerSubtitle,
+                      style: const TextStyle(color: AppTheme.ink2, fontSize: 14),
+                      textAlign: TextAlign.center,
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return l10n.fieldRequired;
-                      }
-                      if (value.length < 3) {
-                        return l10n.usernameMinLength;
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 20),
+                    const SizedBox(height: 40),
 
-                  // Password field
-                  CustomTextField(
-                    controller: _passwordController,
-                    textInputAction: TextInputAction.next,
-                    hintText: l10n.passwordLabel,
-                    labelText: l10n.passwordLabel,
-                    obscureText: _obscurePassword,
-                    prefixIcon: const Icon(
-                      Icons.lock,
-                      color: AppTheme.textSecondary,
-                    ),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility
-                            : Icons.visibility_off,
+                    // Email field
+                    CustomTextField(
+                      controller: _emailController,
+                      textInputAction: TextInputAction.next,
+                      hintText: l10n.emailLabel,
+                      labelText: l10n.emailLabel,
+                      keyboardType: TextInputType.emailAddress,
+                      autofillHints: const [
+                        AutofillHints.username,
+                        AutofillHints.email,
+                      ],
+                      prefixIcon: const Icon(
+                        Icons.email,
                         color: AppTheme.textSecondary,
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return l10n.fieldRequired;
+                        }
+                        if (!value.contains('@')) {
+                          return l10n.invalidEmail;
+                        }
+                        return null;
                       },
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return l10n.fieldRequired;
-                      }
-                      if (value.length < 8) {
-                        return l10n.passwordMinLength;
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 20),
+                    const SizedBox(height: 20),
 
-                  // Confirm Password field
-                  CustomTextField(
-                    controller: _confirmPasswordController,
-                    hintText: l10n.confirmPasswordLabel,
-                    labelText: l10n.confirmPasswordLabel,
-                    obscureText: _obscureConfirmPassword,
-                    textInputAction: TextInputAction.done,
-                    onFieldSubmitted: (_) => _handleRegister(),
-                    prefixIcon: const Icon(
-                      Icons.lock,
-                      color: AppTheme.textSecondary,
-                    ),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscureConfirmPassword
-                            ? Icons.visibility
-                            : Icons.visibility_off,
+                    // Username field
+                    CustomTextField(
+                      controller: _usernameController,
+                      textInputAction: TextInputAction.next,
+                      hintText: l10n.usernameLabel,
+                      labelText: l10n.usernameLabel,
+                      // No autofillHints on purpose: this is the public display
+                      // name, not the login identifier (the email above is).
+                      prefixIcon: const Icon(
+                        Icons.person,
                         color: AppTheme.textSecondary,
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _obscureConfirmPassword = !_obscureConfirmPassword;
-                        });
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return l10n.fieldRequired;
+                        }
+                        if (value.length < 3) {
+                          return l10n.usernameMinLength;
+                        }
+                        return null;
                       },
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return l10n.fieldRequired;
-                      }
-                      if (value != _passwordController.text) {
-                        return l10n.passwordsDoNotMatch;
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 32),
+                    const SizedBox(height: 20),
 
-                  // Register button
-                  Consumer<AuthProvider>(
-                    builder: (context, authProvider, _) {
-                      return GradientButton(
-                        text: l10n.registerButton,
-                        isLoading: authProvider.status == AuthStatus.loading,
-                        onPressed: _handleRegister,
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        '${l10n.alreadyHaveAccount} ',
-                        style: Theme.of(context).textTheme.bodyMedium,
+                    // Password field
+                    CustomTextField(
+                      controller: _passwordController,
+                      textInputAction: TextInputAction.next,
+                      hintText: l10n.passwordLabel,
+                      labelText: l10n.passwordLabel,
+                      obscureText: _obscurePassword,
+                      autofillHints: const [AutofillHints.newPassword],
+                      prefixIcon: const Icon(
+                        Icons.lock,
+                        color: AppTheme.textSecondary,
                       ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: Text(
-                          l10n.loginLink,
-                          style: const TextStyle(
-                            color: AppTheme.primaryColor,
-                            fontWeight: FontWeight.w600,
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility
+                              : Icons.visibility_off,
+                          color: AppTheme.textSecondary,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return l10n.fieldRequired;
+                        }
+                        if (value.length < 8) {
+                          return l10n.passwordMinLength;
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Confirm Password field
+                    CustomTextField(
+                      controller: _confirmPasswordController,
+                      hintText: l10n.confirmPasswordLabel,
+                      labelText: l10n.confirmPasswordLabel,
+                      obscureText: _obscureConfirmPassword,
+                      textInputAction: TextInputAction.done,
+                      autofillHints: const [AutofillHints.newPassword],
+                      onFieldSubmitted: (_) => _handleRegister(),
+                      prefixIcon: const Icon(
+                        Icons.lock,
+                        color: AppTheme.textSecondary,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscureConfirmPassword
+                              ? Icons.visibility
+                              : Icons.visibility_off,
+                          color: AppTheme.textSecondary,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscureConfirmPassword = !_obscureConfirmPassword;
+                          });
+                        },
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return l10n.fieldRequired;
+                        }
+                        if (value != _passwordController.text) {
+                          return l10n.passwordsDoNotMatch;
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 32),
+
+                    // Register button
+                    Consumer<AuthProvider>(
+                      builder: (context, authProvider, _) {
+                        return GradientButton(
+                          text: l10n.registerButton,
+                          isLoading: authProvider.status == AuthStatus.loading,
+                          onPressed: _handleRegister,
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '${l10n.alreadyHaveAccount} ',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: Text(
+                            l10n.loginLink,
+                            style: const TextStyle(
+                              color: AppTheme.primaryColor,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
