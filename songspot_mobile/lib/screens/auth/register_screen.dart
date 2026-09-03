@@ -35,6 +35,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _handleRegister() async {
+    // The keyboard submit action bypasses the button's own loading guard.
+    if (context.read<AuthProvider>().status == AuthStatus.loading) return;
     if (_formKey.currentState!.validate()) {
       final l10n = AppLocalizations.of(context);
       final authProvider = context.read<AuthProvider>();

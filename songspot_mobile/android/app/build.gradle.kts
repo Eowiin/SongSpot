@@ -6,6 +6,7 @@ plugins {
     id("com.google.gms.google-services")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    id("io.sentry.android.gradle")
 }
 
 val keyPropertiesFile = rootProject.file("key.properties")
@@ -57,4 +58,35 @@ android {
 
 flutter {
     source = "../.."
+}
+
+// Uploads the R8 mapping file so the Java/Kotlin frames in Android crashes are
+// readable in Sentry. sentry_dart_plugin handles the Dart and native symbols
+// but has no ProGuard support, which is why this plugin is needed on top.
+//
+// Everything that would alter the running app is switched off: this is a
+// build-time upload step only. Reads SENTRY_AUTH_TOKEN from the environment,
+// as the Fastlane lanes already export it.
+sentry {
+    org.set(System.getenv("SENTRY_ORG") ?: "eowin")
+    projectName.set(System.getenv("SENTRY_PROJECT") ?: "songspot-mobile")
+
+    // Upload only on release builds that actually have a token to upload
+    // with, so a local `flutter build --release` without SENTRY_AUTH_TOKEN
+    // still succeeds instead of failing in sentry-cli.
+    autoUploadProguardMapping.set(
+        !System.getenv("SENTRY_AUTH_TOKEN").isNullOrBlank() &&
+            gradle.startParameter.taskNames.any { it.contains("Release") }
+    )
+    includeProguardMapping.set(true)
+
+    // sentry_dart_plugin already uploads these; doing it twice is wasted
+    // build time.
+    uploadNativeSymbols.set(false)
+
+    // sentry_flutter installs and configures the Android SDK itself. Letting
+    // this plugin add its own dependency or rewrite bytecode would duplicate
+    // the integration.
+    autoInstallation.enabled.set(false)
+    tracingInstrumentation.enabled.set(false)
 }

@@ -6,7 +6,7 @@ from django.contrib.auth.forms import SetPasswordForm
 from django.contrib.auth.tokens import default_token_generator
 from django.conf import settings
 from django.core.cache import cache
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.http import HttpResponse
 from rest_framework import status
 from rest_framework.views import APIView
@@ -181,7 +181,20 @@ class RegisterView(APIView):
     def post(self, request):
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
-            user = serializer.save()
+            try:
+                # atomic() so the failed INSERT is rolled back on its own and
+                # the surrounding transaction stays usable.
+                with transaction.atomic():
+                    user = serializer.save()
+            except IntegrityError:
+                # The serializer's uniqueness check and this INSERT are not
+                # atomic, so concurrent submits of the same email both pass
+                # validation and the second one hits the unique constraint.
+                # Report it the same way the validator would.
+                return Response(
+                    {'email': ['This email address is already in use.']},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             refresh = RefreshToken.for_user(user)
 
             return Response({

@@ -36,6 +36,11 @@ Future<void> main() async {
           defaultValue: 'development',
         );
         options.tracesSampleRate = 0.1;
+        // The native iOS SDK reports every failed URLSession request, which
+        // in practice means Firebase's own 5xx retries rather than anything
+        // in this app. Dart-side capturing stays on, so failures of our own
+        // API calls are still reported.
+        options.captureNativeFailedRequests = false;
         options.beforeSend = (event, hint) {
           if (kDebugMode) return null;
           // google_fonts fetches TTFs over the network on first use; on a
