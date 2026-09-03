@@ -6,6 +6,7 @@ from django.contrib.auth.forms import SetPasswordForm
 from django.contrib.auth.tokens import default_token_generator
 from django.conf import settings
 from django.core.cache import cache
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.http import HttpResponse
 from rest_framework import status
@@ -154,7 +155,7 @@ def _get_user_from_uid(uidb64):
     try:
         user_id = force_str(urlsafe_base64_decode(uidb64))
         return User.objects.get(pk=user_id)
-    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+    except (TypeError, ValueError, OverflowError, ValidationError, User.DoesNotExist):
         return None
 
 class RegisterView(APIView):
