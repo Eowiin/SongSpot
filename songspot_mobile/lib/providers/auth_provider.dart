@@ -89,6 +89,9 @@ class AuthProvider with ChangeNotifier {
     required String password,
     required String passwordConfirm,
   }) async {
+    // A second submit while the first request is in flight would create a
+    // duplicate account attempt and fail on the email unique constraint.
+    if (_status == AuthStatus.loading) return false;
     // Captured before the status flips to loading, which would otherwise
     // clear the guest flag we want to report.
     final wasGuest = isGuest;
