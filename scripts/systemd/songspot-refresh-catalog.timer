@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily refresh of the SongSpot catalogue
+
+[Timer]
+# Small hours, when Deezer's per-IP quota is not competing with real players.
+OnCalendar=*-*-* 04:30:00
+# Catch up after a reboot or a VPS outage rather than skipping a day.
+Persistent=true
+RandomizedDelaySec=900
+
+[Install]
+WantedBy=timers.target

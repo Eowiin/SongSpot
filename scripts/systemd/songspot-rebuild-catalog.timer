@@ -1,0 +1,22 @@
+[Unit]
+Description=Weekly rebuild of the SongSpot category pools
+
+[Timer]
+# The nightly refresh_catalog only ever *adds*: it has no eviction of any kind,
+# so without this the pools are a permanent accumulation of every mistake ever
+# made — entries from sources that have since been retired, and rows left by
+# the one-shot seeding commands, stay for good. That is how nine Linkin Park
+# tracks sat in Rap Français and Collectif Métissé in Latin Pop.
+#
+# Rebuilding is safe: the play endpoint re-reads playlist_tracks on every round
+# (game/views.py), and _link() deletes and refills inside one transaction, so
+# the worst a live session sees is a different song on the next round.
+#
+# Sunday, an hour before the nightly refresh, so the two never overlap and the
+# week starts from a clean pool.
+OnCalendar=Sun *-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=900
+
+[Install]
+WantedBy=timers.target

@@ -16,12 +16,17 @@ import 'session_end_screen.dart';
 class GameScreen extends StatefulWidget {
   final Category? category;
   final String? artistFilter;
+
+  /// The Deezer artist the player picked, when they picked one. Null for
+  /// category play and for favourites saved before the app recorded IDs.
+  final int? artistDeezerId;
   final Difficulty difficulty;
 
   const GameScreen({
     super.key,
     this.category,
     this.artistFilter,
+    this.artistDeezerId,
     this.difficulty = Difficulty.medium,
   });
 
@@ -56,6 +61,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
       _provider!.startSession(
         category: widget.category,
         artistFilter: widget.artistFilter,
+        artistDeezerId: widget.artistDeezerId,
         difficulty: widget.difficulty,
         isGuest: context.read<AuthProvider>().isGuest,
       );
@@ -126,6 +132,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
           totalScore: provider.totalScore,
           category: widget.category,
           artistFilter: widget.artistFilter,
+          artistDeezerId: widget.artistDeezerId,
           difficulty: widget.difficulty,
           endReason: reason,
         ),
@@ -518,6 +525,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
       onChanged: provider.searchTracks,
       onClear: provider.clearSearch,
       onSelected: (track) {
+        if (provider.isJudging) return;
         // Focus moves to the shortcut host rather than nowhere, so Enter
         // advances to the next song straight after the answer is revealed.
         _shortcutFocus.requestFocus();
@@ -532,7 +540,9 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton(
-        onPressed: provider.giveUp,
+        // Disabled while a guess is with the server, so the round cannot be
+        // both answered and abandoned.
+        onPressed: provider.isJudging ? null : provider.giveUp,
         child: Text(l10n.gameGiveUp.toUpperCase()),
       ),
     );

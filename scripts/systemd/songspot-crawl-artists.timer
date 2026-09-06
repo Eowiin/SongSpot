@@ -1,0 +1,13 @@
+[Unit]
+Description=Nightly widening of the SongSpot catalogue
+
+[Timer]
+# An hour after refresh_catalog, so the two never share the Deezer quota.
+# refresh_catalog keeps the fourteen categories current; this one grows the
+# long tail that categories never reach.
+OnCalendar=*-*-* 05:30:00
+Persistent=true
+RandomizedDelaySec=900
+
+[Install]
+WantedBy=timers.target

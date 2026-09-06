@@ -1,87 +1,39 @@
 """
 Shared helpers for artist-seeding management commands.
 """
-import re
 import time
 from typing import Optional
 
-from game.models import Track
 from game.services import DeezerService
+from game.services.catalog import upsert_track
+from game.services.matching import is_variant_title  # re-exported for callers
 
-UPDATABLE_FIELDS = ('cover_url', 'deezer_id', 'release_year', 'genre', 'artist_picture_url')
-
-# Matches parenthetical/bracketed variant suffixes, e.g. "(2011 Remaster)", "[Live at Wembley]", "(Acoustic Version)"
-_VARIANT_RE = re.compile(
-    r'[\(\[]\s*(?:\d{4}\s+)?'
-    r'(?:remaster(?:ed)?'
-    r'|live(?:\s+(?:at|from|version|recording))?'
-    r'|acoustic(?:\s+version)?'
-    r'|demo(?:\s+version)?'
-    r'|instrumental(?:\s+version)?'
-    r'|karaoke'
-    r'|radio\s+edit'
-    r'|single\s+(?:version|edit)'
-    r'|album\s+version'
-    r'|anniversary\s+edition'
-    r'|mono(?:\s+version)?'
-    r')',
-    re.IGNORECASE,
-)
-
-# Matches dash-separated suffixes, e.g. "Song Title - Live" or "Song Title - Remastered"
-_VARIANT_SUFFIX_RE = re.compile(
-    r'\s+[-–]\s+(?:live|remaster(?:ed)?|acoustic|demo|instrumental|karaoke)(?:\s+.*)?$',
-    re.IGNORECASE,
-)
-
-
-def is_variant_title(title: str) -> bool:
-    """Return True if the title looks like a remaster, live, acoustic, demo or similar variant."""
-    return bool(_VARIANT_RE.search(title) or _VARIANT_SUFFIX_RE.search(title))
+__all__ = ['is_variant_title', 'save_track', 'fetch_and_save_artist', 'resolve_artist_id']
 
 
 def save_track(track_info: dict) -> str:
     """
     Persist a single track dict returned by DeezerService.
 
+    Delegates to the catalogue's write-through upsert so a seeded track is
+    stored exactly like one imported at play time — same dedup key, same
+    normalised answer columns, same refreshable fields.
+
     Returns one of: 'added', 'updated', 'skipped'.
     """
-    if not track_info.get('preview_url'):
-        return 'skipped'
-
     if is_variant_title(track_info.get('title', '')):
         return 'skipped'
 
-    existing = Track.objects.filter(
-        title=track_info['title'],
-        artist=track_info['artist'],
-    ).first()
+    before = track_info.get('deezer_id')
+    existed = False
+    if before:
+        from game.models import Track
+        existed = Track.objects.filter(deezer_id=before).exists()
 
-    if existing:
-        update_fields = []
-        for field in UPDATABLE_FIELDS:
-            new_value = track_info.get(field)
-            if not new_value:
-                continue
-            if getattr(existing, field) in (None, ''):
-                setattr(existing, field, new_value)
-                update_fields.append(field)
-        if update_fields:
-            existing.save(update_fields=update_fields)
-            return 'updated'
+    track = upsert_track(track_info)
+    if track is None:
         return 'skipped'
-
-    Track.objects.create(
-        title=track_info['title'],
-        artist=track_info['artist'],
-        preview_url=track_info['preview_url'],
-        cover_url=track_info.get('cover_url'),
-        deezer_id=track_info.get('deezer_id'),
-        release_year=track_info.get('release_year'),
-        genre=track_info.get('genre'),
-        artist_picture_url=track_info.get('artist_picture_url'),
-    )
-    return 'added'
+    return 'updated' if existed else 'added'
 
 
 def fetch_and_save_artist(

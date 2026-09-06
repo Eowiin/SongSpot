@@ -104,21 +104,22 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    switch (state) {
-      case AppLifecycleState.inactive:
-      case AppLifecycleState.hidden:
-      case AppLifecycleState.paused:
-      case AppLifecycleState.detached:
-        FocusManager.instance.primaryFocus?.unfocus();
-        // Stop any snippet when the app leaves the foreground: on Android the
-        // audio would otherwise keep playing off-screen, and on iOS it would
-        // resume mid-clip on return instead of resetting. Ending it here also
-        // releases the play button so the player taps to replay from the start.
-        AudioService().haltForInterruption();
-        break;
-      case AppLifecycleState.resumed:
-        break;
-    }
+    if (state == AppLifecycleState.resumed) return;
+    // On the web `inactive` is a plain window blur — an alt-tab, or a click on
+    // another window, with the tab still on screen. Browsers keep playing
+    // through that and so do we: cutting the snippet there took the clip away
+    // from a player who glanced at something else mid-round. A tab that really
+    // goes away still reports `hidden`, and is stopped below.
+    if (kIsWeb && state == AppLifecycleState.inactive) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    // Stop any snippet when the app leaves the foreground: on Android the
+    // audio would otherwise keep playing off-screen, and on iOS it would
+    // resume mid-clip on return instead of resetting. Ending it here also
+    // releases the play button so the player taps to replay from the start.
+    // On the web it also keeps the snippet honest — a hidden tab's timers are
+    // throttled to about one tick a second, so the timer that cuts the clip
+    // would overrun and hand out more of the song than the difficulty allows.
+    AudioService().haltForInterruption();
   }
 
   @override

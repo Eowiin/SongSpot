@@ -1,15 +1,32 @@
-import requests
 import random
 from typing import Optional, Dict, List
-from django.conf import settings
+
+from .deezer_http import (
+    DeezerHttp,
+    DeezerUnavailable,
+    TTL_ARTIST,
+    TTL_ARTIST_TOP,
+    TTL_CHART,
+    TTL_SEARCH,
+    TTL_TRACK,
+)
 
 
 class DeezerService:
     """
     Service to interact with Deezer API.
-    Fetches random tracks and provides track information.
+
+    Every call goes through DeezerHttp, which caches responses and paces them
+    against Deezer's ~50 requests / 5 s per-IP quota. The methods here keep
+    their original contract of returning an empty list or None on failure:
+    callers reach this class from request paths that must degrade to the local
+    catalogue rather than raise. Use `self.http` directly when the caller does
+    want to distinguish "no results" from "Deezer is down".
     """
     BASE_URL = "https://api.deezer.com"
+
+    def __init__(self, http: Optional[DeezerHttp] = None):
+        self.http = http or DeezerHttp()
 
     # Popular genres and their Deezer IDs for random selection
     GENRE_IDS = [
@@ -64,16 +81,14 @@ class DeezerService:
 
         Returns the first result dict (id, name, picture_*) or None.
         """
-        url = f"{self.BASE_URL}/search/artist"
-        params = {'q': name, 'limit': 5}
         try:
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            results = response.json().get('data', [])
-            return results[0] if results else None
-        except requests.RequestException as e:
-            print(f"Error searching artist '{name}': {e}")
+            data = self.http.get(
+                '/search/artist', {'q': name, 'limit': 5}, ttl=TTL_SEARCH,
+            )
+        except DeezerUnavailable:
             return None
+        results = data.get('data', [])
+        return results[0] if results else None
 
     def search_track(self, query: str, limit: int = 25) -> Dict:
         """
@@ -86,15 +101,11 @@ class DeezerService:
         Returns:
             Dict containing search results
         """
-        url = f"{self.BASE_URL}/search"
-        params = {'q': query, 'limit': limit}
-
         try:
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            return response.json()
-        except requests.RequestException as e:
-            print(f"Error searching tracks: {e}")
+            return self.http.get(
+                '/search', {'q': query, 'limit': limit}, ttl=TTL_SEARCH,
+            )
+        except DeezerUnavailable:
             return {'data': []}
 
     def get_track(self, track_id: int) -> Optional[Dict]:
@@ -107,14 +118,9 @@ class DeezerService:
         Returns:
             Dict containing track details or None if error
         """
-        url = f"{self.BASE_URL}/track/{track_id}"
-
         try:
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-            return response.json()
-        except requests.RequestException as e:
-            print(f"Error fetching track {track_id}: {e}")
+            return self.http.get(f'/track/{track_id}', ttl=TTL_TRACK)
+        except DeezerUnavailable:
             return None
 
     def get_album(self, album_id: int) -> Optional[Dict]:
@@ -127,14 +133,9 @@ class DeezerService:
         Returns:
             Dict containing album details or None if error
         """
-        url = f"{self.BASE_URL}/album/{album_id}"
-
         try:
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-            return response.json()
-        except requests.RequestException as e:
-            print(f"Error fetching album {album_id}: {e}")
+            return self.http.get(f'/album/{album_id}', ttl=TTL_TRACK)
+        except DeezerUnavailable:
             return None
 
     def get_chart_tracks(self, limit: int = 50) -> List[Dict]:
@@ -147,17 +148,11 @@ class DeezerService:
         Returns:
             List of track dictionaries
         """
-        url = f"{self.BASE_URL}/chart/0/tracks"
-        params = {'limit': limit}
-
         try:
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            return data.get('data', [])
-        except requests.RequestException as e:
-            print(f"Error fetching chart tracks: {e}")
+            data = self.http.get('/chart/0/tracks', {'limit': limit}, ttl=TTL_CHART)
+        except DeezerUnavailable:
             return []
+        return data.get('data', [])
 
     def get_top_artists(self, limit: int = 200) -> List[Dict]:
         """
@@ -169,27 +164,17 @@ class DeezerService:
         Returns:
             List of artist dictionaries
         """
-        url = f"{self.BASE_URL}/chart/0/artists"
-        params = {'limit': limit}
-
         try:
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            return data.get('data', [])
-        except requests.RequestException as e:
-            print(f"Error fetching top artists: {e}")
+            data = self.http.get('/chart/0/artists', {'limit': limit}, ttl=TTL_CHART)
+        except DeezerUnavailable:
             return []
+        return data.get('data', [])
 
     def get_artist(self, artist_id: int) -> Optional[Dict]:
         """Fetch a single artist by ID (includes picture_* fields)."""
-        url = f"{self.BASE_URL}/artist/{artist_id}"
         try:
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-            return response.json()
-        except requests.RequestException as e:
-            print(f"Error fetching artist {artist_id}: {e}")
+            return self.http.get(f'/artist/{artist_id}', ttl=TTL_ARTIST)
+        except DeezerUnavailable:
             return None
 
     def get_artist_top_tracks(self, artist_id: int, limit: int = 3) -> List[Dict]:
@@ -203,17 +188,79 @@ class DeezerService:
         Returns:
             List of track dictionaries
         """
-        url = f"{self.BASE_URL}/artist/{artist_id}/top"
-        params = {'limit': limit}
-
         try:
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            return data.get('data', [])
-        except requests.RequestException as e:
-            print(f"Error fetching top tracks for artist {artist_id}: {e}")
+            data = self.http.get(
+                f'/artist/{artist_id}/top', {'limit': limit}, ttl=TTL_ARTIST_TOP,
+            )
+        except DeezerUnavailable:
             return []
+        return data.get('data', [])
+
+    def get_related_artists(self, artist_id: int, limit: int = 20) -> List[Dict]:
+        """
+        Artists Deezer considers adjacent to this one. Twenty per call.
+
+        This is the crawler's edge list. Walking it from a few hundred chart
+        artists reaches the long tail far more cheaply than searching for names
+        we would have to know in advance — and knowing them in advance is
+        exactly the problem, since a missing artist is invisible until someone
+        leaves a review about it.
+        """
+        try:
+            data = self.http.get(
+                f'/artist/{artist_id}/related', {'limit': limit}, ttl=TTL_ARTIST,
+            )
+        except DeezerUnavailable:
+            return []
+        return data.get('data', [])
+
+    def search_artists(self, query: str, limit: int = 25) -> List[Dict]:
+        """
+        Search artists by name, best match *last* to be sorted by the caller.
+
+        Deezer's own ordering is not usable for picking an artist to play:
+        `search/artist?q=weeknd` returns "Weeknd" (2k fans) ahead of
+        "The Weeknd" (14.6M). Callers re-rank on `nb_fan`.
+        """
+        try:
+            data = self.http.get(
+                '/search/artist', {'q': query, 'limit': limit}, ttl=TTL_SEARCH,
+            )
+        except DeezerUnavailable:
+            return []
+        return data.get('data', [])
+
+    def get_artist_albums(self, artist_id: int, limit: int = 100, index: int = 0) -> List[Dict]:
+        """
+        List an artist's albums, for going deeper than the 50-track top.
+
+        A long session on one artist exhausts `/artist/{id}/top`; the albums are
+        where the rest of the discography lives.
+        """
+        try:
+            data = self.http.get(
+                f'/artist/{artist_id}/albums',
+                {'limit': limit, 'index': index},
+                ttl=TTL_ARTIST_TOP,
+            )
+        except DeezerUnavailable:
+            return []
+        return data.get('data', [])
+
+    def get_album_tracks(self, album_id: int, limit: int = 100) -> List[Dict]:
+        """
+        Track list of one album.
+
+        Album track payloads omit the album object, so callers that need cover
+        art should carry it over from the album they came from.
+        """
+        try:
+            data = self.http.get(
+                f'/album/{album_id}/tracks', {'limit': limit}, ttl=TTL_TRACK,
+            )
+        except DeezerUnavailable:
+            return []
+        return data.get('data', [])
 
     def get_random_tracks_from_genre(self, genre_id: int, limit: int = 25) -> List[Dict]:
         """
@@ -226,52 +273,28 @@ class DeezerService:
         Returns:
             List of track dictionaries
         """
-        url = f"{self.BASE_URL}/genre/{genre_id}/artists"
-
-        try:
-            # Get artists from this genre
-            response = requests.get(url, params={'limit': 20}, timeout=10)
-            response.raise_for_status()
-            artists_data = response.json()
-            artists = artists_data.get('data', [])
-
-            if not artists:
-                return []
-
-            # Pick a random artist
-            random_artist = random.choice(artists)
-            artist_id = random_artist['id']
-
-            # Get top tracks from this artist
-            tracks_url = f"{self.BASE_URL}/artist/{artist_id}/top"
-            tracks_response = requests.get(tracks_url, params={'limit': limit}, timeout=10)
-            tracks_response.raise_for_status()
-            tracks_data = tracks_response.json()
-
-            tracks = tracks_data.get('data', [])
-            # Annotate each track with the genre name so callers can store it
-            genre_name = self.GENRE_NAMES.get(genre_id)
-            if genre_name:
-                for track in tracks:
-                    track['_genre_name'] = genre_name
-            return tracks
-
-        except requests.RequestException as e:
-            print(f"Error fetching tracks from genre {genre_id}: {e}")
+        artists = self.get_genre_artists(genre_id, limit=20)
+        if not artists:
             return []
+
+        random_artist = random.choice(artists)
+        tracks = self.get_artist_top_tracks(random_artist['id'], limit=limit)
+
+        # Annotate each track with the genre name so callers can store it
+        genre_name = self.GENRE_NAMES.get(genre_id)
+        if genre_name:
+            for track in tracks:
+                track['_genre_name'] = genre_name
+        return tracks
 
     def list_genres(self) -> List[Dict]:
         """
         Return all Deezer genres with their IDs. Useful for verifying genre IDs
         before seeding packs (run with --list-genres flag in seed command).
         """
-        url = f"{self.BASE_URL}/genre"
         try:
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-            return response.json().get('data', [])
-        except requests.RequestException as e:
-            print(f"Error fetching genres: {e}")
+            return self.http.get('/genre', ttl=TTL_CHART).get('data', [])
+        except DeezerUnavailable:
             return []
 
     def get_genre_chart_tracks(self, genre_id: int, limit: int = 100, index: int = 0) -> List[Dict]:
@@ -287,17 +310,17 @@ class DeezerService:
         Returns:
             List of track dicts with 'rank' field included
         """
-        url = f"{self.BASE_URL}/chart/{genre_id}/tracks"
-        params = {'limit': limit, 'index': index}
         try:
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            return response.json().get('data', [])
-        except requests.RequestException as e:
-            print(f"Error fetching genre chart tracks for {genre_id}: {e}")
+            data = self.http.get(
+                f'/chart/{genre_id}/tracks',
+                {'limit': limit, 'index': index},
+                ttl=TTL_CHART,
+            )
+        except DeezerUnavailable:
             return []
+        return data.get('data', [])
 
-    def get_playlist_tracks(self, playlist_id: int, limit: int = 100) -> List[Dict]:
+    def get_playlist_tracks(self, playlist_id: int, limit: int = 100, index: int = 0) -> List[Dict]:
         """
         Get tracks from a Deezer editorial playlist.
         Used for categories without a dedicated Deezer genre ID (Rap FR, Bollywood).
@@ -309,15 +332,15 @@ class DeezerService:
         Returns:
             List of track dicts
         """
-        url = f"{self.BASE_URL}/playlist/{playlist_id}/tracks"
-        params = {'limit': limit}
         try:
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            return response.json().get('data', [])
-        except requests.RequestException as e:
-            print(f"Error fetching playlist {playlist_id}: {e}")
+            data = self.http.get(
+                f'/playlist/{playlist_id}/tracks',
+                {'limit': limit, 'index': index},
+                ttl=TTL_CHART,
+            )
+        except DeezerUnavailable:
             return []
+        return data.get('data', [])
 
     def get_genre_artists(self, genre_id: int, limit: int = 100) -> List[Dict]:
         """
@@ -330,17 +353,13 @@ class DeezerService:
         Returns:
             List of artist dictionaries
         """
-        url = f"{self.BASE_URL}/genre/{genre_id}/artists"
-        params = {'limit': limit}
-
         try:
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            return data.get('data', [])
-        except requests.RequestException as e:
-            print(f"Error fetching genre artists {genre_id}: {e}")
+            data = self.http.get(
+                f'/genre/{genre_id}/artists', {'limit': limit}, ttl=TTL_CHART,
+            )
+        except DeezerUnavailable:
             return []
+        return data.get('data', [])
 
     def get_random_tracks(self, count: int = 10) -> List[Dict]:
         """
@@ -477,6 +496,9 @@ class DeezerService:
         return {
             'title': track_data.get('title', ''),
             'artist': artist_data.get('name', ''),
+            # The artist *entity*, not the credited name. Two releases of one
+            # song can spell the credit differently; the ID does not move.
+            'deezer_artist_id': artist_data.get('id'),
             'preview_url': track_data.get('preview', ''),
             'cover_url': cover_url,
             'deezer_id': track_data.get('id'),

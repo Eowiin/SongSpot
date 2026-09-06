@@ -99,6 +99,7 @@
   "backendInvalidOrExpiredRefreshToken": "Le jeton de rafraîchissement est invalide ou expiré.",
   "backendInvalidToken": "Jeton invalide.",
   "backendMissingRequiredFields": "Champs obligatoires manquants.",
+  "backendAudioUnavailable": "L'audio est temporairement indisponible. Réessayez dans un instant.",
   "backendNetworkError": "Erreur réseau",
   "signInRequired": "Connexion requise",
   "signIn": "Se connecter",
