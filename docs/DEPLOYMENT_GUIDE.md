@@ -345,6 +345,7 @@ systemctl list-timers 'songspot-*'
 | `songspot-refresh-catalog` | daily 04:30 | `refresh_catalog --stale-only` — adds new releases |
 | `songspot-crawl-artists` | daily 05:30 | walks Deezer's artist graph for the long tail |
 | `songspot-rebuild-catalog` | Sunday 03:30 | `refresh_catalog --replace` — the only thing that evicts |
+| `songspot-backup-db` | daily 02:30 | `pg_dump` of the database — see section 14 |
 
 The weekly rebuild is not optional. A run without `--replace` has no eviction at
 all, so a pool is otherwise a permanent accumulation of everything ever imported
@@ -384,6 +385,54 @@ See full setup guide: [docs/SENTRY_SETUP.md](SENTRY_SETUP.md)
 - Create two projects: `songspot-backend` (Django) and `songspot-mobile` (Flutter)
 - Add `SENTRY_DSN` to your `.env` — Sentry only activates when `DEBUG=False`
 - Set up alert rules in the Sentry dashboard for new issues and high-frequency errors
+
+---
+
+## 14. Database Backups
+
+`songspot-backup-db.timer` dumps the database nightly at 02:30, an hour before
+the first catalogue job, and keeps 14 days. The script is `scripts/backup_db.sh`
+in the repo.
+
+```bash
+sudo install -m 755 scripts/backup_db.sh /usr/local/bin/songspot-backup-db
+sudo cp scripts/systemd/songspot-backup-db.* /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now songspot-backup-db.timer
+sudo systemctl start songspot-backup-db.service   # prove it works now
+```
+
+The script is installed to `/usr/local/bin` rather than run from the checkout:
+an untracked copy inside `/var/www/songspot` would make the next `git pull`
+refuse to overwrite it.
+
+Every run reads its own dump back with `pg_restore -l` and fails if that does
+not parse, because a dump nobody has opened is not a backup. Rotation happens
+only after that check passes, so a corrupt dump can never delete a good one.
+
+Roughly 70 MB per dump against a 450 MB database, so 14 days costs about 1 GB.
+
+### Restoring
+
+```bash
+sudo -u postgres createdb songspot_restore_test
+sudo -u postgres pg_restore -d songspot_restore_test --no-owner --no-privileges \
+     /var/backups/songspot/<dump>
+```
+
+Compare row counts against the live database before trusting it. Small
+differences are expected — the dump is not taken from a quiesced database, and
+the catalogue grows continuously from player searches.
+
+To restore over production, stop `songspot.service` first, then use
+`pg_restore --clean --if-exists` against the real database.
+
+### What this does not cover
+
+The dumps sit on the same disk as the cluster. They protect against a bad
+migration, a wrong `DELETE` or a dropped table — **not** against losing the
+VPS. An off-site copy is still missing; encrypt it if you add one, since the
+dump contains user emails and password hashes.
 
 ---
 
@@ -528,6 +577,7 @@ python manage.py createsuperuser
 - [ ] Redis installed and running
 - [ ] Daphne service running (`songspot.service`)
 - [ ] Catalogue timers enabled (`systemctl list-timers 'songspot-*'`)
+- [ ] Database backup timer enabled, and one dump restored into a scratch database
 - [ ] Nginx configured with SSL
 - [ ] Static files collected
 - [ ] Firewall configured (UFW)
