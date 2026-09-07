@@ -71,7 +71,14 @@ def fetch_and_save_artist(
 
     for track_data in top_tracks:
         track_info = deezer.enrich_track_info(track_data)
-        if artist_picture_url and not track_info.get('artist_picture_url'):
+        # Only when the row is about the artist we are walking. A top-tracks
+        # list can credit a feature as the main artist, and that row would
+        # otherwise create their entity wearing this artist's face.
+        if (
+            artist_picture_url
+            and track_info.get('deezer_artist_id') in (None, artist_id)
+            and not track_info.get('artist_picture_url')
+        ):
             track_info['artist_picture_url'] = artist_picture_url
         result = save_track(track_info)
         counts[result] += 1

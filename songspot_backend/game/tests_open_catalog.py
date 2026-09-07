@@ -12,7 +12,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from game.models import Artist, CatalogSetting, Playlist, PlaylistTrack, Track
-from game.services import cache_utils, catalog, deezer_http, rounds
+from game.services import DeezerService, cache_utils, catalog, deezer_http, rounds
 
 
 def make_track(title, artist, *, deezer_id, rank=500_000, artist_id=4050205, **kwargs):
@@ -740,3 +740,66 @@ class ArtistSearchRankingTests(CatalogTestCase):
         results = catalog.search_artists('band')
         self.assertEqual(results[0].name, 'Real Band')
         self.assertEqual(results[-1].name, 'Karaoke Kings')
+
+
+class ArtistArtworkTests(CatalogTestCase):
+    """
+    Walking one artist must not put their face on anyone else's row.
+
+    Album track payloads carry an artist object with an id and a name but no
+    picture, so the walk grafts the artist's own artwork onto the payloads it
+    collects. A track credited to a feature keeps its own `deezer_artist_id`,
+    and grafting unconditionally created that artist wearing the walked
+    artist's photo — one picture reached fifteen artists in production.
+    """
+
+    ANGELE = 'https://cdn-images.dzcdn.net/images/artist/0f9/1000x1000.jpg'
+
+    @staticmethod
+    def _payload(deezer_id, title, artist):
+        """An album track payload: an artist object, with no picture in it."""
+        return {
+            'id': deezer_id,
+            'title': title,
+            'preview': f'https://example.com/{deezer_id}.mp3',
+            'rank': 800_000,
+            'artist': artist,
+            'album': {'title': 'Nonante-Cinq', 'cover_xl': 'https://x/c.jpg'},
+        }
+
+    def _walk(self, payloads):
+        deezer = DeezerService()
+        with patch.object(
+            DeezerService, 'get_artist_top_tracks', return_value=payloads,
+        ):
+            catalog._import_artist_top(deezer, 1042268, self.ANGELE)
+
+    def test_the_walked_artist_keeps_their_own_artwork(self):
+        self._walk([self._payload(
+            1, 'Bruxelles je t aime', {'id': 1042268, 'name': 'Angèle'},
+        )])
+
+        self.assertEqual(
+            Artist.objects.get(deezer_id=1042268).picture_url, self.ANGELE,
+        )
+
+    def test_a_feature_on_the_walk_is_not_given_that_artwork(self):
+        self._walk([
+            self._payload(1, 'Bruxelles je t aime', {'id': 1042268, 'name': 'Angèle'}),
+            self._payload(2, 'Démons', {'id': 9197980, 'name': 'Damso'}),
+        ])
+
+        damso = Artist.objects.get(deezer_id=9197980)
+        self.assertEqual(damso.name, 'Damso')
+        # Better no face than the wrong one: `backfill_artist_pictures` fetches
+        # this by ID later, which cannot pick the wrong artist.
+        self.assertIsNone(damso.picture_url)
+
+    def test_a_payload_crediting_nobody_still_gets_the_artwork(self):
+        # No id in the payload means the row is attributed to the artist being
+        # walked, so the artwork is theirs to give.
+        self._walk([self._payload(3, 'Balance ton quoi', {'name': 'Angèle'})])
+
+        self.assertEqual(
+            Artist.objects.get(deezer_id=1042268).picture_url, self.ANGELE,
+        )

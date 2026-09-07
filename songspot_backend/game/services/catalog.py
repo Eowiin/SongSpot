@@ -823,9 +823,17 @@ def _persist_artist_payloads(
         # main one; pin the entity the player actually chose so the session
         # filter still finds these rows.
         info['deezer_artist_id'] = info.get('deezer_artist_id') or artist_id
-        # Album track payloads carry no artist object, so the picture has to
-        # come from the artist we are walking or their row never gets one.
-        if picture and not info.get('artist_picture_url'):
+        # Album track payloads carry an artist object with an id and a name but
+        # no picture, so the artwork has to come from the artist we are walking
+        # or their row never gets one. Only for rows that are actually about
+        # them: a feature credited on one of these tracks is a different entity,
+        # and `sync_artists_from_tracks` would create it wearing the walked
+        # artist's face. That is how one photo ended up on fifteen artists.
+        if (
+            picture
+            and info['deezer_artist_id'] == artist_id
+            and not info.get('artist_picture_url')
+        ):
             info['artist_picture_url'] = picture
         infos.append(info)
     return bulk_upsert_tracks(infos)
