@@ -32,6 +32,10 @@ INDEX would hold them off for the length of the build. That forces
 build that fails leaves an INVALID index behind rather than rolling back —
 check with `\\d tracks` and DROP it before re-running if that happens.
 
+Followed by ANALYZE, which is not optional: an expression index has no
+statistics until ANALYZE runs after its creation, and the planner will keep
+picking the sequential scan until it does.
+
 IF NOT EXISTS, so the migration is a no-op where the index has already been
 created by hand. Applying a concurrent index to a loaded server ahead of the
 deploy that carries the migration is a reasonable thing to do, and this lets
@@ -55,6 +59,15 @@ def create_upper_trigram_indexes(apps, schema_editor):
                 f'CREATE INDEX CONCURRENTLY IF NOT EXISTS {name} '
                 f'ON {table} USING gin (upper({column}::text) gin_trgm_ops)'
             )
+        # An expression index carries no statistics until ANALYZE runs *after*
+        # it exists, and without them the planner keeps choosing the sequential
+        # scan this migration was written to eliminate. Observed on production:
+        # both indexes valid, both ignored, until an explicit ANALYZE — at
+        # which point the plan collapsed to a bitmap OR and the query went from
+        # 252 ms to 26 ms. Autoanalyze would get there eventually; leaving the
+        # gap open means an unknown stretch of production still scanning.
+        for table in dict.fromkeys(t for _, t, _ in UPPER_TRIGRAM_INDEXES):
+            cursor.execute(f'ANALYZE {table}')
 
 
 def drop_upper_trigram_indexes(apps, schema_editor):
