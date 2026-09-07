@@ -66,6 +66,13 @@ def dedupe_and_backfill(apps, schema_editor):
 
 class Migration(migrations.Migration):
 
+    # dedupe_and_backfill below deletes/updates Track rows, which queues FK
+    # trigger events from PlaylistTrack and DuelRound. PostgreSQL refuses
+    # CREATE INDEX on a table with pending trigger events in the same
+    # transaction, so each operation here must commit on its own before the
+    # next one runs.
+    atomic = False
+
     dependencies = [
         ('game', '0010_gamescore_unique_session'),
     ]
