@@ -7,6 +7,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'config/app_theme.dart';
+import 'config/sentry_filters.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/auth_provider.dart';
 import 'providers/game_session_provider.dart';
@@ -43,12 +44,7 @@ Future<void> main() async {
         options.captureNativeFailedRequests = false;
         options.beforeSend = (event, hint) {
           if (kDebugMode) return null;
-          // google_fonts fetches TTFs over the network on first use; on a
-          // dropped/offline connection it throws unhandled, which is a
-          // device connectivity issue rather than an app bug. Drop it to
-          // avoid flooding Sentry with non-actionable noise.
-          final message = event.throwable?.toString() ?? '';
-          if (message.contains('Failed to load font with url')) return null;
+          if (isDroppedSentryEvent(event)) return null;
           return event;
         };
       },
