@@ -1,13 +1,50 @@
 from django.contrib import admin
-from .models import Track, Playlist, PlaylistTrack, GameScore, UserBest, FavouriteArtist
+from .models import (
+    Artist, CatalogSetting, Track, Playlist, PlaylistTrack,
+    GameScore, UserBest, FavouriteArtist,
+)
 
 
 @admin.register(Track)
 class TrackAdmin(admin.ModelAdmin):
-    list_display = ('title', 'artist', 'genre', 'release_year', 'created_at')
-    search_fields = ('title', 'artist')
+    list_display = ('title', 'artist', 'genre', 'rank', 'release_year', 'created_at')
+    search_fields = ('title', 'artist', 'norm_title', 'norm_artist')
     list_filter = ('genre', 'created_at')
-    readonly_fields = ('id', 'created_at')
+    # Maintained by Track.save() from title/artist — editing them by hand would
+    # silently change which guesses are accepted for this song.
+    readonly_fields = ('id', 'created_at', 'norm_title', 'norm_artist', 'last_seen_at')
+
+
+@admin.register(Artist)
+class ArtistAdmin(admin.ModelAdmin):
+    list_display = ('name', 'nb_fan', 'is_junk', 'is_blocked', 'top_refreshed_at')
+    search_fields = ('name', 'norm_name')
+    list_filter = ('is_junk', 'is_blocked')
+    readonly_fields = ('norm_name', 'created_at', 'top_refreshed_at')
+    ordering = ('-nb_fan',)
+
+
+@admin.register(CatalogSetting)
+class CatalogSettingAdmin(admin.ModelAdmin):
+    """
+    The quality floor for undirected picks, tunable without a deploy.
+
+    Only affects rounds the *game* chooses — a category or a duel. A player who
+    picks an artist by name is never filtered by these, so raising the floor can
+    never hide someone's favourite niche act from them.
+    """
+    list_display = (
+        'min_artist_fans', 'min_track_rank',
+        'artist_top_ttl_days', 'playlist_ttl_hours', 'updated_at',
+    )
+    readonly_fields = ('updated_at',)
+
+    def has_add_permission(self, request):
+        # Singleton: the row is created on first read by CatalogSetting.get_solo.
+        return not CatalogSetting.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 class PlaylistTrackInline(admin.TabularInline):
@@ -18,10 +55,10 @@ class PlaylistTrackInline(admin.TabularInline):
 
 @admin.register(Playlist)
 class PlaylistAdmin(admin.ModelAdmin):
-    list_display = ('name', 'category', 'track_count', 'created_at')
+    list_display = ('name', 'category', 'track_count', 'refreshed_at', 'created_at')
     search_fields = ('name', 'description')
     list_filter = ('category', 'created_at')
-    readonly_fields = ('id', 'created_at')
+    readonly_fields = ('id', 'created_at', 'refreshed_at')
     inlines = [PlaylistTrackInline]
 
 
@@ -51,6 +88,6 @@ class UserBestAdmin(admin.ModelAdmin):
 
 @admin.register(FavouriteArtist)
 class FavouriteArtistAdmin(admin.ModelAdmin):
-    list_display = ('user', 'artist_name', 'created_at')
+    list_display = ('user', 'artist_name', 'artist_deezer_id', 'created_at')
     search_fields = ('user__username', 'artist_name')
     ordering = ('-created_at',)

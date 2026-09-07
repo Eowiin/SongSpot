@@ -692,6 +692,12 @@ abstract class AppLocalizations {
   /// **'Missing required fields.'**
   String get backendMissingRequiredFields;
 
+  /// Backend AUDIO_UNAVAILABLE error: the catalogue is fine but the audio source could not be reached. Shown with a Retry button, so it must invite a retry rather than read as a dead end.
+  ///
+  /// In en, this message translates to:
+  /// **'Audio is temporarily unavailable. Please try again in a moment.'**
+  String get backendAudioUnavailable;
+
   /// Generic network error prefix
   ///
   /// In en, this message translates to:

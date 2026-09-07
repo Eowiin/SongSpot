@@ -7,56 +7,247 @@ class Track(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=255)
     artist = models.CharField(max_length=255)
-    preview_url = models.URLField(max_length=500)
+    # Whether Deezer has ever handed us audio for this release.
+    #
+    # Not the URL itself: Deezer signs previews with a fifteen-minute expiry,
+    # so a stored URL is dead audio almost every time it is read. Keeping one
+    # as an "outage fallback" was tempting and wrong — any row older than a
+    # quarter of an hour has an expired URL, so the fallback would essentially
+    # never fire, while costing 266 bytes on every row in the table.
+    #
+    # The real URL is resolved at play time; see game/services/previews.py.
+    has_preview = models.BooleanField(default=False)
     cover_url = models.URLField(max_length=500, blank=True, null=True)
-    deezer_id = models.BigIntegerField(null=True, blank=True)
-    artist_picture_url = models.URLField(max_length=500, blank=True, null=True)
+    deezer_id = models.BigIntegerField(null=True, blank=True, db_index=True)
+    deezer_artist_id = models.BigIntegerField(null=True, blank=True, db_index=True)
     release_year = models.PositiveSmallIntegerField(null=True, blank=True)
     genre = models.CharField(max_length=100, blank=True, null=True)
+    rank = models.PositiveIntegerField(
+        default=0,
+        help_text="Deezer popularity score. Gates the undirected pick, never an answer.",
+    )
+    # Release-agnostic identity. Deezer ships one row per *release*, so the
+    # album cut, the single and the live version of one song are different
+    # tracks; these two columns are what make them the same answer. Maintained
+    # in save(), never set by hand.
+    norm_title = models.CharField(max_length=255, blank=True, default='', db_index=True)
+    norm_artist = models.CharField(max_length=255, blank=True, default='', db_index=True)
+    last_seen_at = models.DateTimeField(null=True, blank=True)
+    # True when the track came from a Deezer chart or editorial playlist rather
+    # than open search. That provenance *is* a popularity signal — a better one
+    # than follower counts, which are heavily skewed towards Deezer's European
+    # audience — so curated tracks bypass the popularity floors. Without this,
+    # a 50 000-fan floor leaves "Top J-Pop" with seven playable songs out of
+    # sixty-one, and Bollywood with fifteen out of a hundred.
+    is_curated = models.BooleanField(default=False)
+    # A remaster, live cut, remix or radio edit. Kept in the catalogue on
+    # purpose — a live take is a perfectly correct *answer* — but never chosen
+    # when the game is the one picking.
+    #
+    # This has to be a stored column rather than a check at pick time, because
+    # the import-time check is skipped for directed picks: an artist session on
+    # The Weeknd legitimately pulls "Blinding Lights (Live)" into the table,
+    # and without this it would then be eligible for a category round. Album
+    # walks make that worse, since their tracks often carry rank 0, which
+    # passes the popularity floor by design.
+    is_variant = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = 'tracks'
         indexes = [
-            models.Index(fields=['title']),
-            models.Index(fields=['artist']),
+            # Search is served by trigram GIN indexes, created in migration
+            # 0014 rather than declared here: development runs on SQLite, which
+            # has no pg_trgm. The B-tree indexes that used to sit on `title`
+            # and `artist` were dropped there — they could not answer the
+            # leading-wildcard LIKE that is the only way those columns are
+            # queried.
+            models.Index(fields=['norm_title', 'norm_artist']),
+        ]
+        constraints = [
+            # The catalogue is now a write-through cache of Deezer, filled from
+            # several paths at once (search, artist tops, chart refresh). Without
+            # this, the same track imported by two paths lands twice and the
+            # dedup in search results has to clean up after every import.
+            models.UniqueConstraint(
+                fields=['deezer_id'],
+                condition=models.Q(deezer_id__isnull=False),
+                name='uniq_track_deezer_id',
+            ),
         ]
 
     def __str__(self):
         return f"{self.title} - {self.artist}"
 
-    def get_fresh_preview_url(self, prefer_cached: bool = True, force_refresh: bool = False):
-        if prefer_cached and self.preview_url and not force_refresh:
-            return self.preview_url
-        if not self.deezer_id:
-            return self.preview_url
+    def save(self, *args, **kwargs):
+        from .services.matching import is_variant_title, normalize_artist, normalize_title
 
-        from .services import DeezerService
-        deezer = DeezerService()
-        track_data = deezer.get_track(self.deezer_id)
+        self.norm_title = normalize_title(self.title)
+        self.norm_artist = normalize_artist(self.artist)
+        self.is_variant = is_variant_title(self.title)
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None:
+            update_fields = set(update_fields)
+            if 'title' in update_fields:
+                update_fields.add('norm_title')
+            if 'artist' in update_fields:
+                update_fields.add('norm_artist')
+            if 'title' in update_fields:
+                update_fields.add('is_variant')
+            kwargs['update_fields'] = tuple(update_fields)
+        super().save(*args, **kwargs)
 
-        if track_data and track_data.get('preview'):
-            preview_url = track_data['preview']
-            album = track_data.get('album', {})
-            cover_url = (
-                album.get('cover_xl') or
-                album.get('cover_big') or
-                album.get('cover_medium') or
-                album.get('cover_small') or
-                album.get('cover')
-            )
-            update_fields = []
-            if preview_url and preview_url != self.preview_url:
-                self.preview_url = preview_url
-                update_fields.append('preview_url')
-            if cover_url and not self.cover_url:
-                self.cover_url = cover_url
-                update_fields.append('cover_url')
-            if update_fields:
-                self.save(update_fields=update_fields)
-            return preview_url
+class Artist(models.Model):
+    """
+    A Deezer artist entity, cached locally.
 
-        return self.preview_url
+    Artists are addressed by Deezer ID rather than by name from here on. Name
+    lookup is ambiguous in a way that matters: `search/artist?q=weeknd` returns
+    "Weeknd" (2k fans) *above* "The Weeknd" (14.6M), and "The Retro Weeknd", a
+    covers act whose tracks are literally titled "Blinding Lights (Original
+    Mix)". Pinning the ID is what stops a player who picked one artist from
+    being played another.
+    """
+    deezer_id = models.BigIntegerField(primary_key=True)
+    name = models.CharField(max_length=255)
+    norm_name = models.CharField(max_length=255, blank=True, default='', db_index=True)
+    picture_url = models.URLField(max_length=500, blank=True, null=True)
+    nb_fan = models.PositiveIntegerField(default=0, db_index=True)
+    # Set for karaoke/tribute/cover acts. Keeps them out of undirected picks;
+    # a player who deliberately selects one can still play it.
+    is_junk = models.BooleanField(default=False)
+    # Manual override for anything that has to disappear entirely.
+    is_blocked = models.BooleanField(default=False)
+    top_refreshed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'artists'
+        ordering = ['-nb_fan']
+
+    def __str__(self):
+        return f"{self.name} ({self.nb_fan} fans)"
+
+    def save(self, *args, **kwargs):
+        from .services.matching import is_junk_artist, normalize_artist
+
+        self.norm_name = normalize_artist(self.name)
+        if is_junk_artist(self.name):
+            self.is_junk = True
+        super().save(*args, **kwargs)
+
+
+class CatalogSetting(models.Model):
+    """
+    Tunables for the open catalogue, editable from the admin.
+
+    These thresholds decide what the game is willing to *play at you* when you
+    have not named an artist. They are settings rather than constants because
+    the right value is only knowable from real play: too low and the pool fills
+    with covers, too high and whole genres thin out. Changing them must not
+    require a deploy.
+    """
+    singleton_id = models.PositiveSmallIntegerField(primary_key=True, default=1)
+
+    min_artist_fans = models.PositiveIntegerField(
+        default=50_000,
+        help_text='Undirected picks only play artists with at least this many Deezer fans.',
+    )
+    min_track_rank = models.PositiveIntegerField(
+        default=200_000,
+        help_text='Undirected picks only play tracks at or above this Deezer rank.',
+    )
+    artist_top_ttl_days = models.PositiveSmallIntegerField(
+        default=7,
+        help_text="How long an artist's cached top-tracks list stays fresh.",
+    )
+    playlist_ttl_hours = models.PositiveSmallIntegerField(
+        default=24,
+        help_text='How long a category pool stays fresh before a background refresh.',
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'catalog_settings'
+        verbose_name = 'Catalog settings'
+        verbose_name_plural = 'Catalog settings'
+
+    def __str__(self):
+        return 'Catalog settings'
+
+    def save(self, *args, **kwargs):
+        self.singleton_id = 1
+        super().save(*args, **kwargs)
+        self.__class__.clear_cache()
+
+    _CACHE_KEY = 'catalog_settings_v1'
+    _SHARED_TTL = 300
+    # Second, process-local tier in front of the shared cache. The thresholds
+    # are read once per candidate track, so an import loop asks for them
+    # hundreds of times in a row; without this that is hundreds of Redis round
+    # trips, and against an unreachable Redis it is hundreds of connect
+    # timeouts. The cost is that an admin edit takes up to _LOCAL_TTL seconds
+    # to reach a running worker.
+    _LOCAL_TTL = 30
+    _local = None
+
+    @classmethod
+    def clear_cache(cls):
+        from .services.cache_utils import cache_delete
+        cls._local = None
+        cache_delete(cls._CACHE_KEY)
+
+    @classmethod
+    def get_solo(cls) -> 'CatalogSetting':
+        """The single settings row. Read on every pick, so kept close to hand."""
+        import time
+
+        from .services.cache_utils import cache_get, cache_set
+
+        if cls._local is not None:
+            expires_at, obj = cls._local
+            if time.monotonic() < expires_at:
+                return obj
+
+        obj = cache_get(cls._CACHE_KEY)
+        if obj is None:
+            obj, _ = cls.objects.get_or_create(singleton_id=1)
+            cache_set(cls._CACHE_KEY, obj, cls._SHARED_TTL)
+
+        cls._local = (time.monotonic() + cls._LOCAL_TTL, obj)
+        return obj
+
+
+class SearchMiss(models.Model):
+    """
+    A guess-box query the catalogue could not answer.
+
+    This is the crawler's priority queue, written by the only party that knows
+    what is missing: the players. An artist absent from the catalogue is
+    invisible — nobody can report it, and it shows up as a one-star review
+    saying the app does not have their music. A miss recorded here becomes a
+    seed for the next `crawl_artists` run.
+
+    Keyed on the normalised query so `Rosalía` and `rosalia` are one row.
+    """
+    norm_query = models.CharField(max_length=255, unique=True)
+    query = models.CharField(max_length=255)
+    hits = models.PositiveIntegerField(default=1)
+    crawled_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text='When the crawler last used this as a seed. Blank means pending.',
+    )
+    last_seen_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'search_misses'
+        ordering = ['-hits']
+        indexes = [
+            models.Index(fields=['crawled_at', '-hits']),
+        ]
+
+    def __str__(self):
+        return f'{self.query} ({self.hits})'
 
 
 CATEGORY_CHOICES = [
@@ -69,11 +260,11 @@ CATEGORY_CHOICES = [
     ('kpop', 'K-pop'),
     ('rap_fr', 'Rap Français'),
     ('variete_fr', 'Variété Française'),
-    ('reggaeton', 'Reggaeton / Urbano'),
-    ('latin', 'Latin Pop'),
+    ('latino', 'Latino'),
     ('afrobeats', 'Afrobeats'),
     ('jpop', 'J-pop'),
     ('bollywood', 'Bollywood'),
+    ('disco', 'Disco / Funk / Soul'),
 ]
 
 
@@ -88,6 +279,18 @@ class Playlist(models.Model):
     category = models.CharField(
         max_length=20, choices=CATEGORY_CHOICES, blank=True, null=True,
     )
+    # Where this category refills itself from. The pool is no longer a fixed
+    # seeded list: refresh_catalog pages these sources and writes the results
+    # through to `tracks`, so a session can no longer run the category dry.
+    deezer_genre_id = models.IntegerField(
+        null=True, blank=True,
+        help_text='Deezer genre ID for /chart/{id}/tracks. Blank if playlist-sourced only.',
+    )
+    deezer_playlist_ids = models.JSONField(
+        default=list, blank=True,
+        help_text='Deezer editorial playlist IDs, for categories with no genre chart (Rap FR, Bollywood).',
+    )
+    refreshed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -134,6 +337,9 @@ class FavouriteArtist(models.Model):
         related_name='favourite_artists',
     )
     artist_name = models.CharField(max_length=255)
+    # Null for rows saved before the catalogue opened up; those still resolve
+    # by name, so existing favourites keep working untouched.
+    artist_deezer_id = models.BigIntegerField(null=True, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

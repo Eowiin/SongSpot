@@ -441,6 +441,85 @@ curl -I https://songspot.eowinstudio.com/admin/
 Puis vérifier connexion, création/join de room, audio, WebSocket, logs Sentry et
 notifications. Consulter le workflow GitHub et `journalctl` en cas d'échec.
 
+### Rafraîchissement du catalogue (obligatoire)
+
+Le catalogue n'est plus une liste figée : les catégories se réalimentent depuis
+les charts et playlists éditoriales Deezer. Sans le timer ci-dessous, les pools
+cessent de se renouveler et les joueurs retombent sur les mêmes titres.
+
+```bash
+sudo cp scripts/systemd/songspot-refresh-catalog.* /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now songspot-refresh-catalog.timer
+systemctl list-timers songspot-refresh-catalog.timer
+```
+
+Adapter `User=` et les chemins du `.service` à l'installation réelle. Premier
+remplissage, à lancer une fois à la main après le déploiement (il dure plusieurs
+minutes, l'API Deezer étant limitée à ~50 requêtes / 5 s par IP) :
+
+```bash
+sudo -u songspot .venv/bin/python manage.py refresh_catalog
+```
+
+Vérifier ensuite dans l'admin Django que chaque catégorie a un `refreshed_at`
+récent et quelques centaines de titres au minimum.
+
+Les seuils de qualité qui décident de ce que le jeu propose **de lui-même** se
+règlent dans **Catalog settings**, sans redéploiement. Deux cas où ils ne
+s'appliquent pas, volontairement :
+
+- quand le joueur a choisi l'artiste : il l'a demandé, on le lui donne, même
+  avec 200 fans ;
+- quand la piste vient d'un chart ou d'une playlist éditoriale Deezer
+  (`is_curated`) : la source a déjà fait ce tri, et mieux. Les compteurs de fans
+  de Deezer reflètent son audience européenne, donc un seuil global vide les
+  catégories des autres marchés — à 50 000 fans, « Top J-Pop » ne gardait que
+  7 titres sur 61, et Bollywood 15 sur 100.
+
+Ce qui reste filtré partout : il faut un extrait audio, pas de karaoké ni de
+groupe de reprises, et pas de version alternative (live, remix, remaster).
+
+**Choisir la source d'une catégorie.** Les charts Deezer (`/chart/{genre}`) sont
+cadrés sur le pays de l'IP appelante. Il n'existe ni paramètre `country` ni
+en-tête pour changer ça — les deux sont ignorés silencieusement — donc un serveur
+en France reçoit des charts français, définitivement. Les playlists éditoriales,
+elles, sont curées par genre et n'ont pas ce biais.
+
+Règle : un chart de genre quand le public français *est* la cible (Pop, Rock,
+Rap FR, Variété…), une playlist éditoriale quand le genre vit ailleurs. Le genre
+2 « Musique africaine » lu depuis la France renvoyait Aya Nakamura en tête, avec
+Shakira derrière : exact pour la France, mais ce n'est pas de l'Afrobeats.
+
+Éviter les playlists « Top &lt;pays&gt; » de Deezer, qui semblent la réponse
+évidente : elles sont périmées ou mal curées (Top South Korea s'ouvre sur deux
+groupes allemands et six titres de Yiruma).
+
+Après avoir modifié le mapping `SOURCES` d'une catégorie, la reconstruire —
+sinon les entrées de l'ancienne source restent indéfiniment, les runs normaux
+n'ajoutant jamais que du contenu :
+
+```bash
+python manage.py refresh_catalog --category afrobeats --replace
+```
+
+Le cache Redis est également requis en production : le catalogue interroge
+Deezer, dont l'API publique plafonne à ~50 requêtes / 5 s **par IP**, et tout le
+trafic sort par le VPS. Sans cache partagé entre workers, l'autocomplétion épuise
+le quota dès que quelques joueurs tapent en même temps. Renseigner
+`CACHE_REDIS_URL` (ou laisser `CHANNEL_LAYERS_REDIS_URL`, dont il se déduit).
+
+Ce Redis alimente uniquement l'alias de cache `deezer`. Le cache `default` de
+Django reste local et le restera : DRF y lit le throttling à chaque requête de
+jeu et lève une exception s'il échoue — un `default` sur Redis ferait de Redis un
+point de défaillance unique pour jouer tout court. Une panne Redis coûte donc de
+la vitesse et du quota Deezer, rien d'autre : les accès au cache `deezer` sont
+tous encapsulés, une erreur se lit comme un défaut de cache, et un disjoncteur
+arrête d'appeler Redis pendant 30 s après trois échecs consécutifs.
+
+En local, aucun Redis n'est nécessaire : laisser `CHANNEL_LAYERS_REDIS_URL` vide
+suffit à basculer les deux caches en mémoire.
+
 ## 6. Release Android vers Google Play
 
 ### Première validation sur le nouveau poste

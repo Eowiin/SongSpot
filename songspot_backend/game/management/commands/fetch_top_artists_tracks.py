@@ -86,12 +86,11 @@ class Command(BaseCommand):
                 Track.objects.create(
                     title=track_info['title'],
                     artist=track_info['artist'],
-                    preview_url=track_info['preview_url'],
+                    has_preview=True,
                     cover_url=track_info.get('cover_url'),
                     deezer_id=track_info.get('deezer_id'),
                     release_year=track_info.get('release_year'),
                     genre=track_info.get('genre'),
-                    artist_picture_url=track_info.get('artist_picture_url'),
                 )
                 tracks_added += 1
 

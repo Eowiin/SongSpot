@@ -102,6 +102,14 @@ class ApiService {
         return l10n.backendPasswordResetUnavailable;
       case 'MISSING_REQUIRED_FIELDS':
         return l10n.backendMissingRequiredFields;
+      // The round's audio could not be resolved. Deezer signs preview URLs for
+      // fifteen minutes, so the server fetches one per round rather than
+      // storing it; when it cannot reach Deezer it answers 503 instead of
+      // serving a round that would play silence. Distinct from the 404 that
+      // ends a session — this one is transient, and the error screen's Retry
+      // button is the right thing to do.
+      case 'AUDIO_UNAVAILABLE':
+        return l10n.backendAudioUnavailable;
       default:
         return null;
     }
@@ -394,18 +402,53 @@ class ApiService {
     return result is List ? result : <dynamic>[];
   }
 
+  /// The API contract this build speaks.
+  ///
+  /// v2 moved answer checking to the server, so a round no longer carries its
+  /// own answer and guesses go to [submitGuess]. The server still serves v1 to
+  /// installed apps that have not updated, which is why the version is explicit
+  /// rather than assumed.
+  static const String apiVersion = '2';
+
+  /// The tail of the seen-track list is what matters for avoiding repeats, and
+  /// the whole list would eventually outgrow the URL.
+  static const int _maxExcludeIds = 200;
+
   Future<Map<String, dynamic>> getNextSong({
     String? playlist,
     String? artist,
+    int? artistDeezerId,
     List<String>? excludeIds,
   }) async {
-    final params = <String, String>{};
+    final params = <String, String>{'v': apiVersion};
     if (playlist != null && playlist.isNotEmpty) params['playlist'] = playlist;
+    // The Deezer ID pins the exact artist the player picked. The name is sent
+    // too, as a fallback for favourites saved before the app recorded IDs.
+    if (artistDeezerId != null) params['artist_id'] = artistDeezerId.toString();
     if (artist != null && artist.isNotEmpty) params['artist'] = artist;
     if (excludeIds != null && excludeIds.isNotEmpty) {
-      params['exclude'] = excludeIds.join(',');
+      final tail = excludeIds.length > _maxExcludeIds
+          ? excludeIds.sublist(excludeIds.length - _maxExcludeIds)
+          : excludeIds;
+      params['exclude'] = tail.join(',');
     }
     return await get(ApiConfig.nextSong, includeAuth: true, queryParameters: params);
+  }
+
+  /// Ask the server whether a guess names the song being played.
+  ///
+  /// Comparing IDs locally is not good enough against the open catalogue: one
+  /// song has many Deezer releases, so the album cut and the single are
+  /// different IDs for the same answer. Passing [guessTrackId] as null means
+  /// the player gave up, and the answer comes back either way.
+  Future<Map<String, dynamic>> submitGuess({
+    required String roundToken,
+    String? guessTrackId,
+  }) async {
+    return await post(ApiConfig.guess, includeAuth: true, body: {
+      'round_token': roundToken,
+      if (guessTrackId != null) 'guess_track_id': guessTrackId,
+    });
   }
 
   Future<List<dynamic>> searchArtists(String query) async {
@@ -469,9 +512,11 @@ class ApiService {
     return result is List ? result : <dynamic>[];
   }
 
-  Future<void> addFavouriteArtist(String artistName) async {
-    await post(ApiConfig.artistsFavourites, includeAuth: true,
-        body: {'artist_name': artistName});
+  Future<void> addFavouriteArtist(String artistName, {int? artistDeezerId}) async {
+    await post(ApiConfig.artistsFavourites, includeAuth: true, body: {
+      'artist_name': artistName,
+      if (artistDeezerId != null) 'artist_deezer_id': artistDeezerId,
+    });
   }
 
   Future<void> removeFavouriteArtist(String artistName) async {

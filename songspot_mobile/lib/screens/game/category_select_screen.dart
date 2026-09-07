@@ -13,17 +13,28 @@ import '../../widgets/pressable.dart';
 import '../auth/login_screen.dart';
 import 'game_screen.dart';
 
+/// An artist the player can pick.
+///
+/// [deezerId] pins the choice to one Deezer entity, which matters because
+/// names are ambiguous in ways that ruin a session: a search for "weeknd"
+/// returns a 2 000-fan namesake and a covers act called "The Retro Weeknd"
+/// alongside the real one. It is null only for favourites saved before the
+/// app recorded IDs, which still resolve by name on the server.
 class ArtistInfo {
   final String name;
   final String? pictureUrl;
+  final int? deezerId;
 
-  const ArtistInfo({required this.name, this.pictureUrl});
+  const ArtistInfo({required this.name, this.pictureUrl, this.deezerId});
 
   factory ArtistInfo.fromJson(Map<String, dynamic> j) => ArtistInfo(
         name: j['name'] as String,
         pictureUrl: j['picture_url'] as String?,
+        deezerId: j['deezer_id'] as int?,
       );
 
+  // Equality stays on the name so a favourite saved without an ID still
+  // matches the same artist coming back from search with one.
   @override
   bool operator ==(Object other) => other is ArtistInfo && other.name == name;
 
@@ -99,27 +110,41 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
     }
   }
 
+  /// Loads the two suggestion lists, each on its own.
+  ///
+  /// Trending is public and favourites are not. Fetched together through a
+  /// single `Future.wait`, a guest's 401 on favourites rejected the pair and
+  /// took the trending list down with it — so the one list a signed-out player
+  /// can actually use was the one they never saw. The favourites call is now
+  /// skipped outright for a guest, and neither list can silence the other.
   Future<void> _loadArtistData() async {
     if (_isLoadingArtistData) return;
     setState(() => _isLoadingArtistData = true);
+    final isGuest = context.read<AuthProvider>().isGuest;
+    final results = await Future.wait([
+      _loadArtists(_api.getTrendingArtists),
+      if (isGuest) Future.value(const <ArtistInfo>[])
+      else _loadArtists(_api.getFavouriteArtists),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _trending = results[0];
+      _favourites = results[1];
+      _isLoadingArtistData = false;
+    });
+  }
+
+  /// One suggestion list, empty rather than thrown if it cannot be had.
+  Future<List<ArtistInfo>> _loadArtists(
+    Future<List<dynamic>> Function() fetch,
+  ) async {
     try {
-      final results = await Future.wait([
-        _api.getTrendingArtists(),
-        _api.getFavouriteArtists(),
-      ]);
-      if (mounted) {
-        setState(() {
-          _trending = results[0]
-              .map((j) => ArtistInfo.fromJson(j as Map<String, dynamic>))
-              .toList();
-          _favourites = results[1]
-              .map((j) => ArtistInfo.fromJson(j as Map<String, dynamic>))
-              .toList();
-          _isLoadingArtistData = false;
-        });
-      }
+      final rows = await fetch();
+      return rows
+          .map((j) => ArtistInfo.fromJson(j as Map<String, dynamic>))
+          .toList();
     } catch (_) {
-      if (mounted) setState(() => _isLoadingArtistData = false);
+      return const [];
     }
   }
 
@@ -167,7 +192,7 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
       if (isFav) {
         await _api.removeFavouriteArtist(artist.name);
       } else {
-        await _api.addFavouriteArtist(artist.name);
+        await _api.addFavouriteArtist(artist.name, artistDeezerId: artist.deezerId);
       }
     } catch (_) {
       if (mounted) {
@@ -240,7 +265,11 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => GameScreen(artistFilter: artist.name, difficulty: difficulty),
+        builder: (_) => GameScreen(
+          artistFilter: artist.name,
+          artistDeezerId: artist.deezerId,
+          difficulty: difficulty,
+        ),
       ),
     );
   }
@@ -749,8 +778,8 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
       case 'kpop': return const Color(0xFFEC407A);
       case 'rap_fr': return const Color(0xFF3F51B5);
       case 'variete_fr': return const Color(0xFF009688);
-      case 'reggaeton': return const Color(0xFF4CAF50);
-      case 'latin': return const Color(0xFFFF5722);
+      case 'latino': return const Color(0xFFFF5722);
+      case 'disco': return const Color(0xFF4CAF50);
       case 'afrobeats': return const Color(0xFFFFC107);
       case 'jpop': return const Color(0xFFF48FB1);
       case 'bollywood': return const Color(0xFFFF7043);
@@ -769,8 +798,8 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
       case 'kpop': return Icons.auto_awesome_rounded;
       case 'rap_fr': return Icons.record_voice_over_rounded;
       case 'variete_fr': return Icons.music_note_rounded;
-      case 'reggaeton': return Icons.wb_sunny_rounded;
-      case 'latin': return Icons.local_fire_department_rounded;
+      case 'latino': return Icons.local_fire_department_rounded;
+      case 'disco': return Icons.blur_circular_rounded;
       case 'afrobeats': return Icons.celebration_rounded;
       case 'jpop': return Icons.spa_rounded;
       case 'bollywood': return Icons.movie_rounded;

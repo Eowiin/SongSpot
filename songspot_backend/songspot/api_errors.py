@@ -10,6 +10,11 @@ class ErrorCode:
     REFRESH_TOKEN_REQUIRED = 'REFRESH_TOKEN_REQUIRED'
     PASSWORD_RESET_UNAVAILABLE = 'PASSWORD_RESET_UNAVAILABLE'
     MISSING_REQUIRED_FIELDS = 'MISSING_REQUIRED_FIELDS'
+    # Deezer could not be reached to resolve a round's audio. Transient by
+    # nature — the catalogue is fine, the audio source is not — so the client
+    # should invite a retry rather than end the session the way it does on the
+    # 404 that means "you have heard everything".
+    AUDIO_UNAVAILABLE = 'AUDIO_UNAVAILABLE'
 
 
 def error_response(

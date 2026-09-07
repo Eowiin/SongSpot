@@ -29,6 +29,7 @@ class ApiConfig {
   // Game endpoints
   static const String categories = '/game/categories/';
   static const String nextSong = '/game/next-song/';
+  static const String guess = '/game/guess/';
   static const String artists = '/game/artists/';
   static const String artistsTrending = '/game/artists/trending/';
   static const String artistsFavourites = '/game/artists/favourites/';

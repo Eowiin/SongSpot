@@ -16,6 +16,9 @@ class SessionEndScreen extends StatelessWidget {
   final int totalScore;
   final Category? category;
   final String? artistFilter;
+  /// Carried through so replaying an artist session picks the same Deezer
+  /// entity rather than re-resolving an ambiguous name.
+  final int? artistDeezerId;
   final Difficulty difficulty;
   final SessionEndReason endReason;
 
@@ -28,6 +31,7 @@ class SessionEndScreen extends StatelessWidget {
     required this.totalScore,
     this.category,
     this.artistFilter,
+    this.artistDeezerId,
     this.difficulty = Difficulty.medium,
     this.endReason = SessionEndReason.quit,
   });
@@ -254,6 +258,7 @@ class SessionEndScreen extends StatelessWidget {
                   builder: (_) => GameScreen(
                     category: category,
                     artistFilter: artistFilter,
+                    artistDeezerId: artistDeezerId,
                     difficulty: difficulty,
                   ),
                 ),

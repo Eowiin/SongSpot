@@ -77,7 +77,7 @@ class Command(BaseCommand):
             )
 
         # Build track queryset
-        qs = Track.objects.filter(preview_url__isnull=False).exclude(preview_url='')
+        qs = Track.objects.filter(has_preview=True)
         if genre_filter:
             qs = qs.filter(genre__iexact=genre_filter)
         if artist_filter:

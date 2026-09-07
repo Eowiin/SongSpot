@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+import re
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 import dj_database_url
@@ -162,6 +164,95 @@ else:
             'BACKEND': 'channels.layers.InMemoryChannelLayer',
         }
     }
+
+
+# ── Cache ─────────────────────────────────────────────────────────────────────
+# Two aliases, deliberately.
+#
+# `default` stays local. Django and DRF reach for it on their own — DRF's
+# throttling calls it directly on every game request — and those call sites do
+# not tolerate a cache error: they raise, and the endpoint 500s. Pointing
+# `default` at Redis would therefore make Redis a single point of failure for
+# playing at all, which it was never meant to be.
+#
+# `deezer` is the shared one, and the reason a cache exists here at all. The
+# catalogue is a write-through cache of the Deezer public API, which allows
+# roughly 50 requests per 5 seconds *per IP* — and every player's traffic leaves
+# through this one host. Autocomplete alone fires a search per keystroke, so
+# without a shared cache the quota is gone as soon as a few people type at once.
+# Workers must therefore see each other's entries, and share one rate-limit
+# tally, which means Redis in production.
+#
+# Everything that touches `deezer` goes through game.services.cache_utils, which
+# reads a failure as a miss. So losing Redis costs speed and Deezer quota, and
+# nothing else.
+CACHE_REDIS_URL = os.environ.get('CACHE_REDIS_URL')
+if not CACHE_REDIS_URL and CHANNEL_LAYERS_REDIS_URL:
+    # Same server, separate logical database, so flushing one never wipes the
+    # other's data.
+    CACHE_REDIS_URL = re.sub(r'/\d+$', '', CHANNEL_LAYERS_REDIS_URL) + '/2'
+
+# Tests must never reach for a Redis that may not be running: the suite would
+# block on a TCP connect to a dead host, one call at a time, reporting nothing.
+TESTING = 'test' in sys.argv
+
+# Background enrichment: the search box answers from Postgres and lets the
+# Deezer round-trip happen after the response. Off in development, because a
+# thread firing API calls behind a local test run is noise nobody asked for —
+# and the catalogue there does not need to grow. Off under test for the same
+# reason plus determinism.
+BACKGROUND_TASKS_ENABLED = (
+    os.environ.get('BACKGROUND_TASKS_ENABLED', str(not DEBUG)) == 'True'
+    and not TESTING
+)
+
+# Under test, skip the network and hand rounds a synthetic preview URL. Without
+# this every test that plays a round would have to mock the preview service;
+# with it, they exercise selection, filtering and serialisation as usual.
+# Tests that assert on the resolver itself override it back to False.
+PREVIEWS_FAKE_URL = TESTING
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'songspot-default',
+    },
+}
+
+if CACHE_REDIS_URL and not TESTING:
+    CACHES['deezer'] = {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': CACHE_REDIS_URL,
+        'KEY_PREFIX': 'songspot',
+        'OPTIONS': {
+            # Bounded, because this sits on the path of every round. An
+            # unreachable Redis has to fail fast rather than hang a worker on
+            # the default (infinite) connect; cache_utils then trips a breaker
+            # so the next calls do not pay even this.
+            'socket_connect_timeout': 1,
+            'socket_timeout': 2,
+        },
+    }
+else:
+    # No Redis configured (local development) or running tests. Works fine —
+    # each process just keeps its own copy and its own rate-limit tally, which
+    # is why production should point at Redis.
+    CACHES['deezer'] = {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'songspot-deezer',
+    }
+
+# In-process fallback for when the shared cache is unreachable. Not a nicety:
+# the Deezer rate limiter counts through the cache, so a cache that is simply
+# *gone* would leave the limiter with nothing to count in — and it would wave
+# every request through, at the exact moment pacing matters most. Degrading to
+# a per-process cache keeps both the responses and the pacing, and costs only
+# the sharing between workers.
+CACHES['deezer_local'] = {
+    'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+    'LOCATION': 'songspot-deezer-local',
+    'OPTIONS': {'MAX_ENTRIES': 5000},
+}
 
 
 # Database

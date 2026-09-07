@@ -11,6 +11,7 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from django.db import transaction
 
 from .models import DuelMatch, DuelRound, MatchmakingQueue, PlaylistTrack, Track, UserElo
+from .services import catalog, previews
 
 logger = logging.getLogger(__name__)
 
@@ -43,14 +44,28 @@ def _parse_qs(scope) -> dict:
 
 
 def _pick_tracks(playlist_id, count: int) -> list:
-    """Synchronous: pick `count` distinct random tracks from the playlist (or all tracks)."""
-    qs = Track.objects.filter(preview_url__isnull=False).exclude(preview_url='')
+    """
+    Synchronous: pick `count` distinct random tracks from the playlist (or all tracks).
+
+    A duel is an undirected pick — neither player chose the songs — so the
+    quality floor applies, and it draws only from tracks already in the
+    database. Reaching out to Deezer here would put a network round trip inside
+    the WebSocket handshake, where a slow response costs both players the match.
+    The refresh cron is what keeps this pool stocked.
+    """
+    qs = catalog.playable(Track.objects.all(), directed=False)
     if playlist_id:
         ids = PlaylistTrack.objects.filter(playlist_id=playlist_id).values_list('track_id', flat=True)
         qs = qs.filter(id__in=ids)
     total = qs.count()
     if total == 0:
-        qs = Track.objects.filter(preview_url__isnull=False).exclude(preview_url='')
+        # An empty or unrefreshed category must not end the match before it
+        # starts; fall back to the whole filtered catalogue, then to anything
+        # playable at all.
+        qs = catalog.playable(Track.objects.all(), directed=False)
+        total = qs.count()
+    if total == 0:
+        qs = Track.objects.filter(has_preview=True)
         total = qs.count()
     count = min(count, total)
     return list(qs.order_by('?')[:count])
@@ -436,14 +451,16 @@ class DuelConsumer(AsyncWebsocketConsumer):
             return
         await self._db_set_current_round(round_number)
 
-        # Refresh the preview URL so players never get a stale Deezer link.
+        # Resolve the audio now: a stored preview URL is fifteen minutes from
+        # being dead the moment Deezer signs it (see services/previews). Going
+        # through the artist pool rather than /track/{id} means two players on
+        # the same artist — and every other match on it in the same ten-minute
+        # window — share one call instead of paying one per round.
         try:
-            preview_url = await sync_to_async(round_obj.track.get_fresh_preview_url)(
-                prefer_cached=False
-            )
+            preview_url = await sync_to_async(previews.resolve)(round_obj.track) or ''
         except Exception:
-            logger.warning('[start_round] URL refresh failed for track %s, using cached', round_obj.track.id)
-            preview_url = round_obj.track.preview_url
+            logger.warning('[start_round] preview lookup failed for track %s', round_obj.track.id)
+            preview_url = ''
 
         # Reset audio-ready state for this round
         _audio_ready[self.match_id] = set()
@@ -601,7 +618,10 @@ class DuelConsumer(AsyncWebsocketConsumer):
             'total_rounds': match.total_rounds,
             'track': {
                 'id': str(round_obj.track.id),
-                'preview_url': round_obj.track.preview_url,
+                # Resolved, not read from the row: a player who reconnects is
+                # by definition arriving late, which is exactly when the stored
+                # URL has expired.
+                'preview_url': await sync_to_async(previews.resolve)(round_obj.track) or '',
                 'cover_url': round_obj.track.cover_url or '',
             },
             'time_remaining': time_remaining if round_active else 0,
@@ -646,7 +666,10 @@ class DuelConsumer(AsyncWebsocketConsumer):
 
         track_id = str(data.get('track_id', ''))
         snippets_used = max(1, min(5, int(data.get('snippets_used', 1))))
-        is_correct = track_id == str(round_obj.track_id)
+        # Not a UUID comparison: one song has many Deezer releases, so naming
+        # it off the wrong one has to count. Shared with the solo endpoint so a
+        # guess is never right in one mode and wrong in the other.
+        is_correct = await self._db_check_guess(round_obj.track_id, track_id)
         points = SNIPPET_POINTS.get(snippets_used, 0) if is_correct else 0
 
         await self._db_save_guess(round_obj.id, is_correct, points, snippets_used)
@@ -805,6 +828,13 @@ class DuelConsumer(AsyncWebsocketConsumer):
         DuelMatch.objects.filter(id=self.match_id).update(
             current_round=round_number, status='in_progress',
         )
+
+    @sync_to_async
+    def _db_check_guess(self, answer_track_id, guess_track_id: str) -> bool:
+        answer = Track.objects.filter(id=answer_track_id).first()
+        if answer is None or not guess_track_id:
+            return False
+        return catalog.check_guess(answer, guess_track_id=guess_track_id)
 
     @sync_to_async
     def _db_save_guess(self, round_id, is_correct, points, snippets_used):

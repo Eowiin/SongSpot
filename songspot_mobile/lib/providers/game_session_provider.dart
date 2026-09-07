@@ -60,6 +60,7 @@ class GameSessionProvider extends ChangeNotifier {
   // Session config
   app_models.Category? _category;
   String? _artistFilter;
+  int? _artistDeezerId;
   Difficulty _difficulty = Difficulty.medium;
   bool _isGuest = false;
 
@@ -87,6 +88,8 @@ class GameSessionProvider extends ChangeNotifier {
 
   // Prefetch state
   Track? _prefetchedTrack;
+  int? _artistPoolSize;
+  bool _isJudging = false;
   final AnalyticsService _analytics = AnalyticsService();
   int _snippetPlaysForTrack = 0;
   bool _runEndLogged = false;
@@ -106,10 +109,20 @@ class GameSessionProvider extends ChangeNotifier {
   List<Track> _searchResults = [];
   bool _isSearching = false;
   Timer? _searchDebounce;
+  int _searchRequestId = 0;
 
   // Getters
   app_models.Category? get category => _category;
   String? get artistFilter => _artistFilter;
+  int? get artistDeezerId => _artistDeezerId;
+
+  /// How many tracks the chosen artist has, once the first round has landed.
+  /// Null for category play, and for artists the server did not report on.
+  int? get artistPoolSize => _artistPoolSize;
+
+  /// True while a guess is with the server. The guess field is disabled
+  /// meanwhile so one round cannot be answered twice.
+  bool get isJudging => _isJudging;
   Difficulty get difficulty => _difficulty;
   Track? get currentTrack => _currentTrack;
   bool get isLoadingTrack => _isLoadingTrack;
@@ -152,11 +165,13 @@ class GameSessionProvider extends ChangeNotifier {
   void startSession({
     app_models.Category? category,
     String? artistFilter,
+    int? artistDeezerId,
     Difficulty difficulty = Difficulty.medium,
     bool isGuest = false,
   }) {
     _category = category;
     _artistFilter = artistFilter;
+    _artistDeezerId = artistDeezerId;
     _difficulty = difficulty;
     _isGuest = isGuest;
     _sessionUuid = const Uuid().v4();
@@ -174,7 +189,7 @@ class GameSessionProvider extends ChangeNotifier {
     _currentTrack = null;
     _lastGuessResult = GuessResult.none;
     _revealAnswer = false;
-    _searchResults = [];
+    _resetSearch();
     _snippetPlaysForTrack = 0;
     _runEndLogged = false;
     notifyListeners();
@@ -200,7 +215,7 @@ class GameSessionProvider extends ChangeNotifier {
     if (_prefetchedTrack != null) {
       _lastGuessResult = GuessResult.none;
       _revealAnswer = false;
-      _searchResults = [];
+      _resetSearch();
       _snippetPlaysForTrack = 0;
       _currentTrack = _prefetchedTrack;
       _seenTrackIds.add(_currentTrack!.id);
@@ -223,7 +238,7 @@ class GameSessionProvider extends ChangeNotifier {
     _trackError = null;
     _lastGuessResult = GuessResult.none;
     _revealAnswer = false;
-    _searchResults = [];
+    _resetSearch();
     _snippetPlaysForTrack = 0;
     notifyListeners();
 
@@ -231,9 +246,11 @@ class GameSessionProvider extends ChangeNotifier {
       final data = await _api.getNextSong(
         playlist: _category?.id,
         artist: _artistFilter,
+        artistDeezerId: _artistDeezerId,
         excludeIds: List.from(_seenTrackIds),
       );
       _currentTrack = Track.fromJson(data);
+      _artistPoolSize = _currentTrack!.poolSize ?? _artistPoolSize;
       _seenTrackIds.add(_currentTrack!.id);
 
       if (_currentTrack!.previewUrl != null) {
@@ -266,15 +283,9 @@ class GameSessionProvider extends ChangeNotifier {
         final refreshed = await _api.refreshTrackPreview(trackId: trackId);
         final newUrl = refreshed['preview_url'] as String?;
         if (newUrl != null && newUrl.isNotEmpty && newUrl != url) {
-          _currentTrack = Track.fromJson({
-            'id': _currentTrack!.id,
-            'title': _currentTrack!.title,
-            'artist': _currentTrack!.artist,
-            'preview_url': newUrl,
-            'cover_url': _currentTrack!.coverUrl,
-            'release_year': _currentTrack!.releaseYear,
-            'genre': _currentTrack!.genre,
-          });
+          // copyWith, not a rebuild from JSON: the round token has to survive
+          // or the guess can no longer be judged.
+          _currentTrack = _currentTrack!.copyWith(previewUrl: newUrl);
           await _audio.loadAudio(newUrl);
           recovered = true;
         }
@@ -345,6 +356,7 @@ class GameSessionProvider extends ChangeNotifier {
       final data = await _api.getNextSong(
         playlist: _category?.id,
         artist: _artistFilter,
+        artistDeezerId: _artistDeezerId,
         excludeIds: List.from(_seenTrackIds),
       );
       _prefetchedTrack = Track.fromJson(data);
@@ -356,15 +368,7 @@ class GameSessionProvider extends ChangeNotifier {
             final refreshed = await _api.refreshTrackPreview(trackId: _prefetchedTrack!.id);
             final newUrl = refreshed['preview_url'] as String?;
             if (newUrl != null && newUrl.isNotEmpty && newUrl != _prefetchedTrack!.previewUrl) {
-              _prefetchedTrack = Track.fromJson({
-                'id': _prefetchedTrack!.id,
-                'title': _prefetchedTrack!.title,
-                'artist': _prefetchedTrack!.artist,
-                'preview_url': newUrl,
-                'cover_url': _prefetchedTrack!.coverUrl,
-                'release_year': _prefetchedTrack!.releaseYear,
-                'genre': _prefetchedTrack!.genre,
-              });
+              _prefetchedTrack = _prefetchedTrack!.copyWith(previewUrl: newUrl);
               await _audio.prefetchAudio(newUrl);
             }
           } catch (_) {
@@ -402,18 +406,63 @@ class GameSessionProvider extends ChangeNotifier {
 
   // ── Guess logic ──────────────────────────────────────────────────────────
 
-  void submitGuess(Track guessedTrack) {
-    if (_currentTrack == null || _revealAnswer) return;
+  /// Send a guess to the server and reveal the answer it returns.
+  ///
+  /// The comparison used to happen here, as `guessed.id == current.id`. That
+  /// only works while every song has exactly one row; against the open
+  /// catalogue one song has many Deezer releases, so a player who picked the
+  /// single when the round was playing the album cut was told they were wrong.
+  /// The server owns the rule now, which also means a bad call can be fixed
+  /// without shipping a new build.
+  Future<void> submitGuess(Track guessedTrack) =>
+      _judge(guessTrackId: guessedTrack.id, gaveUp: false);
+
+  Future<void> giveUp() => _judge(guessTrackId: null, gaveUp: true);
+
+  Future<void> _judge({required String? guessTrackId, required bool gaveUp}) async {
+    final track = _currentTrack;
+    if (track == null || _revealAnswer || _isJudging) return;
 
     _audio.stop();
     _isPlaying = false;
     _isSnippetSounding = false;
 
-    final isCorrect = guessedTrack.id == _currentTrack!.id;
+    final bool isCorrect;
+    if (track.roundToken == null) {
+      // No token: an older server, or a round rebuilt from cache. Fall back to
+      // the identity comparison rather than refusing to score the round.
+      isCorrect = !gaveUp && guessTrackId == track.id;
+    } else {
+      _isJudging = true;
+      notifyListeners();
+      try {
+        final result = await _api.submitGuess(
+          roundToken: track.roundToken!,
+          guessTrackId: guessTrackId,
+        );
+        isCorrect = result['correct'] == true;
+        final answer = result['answer'];
+        if (answer is Map<String, dynamic>) {
+          _currentTrack = track.revealedWith(answer);
+        }
+      } catch (e) {
+        // The round is not consumed: a dropped connection must not cost a
+        // life, and the player can submit the same guess again.
+        debugPrint('Guess submission failed: $e');
+        _isJudging = false;
+        _trackError = e.toString();
+        notifyListeners();
+        return;
+      } finally {
+        _isJudging = false;
+      }
+    }
+
     _songsPlayed++;
     _lastGuessResult = isCorrect ? GuessResult.correct : GuessResult.wrong;
     _revealAnswer = true;
-    _searchResults = [];
+    _resetSearch();
+    _trackError = null;
 
     if (isCorrect) {
       _songsCorrect++;
@@ -433,34 +482,7 @@ class GameSessionProvider extends ChangeNotifier {
     _checkpoint();
     _analytics.guessSubmitted(
       correct: isCorrect,
-      gaveUp: false,
-      songIndex: _songsPlayed,
-      difficulty: _difficulty.name,
-    );
-    notifyListeners();
-  }
-
-  void giveUp() {
-    if (_currentTrack == null || _revealAnswer) return;
-
-    _audio.stop();
-    _isPlaying = false;
-    _isSnippetSounding = false;
-
-    _songsPlayed++;
-    _lastGuessResult = GuessResult.wrong;
-    _revealAnswer = true;
-    _currentStreak = 0;
-    _searchResults = [];
-    _livesRemaining--;
-    if (_livesRemaining <= 0) {
-      _livesRemaining = 0;
-      _endReason = SessionEndReason.outOfLives;
-    }
-    _checkpoint();
-    _analytics.guessSubmitted(
-      correct: false,
-      gaveUp: true,
+      gaveUp: gaveUp,
       songIndex: _songsPlayed,
       difficulty: _difficulty.name,
     );
@@ -469,35 +491,49 @@ class GameSessionProvider extends ChangeNotifier {
 
   // ── Track search (autocomplete) ──────────────────────────────────────────
 
-  void searchTracks(String query) {
+  /// Empty the suggestion list and disown whatever search is still in flight.
+  ///
+  /// Both halves matter. The debounce timer only cancels a request not yet
+  /// sent; once it is out on the wire nothing can call it back, and Deezer is
+  /// slow often enough that responses come back out of order. Bumping the id
+  /// is how a superseded response is recognised and dropped — otherwise the
+  /// answer to `ro` lands after the answer to `rosalia` and overwrites it, or
+  /// lands after the round has moved on and fills the box under the next song.
+  void _resetSearch() {
     _searchDebounce?.cancel();
+    _searchRequestId++;
+    _searchResults = [];
+    _isSearching = false;
+  }
+
+  void searchTracks(String query) {
+    _resetSearch();
+    final requestId = _searchRequestId;
     if (query.length < 2) {
-      _searchResults = [];
-      _isSearching = false;
       notifyListeners();
       return;
     }
     _isSearching = true;
     notifyListeners();
     _searchDebounce = Timer(const Duration(milliseconds: 350), () async {
+      List<Track> results;
       try {
-        final results = await _api.searchTracks(query);
-        _searchResults = results
+        final json = await _api.searchTracks(query);
+        results = json
             .map((j) => Track.fromJson(j as Map<String, dynamic>))
             .toList();
       } catch (_) {
-        _searchResults = [];
-      } finally {
-        _isSearching = false;
-        notifyListeners();
+        results = [];
       }
+      if (requestId != _searchRequestId) return;
+      _searchResults = results;
+      _isSearching = false;
+      notifyListeners();
     });
   }
 
   void clearSearch() {
-    _searchDebounce?.cancel();
-    _searchResults = [];
-    _isSearching = false;
+    _resetSearch();
     notifyListeners();
   }
 
