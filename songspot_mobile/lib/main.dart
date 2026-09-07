@@ -22,6 +22,27 @@ import 'services/consent_service.dart';
 import 'services/firebase_bootstrap.dart';
 import 'services/push_notification_service.dart';
 
+/// Whether [state] means the app has really left the foreground.
+///
+/// `inactive` does not mean that everywhere. On the web it is a plain window
+/// blur — an alt-tab, or a click on another window, with the tab still on
+/// screen. On Android it means the activity lost window focus while still
+/// resumed, which any system window causes: the notification shade, a heads-up
+/// notification, and — the reason this matters — the autofill sheet that opens
+/// over the login form the instant a hinted field is tapped. Treating that as a
+/// departure dropped the focus the user had just given the field, so the
+/// keyboard closed on every attempt and signing in became impossible.
+///
+/// Both still report `hidden` and then `paused` when they go away for real, so
+/// nothing is lost by sitting `inactive` out. iOS keeps acting on it: there it
+/// is the app switcher, control centre or an incoming call, and the snippet
+/// should stop for those.
+bool leavesForeground(AppLifecycleState state) {
+  if (state == AppLifecycleState.resumed) return false;
+  if (state != AppLifecycleState.inactive) return true;
+  return !kIsWeb && defaultTargetPlatform != TargetPlatform.android;
+}
+
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 final RouteObserver<ModalRoute<void>> routeObserver = RouteObserver<ModalRoute<void>>();
 
@@ -100,13 +121,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) return;
-    // On the web `inactive` is a plain window blur — an alt-tab, or a click on
-    // another window, with the tab still on screen. Browsers keep playing
-    // through that and so do we: cutting the snippet there took the clip away
-    // from a player who glanced at something else mid-round. A tab that really
-    // goes away still reports `hidden`, and is stopped below.
-    if (kIsWeb && state == AppLifecycleState.inactive) return;
+    if (!leavesForeground(state)) return;
     FocusManager.instance.primaryFocus?.unfocus();
     // Stop any snippet when the app leaves the foreground: on Android the
     // audio would otherwise keep playing off-screen, and on iOS it would
