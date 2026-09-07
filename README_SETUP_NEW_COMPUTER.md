@@ -157,7 +157,7 @@ Avant migration :
    clé publique à `~/.ssh/authorized_keys` sur le VPS ;
 4. tester une nouvelle connexion avant de supprimer l'ancienne clé ;
 5. vérifier les snapshots de l'hébergeur et faire une sauvegarde PostgreSQL ;
-6. sauvegarder séparément les médias/stems utiles et les fichiers de
+6. sauvegarder séparément les médias utiles et les fichiers de
    configuration système.
 
 Commandes de contrôle typiques sur le VPS :
@@ -182,8 +182,9 @@ Ajouter, selon l'installation réelle :
 
 - `/var/www/songspot/songspot_backend/.env` ;
 - le credential FCM de production ;
-- `/var/www/songspot/songspot_backend/media/` et les stems non reproductibles ;
-- le service Celery, les timers/cron, la configuration Grafana Alloy ;
+- `/var/www/songspot/songspot_backend/media/` ;
+- les units systemd (`songspot.service`, les timers `songspot-*`), la
+  configuration Grafana Alloy ;
 - la liste des paquets, la version PostgreSQL et les règles firewall.
 
 Tester qu'un dump est lisible avec `pg_restore --list fichier.dump`. Une
@@ -369,7 +370,6 @@ Pour les WebSockets multi-process, tâches async et notifications :
 
 ```bash
 brew services start redis
-celery -A songspot worker -l info
 ```
 
 Ne pas copier le `.env` de production sur le poste local sans nécessité. Le
@@ -616,8 +616,7 @@ App Store Connect avant validation finale.
   `com.songspot.app`.
 - iOS : `ios/Runner/GoogleService-Info.plist` doit correspondre au même bundle.
 - Backend : `FCM_SERVICE_ACCOUNT_PATH` ou `FCM_SERVICE_ACCOUNT_JSON` doit être
-  configuré ; avec l'architecture async, Redis et le worker Celery doivent
-  réellement tourner.
+  configuré, et Redis doit réellement tourner.
 - Firebase doit posséder une clé APNs valide pour les pushes iOS.
 
 ### Sentry

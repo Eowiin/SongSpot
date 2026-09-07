@@ -147,6 +147,9 @@ ASGI_APPLICATION = 'songspot.asgi.application'
 # Use Redis in production/multi-worker setup to support websocket fan-out.
 CHANNEL_LAYERS_REDIS_URL = os.environ.get('CHANNEL_LAYERS_REDIS_URL')
 if not CHANNEL_LAYERS_REDIS_URL and os.environ.get('USE_REDIS_CHANNEL_LAYER', 'False') == 'True':
+    # CELERY_BROKER_URL is read for backwards compatibility only: Celery is gone,
+    # but deployed .env files still carry the variable and it points at the same
+    # Redis. Set CHANNEL_LAYERS_REDIS_URL instead in anything new.
     CHANNEL_LAYERS_REDIS_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/1')
 
 if CHANNEL_LAYERS_REDIS_URL:
@@ -302,12 +305,9 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATIC_ROOT = os.environ.get('STATIC_ROOT', BASE_DIR / 'staticfiles')
 
-# Media (stems, uploads)
+# Media (uploads)
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
-
-# Stem cleanup TTL (hours)
-# STEM_TTL_HOURS = int(os.environ.get('STEM_TTL_HOURS', '72'))
 
 # Email / password reset
 EMAIL_BACKEND = os.environ.get(
@@ -361,14 +361,6 @@ REST_FRAMEWORK = {
 
 # Simple JWT
 from datetime import timedelta
-
-# Celery (async tasks)
-# CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
-# CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', CELERY_BROKER_URL)
-# CELERY_ACCEPT_CONTENT = ['json']
-# CELERY_TASK_SERIALIZER = 'json'
-# CELERY_RESULT_SERIALIZER = 'json'
-# CELERY_TIMEZONE = TIME_ZONE
 
 # Firebase Cloud Messaging
 FCM_SERVICE_ACCOUNT_PATH = os.environ.get('FCM_SERVICE_ACCOUNT_PATH')

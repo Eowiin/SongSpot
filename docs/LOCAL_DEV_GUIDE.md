@@ -34,10 +34,11 @@ It focuses on the fastest path to a working dev loop.
 ## Backend Setup (Django)
 
 ### Prerequisites
-- Python 3.11 or 3.12 (3.12 recommended; 3.14 is not supported by some audio deps like `lameenc`)
+- Python 3.12
 - `pip` and `virtualenv`
-- Optional: Redis (only needed for Celery tasks like stem generation)
-- Optional: Demucs (for stem generation; included in `requirements.txt`)
+- Postgres 16 — prod runs it, and the search indexes are `pg_trgm` + GIN, which
+  SQLite has neither of. `docker compose up` gives you one.
+- Optional: Redis (websocket channel layer and Django cache)
 
 ### Environment File
 Create `songspot_backend/.env` with at least:
@@ -46,9 +47,8 @@ DJANGO_SECRET_KEY=dev-secret
 DEBUG=True
 ALLOWED_HOSTS=localhost,127.0.0.1
 
-# Optional (only needed if you run Celery)
-CELERY_BROKER_URL=redis://localhost:6379/0
-CELERY_RESULT_BACKEND=redis://localhost:6379/0
+# Match prod rather than falling back to SQLite
+DATABASE_URL=postgres://songspot:songspot@localhost:5433/songspot
 
 # Optional websocket fan-out for multi-process ASGI
 USE_REDIS_CHANNEL_LAYER=True
@@ -58,9 +58,6 @@ CHANNEL_LAYERS_REDIS_URL=redis://localhost:6379/1
 # FCM_SERVICE_ACCOUNT_PATH=/absolute/path/to/firebase-service-account.json
 # OR
 # FCM_SERVICE_ACCOUNT_JSON={"type":"service_account", ...}
-
-# Optional stem cleanup TTL (hours)
-STEM_TTL_HOURS=72
 ```
 
 Notes:
@@ -120,18 +117,13 @@ daphne -b 0.0.0.0 -p 8000 songspot.asgi:application
 
 ---
 
-## Optional: Celery + Redis (Stem Generation)
+## Optional: Redis
 
-Stem generation runs asynchronously via Celery.
+Redis backs the websocket channel layer (`USE_REDIS_CHANNEL_LAYER=True`) and the
+Django cache. Neither is required for a single-process dev server, which falls
+back to an in-memory layer and a local-memory cache.
 
-1. Start Redis (use your OS package manager or Docker).
-2. In `songspot_backend`, run a worker:
-   ```bash
-   celery -A songspot worker -l info
-   ```
-
-If you are not generating stems, you can skip Redis + Celery entirely.
-Push notifications also use Celery tasks, so keep the worker running if you want to test push end-to-end.
+`docker compose up` starts one for you; otherwise use your OS package manager.
 
 For push notifications, you also need Firebase server credentials in `songspot_backend/.env`:
 ```env
@@ -145,24 +137,6 @@ FCM_SERVICE_ACCOUNT_JSON={"type":"service_account", ...}
 iOS note:
 - APNs `.p8` key is the recommended setup in Firebase (Cloud Messaging tab).
 - `.p12` certificates are optional legacy alternative.
-
----
-
-## Optional: Stem Generation (Packs)
-
-Stems are stored under `MEDIA_ROOT` and served from `/media/` when `DEBUG=True`.
-The CLI requires `demucs` on `PATH`.
-
-Examples:
-```bash
-python manage.py generate_pack_stems --pack-track-id <PACK_TRACK_UUID>
-python manage.py generate_pack_stems --pack-id <PACK_UUID>
-python manage.py generate_pack_stems --all --missing-only
-```
-
-If `demucs` fails to write MP3s, install `ffmpeg` and retry.
-
-More details: `docs/STEMS_GUIDE.md`.
 
 ---
 
@@ -186,15 +160,15 @@ docker compose up --build -d
 ```
 
 This starts:
-- `backend` (Django)
+- `backend` (Django + Daphne)
+- `db` (Postgres 16, published on host port 5433)
 - `redis`
-- `celery` worker
 
 ### Run Backend Setup Commands in Container
 `docker-compose.yml` runs `python manage.py migrate` automatically before `runserver` on backend startup.
-You still need to seed track data manually:
+You still need to fill the catalogue manually:
 ```bash
-docker compose exec backend python manage.py seed_curated_artists
+docker compose exec backend python manage.py refresh_catalog
 ```
 
 ### Open a Shell in the Container
@@ -202,10 +176,9 @@ docker compose exec backend python manage.py seed_curated_artists
 docker compose exec backend sh
 ```
 
-### Run Demucs (or Any Other Command) in Container
+### Run Any Other Command in the Container
 ```bash
-docker compose exec backend demucs --help
-docker compose exec backend python manage.py generate_pack_stems --all --missing-only
+docker compose exec backend python manage.py <command>
 ```
 
 ### Stop Containers

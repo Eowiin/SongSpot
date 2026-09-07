@@ -1,3 +1,11 @@
+# Local development only.
+#
+# Production is a single VPS running systemd units — daphne, Postgres and Redis
+# on the host, catalogue jobs on timers. See docs/DEPLOYMENT_GUIDE.md. Nothing
+# in this file is used there, and it is not a description of prod.
+#
+#   docker compose up --build
+#
 services:
   backend:
     build:
@@ -10,8 +18,13 @@ services:
       DJANGO_SECRET_KEY: docker-dev-secret-key
       DEBUG: "True"
       ALLOWED_HOSTS: '*'
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      # Postgres rather than the sqlite default, and the same major version as
+      # the VPS. Search runs on pg_trgm + GIN indexes, which sqlite has neither
+      # of, so on sqlite those migrations are skipped and the query they exist
+      # for is never exercised — which is how 0011 and 0014 both reached prod
+      # with a CREATE INDEX that only fails on Postgres.
+      DATABASE_URL: postgres://songspot:songspot@db:5432/songspot
+      # Redis backs the websocket channel layer and the Django cache.
       USE_REDIS_CHANNEL_LAYER: "True"
       CHANNEL_LAYERS_REDIS_URL: redis://redis:6379/1
       FCM_SERVICE_ACCOUNT_PATH: ${FCM_SERVICE_ACCOUNT_PATH:-}
@@ -20,46 +33,44 @@ services:
       - "8000:8000"
     volumes:
       - ./songspot_backend:/app/songspot_backend
-      - demucs_models:/root/.cache/torch/hub/checkpoints
     stdin_open: true
     tty: true
-
-    # Edit these two values directly to test different resource limits.
-    cpus: "4.0"
-    mem_limit: 8g
-
     depends_on:
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
-  celery:
-    build:
-      context: .
-      dockerfile: songspot_backend/Dockerfile
-    container_name: songspot_celery_dev
-    working_dir: /app/songspot_backend
-    command: sh -c "exec celery -A songspot worker -l info"
+  db:
+    # Matches the VPS, which runs PostgreSQL 16.
+    image: postgres:16-alpine
+    container_name: songspot_db_dev
     environment:
-      DJANGO_SECRET_KEY: docker-dev-secret-key
-      DEBUG: "True"
-      ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
-      USE_REDIS_CHANNEL_LAYER: "True"
-      CHANNEL_LAYERS_REDIS_URL: redis://redis:6379/1
-      FCM_SERVICE_ACCOUNT_PATH: ${FCM_SERVICE_ACCOUNT_PATH:-}
+      POSTGRES_USER: songspot
+      POSTGRES_PASSWORD: songspot
+      POSTGRES_DB: songspot
+    ports:
+      # 5433 by default: a developer machine usually already has a Postgres on
+      # 5432. Override with DB_PORT if that one is taken too.
+      - "${DB_PORT:-5433}:5432"
     volumes:
-      - ./songspot_backend:/app/songspot_backend
-    depends_on:
-      - redis
+      - pg_data:/var/lib/postgresql/data
+    # The backend runs migrations on startup, so it must not race the cluster.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U songspot -d songspot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   redis:
+    # Matches the VPS, which runs Redis 7.
     image: redis:7-alpine
     container_name: songspot_redis_dev
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
 
 volumes:
+  pg_data:
   redis_data:
-  demucs_models:
