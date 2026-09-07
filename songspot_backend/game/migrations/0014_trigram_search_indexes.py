@@ -64,6 +64,12 @@ def drop_trigram_indexes(apps, schema_editor):
 
 class Migration(migrations.Migration):
 
+    # The AlterField below updates rows on `tracks`, which queues FK trigger
+    # events from tables that reference it. PostgreSQL refuses CREATE INDEX
+    # on a table with pending trigger events in the same transaction, so each
+    # operation here must commit on its own before the next one runs.
+    atomic = False
+
     dependencies = [
         ('game', '0013_track_is_variant_searchmiss'),
     ]
