@@ -110,27 +110,41 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
     }
   }
 
+  /// Loads the two suggestion lists, each on its own.
+  ///
+  /// Trending is public and favourites are not. Fetched together through a
+  /// single `Future.wait`, a guest's 401 on favourites rejected the pair and
+  /// took the trending list down with it — so the one list a signed-out player
+  /// can actually use was the one they never saw. The favourites call is now
+  /// skipped outright for a guest, and neither list can silence the other.
   Future<void> _loadArtistData() async {
     if (_isLoadingArtistData) return;
     setState(() => _isLoadingArtistData = true);
+    final isGuest = context.read<AuthProvider>().isGuest;
+    final results = await Future.wait([
+      _loadArtists(_api.getTrendingArtists),
+      if (isGuest) Future.value(const <ArtistInfo>[])
+      else _loadArtists(_api.getFavouriteArtists),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _trending = results[0];
+      _favourites = results[1];
+      _isLoadingArtistData = false;
+    });
+  }
+
+  /// One suggestion list, empty rather than thrown if it cannot be had.
+  Future<List<ArtistInfo>> _loadArtists(
+    Future<List<dynamic>> Function() fetch,
+  ) async {
     try {
-      final results = await Future.wait([
-        _api.getTrendingArtists(),
-        _api.getFavouriteArtists(),
-      ]);
-      if (mounted) {
-        setState(() {
-          _trending = results[0]
-              .map((j) => ArtistInfo.fromJson(j as Map<String, dynamic>))
-              .toList();
-          _favourites = results[1]
-              .map((j) => ArtistInfo.fromJson(j as Map<String, dynamic>))
-              .toList();
-          _isLoadingArtistData = false;
-        });
-      }
+      final rows = await fetch();
+      return rows
+          .map((j) => ArtistInfo.fromJson(j as Map<String, dynamic>))
+          .toList();
     } catch (_) {
-      if (mounted) setState(() => _isLoadingArtistData = false);
+      return const [];
     }
   }
 
