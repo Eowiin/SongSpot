@@ -1,0 +1,16 @@
+[Unit]
+Description=Widen the SongSpot catalogue along Deezer's artist graph
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=songspot
+WorkingDirectory=/var/www/songspot/songspot_backend
+EnvironmentFile=/var/www/songspot/songspot_backend/.env
+ExecStart=/var/www/songspot/songspot_backend/.venv/bin/python manage.py crawl_artists
+
+# Paced against a third-party rate limit, so it is slow by design. It must
+# never overlap with the next run, and never with refresh_catalog — the two
+# would compete for the same forty-requests-per-five-seconds budget.
+TimeoutStartSec=5400

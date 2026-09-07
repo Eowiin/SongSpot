@@ -46,6 +46,7 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
   List<Track> _searchResults = [];
   bool _isSearching = false;
   Timer? _searchDebounce;
+  int _searchRequestId = 0;
   Timer? _revealTimer;
   bool _showRevealOverlay = false;
   String? _submittedTrackLabel;
@@ -130,6 +131,7 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
       _isSounding = false;
       _isAudioLoading = false;
       _searchResults = [];
+      _searchRequestId++;
       _submittedTrackLabel = null;
       _showRevealOverlay = false;
       _guessController.clear();
@@ -208,24 +210,32 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
 
   void _searchTracks(String query) {
     _searchDebounce?.cancel();
+    // Cancelling the timer only stops a request not yet sent. One already on
+    // the wire cannot be called back, and Deezer answers out of order often
+    // enough that the reply to `ro` lands after the reply to `rosalia` and
+    // overwrites it — so every reply carries the id it was sent under, and one
+    // that is no longer the newest is dropped.
+    final requestId = ++_searchRequestId;
     if (query.length < 2) {
       setState(() { _searchResults = []; _isSearching = false; });
       return;
     }
     setState(() => _isSearching = true);
     _searchDebounce = Timer(const Duration(milliseconds: 350), () async {
+      List<Track> results;
       try {
-        final results = await _api.searchTracks(query);
-        if (!mounted) return;
-        setState(() {
-          _searchResults = results
-              .map((j) => Track.fromJson(j as Map<String, dynamic>))
-              .toList();
-          _isSearching = false;
-        });
+        final json = await _api.searchTracks(query);
+        results = json
+            .map((j) => Track.fromJson(j as Map<String, dynamic>))
+            .toList();
       } catch (_) {
-        if (mounted) setState(() => _isSearching = false);
+        results = [];
       }
+      if (!mounted || requestId != _searchRequestId) return;
+      setState(() {
+        _searchResults = results;
+        _isSearching = false;
+      });
     });
   }
 
@@ -235,6 +245,7 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
     _guessController.clear();
     setState(() {
       _searchResults = [];
+      _searchRequestId++;
       _submittedTrackLabel = '${track.title} — ${track.artist}';
     });
   }
@@ -653,7 +664,10 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
       autofocus: false,
       maxResultsHeight: 220,
       onChanged: _searchTracks,
-      onClear: () => setState(() => _searchResults = []),
+      onClear: () => setState(() {
+        _searchResults = [];
+        _searchRequestId++;
+      }),
       onSelected: _selectTrack,
     );
   }

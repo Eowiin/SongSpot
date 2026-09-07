@@ -16,6 +16,9 @@ class AudioService {
   int _prefetchRequestId = 0;
   bool _isPlaying = false;
   bool _isInitialized = false;
+  String? _activeUrl;
+  String? _prefetchUrl;
+  bool _sourceReleased = false;
   StreamSubscription<AudioInterruptionEvent>? _interruptionSub;
 
   AudioPlayer get _active => _usingA ? _playerA : _playerB;
@@ -111,6 +114,7 @@ class AudioService {
   Future<void> haltForInterruption() async {
     if (!_isPlaying) return;
     debugPrint('[AudioService] haltForInterruption');
+    _sourceReleased = true;
     try {
       await _active.stop();
     } catch (_) {}
@@ -131,6 +135,11 @@ class AudioService {
         debugPrint('[AudioService] loadAudio: stale, aborting');
         return;
       }
+      // Recorded only once this request is known to be the live one: a stale
+      // load whose setUrl lands late must not claim the player it no longer
+      // owns, or a replay would reload the wrong track.
+      _activeUrl = url;
+      _sourceReleased = false;
       debugPrint('[AudioService] loadAudio: ready');
     } catch (e) {
       debugPrint('[AudioService] loadAudio: FAILED $e');
@@ -151,6 +160,7 @@ class AudioService {
         debugPrint('[AudioService] prefetchAudio: stale, aborting');
         return false;
       }
+      _prefetchUrl = url;
       _prefetchReady = true;
       debugPrint('[AudioService] prefetchAudio: ready');
       return true;
@@ -166,6 +176,9 @@ class AudioService {
     if (!_prefetchReady) return false;
     _usingA = !_usingA;
     _prefetchReady = false;
+    _activeUrl = _prefetchUrl;
+    _prefetchUrl = null;
+    _sourceReleased = false;
     ++_prefetchRequestId;
     debugPrint('[AudioService] swapToPrefetch: swapped');
     return true;
@@ -182,6 +195,18 @@ class AudioService {
     // Captured once: swapToPrefetch() can flip `_active` mid-playback.
     final player = _active;
     try {
+      // A previous snippet was ended with stop(), which deactivates the
+      // platform player and drops the loaded source. just_audio does reload it
+      // on the next play(), but asynchronously — and on the web the snippet
+      // timer below starts at the tap, so the reload is still in flight when
+      // the timer pauses the player and the round goes silent. Reloading here
+      // is the same work, in the one place it can be awaited.
+      if (_sourceReleased && _activeUrl != null) {
+        debugPrint('[AudioService] playSnippet: reloading released source');
+        await player.setUrl(_activeUrl!).timeout(const Duration(seconds: 15));
+        _sourceReleased = false;
+        if (requestId != _playbackRequestId) return;
+      }
       if (kIsWeb) {
         // just_audio's web backend ignores setClip's end boundary and plays the
         // whole ~30s preview, which would hand the player the answer. On web the
@@ -289,6 +314,7 @@ class AudioService {
   // _setPlaying stays outside the guard so the play button is released either way.
   Future<void> stop() async {
     _playbackRequestId += 1;
+    _sourceReleased = true;
     try {
       await _active.stop();
       await _active.seek(Duration.zero);

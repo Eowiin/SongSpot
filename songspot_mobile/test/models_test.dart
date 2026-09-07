@@ -55,6 +55,64 @@ void main() {
       final t2 = Track.fromJson({'id': '2', 'title': 'Song', 'artist': 'A'});
       expect(t1, isNot(equals(t2)));
     });
+
+    test('a round in play parses without the answer', () {
+      // What /next-song/ returns now: audio and a token, no title or artist.
+      // Parsing this used to throw, because both were required.
+      final track = Track.fromJson({
+        'id': 'abc-123',
+        'preview_url': 'https://cdn.example.com/preview.mp3',
+        'round_token': 'signed-token',
+      });
+      expect(track.title, isEmpty);
+      expect(track.artist, isEmpty);
+      expect(track.isRevealed, isFalse);
+      expect(track.roundToken, 'signed-token');
+    });
+
+    test('revealedWith fills in the answer from the guess response', () {
+      final round = Track.fromJson({
+        'id': 'abc-123',
+        'preview_url': 'https://cdn.example.com/preview.mp3',
+        'round_token': 'signed-token',
+      });
+      final revealed = round.revealedWith({
+        'id': 'abc-123',
+        'title': 'Blinding Lights',
+        'artist': 'The Weeknd',
+        'cover_url': 'https://cdn.example.com/cover.jpg',
+        'release_year': 2019,
+        'genre': 'pop',
+      });
+      expect(revealed.isRevealed, isTrue);
+      expect(revealed.title, 'Blinding Lights');
+      expect(revealed.artist, 'The Weeknd');
+      // The audio already loaded for this round has to survive the reveal.
+      expect(revealed.previewUrl, 'https://cdn.example.com/preview.mp3');
+      expect(revealed.roundToken, 'signed-token');
+    });
+
+    test('copyWith keeps the round token when the preview URL is refreshed', () {
+      // Preview URLs expire mid-round. Losing the token here would leave the
+      // guess unjudgeable.
+      final round = Track.fromJson({
+        'id': 'abc-123',
+        'preview_url': 'https://cdn.example.com/old.mp3',
+        'round_token': 'signed-token',
+      });
+      final refreshed = round.copyWith(previewUrl: 'https://cdn.example.com/new.mp3');
+      expect(refreshed.previewUrl, 'https://cdn.example.com/new.mp3');
+      expect(refreshed.roundToken, 'signed-token');
+    });
+
+    test('pool_size is carried through for artist sessions', () {
+      final track = Track.fromJson({
+        'id': '1',
+        'preview_url': 'https://cdn.example.com/p.mp3',
+        'pool_size': 4,
+      });
+      expect(track.poolSize, 4);
+    });
   });
 
   group('Category', () {

@@ -18,7 +18,7 @@ class UpdateTrackMetadataCommandTests(TestCase):
         track = Track.objects.create(
             title='Existing Song',
             artist='Existing Artist',
-            preview_url='https://example.com/preview.mp3',
+            has_preview=True,
             deezer_id=123,
         )
         raw_track = {'id': 123}
@@ -47,7 +47,7 @@ class UpdateTrackMetadataCommandTests(TestCase):
         track = Track.objects.create(
             title='Search Song',
             artist='Search Artist',
-            preview_url='https://example.com/preview.mp3',
+            has_preview=True,
         )
         candidate = {
             'id': 456,

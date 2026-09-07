@@ -328,6 +328,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get backendMissingRequiredFields => 'Champs obligatoires manquants.';
 
   @override
+  String get backendAudioUnavailable =>
+      'L\'audio est temporairement indisponible. Réessayez dans un instant.';
+
+  @override
   String get backendNetworkError => 'Erreur réseau';
 
   @override

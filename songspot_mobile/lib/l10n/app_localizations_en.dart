@@ -322,6 +322,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get backendMissingRequiredFields => 'Missing required fields.';
 
   @override
+  String get backendAudioUnavailable =>
+      'Audio is temporarily unavailable. Please try again in a moment.';
+
+  @override
   String get backendNetworkError => 'Network error';
 
   @override

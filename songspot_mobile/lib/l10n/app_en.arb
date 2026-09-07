@@ -401,6 +401,10 @@
   "@backendMissingRequiredFields": {
     "description": "Backend missing required fields error"
   },
+  "backendAudioUnavailable": "Audio is temporarily unavailable. Please try again in a moment.",
+  "@backendAudioUnavailable": {
+    "description": "Backend AUDIO_UNAVAILABLE error: the catalogue is fine but the audio source could not be reached. Shown with a Retry button, so it must invite a retry rather than read as a dead end."
+  },
   "backendNetworkError": "Network error",
   "@backendNetworkError": {
     "description": "Generic network error prefix"

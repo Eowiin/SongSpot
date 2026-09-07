@@ -1,4 +1,5 @@
 from datetime import timedelta
+import itertools
 
 from django.test import TestCase, override_settings
 from django.utils import timezone
@@ -19,12 +20,16 @@ def _make_user(username, email=None, password='testpass123'):
     )
 
 
-def _make_track(title='Test Song', artist='Test Artist', genre='pop', preview_url=None):
+_next_deezer_id = itertools.count(1)
+
+
+def _make_track(title='Test Song', artist='Test Artist', genre='pop'):
     return Track.objects.create(
         title=title,
         artist=artist,
         genre=genre,
-        preview_url=preview_url or 'https://cdn.example.com/preview.mp3',
+        has_preview=True,
+        deezer_id=next(_next_deezer_id),
     )
 
 
@@ -47,7 +52,8 @@ class TrackModelTests(TestCase):
         track = Track.objects.create(
             title='Bare Track',
             artist='Bare Artist',
-            preview_url='https://cdn.example.com/preview.mp3',
+            has_preview=True,
+        deezer_id=next(_next_deezer_id),
         )
         self.assertIsNone(track.genre)
         self.assertIsNone(track.release_year)

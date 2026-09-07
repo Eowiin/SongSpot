@@ -2,6 +2,7 @@ from django.urls import path
 from .views import (
     PlaylistListView,
     NextSongView,
+    GuessView,
     ArtistListView,
     ArtistTrendingView,
     FavouriteArtistView,
@@ -23,6 +24,7 @@ app_name = 'game'
 urlpatterns = [
     path('categories/', PlaylistListView.as_view(), name='categories'),
     path('next-song/', NextSongView.as_view(), name='next_song'),
+    path('guess/', GuessView.as_view(), name='guess'),
     path('artists/', ArtistListView.as_view(), name='artists'),
     path('artists/trending/', ArtistTrendingView.as_view(), name='artists_trending'),
     path('artists/favourites/', FavouriteArtistView.as_view(), name='favourite_artists'),

@@ -81,16 +81,13 @@ ARTIST_MAP = {
         'Superbus', 'Véronique Sanson', 'Vianney', 'Vitaa', 'Zaho de Sagazan',
         'mademoiselle lou',
     ],
-    'reggaeton': [
-        'Anuel AA', 'Bad Bunny', 'Bizarrap', 'Daddy Yankee', 'Don Omar',
-        'Feid', 'FloyyMenor', 'J Balvin', 'Jay Wheeler', 'KAROL G',
-        'Lunay', 'Maluma', 'Manuel Turizo', 'Myke Towers', 'NATTI NATASHA',
-        'Nicky Jam', 'Ozuna', 'Quevedo', 'ROSALÍA', 'Rauw Alejandro',
-        'Rvssian', 'W Sound', 'Yandel',
-    ],
-    'latin': [
-        'Carlos Vives', 'Enrique Iglesias', 'Jennifer Lopez', 'Luis Fonsi',
-        'Pitbull', 'Ricky Martin', 'Shakira',
+    'latino': [
+        'Anuel AA', 'Bad Bunny', 'Bizarrap', 'Carlos Vives', 'Daddy Yankee',
+        'Don Omar', 'Enrique Iglesias', 'Feid', 'FloyyMenor', 'J Balvin',
+        'Jay Wheeler', 'Jennifer Lopez', 'KAROL G', 'Luis Fonsi', 'Lunay',
+        'Maluma', 'Manuel Turizo', 'Myke Towers', 'NATTI NATASHA', 'Nicky Jam',
+        'Ozuna', 'Pitbull', 'Quevedo', 'ROSALÍA', 'Rauw Alejandro',
+        'Ricky Martin', 'Rvssian', 'Shakira', 'W Sound', 'Yandel',
     ],
     'afrobeats': [
         'AriBeatz', 'Asake', 'Ayra Starr', 'Burna Boy', 'CKay', 'DJ Neptune',
@@ -99,7 +96,7 @@ ARTIST_MAP = {
         'Pheelz', 'Rema', 'Ruger', 'Shallipopi', 'Spinall', 'Spellz',
         'Spyro', 'Tems', 'Tiwa Savage', 'WizKid',
     ],
-    # jpop and bollywood: no matching artists in current library
+    # jpop, bollywood and disco: no matching artists in current library
 }
 
 # Artists intentionally not placed (no matching category):
@@ -150,18 +147,14 @@ class Command(BaseCommand):
                     Track.objects
                     .filter(artist__iexact=artist)
                     .exclude(id__in=existing_track_ids)
-                    .exclude(preview_url='')
-                    .exclude(preview_url__isnull=True)
+                    .filter(has_preview=True)
                 )
-                if not tracks:
-                    # Try partial match as fallback
-                    tracks = list(
-                        Track.objects
-                        .filter(artist__icontains=artist)
-                        .exclude(id__in=existing_track_ids)
-                        .exclude(preview_url='')
-                        .exclude(preview_url__isnull=True)
-                    )
+                # No substring fallback. `artist__icontains` was here and it
+                # put nine Linkin Park tracks in Rap Français ('RK' matches
+                # "Linkin Park"), three Williamses too ('IAM'), ten tracks by
+                # Nirvana (UK) — a 1967 psych band — in Rock, and "Adele & The
+                # Chandeliers" in Pop. Short names in ARTIST_MAP make substring
+                # matching indefensible; an unmatched name is reported instead.
                 if not tracks:
                     not_found.append(artist)
                     continue
