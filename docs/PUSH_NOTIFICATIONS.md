@@ -8,7 +8,7 @@ This project uses Firebase Cloud Messaging (FCM) for iOS and Android push.
 - Device registration API:
   - `POST /api/auth/push/devices/register/`
   - `POST /api/auth/push/devices/unregister/`
-- Async push delivery via Celery tasks on:
+- Push delivery via `authentication/services/push_service.py` on:
   - new `DailySong` creation
   - new `RoomMessage` creation (sender excluded, and only users who already guessed correctly for the active daily song)
 - Per-device preferences:
@@ -43,12 +43,8 @@ If neither is set, push notifications are skipped safely.
 
 ### 2) Runtime services (required)
 
-Push dispatch is async, so you need:
-- Django API
-- Redis
-- Celery worker
-
-Without the Celery worker, notification tasks are queued but never sent.
+Push is sent inline by the Django process through `firebase_admin`, so the API
+is the only service required. There is no broker and no worker.
 
 ## Mobile configuration
 
@@ -78,24 +74,12 @@ In Firebase, upload it under the APNs Authentication Key section (with Key ID + 
 ## Runtime requirements
 
 - Django app running (HTTP + websocket via ASGI).
-- Redis + Celery worker for async dispatch.
 - Mobile app calls register/unregister automatically on login/logout.
 
 ## Local run commands (host machine)
 
 From `songspot_backend` in your venv:
 
-Terminal 1:
-```bash
-redis-server
-```
-
-Terminal 2:
-```bash
-celery -A songspot worker -l info
-```
-
-Terminal 3:
 ```bash
 python manage.py runserver 0.0.0.0:8000
 ```
@@ -106,5 +90,5 @@ From repo root:
 
 ```bash
 export FCM_SERVICE_ACCOUNT_PATH=/absolute/path/to/firebase-service-account.json
-docker compose up --build backend redis celery
+docker compose up --build
 ```

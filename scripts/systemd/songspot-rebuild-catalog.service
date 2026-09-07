@@ -5,7 +5,9 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-User=songspot
+# Same account as songspot.service: this VPS has no separate service user,
+# and these need the .env and database access the app already runs with.
+User=root
 WorkingDirectory=/var/www/songspot/songspot_backend
 EnvironmentFile=/var/www/songspot/songspot_backend/.env
 ExecStart=/var/www/songspot/songspot_backend/.venv/bin/python manage.py refresh_catalog --replace

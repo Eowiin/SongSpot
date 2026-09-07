@@ -10,20 +10,14 @@ Quick guide to get the full stack running on your machine.
 |------|---------|-------|
 | Python | 3.12 | `python3 --version` |
 | Flutter | >= 3.9.2 | `flutter --version` |
-| Redis | 7+ | For Celery + WebSocket channels |
-| FFmpeg | any | Required by demucs for audio processing |
+| PostgreSQL | 16 | Matches prod; SQLite lacks the `pg_trgm` search indexes |
+| Redis | 7+ | WebSocket channel layer and Django cache |
 
 ### Install Redis (macOS)
 
 ```bash
 brew install redis
 brew services start redis
-```
-
-### Install FFmpeg (macOS)
-
-```bash
-brew install ffmpeg
 ```
 
 ---
@@ -51,9 +45,10 @@ DJANGO_SECRET_KEY=any-random-string-for-dev
 DEBUG=True
 ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
 
+# Postgres, so local matches prod. `docker compose up` publishes it on 5433.
+DATABASE_URL=postgres://songspot:songspot@localhost:5433/songspot
+
 # Redis (make sure Redis is running)
-CELERY_BROKER_URL=redis://localhost:6379/0
-CELERY_RESULT_BACKEND=redis://localhost:6379/0
 USE_REDIS_CHANNEL_LAYER=True
 CHANNEL_LAYERS_REDIS_URL=redis://localhost:6379/1
 
@@ -61,7 +56,10 @@ CHANNEL_LAYERS_REDIS_URL=redis://localhost:6379/1
 # FCM_SERVICE_ACCOUNT_PATH=/path/to/firebase-service-account.json
 ```
 
-No `DATABASE_URL` needed — defaults to SQLite for local dev.
+Without `DATABASE_URL` the backend falls back to SQLite. That works for most
+day-to-day development, but the search indexes (`pg_trgm` + GIN) and the
+migrations that build them exist only on Postgres, so anything touching search
+or a migration has to be exercised against Postgres before it ships.
 
 ### Run migrations and seed data
 
@@ -69,10 +67,7 @@ No `DATABASE_URL` needed — defaults to SQLite for local dev.
 source .venv/bin/activate
 python manage.py migrate
 python manage.py createsuperuser
-python manage.py fetch_deezer_tracks --count 50
-python manage.py update_track_metadata --dry-run
-python manage.py update_track_metadata
-python manage.py seed_genre_packs --count-per-pack 10 --genres pop,rock
+python manage.py refresh_catalog          # fill the category pools from Deezer
 ```
 
 ### Start the backend (Daphne)
@@ -84,17 +79,7 @@ source .venv/bin/activate
 daphne -b 0.0.0.0 -p 8000 songspot.asgi:application
 ```
 
-> **Note:** `manage.py runserver` works for REST endpoints but has limited WebSocket support. Always use Daphne when testing WebSocket features (chat, stems ready notifications).
-
-### Start the Celery worker (separate terminal)
-
-Required for async tasks (stem generation, push notifications):
-
-```bash
-cd songspot_backend
-source .venv/bin/activate
-celery -A songspot worker -l info
-```
+> **Note:** `manage.py runserver` works for REST endpoints but has limited WebSocket support. Always use Daphne when testing WebSocket features.
 
 ---
 
@@ -130,28 +115,24 @@ flutter run
 
 ## 3. Quick Start (all-in-one)
 
-Open 3 terminal tabs:
+Open 2 terminal tabs:
 
 ```bash
 # Tab 1: Backend
 cd songspot_backend && source .venv/bin/activate
 daphne -b 0.0.0.0 -p 8000 songspot.asgi:application
 
-# Tab 2: Celery worker
-cd songspot_backend && source .venv/bin/activate
-celery -A songspot worker -l info
-
-# Tab 3: Mobile
+# Tab 2: Mobile
 cd songspot_mobile && flutter run
 ```
 
-Redis must already be running (`brew services start redis`).
+Postgres and Redis must already be running, or use `docker compose up` for both.
 
 ---
 
 ## 4. Alternative: Docker for backend
 
-The `docker-compose.yml` at the repo root can spin up backend + celery + redis together:
+The `docker-compose.yml` at the repo root spins up backend + Postgres + Redis together:
 
 ```bash
 docker compose up
@@ -181,9 +162,8 @@ docker compose exec backend python manage.py update_track_metadata --search-miss
 | Issue | Fix |
 |-------|-----|
 | WebSocket not connecting | Use Daphne, not `runserver` |
-| Celery tasks not running | Check Redis is running: `redis-cli ping` |
 | Mobile can't reach backend | Use local IP (not `localhost`) in `.env` |
-| Stem generation fails | Ensure FFmpeg is installed: `ffmpeg -version` |
+| Migration passes locally, fails on the VPS | You are on SQLite; run against Postgres (`docker compose up`) |
 | Push notifications not working | Need `FCM_SERVICE_ACCOUNT_PATH` set in `.env` |
 
 ---
@@ -194,12 +174,12 @@ docker compose exec backend python manage.py update_track_metadata --search-miss
 |---------|-------------|
 | `python manage.py migrate` | Run database migrations |
 | `python manage.py createsuperuser` | Create admin account |
-| `python manage.py fetch_deezer_tracks --count N` | Populate tracks from Deezer |
-| `python manage.py update_track_metadata [--dry-run] [--search-missing]` | Backfill `genre`, `release_year`, cover URL, and missing `deezer_id` on existing tracks |
-| `python manage.py seed_genre_packs --count-per-pack N --genres pop,rock` | Create song packs |
-| `python manage.py generate_pack_stems --all --missing-only` | Generate stems (batch) |
+| `python manage.py refresh_catalog [--category X] [--replace] [--dry-run]` | Refill the category pools from Deezer |
+| `python manage.py crawl_artists` | Widen the catalogue along Deezer's artist graph |
+| `python manage.py link_legacy_artists` | Give seeded tracks a Deezer artist id |
+| `python manage.py backfill_artist_pictures` | Fill artwork missing on `artists` |
+| `python manage.py update_track_metadata [--dry-run] [--search-missing]` | Backfill `genre`, `release_year`, cover URL, missing `deezer_id` |
 | `python manage.py prepare_daily_content` | Create daily songs for all rooms |
-| `python manage.py cleanup_stems --max-age-hours 72` | Delete old stem files |
 
 ---
 
@@ -211,35 +191,34 @@ This section documents what to consider when the app outgrows a single VPS.
 
 ```
 [Nginx] -> [Daphne (ASGI)] -> [Django + Channels]
-                             -> [Celery worker] -> [Redis broker]
+                             -> [Redis]       (channel layer + cache)
                              -> [PostgreSQL]
+
+[systemd timers] -> refresh_catalog / crawl_artists / rebuild
 ```
 
-Everything runs on one server. This handles ~100-500 concurrent users depending on VPS specs.
+Everything runs on one server. There is no task queue: the catalogue jobs run as
+`systemd` oneshots on timers, which is why there is no broker and no worker to
+scale. This handles ~100-500 concurrent users depending on VPS specs.
 
 ### When to Scale
 
 | Signal | What it means |
 |--------|--------------|
-| Stem generation queue backs up | Celery workers are CPU-bottlenecked (demucs is heavy) |
+| Load average climbs with search traffic | Query cost, not capacity — read Step 1 before buying hardware |
 | WebSocket connections drop under load | Daphne is hitting connection limits |
 | API response times increase | Database or application server is overloaded |
-| Disk space fills up | Stem files accumulating faster than cleanup |
 
-### Step 1: Separate Celery Workers
+### Step 1: Fix the Queries First
 
-The easiest first move. Stem generation (demucs + PyTorch) is the heaviest workload.
+Cheaper than any server. Track search runs `LIKE '%term%'` across four columns;
+the `pg_trgm` GIN indexes from migration 0014 only apply when the predicate is
+shaped to use them, and a term under three characters cannot use a trigram index
+at all. A single slow search pattern will saturate a 4-core box long before
+concurrency does.
 
-- Spin up a second VPS dedicated to Celery workers
-- Point it to the same Redis broker (open Redis port or use a managed Redis)
-- Scale workers horizontally — add more VPS instances as needed
-- Consider GPU instances for faster stem generation
-
-```
-[VPS 1: Nginx + Daphne + Django + PostgreSQL]
-[VPS 2: Celery worker] ---> [Redis (VPS 1 or managed)]
-[VPS 3: Celery worker] -/
-```
+Measure with `EXPLAIN (ANALYZE, BUFFERS)` and `pg_stat_activity` before
+concluding you need more machines.
 
 ### Step 2: Managed Database
 
@@ -255,7 +234,7 @@ Same idea — offload Redis:
 
 - Managed Redis (e.g., DigitalOcean Managed Redis, AWS ElastiCache)
 - Ensures Redis persistence and high availability
-- Update `CELERY_BROKER_URL` and `CHANNEL_LAYERS_REDIS_URL`
+- Update `CHANNEL_LAYERS_REDIS_URL`
 
 ### Step 4: Multiple Daphne Instances
 
@@ -273,19 +252,10 @@ upstream asgi {
 }
 ```
 
-### Step 5: Object Storage for Stems
-
-Stem files are large and temporary:
-
-- Move stems to S3-compatible storage (e.g., DigitalOcean Spaces, AWS S3)
-- Serve via CDN for faster downloads
-- Use `django-storages` with `S3Boto3Storage` backend
-- Reduces disk pressure on the app server
-
-### Step 6: CDN for Static/Media
+### Step 5: CDN for Static/Media
 
 - Put Cloudflare or similar CDN in front of Nginx
-- Cache static files, media, and stem downloads at the edge
+- Cache static files and media at the edge
 - Reduces bandwidth costs and improves mobile app load times
 
 ### What NOT to Do Yet

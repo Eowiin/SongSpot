@@ -11,7 +11,7 @@ This setup is intentionally narrow:
 This guide assumes:
 - backend code lives at `/var/www/songspot/songspot_backend`
 - backend runs as a `systemd` service (`songspot.service`)
-- Celery runs as a `systemd` service (`songspot-celery.service`)
+- catalogue jobs run as `systemd` timers (`songspot-*.timer`)
 - Nginx is installed directly on the VPS
 
 ---
@@ -20,7 +20,7 @@ This guide assumes:
 
 Start with these sources only:
 - Django / Daphne service logs from `journald`
-- Celery logs from `journald`
+- catalogue timer logs from `journald` (`songspot-refresh-catalog`, etc.)
 - Nginx `error.log`
 
 Avoid shipping these on day one:
@@ -92,18 +92,8 @@ StandardError=journal
 SyslogIdentifier=songspot-backend
 ```
 
-For Celery:
-
-```ini
-[Service]
-WorkingDirectory=/var/www/songspot/songspot_backend
-EnvironmentFile=/var/www/songspot/songspot_backend/.env
-ExecStart=/var/www/songspot/songspot_backend/.venv/bin/celery -A songspot worker -l info
-Restart=always
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=songspot-celery
-```
+The catalogue timers are `Type=oneshot` and already log to `journald` without
+extra configuration — see `scripts/systemd/`.
 
 Why:
 - easier to query with `journalctl`
@@ -114,7 +104,7 @@ Useful checks:
 
 ```bash
 sudo journalctl -u songspot.service -n 100 --no-pager
-sudo journalctl -u songspot-celery.service -n 100 --no-pager
+sudo journalctl -u songspot-refresh-catalog.service -n 100 --no-pager
 ```
 
 ---
@@ -146,7 +136,7 @@ loki.write "grafana_cloud" {
 }
 
 loki.source.journal "songspot_services" {
-  matches = "_SYSTEMD_UNIT=songspot.service + _SYSTEMD_UNIT=songspot-celery.service"
+  matches = "_SYSTEMD_UNIT=songspot.service + _SYSTEMD_UNIT=songspot-refresh-catalog.service"
   labels = {
     job      = "systemd-journal",
     app      = "songspot",
@@ -257,7 +247,7 @@ You do not need a deep integration between Grafana Cloud and Sentry to get value
 Keep them aligned with shared metadata:
 - environment: `production`
 - release: app/backend version
-- service name: `songspot-backend`, `songspot-celery`
+- service name: `songspot-backend`, `songspot-refresh-catalog`
 
 That is enough to make incidents easier to trace across tools.
 
@@ -269,7 +259,7 @@ Only add these once the basic setup is stable:
 - Nginx access logs with filtering
 - server metrics
 - request IDs in Django logs
-- alerts for repeated `5xx`, worker crashes, or queue failures
+- alerts for repeated `5xx` or a catalogue timer exiting non-zero
 
 Do not add everything at once. Start with the smallest useful pipeline.
 
@@ -278,10 +268,10 @@ Do not add everything at once. Start with the smallest useful pipeline.
 ## 11. Suggested Rollout Order
 
 1. Keep Sentry enabled for backend and mobile
-2. Move backend and Celery logs to `journald`
+2. Move backend logs to `journald`
 3. Add Django production logging config
 4. Install Alloy
-5. Ship backend, Celery, and Nginx error logs only
+5. Ship backend, catalogue timer, and Nginx error logs only
 6. Verify volume and retention in Grafana Cloud
 7. Add metrics or access-log ingestion only if needed
 
@@ -293,7 +283,7 @@ Local service inspection:
 
 ```bash
 sudo systemctl status songspot.service
-sudo systemctl status songspot-celery.service
+systemctl list-timers 'songspot-*'
 sudo systemctl status nginx
 sudo systemctl status alloy
 ```
@@ -302,7 +292,7 @@ Recent logs:
 
 ```bash
 sudo journalctl -u songspot.service -n 100 --no-pager
-sudo journalctl -u songspot-celery.service -n 100 --no-pager
+sudo journalctl -u songspot-refresh-catalog.service -n 100 --no-pager
 sudo tail -n 100 /var/log/nginx/error.log
 ```
 

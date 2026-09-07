@@ -1,0 +1,19 @@
+[Unit]
+Description=Back up the SongSpot database
+After=postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=oneshot
+# Same account as songspot.service: this VPS has no separate service user,
+# and the script needs to write into /var/backups and call sudo -u postgres.
+User=root
+# Installed outside the git checkout on purpose: a copy sitting untracked
+# inside /var/www/songspot would make the next `git pull` refuse to overwrite
+# it. Install with:
+#   sudo install -m 755 scripts/backup_db.sh /usr/local/bin/songspot-backup-db
+ExecStart=/usr/local/bin/songspot-backup-db
+
+# 61 MB compressed today, a couple of minutes at worst. The timeout is here so
+# a hung dump cannot sit on the cluster until the next run.
+TimeoutStartSec=1800

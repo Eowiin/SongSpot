@@ -1,0 +1,14 @@
+[Unit]
+Description=Nightly backup of the SongSpot database
+
+[Timer]
+# 02:30, an hour before the first catalogue job, so the dump is taken from a
+# quiet database and never competes with a refresh for the same disk.
+OnCalendar=*-*-* 02:30:00
+# Catch up after a reboot or an outage rather than skipping a night — a missed
+# backup is exactly the one you end up needing.
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

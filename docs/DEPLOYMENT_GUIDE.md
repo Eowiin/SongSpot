@@ -171,7 +171,7 @@ server {
         alias /var/www/songspot/static/;
     }
 
-    # Media files (stems)
+    # Media files
     location /media/ {
         alias /var/www/songspot/songspot_backend/media/;
     }
@@ -219,7 +219,7 @@ WantedBy=multi-user.target
 
 For future production log aggregation with Grafana Cloud on a non-Docker VPS, see [GRAFANA_SETUP.md](/Users/ethan/Personal/SongSpot/docs/GRAFANA_SETUP.md). The recommended direction is:
 - keep app services on `systemd`
-- log backend/Celery to `journald`
+- log backend and catalogue jobs to `journald`
 - ship only selected logs with Grafana Alloy
 - keep Sentry for exceptions
 
@@ -293,44 +293,72 @@ sudo ufw enable
 
 ---
 
-## 11. Seed Data
+## 11. Catalogue Data
+
+The catalogue refills itself from Deezer; there is no offline seed list any
+more. `seed_curated_artists` and `seed_curated_playlists` were one-shot
+commands and have been replaced by `refresh_catalog`, which runs on a timer
+(section 12) so a category is never a frozen snapshot of its seeding day.
 
 ```bash
 cd /var/www/songspot/songspot_backend
 source .venv/bin/activate
-python manage.py seed_curated_artists           # seed ~190 curated artists, 10 tracks each
-python manage.py add_artist "Artist Name"       # add a single artist on demand
+
+python manage.py refresh_catalog                  # every category
+python manage.py refresh_catalog --category pop   # just one
+python manage.py refresh_catalog --replace        # rebuild instead of add
+python manage.py refresh_catalog --dry-run        # report, change nothing
+
+python manage.py crawl_artists                    # widen along Deezer's artist graph
+python manage.py add_artist "Artist Name"         # add a single artist on demand
 ```
 
-To delete all tracks and re-seed from scratch:
+Two one-shots worth knowing about, both safe to re-run:
+
 ```bash
-python manage.py shell -c "from game.models import Track; Track.objects.all().delete()"
-python manage.py seed_curated_artists
+python manage.py link_legacy_artists     # give seeded tracks a Deezer artist id
+python manage.py backfill_artist_pictures  # fill artwork missing on `artists`
 ```
+
+Never run two catalogue commands at once: they share one Deezer rate limit and
+will simply starve each other.
 
 ---
 
-## 12. Stems Pipeline (Demucs)
+## 12. Catalogue Timers
 
-### Install FFmpeg (required)
-
-Demucs requires FFmpeg to decode MP3 files. Install it on the server:
+Three `systemd` timers keep the pools current. The unit files live in the repo
+at `scripts/systemd/`.
 
 ```bash
-sudo apt update && sudo apt install -y ffmpeg
+cd /var/www/songspot
+sudo cp scripts/systemd/songspot-*.service scripts/systemd/songspot-*.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now songspot-refresh-catalog.timer \
+                            songspot-rebuild-catalog.timer \
+                            songspot-crawl-artists.timer
+systemctl list-timers 'songspot-*'
 ```
 
-> Without FFmpeg, stem generation will fail with: `FFmpeg is not installed.`
+| Timer | Schedule (server time) | What it does |
+|---|---|---|
+| `songspot-refresh-catalog` | daily 04:30 | `refresh_catalog --stale-only` — adds new releases |
+| `songspot-crawl-artists` | daily 05:30 | walks Deezer's artist graph for the long tail |
+| `songspot-rebuild-catalog` | Sunday 03:30 | `refresh_catalog --replace` — the only thing that evicts |
+| `songspot-backup-db` | daily 02:30 | `pg_dump` of the database — see section 14 |
 
-### Generate Stems (Batch)
-```bash
-python manage.py generate_pack_stems --all --missing-only
-```
+The weekly rebuild is not optional. A run without `--replace` has no eviction at
+all, so a pool is otherwise a permanent accumulation of everything ever imported
+into it, including rows from sources that have since been retired.
 
-### Cleanup Old Stems
-```bash
-python manage.py cleanup_stems --max-age-hours 72
-```
+The schedules are deliberately an hour apart so two jobs never compete for the
+same Deezer quota. `OnCalendar` is server local time — check `timedatectl`; a
+VPS on UTC is two hours behind Paris in summer.
+
+> A `Persistent=true` timer with no stamp file can fire the moment it is
+> enabled. If that is not wanted on a loaded machine, create the stamps first:
+> `sudo touch /var/lib/systemd/timers/stamp-songspot-refresh-catalog.timer`
+> (and the same for the other two) before `enable --now`.
 
 ---
 
@@ -360,6 +388,54 @@ See full setup guide: [docs/SENTRY_SETUP.md](SENTRY_SETUP.md)
 
 ---
 
+## 14. Database Backups
+
+`songspot-backup-db.timer` dumps the database nightly at 02:30, an hour before
+the first catalogue job, and keeps 14 days. The script is `scripts/backup_db.sh`
+in the repo.
+
+```bash
+sudo install -m 755 scripts/backup_db.sh /usr/local/bin/songspot-backup-db
+sudo cp scripts/systemd/songspot-backup-db.* /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now songspot-backup-db.timer
+sudo systemctl start songspot-backup-db.service   # prove it works now
+```
+
+The script is installed to `/usr/local/bin` rather than run from the checkout:
+an untracked copy inside `/var/www/songspot` would make the next `git pull`
+refuse to overwrite it.
+
+Every run reads its own dump back with `pg_restore -l` and fails if that does
+not parse, because a dump nobody has opened is not a backup. Rotation happens
+only after that check passes, so a corrupt dump can never delete a good one.
+
+Roughly 70 MB per dump against a 450 MB database, so 14 days costs about 1 GB.
+
+### Restoring
+
+```bash
+sudo -u postgres createdb songspot_restore_test
+sudo -u postgres pg_restore -d songspot_restore_test --no-owner --no-privileges \
+     /var/backups/songspot/<dump>
+```
+
+Compare row counts against the live database before trusting it. Small
+differences are expected — the dump is not taken from a quiesced database, and
+the catalogue grows continuously from player searches.
+
+To restore over production, stop `songspot.service` first, then use
+`pg_restore --clean --if-exists` against the real database.
+
+### What this does not cover
+
+The dumps sit on the same disk as the cluster. They protect against a bad
+migration, a wrong `DELETE` or a dropped table — **not** against losing the
+VPS. An off-site copy is still missing; encrypt it if you add one, since the
+dump contains user emails and password hashes.
+
+---
+
 ## 15. Production `.env` Reference
 
 ```env
@@ -373,16 +449,9 @@ ALLOWED_HOSTS=api.yourdomain.com,YOUR_VPS_IP
 # Database
 DATABASE_URL=postgres://songspot_user:password@localhost:5432/songspot
 
-# Celery
-CELERY_BROKER_URL=redis://localhost:6379/0
-CELERY_RESULT_BACKEND=redis://localhost:6379/0
-
 # Channels (Redis-backed websocket fan-out)
 USE_REDIS_CHANNEL_LAYER=True
 CHANNEL_LAYERS_REDIS_URL=redis://localhost:6379/1
-
-# Stems cleanup (hours)
-STEM_TTL_HOURS=72
 
 # Security
 CSRF_TRUSTED_ORIGINS=https://api.yourdomain.com
@@ -431,13 +500,12 @@ Set in `Settings -> Secrets and variables -> Actions`:
 2. Ensure `main` tracks the remote correctly
 3. Ensure the VPS user can run:
    - `sudo -n systemctl restart songspot`
-   - `sudo -n systemctl restart songspot-celery`
 
 The deploy script (`scripts/deploy_backend.sh`) runs:
 - `pip install -r requirements.txt`
 - `python manage.py migrate --noinput`
 - `python manage.py collectstatic --noinput`
-- Restarts `songspot` and `songspot-celery` services
+- Restarts the `songspot` service
 
 ---
 
@@ -481,15 +549,15 @@ For AdMob, make sure your app store listing website domain matches the same doma
 ```bash
 # Service status
 sudo systemctl status songspot
-sudo systemctl status songspot-celery
 sudo systemctl status nginx
+systemctl list-timers 'songspot-*'
 
 # Logs
 sudo journalctl -u songspot -f
-sudo journalctl -u songspot-celery -f
+sudo journalctl -u songspot-refresh-catalog -f
 
 # Restart everything
-sudo systemctl restart songspot songspot-celery nginx
+sudo systemctl restart songspot nginx
 
 # Django management
 cd /var/www/songspot/songspot_backend
@@ -505,11 +573,11 @@ python manage.py createsuperuser
 - [ ] PostgreSQL installed, database and user created
 - [ ] `.env` configured with all production values
 - [ ] Django migrations run
-- [ ] Tracks populated (`seed_curated_artists`)
-- [ ] FFmpeg installed (`apt install ffmpeg`, required for Demucs stem generation)
+- [ ] Catalogue populated (`refresh_catalog`), every category non-empty
 - [ ] Redis installed and running
 - [ ] Daphne service running (`songspot.service`)
-- [ ] Celery worker running (`songspot-celery.service`)
+- [ ] Catalogue timers enabled (`systemctl list-timers 'songspot-*'`)
+- [ ] Database backup timer enabled, and one dump restored into a scratch database
 - [ ] Nginx configured with SSL
 - [ ] Static files collected
 - [ ] Firewall configured (UFW)
