@@ -809,3 +809,47 @@ class PlayableQueryShapeTests(TestCase):
         track = self._track_by('Ordinary Act', 9005)
         directed = catalog.playable(Track.objects.all(), directed=True)
         self.assertIn(track.pk, {t.pk for t in directed})
+
+
+class ShortTokenSearchTests(TestCase):
+    """
+    A token too short for a trigram index must not reach the table unanchored.
+
+    `%xx%` cannot use a trigram index — they store three-character sequences —
+    so a two-letter word made Postgres read all 1.6M rows across three parallel
+    workers, 1282ms a go, on the endpoint players hit per keystroke. Anchoring
+    short tokens puts them on the `varchar_pattern_ops` b-tree instead.
+    """
+
+    def setUp(self):
+        cache.clear()
+
+    def test_short_token_matches_at_the_start(self):
+        _make_track(title='Beautiful Day', artist='U2')
+        results = catalog.search_tracks('u2')
+        self.assertEqual([t.artist for t in results], ['U2'])
+
+    def test_short_token_no_longer_matches_mid_field(self):
+        # The deliberate cost of anchoring: `it` stops offering `Do It`.
+        _make_track(title='Do It', artist='Chase Atlantic')
+        self.assertEqual(catalog.search_tracks('it'), [])
+
+    def test_short_token_query_carries_no_leading_wildcard(self):
+        sql = str(Track.objects.filter(catalog._query_filter('u2')).query)
+        self.assertNotIn('%u2%', sql)
+        self.assertIn('LIKE u2%', sql)
+
+    def test_long_token_still_matches_mid_field(self):
+        _make_track(title='Blinding Lights', artist='The Weeknd')
+        results = catalog.search_tracks('lights')
+        self.assertEqual([t.title for t in results], ['Blinding Lights'])
+
+    def test_mixed_lengths_apply_their_own_rule(self):
+        _make_track(title='Do It', artist='Chase Atlantic')
+        _make_track(title='Doing Fine', artist='Chase Atlantic')
+        # `do` anchors, `chase` does not — both tracks start with "do", so the
+        # long token is what separates them.
+        results = catalog.search_tracks('do chase')
+        self.assertEqual(
+            sorted(t.title for t in results), ['Do It', 'Doing Fine'],
+        )
