@@ -258,6 +258,40 @@ class SearchMiss(models.Model):
         return f'{self.query} ({self.hits})'
 
 
+class SearchEnrichment(models.Model):
+    """
+    A query already sent to Deezer, so it is not sent again for a week.
+
+    This lived in the Redis cache and could not survive there. Redis runs at
+    its 2GB cap under `allkeys-lru`, evicting whatever is coldest, and a claim
+    is by nature never read again once written — so it was always among the
+    first to go, gone in hours rather than the week it was set for. Every lost
+    claim reopened its query for enrichment, and the same fifty tracks were
+    imported again the next time somebody typed it. That is what held track
+    ingestion at a floor of ~17k rows an hour that never decayed, against a
+    design meant to quieten down as the gaps players hit get filled.
+
+    Deliberately not folded into `SearchMiss`, which looks similar and is not:
+    a miss is a query with *no* answer at all and is the crawler's seed queue,
+    while a claim is also taken for queries that returned a few rows. Writing
+    these there would feed the crawler seeds it should never follow.
+    """
+    kind = models.CharField(max_length=16, help_text="'tracks' or 'artists'.")
+    norm_query = models.CharField(max_length=255)
+    enriched_at = models.DateTimeField()
+
+    class Meta:
+        db_table = 'search_enrichments'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['kind', 'norm_query'], name='uniq_search_enrichment',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.kind}:{self.norm_query}'
+
+
 CATEGORY_CHOICES = [
     ('pop', 'Pop'),
     ('hiphop', 'Hip-Hop / Rap'),
