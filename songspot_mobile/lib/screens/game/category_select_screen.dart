@@ -123,7 +123,7 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
     final isGuest = context.read<AuthProvider>().isGuest;
     final results = await Future.wait([
       _loadArtists(_api.getTrendingArtists),
-      if (isGuest) Future.value(const <ArtistInfo>[])
+      if (isGuest) Future.value(<ArtistInfo>[])
       else _loadArtists(_api.getFavouriteArtists),
     ]);
     if (!mounted) return;
@@ -144,7 +144,10 @@ class _CategorySelectScreenState extends State<CategorySelectScreen>
           .map((j) => ArtistInfo.fromJson(j as Map<String, dynamic>))
           .toList();
     } catch (_) {
-      return const [];
+      // Growable, never `const []`: a failed fetch still has to leave a list the
+      // player can add a favourite to. The unmodifiable literal crashed
+      // _toggleFavourite's insert the moment the API was down.
+      return <ArtistInfo>[];
     }
   }
 
