@@ -633,10 +633,20 @@ def bulk_upsert_tracks(infos: Iterable[dict]) -> list[Track]:
     sync_artists_from_tracks(infos)
 
     if creates:
+        # Sorted on the identity Postgres indexes, because ignore_conflicts only
+        # settles who wins a collision — not the order the rows are locked in.
+        # Two workers importing the same Deezer page in the orders they happened
+        # to receive it each held an index tuple the other was waiting on, and
+        # Postgres broke the tie by killing one with `deadlock detected`. A total
+        # order every worker agrees on means the second one queues instead.
+        creates.sort(key=lambda t: (t.deezer_id or 0, t.norm_title, t.norm_artist))
         # ignore_conflicts because another worker may be importing the same
         # search results right now; theirs is as good as ours.
         Track.objects.bulk_create(creates, ignore_conflicts=True, batch_size=200)
     if updates and changed_fields:
+        # Same reasoning as the sort above: concurrent updates touching one row
+        # set deadlock just as readily as concurrent inserts.
+        updates.sort(key=lambda t: str(t.pk))
         Track.objects.bulk_update(updates, sorted(changed_fields), batch_size=200)
 
     return seen
