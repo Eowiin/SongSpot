@@ -12,6 +12,7 @@ from unittest.mock import patch
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase
+from django.utils import timezone
 
 from game.models import Artist, SearchMiss, Track
 
@@ -144,3 +145,50 @@ class PayloadRejectionTests(TestCase):
         low = DeezerService().extract_track_info(_track(2, rank=10))
         small = Artist(deezer_id=901, name='Small Act', nb_fan=12)
         self.assertIsNone(payload_rejection(low, small, directed=True))
+
+
+class UnknownFollowerCountTests(TestCase):
+    """
+    An artist whose follower count was never fetched must not slip past the
+    floor unmeasured. Search enrichment creates rows with nb_fan 0 — those
+    payloads carry no count — so the crawl has to look it up before deciding.
+    """
+
+    def setUp(self):
+        SearchMiss.objects.create(query='small act', norm_query='small act', hits=3)
+
+    def test_an_unmeasured_artist_is_looked_up_before_the_floor_decides(self):
+        # Already known, named, but never measured: the state the crawl used to
+        # read as "no floor applies".
+        Artist.objects.create(deezer_id=901, name='Small Act', norm_name='small act', nb_fan=0)
+        full = {'id': 901, 'name': 'Small Act', 'nb_fan': 12}
+
+        with _crawl([_track(1, rank=900_000)], artist=full):
+            call_command('crawl_artists', seeds_only='misses')
+
+        self.assertEqual(Track.objects.count(), 0)
+        # The lookup must also be written back, or every run re-fetches it.
+        self.assertEqual(Artist.objects.get(deezer_id=901).nb_fan, 12)
+
+    def test_an_unmeasured_artist_over_the_floor_still_gets_its_tracks(self):
+        Artist.objects.create(deezer_id=900, name='Famous Act', norm_name='famous act', nb_fan=0)
+
+        with _crawl([_track(1, rank=900_000)]):
+            call_command('crawl_artists', seeds_only='misses')
+
+        self.assertEqual(Track.objects.count(), 1)
+
+    def test_an_already_stocked_artist_costs_no_extra_lookup(self):
+        # top_refreshed_at set: no track decision pending, so nb_fan is not
+        # worth a call however unknown it is.
+        Artist.objects.create(
+            deezer_id=901, name='Small Act', norm_name='small act', nb_fan=0,
+            top_refreshed_at=timezone.now(),
+        )
+        full = {'id': 901, 'name': 'Small Act', 'nb_fan': 12}
+
+        with _crawl([], artist=full), \
+             patch('game.services.DeezerService.get_artist') as get_artist:
+            call_command('crawl_artists', seeds_only='misses')
+
+        get_artist.assert_not_called()

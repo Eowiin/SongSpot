@@ -155,7 +155,27 @@ class Command(BaseCommand):
             artist_id = queue.popleft()
 
             artist = Artist.objects.filter(deezer_id=artist_id).first()
-            if artist is None or not artist.name:
+            # Fetch the artist record when we do not hold it — or when its
+            # follower count is still unknown and a track decision is pending.
+            #
+            # The floor cannot judge on a count nobody ever looked up, and
+            # `sync_artists_from_tracks` creates rows with nb_fan 0 from search
+            # payloads, which carry no follower count. Skipping this check let
+            # every such artist through the floor unmeasured: 7 570 of the
+            # artists the crawl had already visited sat at nb_fan 0, and their
+            # tracks were imported without anything ever deciding they were
+            # worth it.
+            #
+            # Gated on `top_refreshed_at` so the call is only spent when its
+            # answer changes what happens next. An artist already stocked needs
+            # no track decision, and a genuine zero would otherwise cost one
+            # wasted call every night forever.
+            needs_fetch = (
+                artist is None
+                or not artist.name
+                or (not artist.nb_fan and artist.top_refreshed_at is None)
+            )
+            if needs_fetch:
                 payload = deezer.get_artist(artist_id)
                 calls += 1
                 if not payload:
