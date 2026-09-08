@@ -143,9 +143,18 @@ class NextSongView(APIView):
                 qs = Track.objects.filter(artist__icontains=artist_name)
                 pool_size = None
         elif playlist_id:
-            track_ids = PlaylistTrack.objects.filter(
-                playlist_id=playlist_id
-            ).values_list('track_id', flat=True)
+            # Read the ids out rather than leaving the queryset lazy. Nested,
+            # this becomes a subquery, and Postgres answers it by scanning all
+            # 1.6M tracks and hash-joining the playlist's ~700 rows onto the
+            # result — the whole catalogue read to serve one round. Handed the
+            # ids as values it does the join the other way round, looking each
+            # one up by primary key. Playlists are bounded (the largest holds
+            # 1328 tracks), so the list is small enough to pass inline.
+            track_ids = list(
+                PlaylistTrack.objects
+                .filter(playlist_id=playlist_id)
+                .values_list('track_id', flat=True)
+            )
             qs = Track.objects.filter(id__in=track_ids)
             playlist = Playlist.objects.filter(id=playlist_id).first()
             if playlist is not None:

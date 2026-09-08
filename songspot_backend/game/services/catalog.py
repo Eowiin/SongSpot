@@ -37,6 +37,7 @@ about ranks or fan counts.
 import hashlib
 import logging
 import math
+import time
 from datetime import timedelta
 from typing import Iterable, Optional
 
@@ -46,7 +47,7 @@ from django.utils import timezone
 
 from ..models import Artist, CatalogSetting, SearchMiss, Track
 from . import background
-from .cache_utils import cache_add, cache_delete
+from .cache_utils import cache_add, cache_delete, cache_get, cache_set
 from .deezer_http import DeezerHttp
 from .deezer_service import DeezerService
 from .matching import (
@@ -703,6 +704,55 @@ def bulk_upsert_tracks(infos: Iterable[dict]) -> list[Track]:
 
 # ── Quality floor (undirected picks only) ────────────────────────────────────
 
+JUNK_ARTISTS_CACHE_KEY = 'junk_artist_ids_v1'
+JUNK_ARTISTS_SHARED_TTL = 300
+# Process-local tier in front of the shared cache, for the same reason
+# CatalogSetting keeps one: this list is read on every undirected pick, and
+# next-song is the second busiest endpoint there is.
+JUNK_ARTISTS_LOCAL_TTL = 30
+_junk_artists_local: Optional[tuple[float, list[int]]] = None
+
+
+def junk_artist_ids() -> list[int]:
+    """
+    Deezer IDs of every artist undirected picks must not serve.
+
+    Materialised rather than left lazy, which is the whole point. As a queryset
+    this went into `playable()` as a *subquery*, so Postgres re-derived it on
+    every round — a parallel sequential scan of 428k artists to find the 728
+    that are flagged, on the hot path of every game. The list itself is small
+    and changes only when the crawler flags a covers act or an admin blocks
+    someone, so it caches well; `clear_junk_artist_cache()` drops it when it
+    does change.
+    """
+    global _junk_artists_local
+
+    if _junk_artists_local is not None:
+        expires_at, ids = _junk_artists_local
+        if time.monotonic() < expires_at:
+            return ids
+
+    ids = cache_get(JUNK_ARTISTS_CACHE_KEY)
+    if ids is None:
+        ids = list(
+            Artist.objects
+            .filter(Q(is_junk=True) | Q(is_blocked=True))
+            .values_list('deezer_id', flat=True)
+        )
+        cache_set(JUNK_ARTISTS_CACHE_KEY, ids, JUNK_ARTISTS_SHARED_TTL)
+
+    _junk_artists_local = (time.monotonic() + JUNK_ARTISTS_LOCAL_TTL, ids)
+    return ids
+
+
+def clear_junk_artist_cache() -> None:
+    """Forget the memoised junk list, both tiers."""
+    global _junk_artists_local
+
+    _junk_artists_local = None
+    cache_delete(JUNK_ARTISTS_CACHE_KEY)
+
+
 def playable(qs: QuerySet, directed: bool = False) -> QuerySet:
     """
     Restrict a track queryset to what is worth playing.
@@ -721,9 +771,6 @@ def playable(qs: QuerySet, directed: bool = False) -> QuerySet:
         return qs
 
     config = settings_row()
-    junk_artist_ids = Artist.objects.filter(
-        Q(is_junk=True) | Q(is_blocked=True)
-    ).values_list('deezer_id', flat=True)
 
     return (
         # Variants are answers, not rounds. See Track.is_variant for why this
@@ -741,7 +788,7 @@ def playable(qs: QuerySet, directed: bool = False) -> QuerySet:
             | Q(rank=0)
             | Q(rank__gte=config.min_track_rank)
         )
-        .exclude(deezer_artist_id__in=junk_artist_ids)
+        .exclude(deezer_artist_id__in=junk_artist_ids())
     )
 
 
