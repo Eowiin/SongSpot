@@ -35,7 +35,12 @@ from game.models import Artist, CatalogSetting, Playlist, PlaylistTrack
 from game.services import DeezerService
 from game.services.deezer_http import BULK_MAX_WAIT, DeezerHttp
 from game.services import cache_utils
-from game.services.catalog import is_playable_payload, upsert_artist, upsert_track
+from game.services.catalog import (
+    is_playable_payload,
+    purge_expired_claims,
+    upsert_artist,
+    upsert_track,
+)
 
 # Where each category refills from.
 #
@@ -177,6 +182,15 @@ class Command(BaseCommand):
                 'Slower, and heavier on the Deezer quota. Check CACHE_REDIS_URL '
                 '(or comment CHANNEL_LAYERS_REDIS_URL out for a local run).'
             ))
+
+        # Swept here because this is the daily catalogue job and a claim is
+        # catalogue bookkeeping. Dropping an expired one changes no behaviour —
+        # `_claim` hands it to the next caller anyway — but the cache they used
+        # to live in expired them for free, and a table will not.
+        if not dry_run:
+            purged = purge_expired_claims()
+            if purged:
+                self.stdout.write(f'{purged} expired enrichment claims dropped')
 
         cutoff = timezone.now() - timezone.timedelta(hours=config.playlist_ttl_hours)
 

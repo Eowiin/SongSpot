@@ -34,7 +34,6 @@ guess. Answer acceptance lives in `matching.py` and deliberately knows nothing
 about ranks or fan counts.
 """
 
-import hashlib
 import logging
 import math
 import time
@@ -45,9 +44,15 @@ from django.db import IntegrityError, transaction
 from django.db.models import F, Q, QuerySet
 from django.utils import timezone
 
-from ..models import Artist, CatalogSetting, SearchMiss, Track
+from ..models import (
+    Artist,
+    CatalogSetting,
+    SearchEnrichment,
+    SearchMiss,
+    Track,
+)
 from . import background
-from .cache_utils import cache_add, cache_delete, cache_get, cache_set
+from .cache_utils import cache_delete, cache_get, cache_set
 from .deezer_http import DeezerHttp
 from .deezer_service import DeezerService
 from .matching import (
@@ -145,17 +150,66 @@ ENRICH_DEDUP_TTL = 60 * 60 * 24 * 7
 SYNC_MAX_WAIT = 1.0
 
 
-def _enrich_key(kind: str, query: str) -> str:
-    # Hashed rather than interpolated: a query contains spaces and arbitrary
-    # punctuation, which some cache backends reject and all of them make
-    # awkward to read back.
-    digest = hashlib.sha1(normalize_query(query).encode()).hexdigest()[:16]
-    return f'enrich:{kind}:{digest}'
-
-
 def _claim(kind: str, query: str) -> bool:
-    """True if this caller is the one that should enrich `query`."""
-    return cache_add(_enrich_key(kind, query), 1, timeout=ENRICH_DEDUP_TTL)
+    """
+    True if this caller is the one that should enrich `query`.
+
+    Recorded in Postgres rather than the cache, which is the whole point: see
+    `SearchEnrichment` for why a claim cannot survive in Redis, and what it
+    cost when it did not.
+    """
+    norm = normalize_query(query)[:255]
+    if not norm:
+        return False
+
+    now = timezone.now()
+    try:
+        _, created = SearchEnrichment.objects.get_or_create(
+            kind=kind, norm_query=norm, defaults={'enriched_at': now},
+        )
+    except IntegrityError:
+        # Another worker inserted the same claim between the read and the write.
+        return False
+    if created:
+        return True
+
+    # An expired claim is up for grabs, but by one caller only: filtering on
+    # the age inside the UPDATE makes this a compare-and-swap, so a second
+    # worker arriving at the same moment updates no rows and stands down.
+    stale_before = now - timedelta(seconds=ENRICH_DEDUP_TTL)
+    return bool(
+        SearchEnrichment.objects
+        .filter(kind=kind, norm_query=norm, enriched_at__lt=stale_before)
+        .update(enriched_at=now)
+    )
+
+
+def purge_expired_claims() -> int:
+    """
+    Drop enrichment claims old enough to be re-taken. Returns how many went.
+
+    Semantically a no-op — `_claim` already hands an expired row to the next
+    caller — so this is only about size. It exists because the cache these
+    moved out of expired them for free, and a table does not: without a sweep
+    the row count would climb with every distinct query ever typed.
+    """
+    stale_before = timezone.now() - timedelta(seconds=ENRICH_DEDUP_TTL)
+    deleted, _ = (
+        SearchEnrichment.objects.filter(enriched_at__lt=stale_before).delete()
+    )
+    return deleted
+
+
+def _release(kind: str, query: str) -> None:
+    """
+    Drop a claim so the query can be enriched again.
+
+    Used when the enrichment never actually ran. Keeping the claim would mean
+    the query goes unenriched for a week on the strength of one busy moment.
+    """
+    norm = normalize_query(query)[:255]
+    if norm:
+        SearchEnrichment.objects.filter(kind=kind, norm_query=norm).delete()
 
 
 def _enrich_later(fn, kind: str, query: str) -> None:
@@ -163,9 +217,7 @@ def _enrich_later(fn, kind: str, query: str) -> None:
     if not _claim(kind, query):
         return
     if not background.submit(fn, query):
-        # Dropped, so release the claim: holding it for a week would mean this
-        # query is never enriched at all, on the strength of one busy moment.
-        cache_delete(_enrich_key(kind, query))
+        _release(kind, query)
 
 
 def _enrich_now(fn, kind: str, query: str) -> Optional[list]:
@@ -187,7 +239,7 @@ def _enrich_now(fn, kind: str, query: str) -> Optional[list]:
         return fn(query, max_wait=SYNC_MAX_WAIT)
     except Exception:
         logger.exception('inline enrichment failed for %r', query)
-        cache_delete(_enrich_key(kind, query))
+        _release(kind, query)
         return None
 
 

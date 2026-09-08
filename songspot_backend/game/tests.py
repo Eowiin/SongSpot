@@ -7,7 +7,10 @@ from rest_framework.test import APITestCase
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from authentication.models import User
-from .models import Artist, Track, FavouriteArtist, GameScore, UserBest, Playlist, PlaylistTrack
+from .models import (
+    Artist, Track, FavouriteArtist, GameScore, UserBest, Playlist, PlaylistTrack,
+    SearchEnrichment,
+)
 from .services import catalog
 
 from django.core.cache import cache
@@ -853,3 +856,80 @@ class ShortTokenSearchTests(TestCase):
         self.assertEqual(
             sorted(t.title for t in results), ['Do It', 'Doing Fine'],
         )
+
+
+class EnrichmentClaimTests(TestCase):
+    """
+    A claim has to outlive the cache, because in the cache it did not.
+
+    Redis sits at its 2GB cap under `allkeys-lru` and a claim is never read
+    once written, so it was evicted within hours of a week-long TTL. Each loss
+    reopened its query and re-imported the same fifty tracks, which is what
+    held ingestion at a floor that never decayed.
+    """
+
+    def setUp(self):
+        cache.clear()
+
+    def test_first_caller_claims_and_second_does_not(self):
+        self.assertTrue(catalog._claim('tracks', 'despacito'))
+        self.assertFalse(catalog._claim('tracks', 'despacito'))
+
+    def test_claim_survives_the_cache_being_wiped(self):
+        self.assertTrue(catalog._claim('tracks', 'despacito'))
+        cache.clear()
+        self.assertFalse(catalog._claim('tracks', 'despacito'))
+
+    def test_claim_is_keyed_on_the_normalised_query(self):
+        self.assertTrue(catalog._claim('tracks', 'Rosalía'))
+        self.assertFalse(catalog._claim('tracks', 'rosalia'))
+
+    def test_kinds_claim_independently(self):
+        self.assertTrue(catalog._claim('tracks', 'rosalia'))
+        self.assertTrue(catalog._claim('artists', 'rosalia'))
+
+    def test_expired_claim_is_reusable(self):
+        self.assertTrue(catalog._claim('tracks', 'despacito'))
+        SearchEnrichment.objects.update(
+            enriched_at=timezone.now() - timedelta(seconds=catalog.ENRICH_DEDUP_TTL + 60)
+        )
+        self.assertTrue(catalog._claim('tracks', 'despacito'))
+
+    def test_expired_claim_goes_to_one_caller_only(self):
+        self.assertTrue(catalog._claim('tracks', 'despacito'))
+        SearchEnrichment.objects.update(
+            enriched_at=timezone.now() - timedelta(seconds=catalog.ENRICH_DEDUP_TTL + 60)
+        )
+        # Two workers racing on the same expired claim: the compare-and-swap
+        # inside the UPDATE has to let exactly one of them through.
+        self.assertTrue(catalog._claim('tracks', 'despacito'))
+        self.assertFalse(catalog._claim('tracks', 'despacito'))
+
+    def test_release_reopens_the_query(self):
+        self.assertTrue(catalog._claim('tracks', 'despacito'))
+        catalog._release('tracks', 'despacito')
+        self.assertTrue(catalog._claim('tracks', 'despacito'))
+
+    def test_blank_query_never_claims(self):
+        self.assertFalse(catalog._claim('tracks', '   '))
+        self.assertEqual(SearchEnrichment.objects.count(), 0)
+
+
+class PurgeExpiredClaimsTests(TestCase):
+    """The sweep the cache used to do for free, now that claims are rows."""
+
+    def test_expired_claims_go_and_live_ones_stay(self):
+        catalog._claim('tracks', 'fresh')
+        catalog._claim('tracks', 'ancient')
+        SearchEnrichment.objects.filter(norm_query='ancient').update(
+            enriched_at=timezone.now() - timedelta(seconds=catalog.ENRICH_DEDUP_TTL + 60)
+        )
+
+        self.assertEqual(catalog.purge_expired_claims(), 1)
+        self.assertEqual(
+            list(SearchEnrichment.objects.values_list('norm_query', flat=True)),
+            ['fresh'],
+        )
+
+    def test_purge_is_safe_on_an_empty_table(self):
+        self.assertEqual(catalog.purge_expired_claims(), 0)
