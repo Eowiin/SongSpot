@@ -493,9 +493,13 @@ class DeezerService:
             None
         )
 
+        # Truncated to the column widths in game.models.Track. Deezer serves the
+        # occasional title carrying its whole remix credit, and an overlong one
+        # does not fail alone: it raises DataError inside a bulk_create and takes
+        # the other 199 rows of the batch down with it.
         return {
-            'title': track_data.get('title', ''),
-            'artist': artist_data.get('name', ''),
+            'title': track_data.get('title', '')[:255],
+            'artist': artist_data.get('name', '')[:255],
             # The artist *entity*, not the credited name. Two releases of one
             # song can spell the credit differently; the ID does not move.
             'deezer_artist_id': artist_data.get('id'),
@@ -505,7 +509,7 @@ class DeezerService:
             'duration': track_data.get('duration', 0),
             'album': album_data.get('title', ''),
             'release_year': release_year,
-            'genre': genre,
+            'genre': genre[:100] if genre else genre,
             'rank': track_data.get('rank', 0),
             'artist_picture_url': artist_picture_url,
         }

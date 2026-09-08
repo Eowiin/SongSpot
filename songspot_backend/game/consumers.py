@@ -6,7 +6,7 @@ import logging
 import random
 import time
 
-from asgiref.sync import sync_to_async
+from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from django.db import transaction
 
@@ -175,8 +175,15 @@ class MatchmakingConsumer(AsyncWebsocketConsumer):
             pass
 
     # ── DB helpers ────────────────────────────────────────────────────────────
+    #
+    # database_sync_to_async, never asgiref's bare sync_to_async: the wrapper is
+    # what closes the thread's Postgres connection on the way out. A consumer's
+    # worker thread outlives the socket, so with the bare version every player in
+    # a duel pinned one connection for the whole match and nothing ever recycled
+    # it — prod ran out of connection slots and every endpoint, not just the
+    # WebSocket ones, started refusing to connect.
 
-    @sync_to_async
+    @database_sync_to_async
     def _try_create_match(self, elo_range):
         try:
             with transaction.atomic():
@@ -219,23 +226,23 @@ class MatchmakingConsumer(AsyncWebsocketConsumer):
             logger.warning('[matchmaking] error user=%s: %s', self.user.id, e)
             return None
 
-    @sync_to_async
+    @database_sync_to_async
     def _join_queue(self):
         MatchmakingQueue.objects.update_or_create(
             user=self.user,
             defaults={'elo_at_join': self.current_elo, 'playlist_id': self.playlist_id},
         )
 
-    @sync_to_async
+    @database_sync_to_async
     def _leave_queue(self):
         MatchmakingQueue.objects.filter(user=self.user).delete()
 
-    @sync_to_async
+    @database_sync_to_async
     def _get_or_create_elo(self):
         obj, _ = UserElo.objects.get_or_create(user=self.user, defaults={'elo': 1000})
         return obj
 
-    @sync_to_async
+    @database_sync_to_async
     def _get_elo(self, user):
         obj, _ = UserElo.objects.get_or_create(user=user, defaults={'elo': 1000})
         return obj.elo
@@ -457,7 +464,7 @@ class DuelConsumer(AsyncWebsocketConsumer):
         # the same artist — and every other match on it in the same ten-minute
         # window — share one call instead of paying one per round.
         try:
-            preview_url = await sync_to_async(previews.resolve)(round_obj.track) or ''
+            preview_url = await database_sync_to_async(previews.resolve)(round_obj.track) or ''
         except Exception:
             logger.warning('[start_round] preview lookup failed for track %s', round_obj.track.id)
             preview_url = ''
@@ -593,7 +600,7 @@ class DuelConsumer(AsyncWebsocketConsumer):
             'new_elo': {'player': new_elo, 'opponent': 0},
         }))
 
-    @sync_to_async
+    @database_sync_to_async
     def _get_player_elo(self):
         user_id = self.match.player1_id if self.player_num == 1 else self.match.player2_id
         obj, _ = UserElo.objects.get_or_create(user_id=user_id, defaults={'elo': 1000})
@@ -621,7 +628,7 @@ class DuelConsumer(AsyncWebsocketConsumer):
                 # Resolved, not read from the row: a player who reconnects is
                 # by definition arriving late, which is exactly when the stored
                 # URL has expired.
-                'preview_url': await sync_to_async(previews.resolve)(round_obj.track) or '',
+                'preview_url': await database_sync_to_async(previews.resolve)(round_obj.track) or '',
                 'cover_url': round_obj.track.cover_url or '',
             },
             'time_remaining': time_remaining if round_active else 0,
@@ -800,21 +807,21 @@ class DuelConsumer(AsyncWebsocketConsumer):
 
     # ── DB helpers ────────────────────────────────────────────────────────────
 
-    @sync_to_async
+    @database_sync_to_async
     def _load_match(self):
         try:
             return DuelMatch.objects.select_related('player1', 'player2').get(id=self.match_id)
         except DuelMatch.DoesNotExist:
             return None
 
-    @sync_to_async
+    @database_sync_to_async
     def _load_match_fresh(self):
         try:
             return DuelMatch.objects.get(id=self.match_id)
         except DuelMatch.DoesNotExist:
             return None
 
-    @sync_to_async
+    @database_sync_to_async
     def _get_round(self, round_number):
         try:
             return DuelRound.objects.select_related('track').get(
@@ -823,20 +830,20 @@ class DuelConsumer(AsyncWebsocketConsumer):
         except DuelRound.DoesNotExist:
             return None
 
-    @sync_to_async
+    @database_sync_to_async
     def _db_set_current_round(self, round_number):
         DuelMatch.objects.filter(id=self.match_id).update(
             current_round=round_number, status='in_progress',
         )
 
-    @sync_to_async
+    @database_sync_to_async
     def _db_check_guess(self, answer_track_id, guess_track_id: str) -> bool:
         answer = Track.objects.filter(id=answer_track_id).first()
         if answer is None or not guess_track_id:
             return False
         return catalog.check_guess(answer, guess_track_id=guess_track_id)
 
-    @sync_to_async
+    @database_sync_to_async
     def _db_save_guess(self, round_id, is_correct, points, snippets_used):
         from django.utils import timezone as tz
         now = tz.now()
@@ -855,13 +862,13 @@ class DuelConsumer(AsyncWebsocketConsumer):
                 player2_submitted_at=now,
             )
 
-    @sync_to_async
+    @database_sync_to_async
     def _db_update_scores(self, p1_score, p2_score):
         DuelMatch.objects.filter(id=self.match_id).update(
             player1_score=p1_score, player2_score=p2_score,
         )
 
-    @sync_to_async
+    @database_sync_to_async
     def _db_update_elos(self, p1_result, p2_result):
         with transaction.atomic():
             p1_obj, _ = UserElo.objects.select_for_update().get_or_create(
@@ -875,19 +882,19 @@ class DuelConsumer(AsyncWebsocketConsumer):
             p2_obj.update(opponent_elo=old_p1, result=p2_result)
             return p1_obj.elo, p2_obj.elo, p1_obj.elo - old_p1, p2_obj.elo - old_p2
 
-    @sync_to_async
+    @database_sync_to_async
     def _db_finalize(self, winner_id):
         DuelMatch.objects.filter(id=self.match_id).update(
             status='completed', winner_id=winner_id,
         )
 
-    @sync_to_async
+    @database_sync_to_async
     def _maybe_abandon(self):
         DuelMatch.objects.filter(id=self.match_id, status='in_progress').update(
             status='abandoned',
         )
 
-    @sync_to_async
+    @database_sync_to_async
     def _db_forfeit_round(self, round_number: int, player_num: int):
         from django.utils import timezone as tz
         now = tz.now()

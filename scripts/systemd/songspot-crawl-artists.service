@@ -10,7 +10,13 @@ Type=oneshot
 User=root
 WorkingDirectory=/var/www/songspot/songspot_backend
 EnvironmentFile=/var/www/songspot/songspot_backend/.env
-ExecStart=/var/www/songspot/songspot_backend/.venv/bin/python manage.py crawl_artists
+# --seeds-only misses: start from the searches players actually ran and got
+# nothing for, rather than walking Deezer's graph at large. The difference is
+# convergence, not thrift. A walk seeded from charts has an effectively endless
+# reservoir — it added ~90k tracks an hour for two days straight and showed no
+# sign of slowing — while a walk seeded from misses is bounded by what players
+# ask for, so it quiets down once the gaps they hit are filled.
+ExecStart=/var/www/songspot/songspot_backend/.venv/bin/python manage.py crawl_artists --seeds-only misses
 
 # Paced against a third-party rate limit, so it is slow by design. It must
 # never overlap with the next run, and never with refresh_catalog — the two

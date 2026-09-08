@@ -114,3 +114,36 @@ class DeezerServiceMetadataTests(SimpleTestCase):
         self.assertEqual(info['release_year'], 1998)
         self.assertEqual(info['genre'], 'Rock')
         self.assertEqual(info['cover_url'], 'https://example.com/cover-xl.jpg')
+
+
+class DeezerServiceFieldWidthTests(SimpleTestCase):
+    """A Deezer payload has to fit the columns in game.models.Track."""
+
+    def test_overlong_title_and_artist_are_truncated(self):
+        service = DeezerService()
+
+        info = service.extract_track_info({
+            'id': 99,
+            'title': 'T' * 400,
+            'preview': 'https://example.com/99.mp3',
+            'artist': {'name': 'A' * 400},
+        })
+
+        # 255 is Track.title / Track.artist. Left whole, one of these raises
+        # DataError inside bulk_create and loses the other 199 rows with it.
+        self.assertEqual(len(info['title']), 255)
+        self.assertEqual(len(info['artist']), 255)
+
+    def test_ordinary_title_and_artist_are_untouched(self):
+        service = DeezerService()
+
+        info = service.extract_track_info({
+            'id': 100,
+            'title': 'Song 100',
+            'preview': 'https://example.com/100.mp3',
+            'artist': {'name': 'Artist 100'},
+        })
+
+        self.assertEqual(info['title'], 'Song 100')
+        self.assertEqual(info['artist'], 'Artist 100')
+        self.assertIsNone(info['genre'])

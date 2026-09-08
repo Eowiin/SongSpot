@@ -311,8 +311,36 @@ def search_artists(query: str, limit: int = 25) -> list[Artist]:
                     a for a in artists if a.deezer_id not in known
                 ]
 
-    artists.sort(key=lambda a: (a.is_junk, -a.nb_fan))
+    norm = normalize_artist(query)
+    artists.sort(key=lambda a: (a.is_junk, _match_tier(a, norm), -a.nb_fan))
     return artists[:limit]
+
+
+#: How well a name answers the query, best first. Sorting on audience *alone*
+#: was the previous rule, and it is why a player searching "nes" was shown The
+#: Rolling Sto*nes*, Eva*nes*cence and Ge*nes*is while the act actually called
+#: NeS — 67 774 fans against their millions — never appeared. Popularity is a
+#: tiebreaker *within* a tier, never across them: that keeps the reason the
+#: audience sort was introduced (of the several acts named "Weeknd", the one
+#: with 14.6M fans is the one meant) while restoring the relevance it dropped.
+TIER_EXACT = 0
+TIER_PREFIX = 1
+TIER_WORD = 2
+TIER_ANYWHERE = 3
+
+
+def _match_tier(artist: Artist, norm: str) -> int:
+    name = artist.norm_name or normalize_artist(artist.name)
+    if name == norm:
+        return TIER_EXACT
+    if name.startswith(norm):
+        return TIER_PREFIX
+    # norm_name is space-separated, so a later word starting with the query is
+    # exactly one preceded by a space. Spelled out rather than done with a
+    # regex because the test database is SQLite and `\y` is Postgres-only.
+    if f' {norm}' in name:
+        return TIER_WORD
+    return TIER_ANYWHERE
 
 
 def resolve_artist(name: str) -> Optional[Artist]:
@@ -371,12 +399,33 @@ def _local_artists(query: str, limit: int) -> list[Artist]:
     `artists`, and an artist we have no row for has no artwork to show.
     """
     norm = normalize_artist(query)
-    found = list(
-        Artist.objects.filter(
-            Q(name__icontains=query) | Q(norm_name__startswith=norm),
-            is_blocked=False,
-        )[:limit]
-    )
+
+    # One tier at a time, each ordered before it is cut. The single query this
+    # replaces had no `order_by` at all, so `[:limit]` took whichever thirty
+    # rows Postgres happened to reach first — "nes" matches 3 293 artists, and
+    # the one actually called NeS was dropped before anything ranked it. The
+    # result was not merely badly ordered, it was non-deterministic.
+    found: list[Artist] = []
+    seen: set[int] = set()
+    for condition in (
+        Q(norm_name=norm),
+        Q(norm_name__startswith=norm),
+        Q(norm_name__contains=f' {norm}'),
+        # Last resort, and the old behaviour: the query buried somewhere
+        # inside. Reached only when the tiers above cannot fill the list.
+        Q(name__icontains=query) | Q(norm_name__contains=norm),
+    ):
+        if len(found) >= limit:
+            break
+        rows = (
+            Artist.objects.filter(condition, is_blocked=False)
+            .exclude(pk__in=seen)
+            .order_by('is_junk', '-nb_fan')[: limit - len(found)]
+        )
+        for artist in rows:
+            seen.add(artist.pk)
+            found.append(artist)
+
     if len(found) >= limit:
         return found
 
@@ -633,10 +682,20 @@ def bulk_upsert_tracks(infos: Iterable[dict]) -> list[Track]:
     sync_artists_from_tracks(infos)
 
     if creates:
+        # Sorted on the identity Postgres indexes, because ignore_conflicts only
+        # settles who wins a collision — not the order the rows are locked in.
+        # Two workers importing the same Deezer page in the orders they happened
+        # to receive it each held an index tuple the other was waiting on, and
+        # Postgres broke the tie by killing one with `deadlock detected`. A total
+        # order every worker agrees on means the second one queues instead.
+        creates.sort(key=lambda t: (t.deezer_id or 0, t.norm_title, t.norm_artist))
         # ignore_conflicts because another worker may be importing the same
         # search results right now; theirs is as good as ours.
         Track.objects.bulk_create(creates, ignore_conflicts=True, batch_size=200)
     if updates and changed_fields:
+        # Same reasoning as the sort above: concurrent updates touching one row
+        # set deadlock just as readily as concurrent inserts.
+        updates.sort(key=lambda t: str(t.pk))
         Track.objects.bulk_update(updates, sorted(changed_fields), batch_size=200)
 
     return seen
@@ -686,14 +745,30 @@ def playable(qs: QuerySet, directed: bool = False) -> QuerySet:
     )
 
 
-def is_playable_payload(
+#: Why a payload was turned away, in the order the floor tests them. Kept as
+#: stable slugs rather than prose because `crawl_artists --floor-report` groups
+#: on them and a report is read by comparing runs.
+REJECT_NO_AUDIO = 'no-audio'
+REJECT_JUNK_ARTIST = 'junk-artist'
+REJECT_VARIANT = 'variant'
+REJECT_RANK = 'rank-below-floor'
+REJECT_ARTIST_FANS = 'artist-below-fan-floor'
+
+
+def payload_rejection(
     info: dict,
     artist: Optional[Artist],
     directed: bool,
     curated: bool = False,
-) -> bool:
+) -> Optional[str]:
     """
-    The same floor as `playable`, applied before a payload is even stored.
+    Why the floor would turn this payload away, or None if it passes.
+
+    The reason is the whole point: a bare yes/no cannot tell you whether a run
+    is being trimmed of karaoke covers or of genuinely popular tracks whose
+    artist simply has few Deezer followers, and those call for opposite
+    decisions. `is_playable_payload` is the boolean view of this function —
+    one implementation, so a report can never drift from the filter it describes.
 
     `curated` means the payload came from a Deezer chart or editorial playlist.
     Those skip the popularity floors, because the source already did that job —
@@ -707,23 +782,33 @@ def is_playable_payload(
     karaoke or tribute act, and it must not be an alternate release.
     """
     if not _playable_payload(info):
-        return False
+        return REJECT_NO_AUDIO
     if directed:
-        return True
+        return None
 
     if is_junk_artist(info.get('artist', '')):
-        return False
+        return REJECT_JUNK_ARTIST
     if is_variant_title(info.get('title', '')):
-        return False
+        return REJECT_VARIANT
     if curated:
-        return True
+        return None
 
     config = settings_row()
     if (info.get('rank') or 0) < config.min_track_rank:
-        return False
+        return REJECT_RANK
     if artist is not None and artist.nb_fan and artist.nb_fan < config.min_artist_fans:
-        return False
-    return True
+        return REJECT_ARTIST_FANS
+    return None
+
+
+def is_playable_payload(
+    info: dict,
+    artist: Optional[Artist],
+    directed: bool,
+    curated: bool = False,
+) -> bool:
+    """Whether the floor would store this payload. See `payload_rejection`."""
+    return payload_rejection(info, artist, directed, curated) is None
 
 
 # ── Directed play: one artist's catalogue ────────────────────────────────────
