@@ -980,6 +980,15 @@ MAX_ARTISTS_PER_TITLE = 3
 # extra token is another LIKE over the table.
 MAX_QUERY_TOKENS = 6
 
+# Shortest token a `%contains%` match may use. A trigram index stores three
+# character sequences, so below three it cannot answer at all and Postgres falls
+# back to reading every row: measured on prod, `%20%` takes 1282ms across three
+# parallel workers where `%202%` takes 48ms on the index. Autocomplete fires per
+# keystroke and a third of real queries carry a word this short — `do it`,
+# `mi manc`, `U2` — so that fallback was the single biggest source of CPU
+# saturation on the box.
+TRIGRAM_MIN_CHARS = 3
+
 
 def _query_filter(query: str) -> Optional[Q]:
     """
@@ -998,18 +1007,35 @@ def _query_filter(query: str) -> Optional[Q]:
     alternatives because normalisation eats words a searcher may well type —
     the leading `The` of `The Weeknd` is stripped from `norm_artist`, and
     `(Live)` never reaches `norm_title`.
+
+    Length: a token too short to be indexed anchors to the start of the field
+    instead of floating inside it. `U2` and `AC` stay findable, and the cost of
+    finding them drops from a scan of the whole table to a b-tree lookup, but a
+    two-letter word no longer matches mid-title — `it` stops offering *Do It*.
+    That trade is deliberate: it is the difference between an autocomplete that
+    answers in single-digit milliseconds and one that saturates four cores.
     """
     tokens = normalize_query(query).split()[:MAX_QUERY_TOKENS]
     if not tokens:
         return None
     combined = Q()
     for token in tokens:
-        combined &= (
-            Q(norm_title__contains=token)
-            | Q(norm_artist__contains=token)
-            | Q(title__icontains=token)
-            | Q(artist__icontains=token)
-        )
+        if len(token) < TRIGRAM_MIN_CHARS:
+            # Prefix only, and only over the normalised columns: those carry the
+            # `varchar_pattern_ops` indexes that make `LIKE 'u2%'` a b-tree
+            # lookup. The raw columns have trigram indexes alone, which a token
+            # this short cannot use in any form.
+            combined &= (
+                Q(norm_title__startswith=token)
+                | Q(norm_artist__startswith=token)
+            )
+        else:
+            combined &= (
+                Q(norm_title__contains=token)
+                | Q(norm_artist__contains=token)
+                | Q(title__icontains=token)
+                | Q(artist__icontains=token)
+            )
     return combined
 
 
