@@ -696,14 +696,30 @@ def playable(qs: QuerySet, directed: bool = False) -> QuerySet:
     )
 
 
-def is_playable_payload(
+#: Why a payload was turned away, in the order the floor tests them. Kept as
+#: stable slugs rather than prose because `crawl_artists --floor-report` groups
+#: on them and a report is read by comparing runs.
+REJECT_NO_AUDIO = 'no-audio'
+REJECT_JUNK_ARTIST = 'junk-artist'
+REJECT_VARIANT = 'variant'
+REJECT_RANK = 'rank-below-floor'
+REJECT_ARTIST_FANS = 'artist-below-fan-floor'
+
+
+def payload_rejection(
     info: dict,
     artist: Optional[Artist],
     directed: bool,
     curated: bool = False,
-) -> bool:
+) -> Optional[str]:
     """
-    The same floor as `playable`, applied before a payload is even stored.
+    Why the floor would turn this payload away, or None if it passes.
+
+    The reason is the whole point: a bare yes/no cannot tell you whether a run
+    is being trimmed of karaoke covers or of genuinely popular tracks whose
+    artist simply has few Deezer followers, and those call for opposite
+    decisions. `is_playable_payload` is the boolean view of this function —
+    one implementation, so a report can never drift from the filter it describes.
 
     `curated` means the payload came from a Deezer chart or editorial playlist.
     Those skip the popularity floors, because the source already did that job —
@@ -717,23 +733,33 @@ def is_playable_payload(
     karaoke or tribute act, and it must not be an alternate release.
     """
     if not _playable_payload(info):
-        return False
+        return REJECT_NO_AUDIO
     if directed:
-        return True
+        return None
 
     if is_junk_artist(info.get('artist', '')):
-        return False
+        return REJECT_JUNK_ARTIST
     if is_variant_title(info.get('title', '')):
-        return False
+        return REJECT_VARIANT
     if curated:
-        return True
+        return None
 
     config = settings_row()
     if (info.get('rank') or 0) < config.min_track_rank:
-        return False
+        return REJECT_RANK
     if artist is not None and artist.nb_fan and artist.nb_fan < config.min_artist_fans:
-        return False
-    return True
+        return REJECT_ARTIST_FANS
+    return None
+
+
+def is_playable_payload(
+    info: dict,
+    artist: Optional[Artist],
+    directed: bool,
+    curated: bool = False,
+) -> bool:
+    """Whether the floor would store this payload. See `payload_rejection`."""
+    return payload_rejection(info, artist, directed, curated) is None
 
 
 # ── Directed play: one artist's catalogue ────────────────────────────────────

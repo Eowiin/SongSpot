@@ -19,6 +19,7 @@ against a rate limit that allows eight a second.
     python manage.py crawl_artists --max-calls 2000     # a smaller bite
     python manage.py crawl_artists --seeds-only misses  # just what players asked for
     python manage.py crawl_artists --dry-run
+    python manage.py crawl_artists --floor-report --max-calls 200   # what a run would keep
 
 **Metadata only.** Preview URLs are signed with a fifteen-minute expiry, so
 importing audio links in a nightly job would be importing dead data. Rounds
@@ -30,14 +31,19 @@ tomorrow's run continues where this one stopped rather than starting over.
 """
 
 import time
-from collections import deque
+from collections import Counter, deque
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
 from game.models import Artist, SearchMiss
 from game.services import DeezerService
-from game.services.catalog import upsert_artist, upsert_tracks
+from game.services.catalog import (
+    payload_rejection,
+    settings_row,
+    upsert_artist,
+    upsert_tracks,
+)
 from game.services.deezer_http import BULK_MAX_WAIT, DeezerHttp
 
 # Calls a run will make before stopping. At the paced eight per second this is
@@ -75,21 +81,52 @@ class Command(BaseCommand):
             help='Follower floor for following an artist\'s neighbours.',
         )
         parser.add_argument(
+            '--track-min-fans', type=int, default=None,
+            help=(
+                "Follower floor for importing an artist's tracks. Defaults to "
+                'the catalogue\'s own min_artist_fans, so the crawl stores what '
+                'the game can actually serve. 0 imports from everyone.'
+            ),
+        )
+        parser.add_argument(
             '--dry-run', action='store_true',
             help='Report what would be crawled without writing or calling.',
+        )
+        parser.add_argument(
+            '--floor-report', action='store_true',
+            help=(
+                'Walk and fetch exactly as a real run would, write nothing, and '
+                'report how much of the haul the quality floor would keep.'
+            ),
         )
 
     def handle(self, *args, **options):
         budget = max(1, options['max_calls'])
         dry_run = options['dry_run']
+        report = options['floor_report']
         min_fans = options['min_fans']
+        # One floor, read from the catalogue settings, so tightening the game's
+        # standard tightens what the crawl bothers to store rather than leaving
+        # the two to drift apart.
+        track_min_fans = options['track_min_fans']
+        if track_min_fans is None:
+            track_min_fans = settings_row().min_artist_fans
+
+        if dry_run and report:
+            raise CommandError(
+                '--dry-run makes no calls, so there is no haul for --floor-report '
+                'to judge. Pick one.'
+            )
+        # Both modes are read-only, and both must leave SearchMiss unmarked: a
+        # miss struck off by a report is a gap the next *real* run would skip.
+        read_only = dry_run or report
 
         # Nobody is waiting on this, and giving up means a thinner catalogue,
         # so it queues behind the rate limiter rather than timing out the way a
         # web request does.
         deezer = DeezerService(http=DeezerHttp(max_wait=BULK_MAX_WAIT))
 
-        seeds = self._seeds(deezer, options.get('seeds_only'), dry_run)
+        seeds = self._seeds(deezer, options.get('seeds_only'), read_only)
         if not seeds:
             self.stdout.write(self.style.WARNING('No seeds — nothing to crawl.'))
             return
@@ -110,6 +147,8 @@ class Command(BaseCommand):
         calls = 0
         imported_artists = 0
         imported_tracks = 0
+        skipped_artists = 0
+        verdicts: Counter[str] = Counter()
         started = time.monotonic()
 
         while queue and calls < budget:
@@ -121,24 +160,55 @@ class Command(BaseCommand):
                 calls += 1
                 if not payload:
                     continue
-                artist = upsert_artist(payload)
+                # A report must not leave the artist behind either, so it holds
+                # the row in memory instead. The floor reads `nb_fan` off it,
+                # which is the whole reason the artist is fetched before the
+                # tracks are judged.
+                artist = _transient_artist(payload) if report else upsert_artist(payload)
                 if artist is None:
                     continue
 
             if artist.is_blocked or artist.is_junk:
                 continue
 
+            # An artist below the floor is still worth *having* — the row is
+            # what makes them findable, and it is the search box, not the track
+            # table, that answers "you don't have my artist". Their tracks are
+            # not worth storing: none of them can pass `playable`, so a random
+            # round can never serve one, and a player who names the artist gets
+            # the whole discography on demand from `ensure_artist_tracks`.
+            #
+            # This is where the catalogue was growing without bound. The walk
+            # already refused to *follow* artists under MIN_FANS_TO_EXPAND, but
+            # imported fifty tracks from each one before turning back: 1.23M of
+            # the first 1.5M rows came from artists under this floor, and none
+            # of them were ever playable.
+            #
+            # nb_fan of 0 reads as unknown, not tiny — the same convention rank
+            # follows — so an artist we have no follower count for is imported.
+            #
+            # Only the tracks are skipped. Expansion is a separate decision
+            # with its own floor below: an artist too small to stock can still
+            # be the bridge to a big one, and cutting the walk here would
+            # narrow the crawl instead of just trimming what it writes.
+            if artist.nb_fan and artist.nb_fan < track_min_fans:
+                skipped_artists += 1
+
             # Already stocked by an earlier run or by a player's session.
-            if artist.top_refreshed_at is None:
+            elif artist.top_refreshed_at is None:
                 payloads = deezer.get_artist_top_tracks(artist_id, limit=TOP_TRACKS)
                 calls += 1
                 for payload in payloads:
                     payload.setdefault('artist', {}).setdefault('id', artist_id)
-                tracks = upsert_tracks(payloads)
-                imported_tracks += len(tracks)
+                if report:
+                    verdicts.update(self._judge(deezer, payloads, artist))
+                    imported_tracks += len(payloads)
+                else:
+                    tracks = upsert_tracks(payloads)
+                    imported_tracks += len(tracks)
+                    artist.top_refreshed_at = timezone.now()
+                    artist.save(update_fields=['top_refreshed_at'])
                 imported_artists += 1
-                artist.top_refreshed_at = timezone.now()
-                artist.save(update_fields=['top_refreshed_at'])
 
             if artist.nb_fan < min_fans or calls >= budget:
                 continue
@@ -157,10 +227,68 @@ class Command(BaseCommand):
                 )
 
         elapsed = time.monotonic() - started
+
+        if report:
+            self._print_report(
+                verdicts, imported_artists, calls, elapsed, len(queue),
+                skipped_artists, track_min_fans,
+            )
+            return
+
         self.stdout.write(self.style.SUCCESS(
             f'Crawled {imported_artists} artists / {imported_tracks} tracks '
-            f'in {calls} calls ({elapsed:.0f}s). {len(queue)} left in the frontier.'
+            f'in {calls} calls ({elapsed:.0f}s). {skipped_artists} artists under '
+            f'the {track_min_fans}-fan floor kept their row but not their tracks. '
+            f'{len(queue)} left in the frontier.'
         ))
+
+    def _judge(self, deezer, payloads: list[dict], artist: Artist) -> list[str]:
+        """
+        The floor's verdict on each track of one artist's haul, as reason slugs.
+
+        `directed=False` because this is the crawl: nobody asked for these
+        tracks by name, which is exactly the case the popularity floor is there
+        to judge. A player who names the artist gets them regardless, through
+        `ensure_artist_tracks`.
+        """
+        return [
+            payload_rejection(
+                deezer.extract_track_info(payload), artist, directed=False,
+            ) or 'kept'
+            for payload in payloads
+        ]
+
+    def _print_report(self, verdicts, artists, calls, elapsed, frontier,
+                      skipped, track_min_fans):
+        total = sum(verdicts.values())
+        if not total:
+            self.stdout.write(self.style.WARNING(
+                f'Nothing fetched in {calls} calls — no haul to judge.'
+            ))
+            return
+
+        kept = verdicts.get('kept', 0)
+        self.stdout.write('')
+        self.stdout.write(
+            f'{artists} artists, {total} tracks fetched, {calls} calls ({elapsed:.0f}s)'
+        )
+        self.stdout.write(
+            f'{skipped} artists under the {track_min_fans}-fan floor were not fetched at all'
+        )
+        self.stdout.write('')
+        for reason, count in verdicts.most_common():
+            label = 'KEPT' if reason == 'kept' else f'rejected: {reason}'
+            self.stdout.write(f'  {count:7d}  {100 * count / total:5.1f}%  {label}')
+        self.stdout.write('')
+        self.stdout.write(self.style.SUCCESS(
+            f'The floor would store {kept} of {total} tracks '
+            f'({100 * kept / total:.1f}%), leaving {frontier} in the frontier.'
+        ))
+        self.stdout.write(
+            'Nothing was written. Rejected tracks stay reachable: a player who '
+            'names the artist still gets them, fetched on demand.'
+        )
+
 
     def _seeds(self, deezer: DeezerService, only: str | None, dry_run: bool) -> dict:
         """
@@ -193,3 +321,18 @@ class Command(BaseCommand):
                 seeds.setdefault(artist.deezer_id, artist.name)
 
         return seeds
+
+
+def _transient_artist(payload: dict) -> Artist | None:
+    """
+    An unsaved Artist carrying what the floor reads, for report runs.
+
+    Mirrors `upsert_artist`'s guard so a report skips exactly the payloads a
+    real run would skip — otherwise the report would judge tracks belonging to
+    artists the crawl never actually keeps.
+    """
+    deezer_id = payload.get('id')
+    name = (payload.get('name') or '').strip()
+    if not deezer_id or not name:
+        return None
+    return Artist(deezer_id=deezer_id, name=name, nb_fan=payload.get('nb_fan') or 0)
