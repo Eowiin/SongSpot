@@ -7,7 +7,8 @@ from rest_framework.test import APITestCase
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from authentication.models import User
-from .models import Track, FavouriteArtist, GameScore, UserBest, Playlist, PlaylistTrack
+from .models import Artist, Track, FavouriteArtist, GameScore, UserBest, Playlist, PlaylistTrack
+from .services import catalog
 
 from django.core.cache import cache
 
@@ -753,3 +754,58 @@ class CorsHeaderTests(APITestCase):
             'authorization',
             response.headers.get('Access-Control-Allow-Headers', ''),
         )
+
+
+class PlayableQueryShapeTests(TestCase):
+    """
+    The junk-artist exclusion must reach the database as values, not a query.
+
+    Left lazy it went in as a subquery, and Postgres re-derived it on every
+    round: a sequential scan of all 428k artists to recover the ~700 flagged
+    ones, on the hot path of the busiest endpoint in the game. Nothing about
+    the results changes when it regresses, so only the query shape catches it.
+    """
+
+    def setUp(self):
+        cache.clear()
+        catalog.clear_junk_artist_cache()
+
+    def tearDown(self):
+        catalog.clear_junk_artist_cache()
+
+    def _track_by(self, artist, deezer_artist_id):
+        track = _make_track(artist=artist)
+        Track.objects.filter(pk=track.pk).update(deezer_artist_id=deezer_artist_id)
+        return track
+
+    def test_exclusion_carries_no_artist_subquery(self):
+        Artist.objects.create(deezer_id=9001, name='Tribute Band', is_junk=True)
+        sql = str(catalog.playable(Track.objects.all()).query)
+        self.assertNotIn('"artists"', sql)
+
+    def test_junk_artist_tracks_stay_out_of_undirected_picks(self):
+        Artist.objects.create(deezer_id=9002, name='Tribute Band', is_junk=True)
+        junk = self._track_by('Tribute Band', 9002)
+        keeper = self._track_by('Real Artist', 9003)
+
+        playable = catalog.playable(Track.objects.all())
+        self.assertIn(keeper.pk, {t.pk for t in playable})
+        self.assertNotIn(junk.pk, {t.pk for t in playable})
+
+    def test_blocking_an_artist_takes_effect_without_waiting_for_the_ttl(self):
+        artist = Artist.objects.create(deezer_id=9004, name='Ordinary Act')
+        track = self._track_by('Ordinary Act', 9004)
+        # Warm both cache tiers before the block, which is the case that would
+        # otherwise serve a blocked artist for up to the local TTL.
+        self.assertIn(track.pk, {t.pk for t in catalog.playable(Track.objects.all())})
+
+        artist.is_blocked = True
+        artist.save()
+
+        self.assertNotIn(track.pk, {t.pk for t in catalog.playable(Track.objects.all())})
+
+    def test_directed_picks_still_reach_a_blocked_artist(self):
+        Artist.objects.create(deezer_id=9005, name='Ordinary Act', is_blocked=True)
+        track = self._track_by('Ordinary Act', 9005)
+        directed = catalog.playable(Track.objects.all(), directed=True)
+        self.assertIn(track.pk, {t.pk for t in directed})

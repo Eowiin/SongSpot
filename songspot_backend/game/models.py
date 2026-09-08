@@ -135,6 +135,14 @@ class Artist(models.Model):
         if is_junk_artist(self.name):
             self.is_junk = True
         super().save(*args, **kwargs)
+        if self.is_junk or self.is_blocked:
+            # Only the flagged ones, so a crawl saving thousands of ordinary
+            # artists does not evict the list it is about to read back. Imported
+            # here rather than at module scope: services.catalog imports this
+            # module.
+            from .services.catalog import clear_junk_artist_cache
+
+            clear_junk_artist_cache()
 
 
 class CatalogSetting(models.Model):
