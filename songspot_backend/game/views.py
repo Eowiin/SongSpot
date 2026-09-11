@@ -14,7 +14,7 @@ from songspot.throttling import GameSearchThrottle
 
 from .models import (
     Artist, Track, GameScore, UserBest, FavouriteArtist,
-    Playlist, PlaylistTrack,
+    Playlist,
     DuelMatch, UserElo,
     CATEGORY_CHOICES,
 )
@@ -34,7 +34,7 @@ from .serializers import (
     UserEloSerializer,
     DuelLeaderboardEntrySerializer,
 )
-from .services import catalog, previews, rounds
+from .services import catalog, pools, previews, rounds
 
 # A round is played by one client version or the other. v1 judges the guess
 # locally and therefore needs the answer in the payload; v2 posts to /guess/
@@ -86,6 +86,8 @@ class NextSongView(APIView):
       playlist   — playlist UUID (a category)
       artist_id  — Deezer artist ID; the player picked this artist
       artist     — artist *name*; the v1 way of saying the same thing
+      mix        — 1 for an all-genre round drawn across the categories, the
+                   solo default (see services/pools)
       exclude    — comma-separated track UUIDs already heard this session
       v          — client API version (2 withholds the answer, see API_V2)
 
@@ -103,6 +105,12 @@ class NextSongView(APIView):
         artist_id_raw = request.query_params.get('artist_id', '').strip()
         exclude_raw = request.query_params.get('exclude', '')
         exclude_ids = [e.strip() for e in exclude_raw.split(',') if e.strip()][-MAX_EXCLUDE:]
+
+        if request.query_params.get('mix') == '1' and not (
+            playlist_id or artist_name or artist_id_raw
+        ):
+            track, preview_url = _pick_mixed(exclude_ids)
+            return _round_response(request, track, preview_url, directed=False)
 
         artist_deezer_id = None
         if artist_id_raw:
@@ -143,19 +151,7 @@ class NextSongView(APIView):
                 qs = Track.objects.filter(artist__icontains=artist_name)
                 pool_size = None
         elif playlist_id:
-            # Read the ids out rather than leaving the queryset lazy. Nested,
-            # this becomes a subquery, and Postgres answers it by scanning all
-            # 1.6M tracks and hash-joining the playlist's ~700 rows onto the
-            # result — the whole catalogue read to serve one round. Handed the
-            # ids as values it does the join the other way round, looking each
-            # one up by primary key. Playlists are bounded (the largest holds
-            # 1328 tracks), so the list is small enough to pass inline.
-            track_ids = list(
-                PlaylistTrack.objects
-                .filter(playlist_id=playlist_id)
-                .values_list('track_id', flat=True)
-            )
-            qs = Track.objects.filter(id__in=track_ids)
+            qs = pools.playlist_tracks(playlist_id)
             playlist = Playlist.objects.filter(id=playlist_id).first()
             if playlist is not None:
                 containers = previews.playlist_containers(playlist)
@@ -169,33 +165,64 @@ class NextSongView(APIView):
             qs = qs.exclude(id__in=exclude_ids)
 
         track, preview_url = _pick_with_audio(qs, containers)
-        if track is None:
-            return Response(
-                {'detail': 'No tracks available.', 'pool_size': pool_size},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        if preview_url is None:
-            # The pool is fine; Deezer is not. Distinct from a 404 on purpose —
-            # "we have no songs for you" and "we cannot reach the audio right
-            # now" call for different things from the client, and conflating
-            # them once had players reinstalling the app over an outage.
-            return error_response(
-                code=ErrorCode.AUDIO_UNAVAILABLE,
-                message='Audio temporarily unavailable.',
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-        # Set in memory only, and there is nowhere to persist it to: `tracks`
-        # holds `has_preview`, not the URL. See services/previews.
-        track.preview_url = preview_url
+        return _round_response(
+            request, track, preview_url, directed=directed, pool_size=pool_size,
+        )
 
-        if _client_version(request) >= API_V2:
-            payload = TrackRoundSerializer(track).data
-            payload['round_token'] = rounds.issue(track.id, directed=directed)
-        else:
-            payload = TrackSerializer(track).data
-        if pool_size is not None:
-            payload['pool_size'] = pool_size
-        return Response(payload)
+
+def _round_response(request, track, preview_url, *, directed, pool_size=None):
+    """Turn a pick into the round the client plays, or the error saying why not."""
+    if track is None:
+        return Response(
+            {'detail': 'No tracks available.', 'pool_size': pool_size},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    if preview_url is None:
+        # The pool is fine; Deezer is not. Distinct from a 404 on purpose —
+        # "we have no songs for you" and "we cannot reach the audio right
+        # now" call for different things from the client, and conflating
+        # them once had players reinstalling the app over an outage.
+        return error_response(
+            code=ErrorCode.AUDIO_UNAVAILABLE,
+            message='Audio temporarily unavailable.',
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    # Set in memory only, and there is nowhere to persist it to: `tracks`
+    # holds `has_preview`, not the URL. See services/previews.
+    track.preview_url = preview_url
+
+    if _client_version(request) >= API_V2:
+        payload = TrackRoundSerializer(track).data
+        payload['round_token'] = rounds.issue(track.id, directed=directed)
+    else:
+        payload = TrackSerializer(track).data
+    if pool_size is not None:
+        payload['pool_size'] = pool_size
+    return Response(payload)
+
+
+# How many categories an all-genre round tries. A category runs out only for a
+# player who has already heard all of it. Deezer failing is a different
+# problem: it shows up as a track with no audio and is not retried in another
+# category, because that would only spend more quota on the same outage.
+MIX_CATEGORY_ATTEMPTS = 3
+
+
+def _pick_mixed(exclude_ids):
+    """An all-genre round: `_pick_with_audio` over one weighted category at a time."""
+    for playlist_id in pools.mix_order()[:MIX_CATEGORY_ATTEMPTS]:
+        playlist = Playlist.objects.filter(id=playlist_id).first()
+        if playlist is None:
+            continue
+        qs = catalog.playable(pools.mix_tracks(playlist_id), directed=False)
+        if exclude_ids:
+            qs = qs.exclude(id__in=exclude_ids)
+        track, preview_url = _pick_with_audio(
+            qs, previews.playlist_containers(playlist),
+        )
+        if track is not None:
+            return track, preview_url
+    return None, None
 
 
 # How many candidates a round tries before giving up. Each miss can cost one

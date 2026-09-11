@@ -16,7 +16,7 @@ It focuses on the fastest path to a working dev loop.
    # Create songspot_backend/.env (see Backend Setup below)
    python manage.py migrate
    python manage.py createsuperuser
-   python manage.py seed_curated_artists
+   python manage.py refresh_catalog   # creates the categories and fills them
    python manage.py runserver
    ```
 
@@ -74,11 +74,14 @@ python manage.py migrate
 python manage.py createsuperuser
 ```
 
-### Seed Track Data (Required for Gameplay)
-The game requires tracks in the database. Seed from the curated artist list:
+### Fill the Catalogue (Required for Gameplay)
+Solo, the categories and 1v1 all play from the category pools. On a fresh
+database, one command creates the fourteen categories and fills them from
+Deezer's editorial playlists. It takes a few minutes, because it is paced
+against Deezer's rate limit:
 ```bash
-python manage.py seed_curated_artists           # ~190 artists, 10 tracks each
-python manage.py seed_curated_artists --tracks 20  # more tracks per artist
+python manage.py refresh_catalog              # every category
+python manage.py refresh_catalog --replace    # rebuild the pools from scratch
 ```
 
 To add a single artist on demand:

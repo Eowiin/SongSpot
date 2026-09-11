@@ -359,6 +359,10 @@ class PlaylistTrack(models.Model):
         related_name='in_playlists'
     )
     order_in_playlist = models.PositiveIntegerField(default=0)
+    # How well known the song is: the best Deezer rank among all its releases,
+    # recorded by refresh_catalog. The all-genre mix plays only the better
+    # known part of each category (see services/pools.MIX_TOP_SHARE).
+    song_rank = models.PositiveIntegerField(default=0)
 
     class Meta:
         db_table = 'playlist_tracks'

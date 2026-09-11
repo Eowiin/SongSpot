@@ -2,15 +2,18 @@
 Keep the category pools stocked from Deezer.
 
 Replaces the one-shot seeding commands. `seed_curated_artists` walked a fixed
-list of 206 names and stopped; this runs on a schedule and pulls whatever is
-currently charting, so a category is never a frozen snapshot of the day it was
-seeded and a long session can no longer drain it.
+list of 206 names and stopped; this runs on a schedule and pulls whatever
+Deezer's editors currently list, so a category is never a frozen snapshot of
+the day it was seeded and a long session can no longer drain it.
 
     python manage.py refresh_catalog                  # every category
     python manage.py refresh_catalog --category pop   # just one
     python manage.py refresh_catalog --stale-only     # only what has aged out
     python manage.py refresh_catalog --replace        # rebuild instead of add
     python manage.py refresh_catalog --dry-run        # report, change nothing
+
+On a fresh database the first run also creates the category playlists, so
+this one command is all a new install needs before it can play.
 
 It is deliberately the only place that writes PlaylistTrack in bulk: the play
 endpoint reads those rows and never calls Deezer itself, which is what keeps a
@@ -31,7 +34,9 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
-from game.models import Artist, CatalogSetting, Playlist, PlaylistTrack
+from game.models import (
+    CATEGORY_CHOICES, Artist, CatalogSetting, Playlist, PlaylistTrack, Track,
+)
 from game.services import DeezerService
 from game.services.deezer_http import BULK_MAX_WAIT, DeezerHttp
 from game.services import cache_utils
@@ -42,56 +47,60 @@ from game.services.catalog import (
     upsert_track,
 )
 
-# Where each category refills from.
+# Where each category refills from: Deezer editorial playlists, and nothing
+# else.
 #
-# The choice between a genre chart and an editorial playlist is not cosmetic.
-# Deezer's charts are scoped to the *requesting IP's* country — there is no
-# country parameter and no header that overrides it (both tested; they are
-# silently ignored), so a server in France gets French charts, permanently.
-# Editorial playlists are curated per genre and carry no such bias.
+# Several categories used to read genre charts. Deezer scopes a chart to the
+# country of the requesting IP. There is no country parameter and no header
+# that overrides it (both tested; `?country=US` is accepted and silently
+# ignored), so a chart reflects wherever the machine running this happens to
+# be. Read from a laptop in France, Hip-Hop was French rap top to bottom and
+# Latin Pop had Collectif Métissé in it. Read from prod, which Deezer places in
+# Finland (`/infos` answers FI), Pop filled up with Isac Elliot, Haloo
+# Helsinki! and helmi marleena, Rock with Eppu Normaali and Apulanta, and Dance
+# with Portion Boys, for an audience that mostly plays Bad Bunny and Drake.
+# Editorial playlists return the same tracks from anywhere.
 #
-# That makes charts the right source wherever a French audience is the point,
-# and the wrong one wherever the genre lives somewhere else. Genre 2, "Musique
-# africaine", read from France returns French-African pop: Aya Nakamura at the
-# top, with Shakira and Jungeli behind her. Accurate for France, and not
-# Afrobeats. The playlists below give Burna Boy, WizKid, Rema, Ayra Starr.
-#
-# Deezer's "Top <country>" playlists look like the obvious answer and are not:
-# Top South Korea currently opens with two German acts, six Yiruma tracks and
+# Deezer's "Top <country>" playlists look like a way to choose the country and
+# are not: Top South Korea opened with two German acts, six Yiruma tracks and
 # Gracie Abrams. They are stale or mis-curated.
 #
-# Genres with no chart of their own also use playlists — Deezer files K-pop and
-# J-pop under "Musique asiatique" and French rap under "Chanson française",
-# both far too broad to play from.
+# Prefer an editor's evergreen sets (decade hits, essentials) over "new",
+# "radar" and weekly playlists. A curated source skips the popularity floor, so
+# nothing downstream catches a song nobody knows, and recent is not the same as
+# well known. Where an editor publishes a decade set, take the whole set: a pool
+# of only current songs is unplayable for half the room, and the point of a
+# blind test is that someone recognises the song.
 #
-# There is no country parameter to reach for as an escape hatch: `?country=US`
-# on a chart is accepted and silently ignored. Editorial playlists are the only
-# way out of the France scoping, so any category whose centre of gravity is not
-# France is sourced from them.
-#
-# Where a genre has an editorial set split by decade, take the whole set rather
-# than the one "hits" playlist. A pool made only of what is charting now is
-# unplayable for half the room — the point of a blind test is that someone
-# recognises the song.
+# Check who published a playlist before adding it. "Rock Super Hits" looks like
+# the Rock editor's and is Deezer Deutschland's: Die Ärzte, Madsen, Die Toten
+# Hosen.
 SOURCES = {
-    # French-market charts, which is the intended audience for these.
-    'rnb':        {'genre': 165},
-    'variete_fr': {'genre': 52},
-    # Mixes: keep the French chart, which is where a French audience's own
-    # references live — Téléphone and Indochine belong in Rock — and add the
-    # editorial decade sets, which is the half a chart structurally cannot
-    # give. A chart only ever knows about now.
-    'pop':        {'genre': 132,
-                   'playlists': [4888783264, 8326097522, 1964085082]},
-    'rock':       {'genre': 152,
-                   'playlists': [1306931615, 1405240385, 8621268482, 1728093421]},
-    'dance':      {'genre': 113,
-                   'playlists': [706093725, 4135981802, 4135818362, 2159765062]},
+    # Laeti, the Pop editor: a hits playlist for every decade since the 60s,
+    # plus the all-time essentials and the recent-years rewind.
+    'pop':        [620264073, 1470022445, 867825522, 878989033, 248297032,
+                   14917741483, 13650084141, 1036183001, 4888783264],
+    # Rod, the Rock editor: the essentials and a set per decade. Not his
+    # "Rock Hits", which is this month's new rock.
+    'rock':       [1306931615, 1437011185, 1405240385, 8621268482, 1728093421,
+                   1419215845, 1057779131],
+    # Laeti's Dance & EDM sets: current hits, the party classics, Eurodance and
+    # one set per decade.
+    'dance':      [706093725, 4613753548, 6237312204, 1251129741, 4135981802,
+                   4135818362, 2159765062, 13651021241],
+    # Ayoub, the R&B editor: the US canon from the 90s on. The French R&B
+    # editor's sets are for a different audience.
+    'rnb':        [1999466402, 1314725125, 1699545511, 5014738124, 2021626162,
+                   5411628342],
+    # French on purpose, so French editorial sets: Laeti's essentials and her
+    # hits by decade.
+    'variete_fr': [1420459465, 700895155, 788022051, 1189520191, 1051470831,
+                   1162725851],
     # Not a chart. Genre 116 read from France is French rap top to bottom —
     # Mauvais djo, Timal, Leto, GIMS, PLK, Jul — which made this category an
     # exact duplicate of rap_fr. These are Deezer's US rap editorial
     # playlists, current plus three decades.
-    'hiphop':     {'playlists': [1677006641, 7662551722, 4676818664, 1724212365]},
+    'hiphop':     [1677006641, 7662551722, 4676818664, 1724212365],
     # Not genre 106: that chart is Kygo, Ofenbach, Clean Bandit and Martin
     # Garrix, which is the `dance` category, not this one. Electro here is the
     # genre with a history — Kraftwerk, Daft Punk, Massive Attack, Underworld —
@@ -101,18 +110,16 @@ SOURCES = {
     # The thinnest pool of the fourteen even so: roughly half of what these
     # return is rejected as a variant, because the editor's picks are full of
     # "(Radio Edit)" and "(2024 Remaster)".
-    'electro':    {'playlists': [943229685, 834285741, 3801761042, 962293895]},
-    # Genre 197 read from France is "Latino as sold in France": its tail is
-    # Collectif Métissé, Slaï, DJ Steri and, at position 80, Future feat.
-    # Drake. Deezer's Latin editor does not separate latin pop from reggaeton
-    # either — every "Latin" playlist is half Bad Bunny — so neither do we.
-    'latino':     {'playlists': [178699142, 1273315391, 11120289724,
-                                 5104249748, 2045665684]},
-    # Genre-curated, to escape the scoping.
-    'afrobeats':  {'playlists': [3153080842, 10759580842, 1440614715, 1482254815]},
-    'bollywood':  {'genre': 81, 'playlists': [5714603022]},
-    'kpop':       {'playlists': [4096400722, 12244134951, 11012274682, 11012482922]},
-    'jpop':       {'playlists': [6049895724, 5206929684]},
+    'electro':    [943229685, 834285741, 3801761042, 962293895],
+    # Deezer's Latin editor does not separate latin pop from reggaeton —
+    # every "Latin" playlist is half Bad Bunny — so neither do we.
+    'latino':     [178699142, 1273315391, 11120289724, 5104249748, 2045665684],
+    'afrobeats':  [3153080842, 10759580842, 1440614715, 1482254815],
+    # Deezer has no Indian editor to take sets from, and genre 81 read from
+    # prod returns six tracks.
+    'bollywood':  [5714603022],
+    'kpop':       [4096400722, 12244134951, 11012274682, 11012482922],
+    'jpop':       [6049895724, 5206929684],
     # The Rapstars set, one playlist per decade, plus the current one. Not
     # `Actu Rap` (1071669561): that is the new-releases playlist, it rotates
     # weekly, and it is the sole reason Verso, Tchubi, Blaame, Swift Guad and
@@ -120,27 +127,27 @@ SOURCES = {
     # single one of them. Recency is not notoriety, and a curated source skips
     # the popularity floor, so nothing else was going to catch them. `Rapstars`
     # still brings recent rap in, picked on merit rather than release date.
-    'rap_fr':     {'playlists': [9563400362, 5175061384, 4676814864,
-                                 1182010551, 3272614282]},
-    # Deezer has no disco/funk genre chart at all — the closest is 169
-    # "Soul & Funk", which rnb already overlaps.
-    'disco':      {'playlists': [2015058202, 3798795702, 5505174422, 4699436964]},
+    'rap_fr':     [9563400362, 5175061384, 4676814864, 1182010551, 3272614282],
+    # Yannick, the Soul & Funk editor: disco, funk and the party sets.
+    'disco':      [2015058202, 3798795702, 5505174422, 4699436964],
 }
 
 PAGE_SIZE = 100
 
+# The most pages read from any one playlist. Editorial sets run 50 to 100
+# tracks and a few reach 105. The cap exists so that a mistyped source ID
+# pointing at someone's ten-thousand-track playlist cannot use up the night's
+# Deezer quota.
+MAX_PAGES = 5
+
 
 class Command(BaseCommand):
-    help = 'Refresh category pools from Deezer charts and editorial playlists.'
+    help = 'Refresh category pools from Deezer editorial playlists.'
 
     def add_arguments(self, parser):
         parser.add_argument(
             '--category',
             help='Only refresh this category key (e.g. pop, rap_fr).',
-        )
-        parser.add_argument(
-            '--pages', type=int, default=3,
-            help='Pages of %d tracks to pull per genre chart (default: 3).' % PAGE_SIZE,
         )
         parser.add_argument(
             '--stale-only', action='store_true',
@@ -165,10 +172,9 @@ class Command(BaseCommand):
         only = options.get('category')
         dry_run = options['dry_run']
         stale_only = options['stale_only']
-        pages = max(1, options['pages'])
 
         # Paced, not rushed: this job makes one call per artist on top of the
-        # charts, so it queues behind the rate limiter instead of giving up
+        # playlists, so it queues behind the rate limiter instead of giving up
         # after two seconds the way a web request does.
         deezer = DeezerService(http=DeezerHttp(max_wait=BULK_MAX_WAIT))
 
@@ -191,6 +197,9 @@ class Command(BaseCommand):
             purged = purge_expired_claims()
             if purged:
                 self.stdout.write(f'{purged} expired enrichment claims dropped')
+            created = self._ensure_playlists(only)
+            if created:
+                self.stdout.write(f'Created the missing categories: {", ".join(created)}')
 
         cutoff = timezone.now() - timezone.timedelta(hours=config.playlist_ttl_hours)
 
@@ -209,7 +218,7 @@ class Command(BaseCommand):
 
             self.stdout.write(self.style.WARNING(f'▸ {playlist.name}'))
             counts = self._refresh_one(
-                deezer, playlist, sources, pages, dry_run, options['replace'],
+                deezer, playlist, sources, dry_run, options['replace'],
             )
             for key in totals:
                 totals[key] += counts[key]
@@ -224,6 +233,26 @@ class Command(BaseCommand):
         ))
 
     @staticmethod
+    def _ensure_playlists(only=None) -> list[str]:
+        """
+        Create any category playlist the database does not have yet.
+
+        Prod has had its fourteen since they were seeded, but a fresh database
+        only gets the two a migration creates. This command only fills
+        playlists that exist, so a new install used to end up with no
+        categories and nothing to play.
+        """
+        labels = dict(CATEGORY_CHOICES)
+        created = []
+        for category in SOURCES:
+            if only and category != only:
+                continue
+            if not Playlist.objects.filter(category=category).exists():
+                Playlist.objects.create(name=labels.get(category, category), category=category)
+                created.append(category)
+        return created
+
+    @staticmethod
     def _shared_cache_reachable() -> bool:
         from django.core.cache import caches
         try:
@@ -232,24 +261,29 @@ class Command(BaseCommand):
             return False
         return True
 
-    def _refresh_one(self, deezer, playlist, sources, pages, dry_run, replace=False) -> dict:
+    @staticmethod
+    def _playlist_payloads(deezer, deezer_playlist_id) -> list:
+        """
+        Every track of one editorial playlist, however many pages it runs to.
+
+        Only the first hundred used to be read, which silently dropped the end
+        of any set longer than that.
+        """
+        payloads = []
+        for page in range(MAX_PAGES):
+            batch = deezer.get_playlist_tracks(
+                deezer_playlist_id, limit=PAGE_SIZE, index=page * PAGE_SIZE,
+            )
+            payloads.extend(batch)
+            if len(batch) < PAGE_SIZE:
+                break
+        return payloads
+
+    def _refresh_one(self, deezer, playlist, sources, dry_run, replace=False) -> dict:
         counts = {'imported': 0, 'linked': 0, 'rejected': 0}
         payloads = []
-
-        genre_id = sources.get('genre')
-        if genre_id:
-            for page in range(pages):
-                batch = deezer.get_genre_chart_tracks(
-                    genre_id, limit=PAGE_SIZE, index=page * PAGE_SIZE,
-                )
-                if not batch:
-                    break
-                payloads.extend(batch)
-
-        for deezer_playlist_id in sources.get('playlists', []):
-            payloads.extend(
-                deezer.get_playlist_tracks(deezer_playlist_id, limit=PAGE_SIZE)
-            )
+        for deezer_playlist_id in sources:
+            payloads.extend(self._playlist_payloads(deezer, deezer_playlist_id))
 
         if not payloads:
             # Be careful what this blames. The first version of this command
@@ -271,8 +305,8 @@ class Command(BaseCommand):
             seen_deezer_ids.add(payload.get('id'))
 
             info = deezer.extract_track_info(payload)
-            # Everything this command reads comes from a chart or an editorial
-            # playlist, so it carries that provenance into the catalogue.
+            # Everything this command reads comes from an editorial playlist,
+            # so it carries that provenance into the catalogue.
             info['is_curated'] = True
             # A category pick is undirected — the game chooses, so the quality
             # floor applies. This is the one place it is enforced at import
@@ -301,24 +335,61 @@ class Command(BaseCommand):
 
         self._enrich_artists(deezer, tracks)
         counts['linked'] = self._link(playlist, tracks, replace=replace)
-        playlist.deezer_genre_id = genre_id
-        playlist.deezer_playlist_ids = sources.get('playlists', [])
+        self._rank_songs(playlist)
+        # Cleared rather than left over from the chart days: previews reads a
+        # chart as an audio container, and one scoped to some other country
+        # rarely holds the tracks this pool plays.
+        playlist.deezer_genre_id = None
+        playlist.deezer_playlist_ids = list(sources)
         playlist.refreshed_at = timezone.now()
         playlist.save(update_fields=[
             'deezer_genre_id', 'deezer_playlist_ids', 'refreshed_at',
         ])
         return counts
 
+    @staticmethod
+    def _rank_songs(playlist: Playlist) -> None:
+        """
+        Record how well known each song in the pool is, for the all-genre mix.
+
+        A song's rank is the best among all of its releases in the catalogue,
+        not the rank of the release the editor happened to list. Editorial
+        playlists often point at a compilation or a remaster whose own rank is
+        a small fraction of the original's, so ranking only the listed release
+        would make a classic look obscure.
+        """
+        links = list(
+            PlaylistTrack.objects.filter(playlist=playlist).select_related('track')
+        )
+        keys = {
+            (link.track.norm_title, link.track.norm_artist)
+            for link in links if link.track.norm_title
+        }
+        titles = sorted({title for title, _ in keys})
+        best: dict[tuple[str, str], int] = {}
+        for start in range(0, len(titles), 400):
+            for title, artist, rank in (
+                Track.objects
+                .filter(norm_title__in=titles[start:start + 400])
+                .values_list('norm_title', 'norm_artist', 'rank')
+            ):
+                if (title, artist) in keys and rank > best.get((title, artist), 0):
+                    best[(title, artist)] = rank
+        for link in links:
+            key = (link.track.norm_title, link.track.norm_artist)
+            link.song_rank = max(best.get(key, 0), link.track.rank or 0)
+        PlaylistTrack.objects.bulk_update(links, ['song_rank'], batch_size=500)
+
     def _enrich_artists(self, deezer, tracks: list) -> None:
         """
         Fill in follower counts for the artists we just imported.
 
-        Chart and playlist payloads name the artist but never say how big they
-        are, and that number is what keeps the guess list usable: it is what
-        separates The Weeknd from the four unknown singers whose covers of
-        "Blinding Lights" rank almost as highly. One extra call per artist is
-        far too slow for autocomplete, but nothing at all for a nightly job —
-        and the result is cached for a week afterwards.
+        Playlist payloads name the artist but never say how big they are, and
+        that number is what keeps the guess list usable: it is what separates
+        The Weeknd from the four unknown singers whose covers of "Blinding
+        Lights" rank almost as highly. One extra call per artist is far too
+        slow for autocomplete, but nothing at all for a nightly job — and the
+        result is cached for a week afterwards.
         """
         ids = {t.deezer_artist_id for t in tracks if t.deezer_artist_id}
         if not ids:
