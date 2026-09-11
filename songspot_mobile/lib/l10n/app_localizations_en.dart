@@ -129,6 +129,30 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsTermsOfService => 'Terms of Service';
 
   @override
+  String get settingsReportBug => 'Report a bug';
+
+  @override
+  String get bugReportTitle => 'Report a bug';
+
+  @override
+  String get bugReportIntro =>
+      'Tell us what happened: what you were doing, and what went wrong.';
+
+  @override
+  String get bugReportHint =>
+      'For example: the song never started after I picked Rock.';
+
+  @override
+  String get bugReportSend => 'Send';
+
+  @override
+  String get bugReportThanks => 'Thanks! Your report has been sent.';
+
+  @override
+  String get bugReportFailed =>
+      'Your report could not be sent. Please try again later.';
+
+  @override
   String get settingsCouldNotOpenLink => 'Could not open link';
 
   @override
@@ -477,6 +501,38 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get homeSoloSublabel => 'One track at a time, three lives';
+
+  @override
+  String get homePickArtist => 'Pick an artist';
+
+  @override
+  String get mixLabel => 'All genres';
+
+  @override
+  String get soloStyle => 'Genre';
+
+  @override
+  String get soloDifficultyEasy => 'Easy';
+
+  @override
+  String get soloDifficultyMedium => 'Medium';
+
+  @override
+  String get soloDifficultyHard => 'Hard';
+
+  @override
+  String soloSnippetSeconds(int seconds) {
+    String _temp0 = intl.Intl.pluralLogic(
+      seconds,
+      locale: localeName,
+      other: '$seconds-second snippet',
+      one: '1-second snippet',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get sessionEndChangeSettings => 'Change settings';
 
   @override
   String get homeDuelSublabel => 'Race someone else, round for round';

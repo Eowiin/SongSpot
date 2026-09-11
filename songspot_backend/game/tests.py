@@ -816,12 +816,16 @@ class PlayableQueryShapeTests(TestCase):
 
 class ShortTokenSearchTests(TestCase):
     """
-    A token too short for a trigram index must not reach the table unanchored.
+    A token too short for a trigram index must not reach the table unanchored,
+    and must not make a song unfindable either.
 
     `%xx%` cannot use a trigram index — they store three-character sequences —
     so a two-letter word made Postgres read all 1.6M rows across three parallel
-    workers, 1282ms a go, on the endpoint players hit per keystroke. Anchoring
-    short tokens puts them on the `varchar_pattern_ops` b-tree instead.
+    workers, 1282ms a go, on the endpoint players hit per keystroke. The first
+    fix anchored every short word to the start of the field, which lost any
+    song once the player typed past its first word: `feu de bois` found
+    nothing, because `de` does not begin *Feu de bois*. It was reported from
+    the Play Store.
     """
 
     def setUp(self):
@@ -850,12 +854,48 @@ class ShortTokenSearchTests(TestCase):
     def test_mixed_lengths_apply_their_own_rule(self):
         _make_track(title='Do It', artist='Chase Atlantic')
         _make_track(title='Doing Fine', artist='Chase Atlantic')
-        # `do` anchors, `chase` does not — both tracks start with "do", so the
-        # long token is what separates them.
+        # `do` has to begin a word, `chase` can sit anywhere — both titles
+        # start with "do", so the long token is what separates them.
         results = catalog.search_tracks('do chase')
         self.assertEqual(
             sorted(t.title for t in results), ['Do It', 'Doing Fine'],
         )
+
+    def test_a_title_stays_found_while_it_is_typed(self):
+        _make_track(title='Feu de bois', artist='Damso')
+        for query in ('feu', 'feu de', 'feu de b', 'feu de bois', 'damso feu de'):
+            with self.subTest(query=query):
+                results = catalog.search_tracks(query)
+                self.assertIn('Feu de bois', [t.title for t in results])
+
+    def test_a_short_word_has_to_begin_a_word(self):
+        # `eu` sits inside `feu` but begins no word of the title or artist.
+        _make_track(title='Feu de bois', artist='Damso')
+        self.assertEqual(catalog.search_tracks('bois eu'), [])
+
+    def test_short_words_alone_match_as_a_phrase(self):
+        _make_track(title='Do It', artist='Stray Kids')
+        self.assertEqual([t.title for t in catalog.search_tracks('do it')], ['Do It'])
+
+    def test_short_words_alone_match_across_title_and_artist(self):
+        _make_track(title='Esquina', artist='UANA')
+        self.assertEqual([t.title for t in catalog.search_tracks('es ua')], ['Esquina'])
+
+    def test_a_short_word_next_to_a_long_one_is_anchored_to_a_word(self):
+        sql = str(Track.objects.filter(catalog._query_filter('feu de')).query)
+        self.assertNotIn('%de%', sql)
+        self.assertIn('% de%', sql)
+
+    def test_short_words_alone_carry_no_leading_wildcard(self):
+        sql = str(Track.objects.filter(catalog._query_filter('do it')).query)
+        self.assertNotIn('LIKE %', sql)
+
+    def test_a_one_letter_word_only_counts_as_part_of_the_phrase(self):
+        # `a%` on its own matches hundreds of thousands of rows per field.
+        _make_track(title='Take on Me', artist='a-ha')
+        self.assertEqual([t.title for t in catalog.search_tracks('a ha')], ['Take on Me'])
+        sql = str(Track.objects.filter(catalog._query_filter('a ha')).query)
+        self.assertNotIn('LIKE a%', sql)
 
 
 class EnrichmentClaimTests(TestCase):

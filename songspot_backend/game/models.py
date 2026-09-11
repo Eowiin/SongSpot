@@ -279,6 +279,11 @@ class SearchEnrichment(models.Model):
     kind = models.CharField(max_length=16, help_text="'tracks' or 'artists'.")
     norm_query = models.CharField(max_length=255)
     enriched_at = models.DateTimeField()
+    # For a query only Deezer could answer (a typo, a missing space): the
+    # tracks it matched that resemble the query. Kept for as long as the claim
+    # holds, so the next player who types it sees the same list. See
+    # catalog.search_tracks.
+    track_ids = models.JSONField(null=True, blank=True)
 
     class Meta:
         db_table = 'search_enrichments'
@@ -359,6 +364,10 @@ class PlaylistTrack(models.Model):
         related_name='in_playlists'
     )
     order_in_playlist = models.PositiveIntegerField(default=0)
+    # How well known the song is: the best Deezer rank among all its releases,
+    # recorded by refresh_catalog. The all-genre mix plays only the better
+    # known part of each category (see services/pools.MIX_TOP_SHARE).
+    song_rank = models.PositiveIntegerField(default=0)
 
     class Meta:
         db_table = 'playlist_tracks'

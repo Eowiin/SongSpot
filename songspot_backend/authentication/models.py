@@ -162,3 +162,35 @@ class UserDevicePushToken(models.Model):
         return f"{self.user.username} ({self.platform})"
 
 
+class BugReport(models.Model):
+    """
+    A problem a player reported from the app's settings.
+
+    Each report is saved, then emailed to BUG_REPORT_EMAIL. Saving comes first
+    so that a mail outage loses only the email: the report is still in the
+    admin, and `emailed` shows which ones never went out.
+    """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='bug_reports',
+    )
+    message = models.TextField()
+    app_version = models.CharField(max_length=50, blank=True)
+    platform = models.CharField(max_length=30, blank=True)
+    locale = models.CharField(max_length=10, blank=True)
+    emailed = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'bug_reports'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        who = self.user.username if self.user else 'guest'
+        return f'{who}: {self.message[:60]}'
+
+

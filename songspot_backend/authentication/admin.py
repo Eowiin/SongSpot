@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, UserDevicePushToken
+from .models import BugReport, User, UserDevicePushToken
 
 class UserAdmin(BaseUserAdmin):
     list_display = ('email', 'username', 'is_staff', 'is_active')
@@ -31,3 +31,15 @@ class UserDevicePushTokenAdmin(admin.ModelAdmin):
     list_filter = ('platform', 'is_active', 'daily_song_enabled', 'messages_enabled')
     search_fields = ('user__email', 'user__username', 'device_id', 'token')
     readonly_fields = ('created_at', 'updated_at', 'last_seen_at')
+
+
+@admin.register(BugReport)
+class BugReportAdmin(admin.ModelAdmin):
+    list_display = ('created_at', 'user', 'platform', 'app_version', 'emailed', 'summary')
+    list_filter = ('platform', 'emailed')
+    search_fields = ('message', 'user__email', 'user__username')
+    readonly_fields = ('created_at',)
+
+    @admin.display(description='Message')
+    def summary(self, report):
+        return report.message[:80]

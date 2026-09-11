@@ -11,7 +11,7 @@ from django.core.cache import cache, caches
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from game.models import Artist, CatalogSetting, Playlist, PlaylistTrack, Track
+from game.models import Artist, CatalogSetting, Playlist, PlaylistTrack, SearchMiss, Track
 from game.services import DeezerService, cache_utils, catalog, deezer_http, rounds
 
 
@@ -452,6 +452,77 @@ class SearchByArtistTests(CatalogTestCase):
     def test_words_from_neither_field_match_nothing(self, mock_deezer):
         mock_deezer.return_value.search_track.return_value = {'data': []}
         self.assertEqual(catalog.search_tracks('rosalia starboy'), [])
+
+
+def deezer_track(deezer_id, title, artist, artist_id, rank=800_000):
+    """A search payload as Deezer returns it."""
+    return {
+        'id': deezer_id,
+        'title': title,
+        'preview': f'https://example.com/{deezer_id}.mp3',
+        'rank': rank,
+        'artist': {'id': artist_id, 'name': artist},
+        'album': {'title': 'Album', 'cover_xl': 'https://x/c.jpg'},
+    }
+
+
+class SearchTypoTests(CatalogTestCase):
+    """
+    A typo finds the song through Deezer, and nothing else changes.
+
+    The first short-word fix hid songs that were in the catalogue. These guard
+    the ways a typo fallback could do something similar: replacing results that
+    were correct, showing unrelated ones, or showing a list to one player and
+    nothing to the next.
+    """
+
+    BAD_BUNNY = [
+        deezer_track(501, 'MONACO', 'Bad Bunny', 589),
+        deezer_track(502, 'PERRO NEGRO', 'Bad Bunny', 589),
+    ]
+
+    def _search(self, query, deezer_results):
+        with patch.object(
+            DeezerService, 'search_track', return_value={'data': deezer_results},
+        ) as search:
+            return catalog.search_tracks(query), search
+
+    def test_a_typo_shows_what_deezer_matched(self):
+        results, _ = self._search('bad buny', self.BAD_BUNNY)
+        self.assertEqual({t.title for t in results}, {'MONACO', 'PERRO NEGRO'})
+        self.assertFalse(SearchMiss.objects.exists())
+
+    def test_words_typed_without_spaces_are_matched(self):
+        results, _ = self._search(
+            'straykids', [deezer_track(601, 'This & That', 'Stray Kids', 700)],
+        )
+        self.assertEqual([t.title for t in results], ['This & That'])
+
+    def test_a_word_still_being_typed_counts(self):
+        results, _ = self._search(
+            'oliva rodr', [deezer_track(701, 'drivers license', 'Olivia Rodrigo', 800)],
+        )
+        self.assertEqual([t.title for t in results], ['drivers license'])
+
+    def test_unrelated_deezer_results_are_not_shown(self):
+        results, _ = self._search(
+            'gina and georgia',
+            [deezer_track(801, "Gina And Elvira's Theme", 'Giorgio Moroder', 900)],
+        )
+        self.assertEqual(results, [])
+        self.assertTrue(SearchMiss.objects.filter(norm_query='gina and georgia').exists())
+
+    def test_the_next_player_sees_the_same_list(self):
+        first, _ = self._search('bad buny', self.BAD_BUNNY)
+        # The query is claimed now, so Deezer is not asked again.
+        second, search = self._search('bad buny', [])
+        search.assert_not_called()
+        self.assertEqual({t.title for t in second}, {t.title for t in first})
+
+    def test_local_results_are_never_replaced(self):
+        make_track('Bad Bunny Intro', 'Local Act', deezer_id=901)
+        results, _ = self._search('bad bunny', self.BAD_BUNNY)
+        self.assertEqual([t.title for t in results], ['Bad Bunny Intro'])
 
 
 class SearchRankingTests(CatalogTestCase):

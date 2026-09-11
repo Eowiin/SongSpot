@@ -51,7 +51,7 @@ from ..models import (
     SearchMiss,
     Track,
 )
-from . import background
+from . import background, typos
 from .cache_utils import cache_delete, cache_get, cache_set
 from .deezer_http import DeezerHttp
 from .deezer_service import DeezerService
@@ -1060,26 +1060,52 @@ def _query_filter(query: str) -> Optional[Q]:
     the leading `The` of `The Weeknd` is stripped from `norm_artist`, and
     `(Live)` never reaches `norm_title`.
 
-    Length: a token too short to be indexed anchors to the start of the field
-    instead of floating inside it. `U2` and `AC` stay findable, and the cost of
-    finding them drops from a scan of the whole table to a b-tree lookup, but a
-    two-letter word no longer matches mid-title — `it` stops offering *Do It*.
-    That trade is deliberate: it is the difference between an autocomplete that
-    answers in single-digit milliseconds and one that saturates four cores.
+    Length: a word under three characters is too short for a trigram index,
+    and must never reach the table as `%xx%`, which makes Postgres read every
+    row. How it matches depends on the rest of the query:
+
+    * With at least one longer word, the longer words find the rows through
+      their trigram indexes, and a short word only has to begin a word of the
+      title or artist: `feu de bois` finds *Feu de bois*, and so does
+      `feu de b`. The first version anchored short words to the start of the
+      whole field, so a title stopped being findable once the player typed
+      past its first word: `de` does not begin `feu de bois`. The empty list
+      then cost a live Deezer search and a recorded miss on every keystroke.
+    * With only short words, everything anchors to the start of the title or
+      the artist, as b-tree lookups on the `varchar_pattern_ops` indexes. The
+      query matches as one phrase (`do it` finds *Do It*, `a ha` finds a-ha)
+      or, when every word has at least two letters, word by word across the
+      two fields (`es ua` finds *Esquina* by UANA). `it` alone does not offer
+      *Do It*.
     """
     tokens = normalize_query(query).split()[:MAX_QUERY_TOKENS]
     if not tokens:
         return None
+    if all(len(token) < TRIGRAM_MIN_CHARS for token in tokens):
+        phrase = ' '.join(tokens)
+        matches = Q(norm_title__startswith=phrase) | Q(norm_artist__startswith=phrase)
+        if len(tokens) > 1 and all(len(token) > 1 for token in tokens):
+            # Word by word only when every word has two letters. A one-letter
+            # prefix matches hundreds of thousands of rows in each field, and
+            # combining two of them took 1.1s on prod for `a b`.
+            word_by_word = Q()
+            for token in tokens:
+                word_by_word &= (
+                    Q(norm_title__startswith=token) | Q(norm_artist__startswith=token)
+                )
+            matches |= word_by_word
+        return matches
     combined = Q()
     for token in tokens:
         if len(token) < TRIGRAM_MIN_CHARS:
-            # Prefix only, and only over the normalised columns: those carry the
-            # `varchar_pattern_ops` indexes that make `LIKE 'u2%'` a b-tree
-            # lookup. The raw columns have trigram indexes alone, which a token
-            # this short cannot use in any form.
+            # The start of any word in the normalised columns, whose words are
+            # separated by single spaces. The longer words have already found
+            # the rows; this condition only has to hold for those rows.
             combined &= (
                 Q(norm_title__startswith=token)
+                | Q(norm_title__contains=f' {token}')
                 | Q(norm_artist__startswith=token)
+                | Q(norm_artist__contains=f' {token}')
             )
         else:
             combined &= (
@@ -1104,6 +1130,13 @@ def search_tracks(query: str, limit: int = 30) -> list[Track]:
 
     Ordering is by Deezer rank, which is a decent proxy for "the version people
     mean" once the variants are already collapsed away.
+
+    Typos: when the catalogue has no answer at all, Deezer's own matches are
+    shown instead, because its search forgives what ours does not (`bad buny`,
+    `straykids`). This happens only when nothing local matched, so a query
+    that works never has its results replaced, and only for results that
+    resemble the query (see `typos`), so a garbled query shows nothing rather
+    than whatever Deezer returned.
     """
     query = (query or '').strip()
     if len(query) < 2:
@@ -1119,7 +1152,13 @@ def search_tracks(query: str, limit: int = 30) -> list[Track]:
         if results:
             _enrich_later(_enrich_tracks, 'tracks', query)
         else:
-            if _enrich_now(_enrich_tracks, 'tracks', query) is not None:
+            imported = _enrich_now(_enrich_tracks, 'tracks', query)
+            if imported is None:
+                # Claimed already: someone searched this within the week. Show
+                # what Deezer matched for them, or this player would get an
+                # empty list for a query that worked a minute ago.
+                results = _dedupe(_remembered_matches(query), limit)
+            else:
                 # Re-read rather than use the imported rows directly: the
                 # dedup and ranking below have to see the whole catalogue's
                 # releases of a song, not just the ones this call happened to
@@ -1127,10 +1166,40 @@ def search_tracks(query: str, limit: int = 30) -> list[Track]:
                 results = _dedupe(
                     Track.objects.filter(matches).order_by('-rank')[:150], limit,
                 )
+                if not results:
+                    close = [t for t in imported if typos.resembles(query, t.title, t.artist)]
+                    _remember_matches(query, close)
+                    results = _dedupe(close, limit)
             if not results:
                 _record_miss(query)
 
     return results
+
+
+def _remember_matches(query: str, tracks: list[Track]) -> None:
+    """
+    Keep Deezer's matches for a query with its enrichment claim.
+
+    Stored in Postgres beside the claim, for the reason the claim itself moved
+    there: Redis evicts under memory pressure, and a list that vanished early
+    would leave the next player an empty dropdown while the claim still held.
+    """
+    norm = normalize_query(query)[:255]
+    if norm and tracks:
+        SearchEnrichment.objects.filter(kind='tracks', norm_query=norm).update(
+            track_ids=[str(track.id) for track in tracks],
+        )
+
+
+def _remembered_matches(query: str) -> list[Track]:
+    norm = normalize_query(query)[:255]
+    ids = (
+        SearchEnrichment.objects
+        .filter(kind='tracks', norm_query=norm)
+        .values_list('track_ids', flat=True)
+        .first()
+    )
+    return list(Track.objects.filter(id__in=ids)) if ids else []
 
 
 def _enrich_tracks(query: str, max_wait: Optional[float] = None) -> list[Track]:

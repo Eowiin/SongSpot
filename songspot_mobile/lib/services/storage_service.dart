@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -119,5 +121,26 @@ class StorageService {
     await prefs.remove(_guestBestStreakKey);
     await prefs.remove(_guestSongsPlayedKey);
     await prefs.remove(_guestSongsCorrectKey);
+  }
+
+  static const String _soloSetupKey = 'solo_setup';
+
+  /// The last solo run's settings, or null before the first run or if what
+  /// was stored can no longer be read.
+  Future<Map<String, dynamic>?> getSoloSetup() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_soloSetupKey);
+    if (raw == null) return null;
+    try {
+      final decoded = jsonDecode(raw);
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } on FormatException {
+      return null;
+    }
+  }
+
+  Future<void> saveSoloSetup(Map<String, dynamic> setup) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_soloSetupKey, jsonEncode(setup));
   }
 }

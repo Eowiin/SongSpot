@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../config/app_theme.dart';
+import '../../config/difficulty_style.dart';
 import '../../config/responsive.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/category.dart';
 import '../../models/game_score.dart';
+import '../../models/solo_setup.dart';
 import '../../providers/game_session_provider.dart';
-import 'category_select_screen.dart';
-import 'game_screen.dart';
+import 'solo_setup_sheet.dart';
 
 class SessionEndScreen extends StatelessWidget {
   final GameScore? score;
@@ -19,6 +20,7 @@ class SessionEndScreen extends StatelessWidget {
   /// Carried through so replaying an artist session picks the same Deezer
   /// entity rather than re-resolving an ambiguous name.
   final int? artistDeezerId;
+  final bool mix;
   final Difficulty difficulty;
   final SessionEndReason endReason;
 
@@ -32,12 +34,27 @@ class SessionEndScreen extends StatelessWidget {
     this.category,
     this.artistFilter,
     this.artistDeezerId,
+    this.mix = false,
     this.difficulty = Difficulty.medium,
     this.endReason = SessionEndReason.quit,
   });
 
   double get _accuracy =>
       songsPlayed == 0 ? 0 : (songsCorrect / songsPlayed * 100);
+
+  /// The run that just ended, as the solo panel sees it.
+  SoloSetup get _setup => SoloSetup(
+        category: category,
+        artistName: artistFilter,
+        artistDeezerId: artistDeezerId,
+        difficulty: difficulty,
+      );
+
+  Future<void> _changeSettings(BuildContext context) async {
+    final setup = await showSoloSetupSheet(context, _setup);
+    if (setup == null || !context.mounted) return;
+    await startSoloRun(context, setup, replace: true);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +80,7 @@ class SessionEndScreen extends StatelessWidget {
                       const SizedBox(height: 32),
                       _buildStatsCard(l10n),
                       const SizedBox(height: 16),
-                      _buildBadgesRow(),
+                      _buildBadgesRow(l10n),
                       const Spacer(),
                       _buildActions(context),
                       const SizedBox(height: 32),
@@ -114,10 +131,10 @@ class SessionEndScreen extends StatelessWidget {
           textAlign: TextAlign.center,
           style: AppTheme.display(28),
         ),
-        if (category != null || artistFilter != null) ...[
+        if (mix || category != null || artistFilter != null) ...[
           const SizedBox(height: 6),
           Text(
-            category?.name ?? artistFilter ?? '',
+            mix ? l10n.mixLabel : category?.name ?? artistFilter ?? '',
             textAlign: TextAlign.center,
             style: const TextStyle(color: AppTheme.ink2, fontSize: 15),
           ),
@@ -186,18 +203,22 @@ class SessionEndScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBadgesRow() {
-    final diffColor = _difficultyColor(difficulty);
+  Widget _buildBadgesRow(AppLocalizations l10n) {
+    final diffColor = difficulty.color;
     final multiplierText = '×${difficulty.scoreMultiplier.toStringAsFixed(1)}';
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _buildChip(
-          label: difficulty.label,
-          sublabel: multiplierText,
-          color: diffColor,
-          icon: Icons.tune_rounded,
+        // Flexible so the chip's own Flexible label can shrink: "Difficile"
+        // at a large text scale is wider than the screen allows.
+        Flexible(
+          child: _buildChip(
+            label: difficulty.localizedName(l10n),
+            sublabel: multiplierText,
+            color: diffColor,
+            icon: Icons.tune_rounded,
+          ),
         ),
       ],
     );
@@ -238,12 +259,6 @@ class SessionEndScreen extends StatelessWidget {
     );
   }
 
-  Color _difficultyColor(Difficulty d) => switch (d) {
-        Difficulty.easy => const Color(0xFF4CAF50),
-        Difficulty.medium => const Color(0xFFFF9800),
-        Difficulty.hard => const Color(0xFFE53935),
-      };
-
   Widget _buildActions(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Column(
@@ -251,19 +266,7 @@ class SessionEndScreen extends StatelessWidget {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: () {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => GameScreen(
-                    category: category,
-                    artistFilter: artistFilter,
-                    artistDeezerId: artistDeezerId,
-                    difficulty: difficulty,
-                  ),
-                ),
-              );
-            },
+            onPressed: () => startSoloRun(context, _setup, replace: true),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primaryColor,
               foregroundColor: Colors.white,
@@ -282,13 +285,7 @@ class SessionEndScreen extends StatelessWidget {
         SizedBox(
           width: double.infinity,
           child: OutlinedButton(
-            onPressed: () {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => const CategorySelectScreen()),
-              );
-            },
+            onPressed: () => _changeSettings(context),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppTheme.textSecondary,
               side: BorderSide(color: AppTheme.textSecondary.withValues(alpha: 0.3)),
@@ -297,7 +294,7 @@ class SessionEndScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppTheme.borderRadius)),
             ),
             child: Text(
-              l10n.sessionEndChangeCategory,
+              l10n.sessionEndChangeSettings,
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
           ),

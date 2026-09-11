@@ -33,7 +33,17 @@ class ApiService {
   factory ApiService() => _instance;
 
   final StorageService _storageService = StorageService();
-  bool _isRefreshing = false;
+
+  /// The token refresh in progress, shared by every request that gets a 401
+  /// while it runs.
+  ///
+  /// Refresh tokens rotate and the old one is blacklisted, so only one refresh
+  /// per token can succeed. A second caller used to get an immediate `false`
+  /// and throw "Session expired", even though the refresh running alongside
+  /// it went on to succeed. Any two requests in flight when the access token
+  /// expired (every hour) could fail one of them. Seen with the solo panel
+  /// and the style screen loading the categories at the same moment.
+  Future<bool>? _refreshInFlight;
   static const String _settingsLocaleKey = 'settings_locale';
   static const String _settingsLocaleManualKey = 'settings_locale_manual';
 
@@ -162,9 +172,10 @@ class ApiService {
     );
   }
 
-  Future<bool> _refreshAccessToken() async {
-    if (_isRefreshing) return false;
-    _isRefreshing = true;
+  Future<bool> _refreshAccessToken() =>
+      _refreshInFlight ??= _refresh().whenComplete(() => _refreshInFlight = null);
+
+  Future<bool> _refresh() async {
     try {
       final refreshToken = await _storageService.getRefreshToken();
       if (refreshToken == null) return false;
@@ -184,8 +195,6 @@ class ApiService {
       return false;
     } catch (_) {
       return false;
-    } finally {
-      _isRefreshing = false;
     }
   }
 
@@ -395,10 +404,29 @@ class ApiService {
     );
   }
 
+  /// Send a bug report to the developer. A signed-in player is identified so
+  /// they can be answered; a guest reports anonymously.
+  Future<void> reportBug({
+    required String message,
+    required bool asGuest,
+    String? appVersion,
+    String? platform,
+    String? locale,
+  }) async {
+    await post(ApiConfig.bugReport, includeAuth: !asGuest, body: {
+      'message': message,
+      if (appVersion != null) 'app_version': appVersion,
+      if (platform != null) 'platform': platform,
+      if (locale != null) 'locale': locale,
+    });
+  }
+
   // ── Game ──────────────────────────────────────────────────────────────────
 
+  /// Public, so it is sent without the session: an expired token has no way
+  /// to fail a request that never needed one.
   Future<List<dynamic>> getCategories() async {
-    final result = await get(ApiConfig.categories, includeAuth: true);
+    final result = await get(ApiConfig.categories);
     return result is List ? result : <dynamic>[];
   }
 
@@ -415,12 +443,16 @@ class ApiService {
   static const int _maxExcludeIds = 200;
 
   Future<Map<String, dynamic>> getNextSong({
+    bool mix = false,
     String? playlist,
     String? artist,
     int? artistDeezerId,
     List<String>? excludeIds,
   }) async {
     final params = <String, String>{'v': apiVersion};
+    // All-genre: the server draws the round across every category. Sent
+    // explicitly, because no filter at all still means the open catalogue.
+    if (mix) params['mix'] = '1';
     if (playlist != null && playlist.isNotEmpty) params['playlist'] = playlist;
     // The Deezer ID pins the exact artist the player picked. The name is sent
     // too, as a fallback for favourites saved before the app recorded IDs.

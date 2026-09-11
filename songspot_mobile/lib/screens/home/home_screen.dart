@@ -4,12 +4,14 @@ import '../../config/app_theme.dart';
 import '../../config/responsive.dart';
 import '../../l10n/app_localizations.dart';
 import '../../main.dart' show routeObserver;
+import '../../models/solo_setup.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/stats_provider.dart';
+import '../../services/storage_service.dart';
 import '../../widgets/pressable.dart';
 import '../auth/login_screen.dart';
 import '../duel/duel_flow_screen.dart';
-import '../game/category_select_screen.dart';
+import '../game/solo_setup_sheet.dart';
 import '../settings/settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -20,13 +22,24 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with RouteAware {
+  /// Where the solo panel opens: the last run's settings, or every genre at
+  /// medium before the first run.
+  SoloSetup _setup = SoloSetup.initial;
+
   @override
   void initState() {
     super.initState();
+    _loadSoloSetup();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final isGuest = context.read<AuthProvider>().isGuest;
       context.read<StatsProvider>().loadStats(isGuest: isGuest);
     });
+  }
+
+  Future<void> _loadSoloSetup() async {
+    final json = await StorageService().getSoloSetup();
+    if (json == null || !mounted) return;
+    setState(() => _setup = SoloSetup.fromJson(json));
   }
 
   @override
@@ -45,6 +58,8 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   void didPopNext() {
     final isGuest = context.read<AuthProvider>().isGuest;
     context.read<StatsProvider>().loadStats(isGuest: isGuest);
+    // A run started from the panel may have changed the remembered setup.
+    _loadSoloSetup();
   }
 
   @override
@@ -64,10 +79,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
       sublabel: l10n.homeSoloSublabel,
       gradient: AppTheme.primaryGradient,
       tall: isWide,
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const CategorySelectScreen()),
-      ),
+      onTap: _openSolo,
     );
 
     final duelCard = _buildModeCard(
@@ -149,6 +161,13 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
         ),
       ),
     );
+  }
+
+  Future<void> _openSolo() async {
+    final setup = await showSoloSetupSheet(context, _setup);
+    if (setup == null || !mounted) return;
+    setState(() => _setup = setup);
+    await startSoloRun(context, setup);
   }
 
   void _showSignInPrompt() {

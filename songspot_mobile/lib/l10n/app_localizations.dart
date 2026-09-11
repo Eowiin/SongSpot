@@ -332,6 +332,48 @@ abstract class AppLocalizations {
   /// **'Terms of Service'**
   String get settingsTermsOfService;
 
+  /// Row in the About section of settings that opens the bug report dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Report a bug'**
+  String get settingsReportBug;
+
+  /// No description provided for @bugReportTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Report a bug'**
+  String get bugReportTitle;
+
+  /// No description provided for @bugReportIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Tell us what happened: what you were doing, and what went wrong.'**
+  String get bugReportIntro;
+
+  /// No description provided for @bugReportHint.
+  ///
+  /// In en, this message translates to:
+  /// **'For example: the song never started after I picked Rock.'**
+  String get bugReportHint;
+
+  /// No description provided for @bugReportSend.
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get bugReportSend;
+
+  /// No description provided for @bugReportThanks.
+  ///
+  /// In en, this message translates to:
+  /// **'Thanks! Your report has been sent.'**
+  String get bugReportThanks;
+
+  /// No description provided for @bugReportFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Your report could not be sent. Please try again later.'**
+  String get bugReportFailed;
+
   /// Shown when external URL cannot be opened
   ///
   /// In en, this message translates to:
@@ -979,6 +1021,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'One track at a time, three lives'**
   String get homeSoloSublabel;
+
+  /// Button in the solo panel that opens the artist search, and the title of that screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick an artist'**
+  String get homePickArtist;
+
+  /// The all-genre choice in the solo panel, and the name of that run on the game screen and the session end screen.
+  ///
+  /// In en, this message translates to:
+  /// **'All genres'**
+  String get mixLabel;
+
+  /// Label of the genre row in the solo panel, and title of the genre screen it opens.
+  ///
+  /// In en, this message translates to:
+  /// **'Genre'**
+  String get soloStyle;
+
+  /// Difficulty name, in the solo panel and wherever a run's settings are shown.
+  ///
+  /// In en, this message translates to:
+  /// **'Easy'**
+  String get soloDifficultyEasy;
+
+  /// Difficulty name, in the solo panel and wherever a run's settings are shown.
+  ///
+  /// In en, this message translates to:
+  /// **'Medium'**
+  String get soloDifficultyMedium;
+
+  /// Difficulty name, in the solo panel and wherever a run's settings are shown.
+  ///
+  /// In en, this message translates to:
+  /// **'Hard'**
+  String get soloDifficultyHard;
+
+  /// What the selected difficulty changes, under the difficulty buttons in the solo panel.
+  ///
+  /// In en, this message translates to:
+  /// **'{seconds, plural, =1{1-second snippet} other{{seconds}-second snippet}}'**
+  String soloSnippetSeconds(int seconds);
+
+  /// Session end button that reopens the solo panel to pick another genre, artist or difficulty.
+  ///
+  /// In en, this message translates to:
+  /// **'Change settings'**
+  String get sessionEndChangeSettings;
 
   /// Sublabel on the 1v1 mode card on the home screen.
   ///

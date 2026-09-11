@@ -25,6 +25,7 @@ class ApiConfig {
   static const String changePassword = '/auth/change-password/';
   static const String dataExport = '/auth/data/export/';
   static const String deleteAccount = '/auth/account/';
+  static const String bugReport = '/auth/bug-report/';
 
   // Game endpoints
   static const String categories = '/game/categories/';

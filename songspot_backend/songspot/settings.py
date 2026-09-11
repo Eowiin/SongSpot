@@ -328,6 +328,9 @@ PASSWORD_RESET_TIMEOUT = int(os.environ.get('PASSWORD_RESET_TIMEOUT', '86400'))
 PASSWORD_RESET_EMAIL_COOLDOWN_SECONDS = int(
     os.environ.get('PASSWORD_RESET_EMAIL_COOLDOWN_SECONDS', '900')
 )
+# Where the in-app "Report a bug" form is emailed. Kept on the server so the
+# address never ships inside the app.
+BUG_REPORT_EMAIL = os.environ.get('BUG_REPORT_EMAIL', 'eowin.dev@gmail.com')
 
 # Custom User Model
 AUTH_USER_MODEL = 'authentication.User'
@@ -356,6 +359,7 @@ REST_FRAMEWORK = {
         'guess': '10/minute',     # Game guess submissions: 10/minute
         'message': '30/minute',   # Chat messages: 30/minute
         'game_search': '200/minute',  # Track search + next-song (fires per keystroke)
+        'bug_report': '5/hour',   # In-app bug reports: each one sends an email
     },
 }
 

@@ -2,7 +2,7 @@
 Custom throttle classes for rate limiting specific endpoints.
 """
 
-from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
+from rest_framework.throttling import AnonRateThrottle, SimpleRateThrottle, UserRateThrottle
 
 
 class AuthRateThrottle(AnonRateThrottle):
@@ -42,6 +42,24 @@ class BurstRateThrottle(UserRateThrottle):
     """
     scope = 'burst'
     rate = '3/second'
+
+
+class BugReportRateThrottle(SimpleRateThrottle):
+    """
+    Limit bug reports per account, or per IP for guests.
+
+    Unlike AnonRateThrottle and UserRateThrottle, this one covers both kinds of
+    caller. Every report sends an email, so a signed-in account must not be
+    able to send an unlimited number of them either.
+    """
+    scope = 'bug_report'
+
+    def get_cache_key(self, request, view):
+        if request.user and request.user.is_authenticated:
+            ident = f'user-{request.user.pk}'
+        else:
+            ident = f'ip-{self.get_ident(request)}'
+        return self.cache_format % {'scope': self.scope, 'ident': ident}
 
 
 class GameSearchThrottle(AnonRateThrottle):

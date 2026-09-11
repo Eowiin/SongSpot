@@ -10,8 +10,8 @@ from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from django.db import transaction
 
-from .models import DuelMatch, DuelRound, MatchmakingQueue, PlaylistTrack, Track, UserElo
-from .services import catalog, previews
+from .models import DuelMatch, DuelRound, MatchmakingQueue, Track, UserElo
+from .services import catalog, pools, previews
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,13 @@ def _parse_qs(scope) -> dict:
 
 def _pick_tracks(playlist_id, count: int) -> list:
     """
-    Synchronous: pick `count` distinct random tracks from the playlist (or all tracks).
+    Synchronous: pick `count` distinct random tracks for a match.
+
+    A match with no category, which is every match the app starts, is an
+    all-genre draw across the categories: the same mix solo play defaults to.
+    It used to draw from the whole filtered catalogue, ~600k tracks that most
+    players would not recognise, sorted in full by `ORDER BY random()` for
+    every match.
 
     A duel is an undirected pick — neither player chose the songs — so the
     quality floor applies, and it draws only from tracks already in the
@@ -53,22 +59,23 @@ def _pick_tracks(playlist_id, count: int) -> list:
     the WebSocket handshake, where a slow response costs both players the match.
     The refresh cron is what keeps this pool stocked.
     """
-    qs = catalog.playable(Track.objects.all(), directed=False)
     if playlist_id:
-        ids = PlaylistTrack.objects.filter(playlist_id=playlist_id).values_list('track_id', flat=True)
-        qs = qs.filter(id__in=ids)
-    total = qs.count()
-    if total == 0:
-        # An empty or unrefreshed category must not end the match before it
-        # starts; fall back to the whole filtered catalogue, then to anything
-        # playable at all.
-        qs = catalog.playable(Track.objects.all(), directed=False)
-        total = qs.count()
-    if total == 0:
-        qs = Track.objects.filter(has_preview=True)
-        total = qs.count()
-    count = min(count, total)
-    return list(qs.order_by('?')[:count])
+        qs = catalog.playable(pools.playlist_tracks(playlist_id), directed=False)
+        picks = list(qs.order_by('?')[:count])
+    else:
+        picks = pools.pick_mixed_tracks(count)
+    if picks:
+        return picks
+    # Empty or unrefreshed categories must not end the match before it starts:
+    # fall back to the whole filtered catalogue, then to anything playable.
+    for qs in (
+        catalog.playable(Track.objects.all(), directed=False),
+        Track.objects.filter(has_preview=True),
+    ):
+        picks = list(qs.order_by('?')[:count])
+        if picks:
+            return picks
+    return []
 
 
 # ─────────────────────────────────────────────────────────────────────────────

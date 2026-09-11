@@ -141,3 +141,10 @@ class ChangePasswordSerializer(serializers.Serializer):
 
 class DeleteAccountSerializer(serializers.Serializer):
     password = serializers.CharField(required=True, write_only=True)
+
+class BugReportSerializer(serializers.Serializer):
+    # Ten characters is about the least that can describe a problem at all.
+    message = serializers.CharField(min_length=10, max_length=2000)
+    app_version = serializers.CharField(required=False, allow_blank=True, max_length=50)
+    platform = serializers.CharField(required=False, allow_blank=True, max_length=30)
+    locale = serializers.CharField(required=False, allow_blank=True, max_length=10)
