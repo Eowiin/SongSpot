@@ -1060,26 +1060,52 @@ def _query_filter(query: str) -> Optional[Q]:
     the leading `The` of `The Weeknd` is stripped from `norm_artist`, and
     `(Live)` never reaches `norm_title`.
 
-    Length: a token too short to be indexed anchors to the start of the field
-    instead of floating inside it. `U2` and `AC` stay findable, and the cost of
-    finding them drops from a scan of the whole table to a b-tree lookup, but a
-    two-letter word no longer matches mid-title — `it` stops offering *Do It*.
-    That trade is deliberate: it is the difference between an autocomplete that
-    answers in single-digit milliseconds and one that saturates four cores.
+    Length: a word under three characters is too short for a trigram index,
+    and must never reach the table as `%xx%`, which makes Postgres read every
+    row. How it matches depends on the rest of the query:
+
+    * With at least one longer word, the longer words find the rows through
+      their trigram indexes, and a short word only has to begin a word of the
+      title or artist: `feu de bois` finds *Feu de bois*, and so does
+      `feu de b`. The first version anchored short words to the start of the
+      whole field, so a title stopped being findable once the player typed
+      past its first word: `de` does not begin `feu de bois`. The empty list
+      then cost a live Deezer search and a recorded miss on every keystroke.
+    * With only short words, everything anchors to the start of the title or
+      the artist, as b-tree lookups on the `varchar_pattern_ops` indexes. The
+      query matches as one phrase (`do it` finds *Do It*, `a ha` finds a-ha)
+      or, when every word has at least two letters, word by word across the
+      two fields (`es ua` finds *Esquina* by UANA). `it` alone does not offer
+      *Do It*.
     """
     tokens = normalize_query(query).split()[:MAX_QUERY_TOKENS]
     if not tokens:
         return None
+    if all(len(token) < TRIGRAM_MIN_CHARS for token in tokens):
+        phrase = ' '.join(tokens)
+        matches = Q(norm_title__startswith=phrase) | Q(norm_artist__startswith=phrase)
+        if len(tokens) > 1 and all(len(token) > 1 for token in tokens):
+            # Word by word only when every word has two letters. A one-letter
+            # prefix matches hundreds of thousands of rows in each field, and
+            # combining two of them took 1.1s on prod for `a b`.
+            word_by_word = Q()
+            for token in tokens:
+                word_by_word &= (
+                    Q(norm_title__startswith=token) | Q(norm_artist__startswith=token)
+                )
+            matches |= word_by_word
+        return matches
     combined = Q()
     for token in tokens:
         if len(token) < TRIGRAM_MIN_CHARS:
-            # Prefix only, and only over the normalised columns: those carry the
-            # `varchar_pattern_ops` indexes that make `LIKE 'u2%'` a b-tree
-            # lookup. The raw columns have trigram indexes alone, which a token
-            # this short cannot use in any form.
+            # The start of any word in the normalised columns, whose words are
+            # separated by single spaces. The longer words have already found
+            # the rows; this condition only has to hold for those rows.
             combined &= (
                 Q(norm_title__startswith=token)
+                | Q(norm_title__contains=f' {token}')
                 | Q(norm_artist__startswith=token)
+                | Q(norm_artist__contains=f' {token}')
             )
         else:
             combined &= (
