@@ -130,6 +130,30 @@ class AppLocalizationsFr extends AppLocalizations {
   String get settingsTermsOfService => 'Conditions d\'utilisation';
 
   @override
+  String get settingsReportBug => 'Signaler un bug';
+
+  @override
+  String get bugReportTitle => 'Signaler un bug';
+
+  @override
+  String get bugReportIntro =>
+      'Dites-nous ce qui s\'est passé : ce que vous faisiez et ce qui n\'a pas marché.';
+
+  @override
+  String get bugReportHint =>
+      'Par exemple : la musique ne s\'est jamais lancée après avoir choisi Rock.';
+
+  @override
+  String get bugReportSend => 'Envoyer';
+
+  @override
+  String get bugReportThanks => 'Merci ! Votre signalement a bien été envoyé.';
+
+  @override
+  String get bugReportFailed =>
+      'Impossible d\'envoyer le signalement. Réessayez plus tard.';
+
+  @override
   String get settingsCouldNotOpenLink => 'Impossible d\'ouvrir le lien';
 
   @override

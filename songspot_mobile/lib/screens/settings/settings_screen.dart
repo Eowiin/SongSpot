@@ -10,6 +10,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../auth/login_screen.dart';
 import 'accessibility_screen.dart';
+import 'bug_report_dialog.dart';
 import 'change_email_screen.dart';
 import 'change_password_screen.dart';
 import 'language_screen.dart';
@@ -81,6 +82,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
           (route) => false,
         );
       }
+    }
+  }
+
+  Future<void> _openBugReport() async {
+    final sent = await showBugReportDialog(
+      context,
+      isGuest: context.read<AuthProvider>().isGuest,
+      appVersion: _appVersion,
+      locale: context.read<SettingsProvider>().locale.languageCode,
+    );
+    if (sent == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).bugReportThanks)),
+      );
     }
   }
 
@@ -254,6 +269,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       icon: Icons.article_outlined,
                       title: l10n.settingsTermsOfService,
                       onTap: () => _openUrl(_buildLegalUrl(_kTermsPath)),
+                    ),
+                    _SettingsTile(
+                      icon: Icons.bug_report_outlined,
+                      title: l10n.settingsReportBug,
+                      onTap: _openBugReport,
                     ),
                     const SizedBox(height: 24),
 

@@ -404,6 +404,23 @@ class ApiService {
     );
   }
 
+  /// Send a bug report to the developer. A signed-in player is identified so
+  /// they can be answered; a guest reports anonymously.
+  Future<void> reportBug({
+    required String message,
+    required bool asGuest,
+    String? appVersion,
+    String? platform,
+    String? locale,
+  }) async {
+    await post(ApiConfig.bugReport, includeAuth: !asGuest, body: {
+      'message': message,
+      if (appVersion != null) 'app_version': appVersion,
+      if (platform != null) 'platform': platform,
+      if (locale != null) 'locale': locale,
+    });
+  }
+
   // ── Game ──────────────────────────────────────────────────────────────────
 
   /// Public, so it is sent without the session: an expired token has no way

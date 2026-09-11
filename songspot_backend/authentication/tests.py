@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.core.cache import cache
 from django.core import mail
 from django.test import TestCase
@@ -10,7 +12,7 @@ from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
-from .models import User
+from .models import BugReport, User
 
 
 class UserModelTests(TestCase):
@@ -368,6 +370,66 @@ class PasswordResetFlowTests(APITestCase):
         self.assertTrue(
             BlacklistedToken.objects.filter(token__user=self.user).exists()
         )
+
+
+@override_settings(BUG_REPORT_EMAIL='dev@example.com')
+class BugReportViewTests(APITestCase):
+    url = '/api/auth/bug-report/'
+
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user(
+            username='reporter',
+            email='reporter@example.com',
+            password='testpass123',
+        )
+
+    def _report(self, **overrides):
+        body = {
+            'message': 'The song never started after I picked Rock.',
+            'app_version': '2.3.1 (50)',
+            'platform': 'android',
+            'locale': 'fr',
+        }
+        body.update(overrides)
+        return self.client.post(self.url, body, format='json')
+
+    def test_a_report_is_emailed_to_the_developer(self):
+        self.client.force_authenticate(self.user)
+        response = self._report()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(mail.outbox), 1)
+        email = mail.outbox[0]
+        self.assertEqual(email.to, ['dev@example.com'])
+        self.assertEqual(email.reply_to, ['reporter@example.com'])
+        self.assertIn('reporter', email.subject)
+        self.assertIn('The song never started after I picked Rock.', email.body)
+        self.assertIn('2.3.1 (50)', email.body)
+        self.assertTrue(BugReport.objects.get().emailed)
+
+    def test_a_guest_can_report_too(self):
+        response = self._report()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIsNone(BugReport.objects.get().user)
+        self.assertEqual(mail.outbox[0].reply_to, [])
+
+    def test_a_report_is_kept_when_the_email_fails(self):
+        with patch('authentication.views.EmailMessage.send', side_effect=OSError('smtp down')):
+            response = self._report()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertFalse(BugReport.objects.get().emailed)
+
+    def test_a_report_too_short_to_describe_anything_is_refused(self):
+        response = self._report(message='   bug   ')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertFalse(BugReport.objects.exists())
+
+    def test_reports_are_limited_per_account(self):
+        self.client.force_authenticate(self.user)
+        codes = [self._report().status_code for _ in range(6)]
+        self.assertEqual(codes[:5], [status.HTTP_201_CREATED] * 5)
+        self.assertEqual(codes[5], status.HTTP_429_TOO_MANY_REQUESTS)
 
 
 class UserProfileViewTests(APITestCase):

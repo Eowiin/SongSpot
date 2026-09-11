@@ -22,11 +22,12 @@ from django.utils import timezone, translation
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.views import View
-from django.core.mail import send_mail
+from django.core.mail import EmailMessage, send_mail
 import json
 from urllib.parse import urlencode
-from .models import UserDevicePushToken
+from .models import BugReport, UserDevicePushToken
 from .serializers import (
+    BugReportSerializer,
     UserRegistrationSerializer,
     UserSerializer,
     UserProfileSerializer,
@@ -38,7 +39,7 @@ from .serializers import (
     DeleteAccountSerializer,
     PasswordResetRequestSerializer,
 )
-from songspot.throttling import AuthRateThrottle, PasswordResetRateThrottle
+from songspot.throttling import AuthRateThrottle, BugReportRateThrottle, PasswordResetRateThrottle
 from songspot.api_errors import error_response, ErrorCode
 from .utils import normalize_locale as _normalize_locale
 
@@ -321,6 +322,74 @@ class PasswordResetRequestView(APIView):
             {'message': copy['request_success']},
             status=status.HTTP_200_OK,
         )
+
+
+def _email_bug_report(report, request):
+    """Send one bug report to BUG_REPORT_EMAIL, with what is needed to reproduce it."""
+    user = report.user
+    body = '\n'.join([
+        report.message,
+        '',
+        '---',
+        f'From: {f"{user.username} <{user.email}>" if user else "guest"}',
+        f'App version: {report.app_version or "unknown"}',
+        f'Platform: {report.platform or "unknown"}',
+        f'Language: {report.locale or "unknown"}',
+        f'User agent: {request.META.get("HTTP_USER_AGENT", "unknown")}',
+        f'Sent: {report.created_at:%Y-%m-%d %H:%M} UTC',
+        f'Report #{report.pk}',
+    ])
+    EmailMessage(
+        subject=f'[SongSpot] Bug report #{report.pk} from {user.username if user else "a guest"}',
+        body=body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[settings.BUG_REPORT_EMAIL],
+        # Replying goes straight to the player, when they have an account.
+        reply_to=[user.email] if user else None,
+    ).send()
+
+
+class BugReportView(APIView):
+    """
+    Receive a bug report from the app and email it to the developer.
+
+    POST /api/auth/bug-report/
+    Body: {
+        "message": "The song never started after I picked Rock.",
+        "app_version": "2.3.1 (50)",
+        "platform": "android",
+        "locale": "fr"
+    }
+
+    Open to guests as well as accounts, since both can run into a bug. The
+    report is saved before the email is sent, so a mail failure still leaves
+    it in the admin and the player still gets a confirmation.
+    """
+
+    permission_classes = [AllowAny]
+    throttle_classes = [BugReportRateThrottle]
+
+    def post(self, request):
+        serializer = BugReportSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        report = BugReport.objects.create(
+            user=request.user if request.user.is_authenticated else None,
+            message=data['message'],
+            app_version=data.get('app_version', ''),
+            platform=data.get('platform', ''),
+            locale=data.get('locale', ''),
+        )
+        try:
+            _email_bug_report(report, request)
+        except Exception:
+            logger.exception('Unable to email bug report %s.', report.pk)
+        else:
+            report.emailed = True
+            report.save(update_fields=['emailed'])
+
+        return Response({'id': report.pk}, status=status.HTTP_201_CREATED)
 
 
 class RefreshTokenView(APIView):

@@ -332,6 +332,48 @@ abstract class AppLocalizations {
   /// **'Terms of Service'**
   String get settingsTermsOfService;
 
+  /// Row in the About section of settings that opens the bug report dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Report a bug'**
+  String get settingsReportBug;
+
+  /// No description provided for @bugReportTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Report a bug'**
+  String get bugReportTitle;
+
+  /// No description provided for @bugReportIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Tell us what happened: what you were doing, and what went wrong.'**
+  String get bugReportIntro;
+
+  /// No description provided for @bugReportHint.
+  ///
+  /// In en, this message translates to:
+  /// **'For example: the song never started after I picked Rock.'**
+  String get bugReportHint;
+
+  /// No description provided for @bugReportSend.
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get bugReportSend;
+
+  /// No description provided for @bugReportThanks.
+  ///
+  /// In en, this message translates to:
+  /// **'Thanks! Your report has been sent.'**
+  String get bugReportThanks;
+
+  /// No description provided for @bugReportFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Your report could not be sent. Please try again later.'**
+  String get bugReportFailed;
+
   /// Shown when external URL cannot be opened
   ///
   /// In en, this message translates to:

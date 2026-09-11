@@ -156,6 +156,16 @@
   "@settingsTermsOfService": {
     "description": "Terms of service tile"
   },
+  "settingsReportBug": "Report a bug",
+  "@settingsReportBug": {
+    "description": "Row in the About section of settings that opens the bug report dialog."
+  },
+  "bugReportTitle": "Report a bug",
+  "bugReportIntro": "Tell us what happened: what you were doing, and what went wrong.",
+  "bugReportHint": "For example: the song never started after I picked Rock.",
+  "bugReportSend": "Send",
+  "bugReportThanks": "Thanks! Your report has been sent.",
+  "bugReportFailed": "Your report could not be sent. Please try again later.",
   "settingsCouldNotOpenLink": "Could not open link",
   "@settingsCouldNotOpenLink": {
     "description": "Shown when external URL cannot be opened"

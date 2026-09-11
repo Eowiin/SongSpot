@@ -129,6 +129,30 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsTermsOfService => 'Terms of Service';
 
   @override
+  String get settingsReportBug => 'Report a bug';
+
+  @override
+  String get bugReportTitle => 'Report a bug';
+
+  @override
+  String get bugReportIntro =>
+      'Tell us what happened: what you were doing, and what went wrong.';
+
+  @override
+  String get bugReportHint =>
+      'For example: the song never started after I picked Rock.';
+
+  @override
+  String get bugReportSend => 'Send';
+
+  @override
+  String get bugReportThanks => 'Thanks! Your report has been sent.';
+
+  @override
+  String get bugReportFailed =>
+      'Your report could not be sent. Please try again later.';
+
+  @override
   String get settingsCouldNotOpenLink => 'Could not open link';
 
   @override
