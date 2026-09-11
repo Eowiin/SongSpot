@@ -51,7 +51,7 @@ from ..models import (
     SearchMiss,
     Track,
 )
-from . import background
+from . import background, typos
 from .cache_utils import cache_delete, cache_get, cache_set
 from .deezer_http import DeezerHttp
 from .deezer_service import DeezerService
@@ -1130,6 +1130,13 @@ def search_tracks(query: str, limit: int = 30) -> list[Track]:
 
     Ordering is by Deezer rank, which is a decent proxy for "the version people
     mean" once the variants are already collapsed away.
+
+    Typos: when the catalogue has no answer at all, Deezer's own matches are
+    shown instead, because its search forgives what ours does not (`bad buny`,
+    `straykids`). This happens only when nothing local matched, so a query
+    that works never has its results replaced, and only for results that
+    resemble the query (see `typos`), so a garbled query shows nothing rather
+    than whatever Deezer returned.
     """
     query = (query or '').strip()
     if len(query) < 2:
@@ -1145,7 +1152,13 @@ def search_tracks(query: str, limit: int = 30) -> list[Track]:
         if results:
             _enrich_later(_enrich_tracks, 'tracks', query)
         else:
-            if _enrich_now(_enrich_tracks, 'tracks', query) is not None:
+            imported = _enrich_now(_enrich_tracks, 'tracks', query)
+            if imported is None:
+                # Claimed already: someone searched this within the week. Show
+                # what Deezer matched for them, or this player would get an
+                # empty list for a query that worked a minute ago.
+                results = _dedupe(_remembered_matches(query), limit)
+            else:
                 # Re-read rather than use the imported rows directly: the
                 # dedup and ranking below have to see the whole catalogue's
                 # releases of a song, not just the ones this call happened to
@@ -1153,10 +1166,40 @@ def search_tracks(query: str, limit: int = 30) -> list[Track]:
                 results = _dedupe(
                     Track.objects.filter(matches).order_by('-rank')[:150], limit,
                 )
+                if not results:
+                    close = [t for t in imported if typos.resembles(query, t.title, t.artist)]
+                    _remember_matches(query, close)
+                    results = _dedupe(close, limit)
             if not results:
                 _record_miss(query)
 
     return results
+
+
+def _remember_matches(query: str, tracks: list[Track]) -> None:
+    """
+    Keep Deezer's matches for a query with its enrichment claim.
+
+    Stored in Postgres beside the claim, for the reason the claim itself moved
+    there: Redis evicts under memory pressure, and a list that vanished early
+    would leave the next player an empty dropdown while the claim still held.
+    """
+    norm = normalize_query(query)[:255]
+    if norm and tracks:
+        SearchEnrichment.objects.filter(kind='tracks', norm_query=norm).update(
+            track_ids=[str(track.id) for track in tracks],
+        )
+
+
+def _remembered_matches(query: str) -> list[Track]:
+    norm = normalize_query(query)[:255]
+    ids = (
+        SearchEnrichment.objects
+        .filter(kind='tracks', norm_query=norm)
+        .values_list('track_ids', flat=True)
+        .first()
+    )
+    return list(Track.objects.filter(id__in=ids)) if ids else []
 
 
 def _enrich_tracks(query: str, max_wait: Optional[float] = None) -> list[Track]:
