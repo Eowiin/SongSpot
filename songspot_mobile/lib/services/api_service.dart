@@ -33,7 +33,17 @@ class ApiService {
   factory ApiService() => _instance;
 
   final StorageService _storageService = StorageService();
-  bool _isRefreshing = false;
+
+  /// The token refresh in progress, shared by every request that gets a 401
+  /// while it runs.
+  ///
+  /// Refresh tokens rotate and the old one is blacklisted, so only one refresh
+  /// per token can succeed. A second caller used to get an immediate `false`
+  /// and throw "Session expired", even though the refresh running alongside
+  /// it went on to succeed. Any two requests in flight when the access token
+  /// expired (every hour) could fail one of them. Seen with the solo panel
+  /// and the style screen loading the categories at the same moment.
+  Future<bool>? _refreshInFlight;
   static const String _settingsLocaleKey = 'settings_locale';
   static const String _settingsLocaleManualKey = 'settings_locale_manual';
 
@@ -162,9 +172,10 @@ class ApiService {
     );
   }
 
-  Future<bool> _refreshAccessToken() async {
-    if (_isRefreshing) return false;
-    _isRefreshing = true;
+  Future<bool> _refreshAccessToken() =>
+      _refreshInFlight ??= _refresh().whenComplete(() => _refreshInFlight = null);
+
+  Future<bool> _refresh() async {
     try {
       final refreshToken = await _storageService.getRefreshToken();
       if (refreshToken == null) return false;
@@ -184,8 +195,6 @@ class ApiService {
       return false;
     } catch (_) {
       return false;
-    } finally {
-      _isRefreshing = false;
     }
   }
 
@@ -397,8 +406,10 @@ class ApiService {
 
   // ── Game ──────────────────────────────────────────────────────────────────
 
+  /// Public, so it is sent without the session: an expired token has no way
+  /// to fail a request that never needed one.
   Future<List<dynamic>> getCategories() async {
-    final result = await get(ApiConfig.categories, includeAuth: true);
+    final result = await get(ApiConfig.categories);
     return result is List ? result : <dynamic>[];
   }
 
