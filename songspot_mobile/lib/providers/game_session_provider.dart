@@ -61,6 +61,7 @@ class GameSessionProvider extends ChangeNotifier {
   app_models.Category? _category;
   String? _artistFilter;
   int? _artistDeezerId;
+  bool _mix = false;
   Difficulty _difficulty = Difficulty.medium;
   bool _isGuest = false;
 
@@ -116,6 +117,13 @@ class GameSessionProvider extends ChangeNotifier {
   String? get artistFilter => _artistFilter;
   int? get artistDeezerId => _artistDeezerId;
 
+  /// True for an all-genre run, drawn across every category.
+  bool get isMix => _mix;
+
+  /// The genre the run is scored under. All-genre runs get their own key, so
+  /// they have their own leaderboard instead of joining artist runs under none.
+  String? get _genre => _mix ? 'mix' : _category?.category;
+
   /// How many tracks the chosen artist has, once the first round has landed.
   /// Null for category play, and for artists the server did not report on.
   int? get artistPoolSize => _artistPoolSize;
@@ -166,12 +174,14 @@ class GameSessionProvider extends ChangeNotifier {
     app_models.Category? category,
     String? artistFilter,
     int? artistDeezerId,
+    bool mix = false,
     Difficulty difficulty = Difficulty.medium,
     bool isGuest = false,
   }) {
     _category = category;
     _artistFilter = artistFilter;
     _artistDeezerId = artistDeezerId;
+    _mix = mix;
     _difficulty = difficulty;
     _isGuest = isGuest;
     _sessionUuid = const Uuid().v4();
@@ -195,7 +205,7 @@ class GameSessionProvider extends ChangeNotifier {
     notifyListeners();
     _analytics.sessionStarted(
       mode: 'solo',
-      genre: category?.category,
+      genre: _genre,
       artist: artistFilter,
       difficulty: difficulty.name,
     );
@@ -244,6 +254,7 @@ class GameSessionProvider extends ChangeNotifier {
 
     try {
       final data = await _api.getNextSong(
+        mix: _mix,
         playlist: _category?.id,
         artist: _artistFilter,
         artistDeezerId: _artistDeezerId,
@@ -354,6 +365,7 @@ class GameSessionProvider extends ChangeNotifier {
     _isPrefetching = true;
     try {
       final data = await _api.getNextSong(
+        mix: _mix,
         playlist: _category?.id,
         artist: _artistFilter,
         artistDeezerId: _artistDeezerId,
@@ -394,7 +406,7 @@ class GameSessionProvider extends ChangeNotifier {
     _api.submitScore(
       sessionUuid: _sessionUuid,
       isPartial: true,
-      genre: _category?.category,
+      genre: _genre,
       artistFilter: _artistFilter ?? '',
       difficulty: _difficulty.name,
       songsPlayed: _songsPlayed,
@@ -563,7 +575,7 @@ class GameSessionProvider extends ChangeNotifier {
       final data = await _api.submitScore(
         sessionUuid: _sessionUuid,
         isPartial: false,
-        genre: _category?.category,
+        genre: _genre,
         artistFilter: _artistFilter ?? '',
         difficulty: _difficulty.name,
         songsPlayed: _songsPlayed,

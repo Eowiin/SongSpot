@@ -426,12 +426,16 @@ class ApiService {
   static const int _maxExcludeIds = 200;
 
   Future<Map<String, dynamic>> getNextSong({
+    bool mix = false,
     String? playlist,
     String? artist,
     int? artistDeezerId,
     List<String>? excludeIds,
   }) async {
     final params = <String, String>{'v': apiVersion};
+    // All-genre: the server draws the round across every category. Sent
+    // explicitly, because no filter at all still means the open catalogue.
+    if (mix) params['mix'] = '1';
     if (playlist != null && playlist.isNotEmpty) params['playlist'] = playlist;
     // The Deezer ID pins the exact artist the player picked. The name is sent
     // too, as a fallback for favourites saved before the app recorded IDs.

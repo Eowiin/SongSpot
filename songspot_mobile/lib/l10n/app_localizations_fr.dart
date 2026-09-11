@@ -486,6 +486,38 @@ class AppLocalizationsFr extends AppLocalizations {
   String get homeSoloSublabel => 'Un titre à la fois, trois vies';
 
   @override
+  String get homePickArtist => 'Choisir un artiste';
+
+  @override
+  String get mixLabel => 'Tous styles';
+
+  @override
+  String get soloStyle => 'Style';
+
+  @override
+  String get soloDifficultyEasy => 'Facile';
+
+  @override
+  String get soloDifficultyMedium => 'Moyen';
+
+  @override
+  String get soloDifficultyHard => 'Difficile';
+
+  @override
+  String soloSnippetSeconds(int seconds) {
+    String _temp0 = intl.Intl.pluralLogic(
+      seconds,
+      locale: localeName,
+      other: 'Extrait de $seconds secondes',
+      one: 'Extrait d’une seconde',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get sessionEndChangeSettings => 'Changer les réglages';
+
+  @override
   String get homeDuelSublabel => 'Affrontez quelqu\'un, manche par manche';
 
   @override

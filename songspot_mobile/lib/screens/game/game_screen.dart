@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/difficulty_style.dart';
 import '../../config/responsive.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/category.dart';
@@ -20,6 +21,9 @@ class GameScreen extends StatefulWidget {
   /// The Deezer artist the player picked, when they picked one. Null for
   /// category play and for favourites saved before the app recorded IDs.
   final int? artistDeezerId;
+
+  /// An all-genre run drawn across every category, the solo default.
+  final bool mix;
   final Difficulty difficulty;
 
   const GameScreen({
@@ -27,6 +31,7 @@ class GameScreen extends StatefulWidget {
     this.category,
     this.artistFilter,
     this.artistDeezerId,
+    this.mix = false,
     this.difficulty = Difficulty.medium,
   });
 
@@ -62,6 +67,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
         category: widget.category,
         artistFilter: widget.artistFilter,
         artistDeezerId: widget.artistDeezerId,
+        mix: widget.mix,
         difficulty: widget.difficulty,
         isGuest: context.read<AuthProvider>().isGuest,
       );
@@ -133,6 +139,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
           category: widget.category,
           artistFilter: widget.artistFilter,
           artistDeezerId: widget.artistDeezerId,
+          mix: widget.mix,
           difficulty: widget.difficulty,
           endReason: reason,
         ),
@@ -447,8 +454,10 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   /// What is being played — "RAP FR · HARD" — above the artwork. The run's
   /// own settings are the only context the screen has room for.
   String _stageLabel() {
-    final source = widget.category?.name ?? widget.artistFilter;
-    final difficulty = widget.difficulty.label;
+    final source = widget.mix
+        ? AppLocalizations.of(context).mixLabel
+        : widget.category?.name ?? widget.artistFilter;
+    final difficulty = widget.difficulty.localizedName(AppLocalizations.of(context));
     return source == null ? difficulty : '$source · $difficulty';
   }
 

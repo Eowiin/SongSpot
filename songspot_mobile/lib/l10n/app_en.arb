@@ -481,6 +481,39 @@
   "@homeSoloSublabel": {
     "description": "Sublabel on the solo mode card on the home screen."
   },
+  "homePickArtist": "Pick an artist",
+  "@homePickArtist": {
+    "description": "Button in the solo panel that opens the artist search, and the title of that screen."
+  },
+  "mixLabel": "All genres",
+  "@mixLabel": {
+    "description": "The all-genre choice in the solo panel, and the name of that run on the game screen and the session end screen."
+  },
+  "soloStyle": "Genre",
+  "@soloStyle": {
+    "description": "Label of the genre row in the solo panel, and title of the genre screen it opens."
+  },
+  "soloDifficultyEasy": "Easy",
+  "@soloDifficultyEasy": {
+    "description": "Difficulty name, in the solo panel and wherever a run's settings are shown."
+  },
+  "soloDifficultyMedium": "Medium",
+  "@soloDifficultyMedium": {
+    "description": "Difficulty name, in the solo panel and wherever a run's settings are shown."
+  },
+  "soloDifficultyHard": "Hard",
+  "@soloDifficultyHard": {
+    "description": "Difficulty name, in the solo panel and wherever a run's settings are shown."
+  },
+  "soloSnippetSeconds": "{seconds, plural, =1{1-second snippet} other{{seconds}-second snippet}}",
+  "@soloSnippetSeconds": {
+    "description": "What the selected difficulty changes, under the difficulty buttons in the solo panel.",
+    "placeholders": { "seconds": { "type": "int" } }
+  },
+  "sessionEndChangeSettings": "Change settings",
+  "@sessionEndChangeSettings": {
+    "description": "Session end button that reopens the solo panel to pick another genre, artist or difficulty."
+  },
   "homeDuelSublabel": "Race someone else, round for round",
   "@homeDuelSublabel": {
     "description": "Sublabel on the 1v1 mode card on the home screen."

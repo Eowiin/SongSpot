@@ -479,6 +479,38 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeSoloSublabel => 'One track at a time, three lives';
 
   @override
+  String get homePickArtist => 'Pick an artist';
+
+  @override
+  String get mixLabel => 'All genres';
+
+  @override
+  String get soloStyle => 'Genre';
+
+  @override
+  String get soloDifficultyEasy => 'Easy';
+
+  @override
+  String get soloDifficultyMedium => 'Medium';
+
+  @override
+  String get soloDifficultyHard => 'Hard';
+
+  @override
+  String soloSnippetSeconds(int seconds) {
+    String _temp0 = intl.Intl.pluralLogic(
+      seconds,
+      locale: localeName,
+      other: '$seconds-second snippet',
+      one: '1-second snippet',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get sessionEndChangeSettings => 'Change settings';
+
+  @override
   String get homeDuelSublabel => 'Race someone else, round for round';
 
   @override
