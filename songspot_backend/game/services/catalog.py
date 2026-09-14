@@ -1027,6 +1027,13 @@ def _persist_artist_payloads(
 
 MAX_ARTISTS_PER_TITLE = 3
 
+# How many releases of a title the query names exactly are added to the
+# candidates, on top of the most popular substring matches.
+TITLE_MATCHES = 50
+
+# Score multiplier for a result whose title is exactly what was typed.
+TITLE_MATCH_BOOST = 3.0
+
 
 # A search box query is a handful of words; past that it is noise, and every
 # extra token is another LIKE over the table.
@@ -1146,7 +1153,7 @@ def search_tracks(query: str, limit: int = 30) -> list[Track]:
     if matches is None:
         return []
 
-    results = _dedupe(Track.objects.filter(matches).order_by('-rank')[:150], limit)
+    results = _dedupe(_candidates(matches, query), limit, query)
 
     if len(results) < ENRICH_BELOW:
         if results:
@@ -1163,9 +1170,7 @@ def search_tracks(query: str, limit: int = 30) -> list[Track]:
                 # dedup and ranking below have to see the whole catalogue's
                 # releases of a song, not just the ones this call happened to
                 # return.
-                results = _dedupe(
-                    Track.objects.filter(matches).order_by('-rank')[:150], limit,
-                )
+                results = _dedupe(_candidates(matches, query), limit, query)
                 if not results:
                     close = [t for t in imported if typos.resembles(query, t.title, t.artist)]
                     _remember_matches(query, close)
@@ -1215,7 +1220,34 @@ def _deezer(max_wait: Optional[float] = None) -> DeezerService:
     return DeezerService(http=DeezerHttp(max_wait=max_wait))
 
 
-def _dedupe(local: Iterable[Track], limit: int) -> list[Track]:
+def _candidates(matches: Q, query: str) -> list[Track]:
+    """
+    The rows a search ranks: the most popular matches, plus exact titles.
+
+    Popularity alone lost exact titles once the catalogue opened to Deezer and
+    grew past three million rows. `motion` is inside every "(From The Motion
+    Picture …)" soundtrack and `q&a` folds to `q and a`, whose `and` is inside
+    nearly everything, so on prod the 150 most popular matches held neither
+    *The Motion* nor *Q&A* by Drake, and players could not name either song.
+    Both had been found every day until the catalogue grew.
+
+    The exact titles are an equality lookup on the `norm_title` index: at most
+    6ms on prod, even for `intro`, which has four thousand releases. A prefix
+    lookup would also serve half-typed titles, but `the %` took 319ms.
+    """
+    local = list(Track.objects.filter(matches).order_by('-rank')[:150])
+    phrase = normalize_query(query)
+    if len(phrase) >= TRIGRAM_MIN_CHARS:
+        seen = {track.id for track in local}
+        local.extend(
+            track
+            for track in Track.objects.filter(norm_title=phrase).order_by('-rank')[:TITLE_MATCHES]
+            if track.id not in seen
+        )
+    return local
+
+
+def _dedupe(local: Iterable[Track], limit: int, query: str = '') -> list[Track]:
     """
     Collapse a result set to one row per song, best release first.
 
@@ -1223,6 +1255,12 @@ def _dedupe(local: Iterable[Track], limit: int) -> list[Track]:
     catalogue already held, and again if a live enrichment filled it in.
     """
     local = list(local)
+    phrase = normalize_query(query)
+    if phrase and any(_begins_a_word(t.norm_artist, phrase) for t in local):
+        # The query names an artist, or starts to: `rihanna`, `billie`, `cold`.
+        # Their songs are what the player wants, not the songs *called*
+        # "Rihanna" by other people, which the title boost put first on prod.
+        phrase = ''
 
     artist_ids = {t.deezer_artist_id for t in local if t.deezer_artist_id}
     artists = {
@@ -1233,7 +1271,7 @@ def _dedupe(local: Iterable[Track], limit: int) -> list[Track]:
     seen: set[tuple[str, str]] = set()
     per_title: dict[str, int] = {}
     unique: list[Track] = []
-    for track in sorted(local, key=lambda t: -_search_score(t, artists)):
+    for track in sorted(local, key=lambda t: -_search_score(t, artists, phrase)):
         key = (track.norm_title, track.norm_artist)
         if key in seen:
             continue
@@ -1253,7 +1291,11 @@ def _dedupe(local: Iterable[Track], limit: int) -> list[Track]:
     return unique
 
 
-def _search_score(track: Track, artists: dict) -> float:
+def _begins_a_word(value: str, prefix: str) -> bool:
+    return value.startswith(prefix) or f' {prefix}' in value
+
+
+def _search_score(track: Track, artists: dict, phrase: str = '') -> float:
     """
     How high a result should sit in the guess list.
 
@@ -1270,6 +1312,14 @@ def _search_score(track: Track, artists: dict) -> float:
     for. Artists we hold no fan count for keep their raw rank and compete on
     that alone.
 
+    A title that is exactly the query is multiplied up, so *The Motion* sits
+    above the more popular soundtracks that merely contain the word. `_dedupe`
+    passes no phrase when the query names an artist, so `rihanna` still lists
+    Rihanna's songs before the ones other acts called "Rihanna". Replayed on
+    prod, `the motion` and `q&a` now list Drake first, artist queries keep
+    their order, and 5 of the 300 most frequent queries change their first
+    result (`the way` now opens on "The Way" by Ariana Grande).
+
     Karaoke and tribute acts sort last outright. They are still reachable, for
     the player who really did mean to pick one.
     """
@@ -1280,6 +1330,8 @@ def _search_score(track: Track, artists: dict) -> float:
     score = float(track.rank)
     if artist is not None and artist.nb_fan:
         score *= 1.0 + math.log10(1 + artist.nb_fan) / 10.0
+    if phrase and track.norm_title == phrase:
+        score *= TITLE_MATCH_BOOST
     return score
 
 
