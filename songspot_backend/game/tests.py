@@ -1,5 +1,6 @@
 from datetime import timedelta
 import itertools
+from unittest import mock
 
 from django.test import TestCase, override_settings
 from django.utils import timezone
@@ -12,6 +13,7 @@ from .models import (
     SearchEnrichment,
 )
 from .services import catalog
+from .services.matching import normalize_artist, normalize_title
 
 from django.core.cache import cache
 
@@ -896,6 +898,63 @@ class ShortTokenSearchTests(TestCase):
         self.assertEqual([t.title for t in catalog.search_tracks('a ha')], ['Take on Me'])
         sql = str(Track.objects.filter(catalog._query_filter('a ha')).query)
         self.assertNotIn('LIKE a%', sql)
+
+
+@mock.patch.object(catalog, '_enrich_later')
+@mock.patch.object(catalog, '_enrich_now', return_value=[])
+class ExactTitleSearchTests(TestCase):
+    """
+    A title typed in full must survive more popular rows that merely contain it.
+
+    Once the catalogue held millions of rows, the 150 most popular matches for
+    `the motion` were soundtracks "From The Motion Picture", and for `q&a`
+    anything containing `and`. Drake's *The Motion* and *Q&A* were in the
+    table but in neither list. Reported by a player by email.
+    """
+
+    def setUp(self):
+        cache.clear()
+
+    def _crowd(self, title, artist, count=160):
+        Track.objects.bulk_create(
+            Track(
+                title=f'{title} {i}', artist=artist, rank=900_000 - i,
+                has_preview=True, deezer_id=next(_next_deezer_id),
+                norm_title=normalize_title(f'{title} {i}'),
+                norm_artist=normalize_artist(artist),
+            )
+            for i in range(count)
+        )
+
+    def _track(self, title, artist, rank):
+        track = _make_track(title=title, artist=artist)
+        track.rank = rank
+        track.save(update_fields=['rank'])
+        return track
+
+    def test_an_exact_title_outranks_popular_rows_containing_its_words(self, *_):
+        self._crowd('Venom (From The Motion Picture)', 'Eminem')
+        self._track('The Motion', 'Drake', 473_341)
+        results = catalog.search_tracks('the motion', limit=20)
+        self.assertEqual(results[0].title, 'The Motion')
+
+    def test_an_exact_title_outside_the_popular_matches_is_still_found(self, *_):
+        self._crowd('Quiet and Alone', 'Henrique & Juliano')
+        self._track('Q&A', 'Drake', 461_205)
+        results = catalog.search_tracks('Q&A', limit=20)
+        self.assertIn('Q&A', [t.title for t in results])
+
+    def test_a_title_named_like_an_artist_does_not_bury_the_artist(self, *_):
+        # On prod the boost alone put "Rihanna" by SDM above every Rihanna song.
+        self._track("Don't Stop The Music", 'Rihanna', 700_000)
+        self._track('We Found Love', 'Rihanna', 690_000)
+        self._track('Rihanna', 'SDM', 400_000)
+        for query in ('rihanna', 'rihan'):
+            with self.subTest(query=query):
+                results = catalog.search_tracks(query, limit=20)
+                self.assertEqual(
+                    [t.artist for t in results[:2]], ['Rihanna', 'Rihanna'],
+                )
 
 
 class EnrichmentClaimTests(TestCase):
