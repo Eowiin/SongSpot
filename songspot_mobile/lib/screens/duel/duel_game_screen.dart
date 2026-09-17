@@ -1,3 +1,4 @@
+import '../../services/search_updates.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -45,6 +46,7 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
   bool _isAudioLoading = false;
   List<Track> _searchResults = [];
   bool _isSearching = false;
+  SearchStatus _searchStatus = SearchStatus.idle;
   Timer? _searchDebounce;
   int _searchRequestId = 0;
   Timer? _revealTimer;
@@ -131,6 +133,9 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
       _isSounding = false;
       _isAudioLoading = false;
       _searchResults = [];
+      _searchStatus = SearchStatus.idle;
+      _isSearching = false;
+      _searchDebounce?.cancel();
       _searchRequestId++;
       _submittedTrackLabel = null;
       _showRevealOverlay = false;
@@ -217,25 +222,25 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
     // that is no longer the newest is dropped.
     final requestId = ++_searchRequestId;
     if (query.length < 2) {
-      setState(() { _searchResults = []; _isSearching = false; });
+      setState(() { _searchResults = []; _isSearching = false; _searchStatus = SearchStatus.idle; });
       return;
     }
-    setState(() => _isSearching = true);
+    setState(() { _isSearching = true; _searchResults = []; _searchStatus = SearchStatus.loading; });
     _searchDebounce = Timer(const Duration(milliseconds: 350), () async {
-      List<Track> results;
       try {
-        final json = await _api.searchTracks(query);
-        results = json
-            .map((j) => Track.fromJson(j as Map<String, dynamic>))
-            .toList();
+        await for (final page in _api.watchSearch(query, artists: false,
+            isActive: () => mounted && requestId == _searchRequestId)) {
+          if (!mounted || requestId != _searchRequestId) return;
+          setState(() {
+            _searchResults = page.results.map((j) => Track.fromJson(j as Map<String, dynamic>)).toList();
+            _searchStatus = page.status;
+            _isSearching = false;
+          });
+        }
       } catch (_) {
-        results = [];
+        if (!mounted || requestId != _searchRequestId) return;
+        setState(() { _searchStatus = SearchStatus.unavailable; _isSearching = false; });
       }
-      if (!mounted || requestId != _searchRequestId) return;
-      setState(() {
-        _searchResults = results;
-        _isSearching = false;
-      });
     });
   }
 
@@ -245,6 +250,9 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
     _guessController.clear();
     setState(() {
       _searchResults = [];
+      _searchStatus = SearchStatus.idle;
+      _isSearching = false;
+      _searchDebounce?.cancel();
       _searchRequestId++;
       _submittedTrackLabel = '${track.title} — ${track.artist}';
     });
@@ -656,6 +664,7 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
       focusNode: _guessFocus,
       results: _searchResults,
       isSearching: _isSearching,
+      searchStatus: _searchStatus,
       hintText: l10n.duelSearchHint,
       keyboardHint: resultsBelow ? l10n.gameKeyboardHintGuess : null,
       resultsBelow: resultsBelow,
@@ -666,6 +675,9 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
       onChanged: _searchTracks,
       onClear: () => setState(() {
         _searchResults = [];
+        _searchStatus = SearchStatus.idle;
+        _isSearching = false;
+        _searchDebounce?.cancel();
         _searchRequestId++;
       }),
       onSelected: _selectTrack,

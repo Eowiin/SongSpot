@@ -589,6 +589,7 @@ class LeaderboardViewTests(APITestCase):
 
     def test_limit_param_respected(self):
         response = self.client.get(self.url, {'timeframe': 'alltime', 'limit': 2})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertLessEqual(len(response.data), 2)
 
     def test_response_entries_have_user_field(self):
@@ -783,10 +784,11 @@ class PlayableQueryShapeTests(TestCase):
         Track.objects.filter(pk=track.pk).update(deezer_artist_id=deezer_artist_id)
         return track
 
-    def test_exclusion_carries_no_artist_subquery(self):
+    def test_only_indexed_hard_blocks_use_an_artist_subquery(self):
         Artist.objects.create(deezer_id=9001, name='Tribute Band', is_junk=True)
         sql = str(catalog.playable(Track.objects.all()).query)
-        self.assertNotIn('"artists"', sql)
+        self.assertIn('"is_blocked"', sql)
+        self.assertNotIn('"is_junk"', sql)
 
     def test_junk_artist_tracks_stay_out_of_undirected_picks(self):
         Artist.objects.create(deezer_id=9002, name='Tribute Band', is_junk=True)
@@ -809,11 +811,11 @@ class PlayableQueryShapeTests(TestCase):
 
         self.assertNotIn(track.pk, {t.pk for t in catalog.playable(Track.objects.all())})
 
-    def test_directed_picks_still_reach_a_blocked_artist(self):
+    def test_directed_picks_respect_hard_blocks(self):
         Artist.objects.create(deezer_id=9005, name='Ordinary Act', is_blocked=True)
         track = self._track_by('Ordinary Act', 9005)
         directed = catalog.playable(Track.objects.all(), directed=True)
-        self.assertIn(track.pk, {t.pk for t in directed})
+        self.assertNotIn(track.pk, {t.pk for t in directed})
 
 
 class ShortTokenSearchTests(TestCase):

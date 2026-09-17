@@ -526,6 +526,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
       focusNode: _guessFocus,
       results: provider.searchResults,
       isSearching: provider.isSearching,
+      searchStatus: provider.searchStatus,
       hintText: l10n.gameSongInputHint,
       // The shortcut line is only useful where there is a physical keyboard,
       // which on this codebase is the same place the wide layout is used.

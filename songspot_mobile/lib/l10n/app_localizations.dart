@@ -1351,6 +1351,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Helps us see which genres and difficulties work. Never includes your guesses or personal data.'**
   String get settingsAnalyticsSubtitle;
+
+  /// No description provided for @searchLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Searching…'**
+  String get searchLoading;
+
+  /// No description provided for @searchEnriching.
+  ///
+  /// In en, this message translates to:
+  /// **'Looking for more results…'**
+  String get searchEnriching;
+
+  /// No description provided for @searchEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No results. Try a title or artist.'**
+  String get searchEmpty;
+
+  /// No description provided for @searchUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Search temporarily unavailable. Please try again.'**
+  String get searchUnavailable;
+
+  /// No description provided for @searchRefine.
+  ///
+  /// In en, this message translates to:
+  /// **'More results available: add the artist or title to narrow your search.'**
+  String get searchRefine;
 }
 
 class _AppLocalizationsDelegate

@@ -640,5 +640,10 @@
   "settingsAnalytics": "Share usage statistics",
   "@settingsAnalytics": { "description": "Analytics opt-in switch in settings" },
   "settingsAnalyticsSubtitle": "Helps us see which genres and difficulties work. Never includes your guesses or personal data.",
-  "@settingsAnalyticsSubtitle": { "description": "Explanation under the analytics switch" }
+  "@settingsAnalyticsSubtitle": { "description": "Explanation under the analytics switch" },
+  "searchLoading": "Searching…",
+  "searchEnriching": "Looking for more results…",
+  "searchEmpty": "No results. Try a title or artist.",
+  "searchUnavailable": "Search temporarily unavailable. Please try again.",
+  "searchRefine": "More results available: add the artist or title to narrow your search."
 }

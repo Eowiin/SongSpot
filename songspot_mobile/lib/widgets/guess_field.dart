@@ -1,3 +1,5 @@
+import '../services/search_updates.dart';
+import 'search_status_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -29,6 +31,7 @@ class GuessField extends StatefulWidget {
     required this.hintText,
     this.keyboardHint,
     this.isSearching = false,
+    this.searchStatus = SearchStatus.idle,
     this.resultsBelow = false,
     this.autofocus = false,
     this.onClear,
@@ -47,6 +50,7 @@ class GuessField extends StatefulWidget {
   final String? keyboardHint;
 
   final bool isSearching;
+  final SearchStatus searchStatus;
   final bool resultsBelow;
   final bool autofocus;
   final VoidCallback? onClear;
@@ -135,8 +139,8 @@ class _GuessFieldState extends State<GuessField> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: widget.resultsBelow
-          ? [field, const SizedBox(height: 8), results]
-          : [results, const SizedBox(height: 8), field],
+          ? [field, SearchStatusText(status: widget.searchStatus), const SizedBox(height: 8), results]
+          : [results, SearchStatusText(status: widget.searchStatus), const SizedBox(height: 8), field],
     );
   }
 

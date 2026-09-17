@@ -1,0 +1,17 @@
+# Optional Meilisearch only; the selected PostgreSQL deployment does not use this file.
+# Running it remotely REQUIRES user approval.
+services:
+  meili:
+    image: getmeili/meilisearch:v1.15.2@sha256:fe500cf9cca05cb9f027981583f28eccf17d35d94499c1f8b7b844e7418152fc
+    restart: unless-stopped
+    ports: ['127.0.0.1:7700:7700']
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?Set a private key of at least 16 bytes}
+      MEILI_ENV: production
+      MEILI_NO_ANALYTICS: 'true'
+      MEILI_MAX_INDEXING_MEMORY: 256Mb
+      MEILI_MAX_INDEXING_THREADS: '2'
+    volumes: ['search_index:/meili_data']
+    mem_limit: 2g
+volumes:
+  search_index:

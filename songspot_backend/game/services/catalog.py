@@ -71,7 +71,7 @@ logger = logging.getLogger(__name__)
 # player-visible identity (title, artist) is never overwritten: it is what the
 # normalised answer keys were built from.
 _REFRESHABLE = (
-    'cover_url',
+    'cover_url', 'contributors',
     'release_year', 'genre', 'rank', 'deezer_artist_id',
 )
 
@@ -195,7 +195,7 @@ def purge_expired_claims() -> int:
     """
     stale_before = timezone.now() - timedelta(seconds=ENRICH_DEDUP_TTL)
     deleted, _ = (
-        SearchEnrichment.objects.filter(enriched_at__lt=stale_before).delete()
+        SearchEnrichment.objects.filter(enriched_at__lt=stale_before, state__in=['legacy', 'succeeded', 'empty']).delete()
     )
     return deleted
 
@@ -332,6 +332,11 @@ def search_artists(query: str, limit: int = 25) -> list[Artist]:
     karaoke channel by name should still find it. Only `is_blocked` hides an
     artist outright.
     """
+    from django.conf import settings
+    if getattr(settings, 'SEARCH_BACKEND', 'legacy') in ('meili', 'postgres'):
+        from .search import search
+        return search('artists', query, limit=limit)['rows']
+
     query = (query or '').strip()
     if len(query) < 2:
         return []
@@ -527,7 +532,7 @@ def upsert_track(info: dict) -> Optional[Track]:
     were recorded: those are adopted rather than duplicated, which is how the
     original curated catalogue gains its IDs over time.
     """
-    if not _playable_payload(info):
+    if not (info.get('title') and info.get('artist')):
         return None
 
     sync_artists_from_tracks([info])
@@ -554,8 +559,9 @@ def upsert_track(info: dict) -> Optional[Track]:
         try:
             return Track.objects.create(
                 title=info['title'],
+                contributors=info.get('contributors') or [],
                 artist=info['artist'],
-                has_preview=True,
+                has_preview=bool(info.get('preview_url')),
                 cover_url=info.get('cover_url'),
                 deezer_id=deezer_id,
                 deezer_artist_id=info.get('deezer_artist_id'),
@@ -580,8 +586,8 @@ def upsert_track(info: dict) -> Optional[Track]:
     if deezer_id and not track.deezer_id:
         track.deezer_id = deezer_id
         changed.append('deezer_id')
-    if not track.has_preview:
-        # `_playable_payload` already established the payload carries audio.
+    if not track.has_preview and info.get('preview_url'):
+        # Answer-only payloads cannot establish audio availability.
         track.has_preview = True
         changed.append('has_preview')
     for field in _REFRESHABLE:
@@ -589,7 +595,7 @@ def upsert_track(info: dict) -> Optional[Track]:
         if not value:
             continue
         # Only ever fill a gap, to avoid churning good data on every import.
-        if not getattr(track, field):
+        if not getattr(track, field) or (field == 'contributors' and track.contributors != value):
             setattr(track, field, value)
             changed.append(field)
     track.save(update_fields=set(changed))
@@ -625,7 +631,7 @@ def bulk_upsert_tracks(infos: Iterable[dict]) -> list[Track]:
     `norm_artist` have to be computed here (they are what makes a guess match),
     and it bypasses `auto_now_add`, so `created_at` has to be set explicitly.
     """
-    infos = [i for i in infos if i and _playable_payload(i)]
+    infos = [i for i in infos if i and i.get('title') and i.get('artist')]
     if not infos:
         return []
 
@@ -689,10 +695,13 @@ def bulk_upsert_tracks(infos: Iterable[dict]) -> list[Track]:
         if track is None:
             track = Track(
                 title=info['title'],
+                contributors=info.get('contributors') or [],
                 artist=info['artist'],
+                search_title=normalize_query(info['title']),
+                search_artist=normalize_query(info['artist']),
                 norm_title=identity[0],
                 norm_artist=identity[1],
-                has_preview=True,
+                has_preview=bool(info.get('preview_url')),
                 cover_url=info.get('cover_url'),
                 deezer_id=deezer_id,
                 deezer_artist_id=info.get('deezer_artist_id'),
@@ -719,14 +728,14 @@ def bulk_upsert_tracks(infos: Iterable[dict]) -> list[Track]:
         if deezer_id and not track.deezer_id:
             track.deezer_id = deezer_id
             changed_fields.add('deezer_id')
-        if not track.has_preview:
+        if not track.has_preview and info.get('preview_url'):
             track.has_preview = True
             changed_fields.add('has_preview')
         for field in _REFRESHABLE:
             value = info.get(field)
             if not value:
                 continue
-            if not getattr(track, field):
+            if not getattr(track, field) or (field == 'contributors' and track.contributors != value):
                 setattr(track, field, value)
                 changed_fields.add(field)
         updates.append(track)
@@ -756,7 +765,7 @@ def bulk_upsert_tracks(infos: Iterable[dict]) -> list[Track]:
 
 # ── Quality floor (undirected picks only) ────────────────────────────────────
 
-JUNK_ARTISTS_CACHE_KEY = 'junk_artist_ids_v1'
+JUNK_ARTISTS_CACHE_KEY = 'junk_artist_ids_v2'
 JUNK_ARTISTS_SHARED_TTL = 300
 # Process-local tier in front of the shared cache, for the same reason
 # CatalogSetting keeps one: this list is read on every undirected pick, and
@@ -767,7 +776,9 @@ _junk_artists_local: Optional[tuple[float, list[int]]] = None
 
 def junk_artist_ids() -> list[int]:
     """
-    Deezer IDs of every artist undirected picks must not serve.
+    Cached soft-quality exclusions for undirected picks.
+
+    Hard blocks are read directly by playable(), including directed sessions.
 
     Materialised rather than left lazy, which is the whole point. As a queryset
     this went into `playable()` as a *subquery*, so Postgres re-derived it on
@@ -788,7 +799,7 @@ def junk_artist_ids() -> list[int]:
     if ids is None:
         ids = list(
             Artist.objects
-            .filter(Q(is_junk=True) | Q(is_blocked=True))
+            .filter(is_junk=True)
             .values_list('deezer_id', flat=True)
         )
         cache_set(JUNK_ARTISTS_CACHE_KEY, ids, JUNK_ARTISTS_SHARED_TTL)
@@ -818,7 +829,9 @@ def playable(qs: QuerySet, directed: bool = False) -> QuerySet:
     # can never be played however much metadata it carries. Before previews
     # became ephemeral such a row could still be served from its stored URL;
     # now it would only ever produce a 503.
-    qs = qs.filter(has_preview=True, deezer_id__isnull=False)
+    qs = qs.filter(has_preview=True, deezer_id__isnull=False).exclude(
+        deezer_artist_id__in=Artist.objects.filter(is_blocked=True).values('pk'),
+    )
     if directed:
         return qs
 
@@ -1025,8 +1038,6 @@ def _persist_artist_payloads(
 
 # ── Guess autocomplete ───────────────────────────────────────────────────────
 
-MAX_ARTISTS_PER_TITLE = 3
-
 # How many releases of a title the query names exactly are added to the
 # candidates, on top of the most popular substring matches.
 TITLE_MATCHES = 50
@@ -1050,101 +1061,36 @@ TRIGRAM_MIN_CHARS = 3
 
 
 def _query_filter(query: str) -> Optional[Q]:
-    """
-    Match a query against title *and* artist, one word at a time.
-
-    Two things this has to get right, both of which the plain
-    `title__icontains=query` it replaces got wrong.
-
-    Accents: the stored `norm_*` keys are folded (`ROSALÍA` → `rosalia`), so a
-    raw LIKE on `artist` misses a player typing `rosalia` — and misses
-    `Rosalía` too, because SQLite's LIKE only case-folds ASCII. Folding the
-    query the same way is what makes an artist search work at all.
-
-    Word order: `rosalia despecha` has to find the song, so each word matches
-    independently and against either field. The raw columns stay in the
-    alternatives because normalisation eats words a searcher may well type —
-    the leading `The` of `The Weeknd` is stripped from `norm_artist`, and
-    `(Live)` never reaches `norm_title`.
-
-    Length: a word under three characters is too short for a trigram index,
-    and must never reach the table as `%xx%`, which makes Postgres read every
-    row. How it matches depends on the rest of the query:
-
-    * With at least one longer word, the longer words find the rows through
-      their trigram indexes, and a short word only has to begin a word of the
-      title or artist: `feu de bois` finds *Feu de bois*, and so does
-      `feu de b`. The first version anchored short words to the start of the
-      whole field, so a title stopped being findable once the player typed
-      past its first word: `de` does not begin `feu de bois`. The empty list
-      then cost a live Deezer search and a recorded miss on every keystroke.
-    * With only short words, everything anchors to the start of the title or
-      the artist, as b-tree lookups on the `varchar_pattern_ops` indexes. The
-      query matches as one phrase (`do it` finds *Do It*, `a ha` finds a-ha)
-      or, when every word has at least two letters, word by word across the
-      two fields (`es ua` finds *Esquina* by UANA). `it` alone does not offer
-      *Do It*.
-    """
-    tokens = normalize_query(query).split()[:MAX_QUERY_TOKENS]
+    tokens = normalize_query(query).split()[:16]
     if not tokens:
         return None
-    if all(len(token) < TRIGRAM_MIN_CHARS for token in tokens):
+    if all(len(t) < 3 for t in tokens):
         phrase = ' '.join(tokens)
-        matches = Q(norm_title__startswith=phrase) | Q(norm_artist__startswith=phrase)
-        if len(tokens) > 1 and all(len(token) > 1 for token in tokens):
-            # Word by word only when every word has two letters. A one-letter
-            # prefix matches hundreds of thousands of rows in each field, and
-            # combining two of them took 1.1s on prod for `a b`.
-            word_by_word = Q()
+        matches = Q(search_title__startswith=phrase) | Q(search_artist__startswith=phrase)
+        if len(tokens) > 1 and all(len(t) > 1 for t in tokens):
+            crossed = Q()
             for token in tokens:
-                word_by_word &= (
-                    Q(norm_title__startswith=token) | Q(norm_artist__startswith=token)
-                )
-            matches |= word_by_word
+                crossed &= Q(search_title__startswith=token) | Q(search_artist__startswith=token)
+            matches |= crossed
         return matches
     combined = Q()
     for token in tokens:
-        if len(token) < TRIGRAM_MIN_CHARS:
-            # The start of any word in the normalised columns, whose words are
-            # separated by single spaces. The longer words have already found
-            # the rows; this condition only has to hold for those rows.
-            combined &= (
-                Q(norm_title__startswith=token)
-                | Q(norm_title__contains=f' {token}')
-                | Q(norm_artist__startswith=token)
-                | Q(norm_artist__contains=f' {token}')
-            )
+        if len(token) < 3:
+            combined &= (Q(search_title__startswith=token) | Q(search_title__contains=' '+token)
+                         | Q(search_artist__startswith=token) | Q(search_artist__contains=' '+token))
         else:
-            combined &= (
-                Q(norm_title__contains=token)
-                | Q(norm_artist__contains=token)
-                | Q(title__icontains=token)
-                | Q(artist__icontains=token)
-            )
+            combined &= (Q(search_title__contains=token) | Q(search_artist__contains=token)
+                         | Q(title__icontains=token) | Q(artist__icontains=token))
     return combined
 
 
 def search_tracks(query: str, limit: int = 30) -> list[Track]:
-    """
-    Track autocomplete over the whole of Deezer, one row per *song*.
+    """Return compatible track suggestions; the configured backend owns discovery."""
+    from django.conf import settings
+    if getattr(settings, 'SEARCH_BACKEND', 'legacy') in ('meili', 'postgres'):
+        from .search import search
+        return search('tracks', query, limit=limit)['rows']
 
-    The deduplication is the point. Searching `blinding lights` returns the
-    album cut, the single, a live take and three remixes; a dropdown listing
-    all six is worse than useless, because picking the "wrong" one used to cost
-    the player the round. Collapsing on the normalised identity leaves one row,
-    and `matching.answer_matches` accepts whichever release is actually
-    playing.
-
-    Ordering is by Deezer rank, which is a decent proxy for "the version people
-    mean" once the variants are already collapsed away.
-
-    Typos: when the catalogue has no answer at all, Deezer's own matches are
-    shown instead, because its search forgives what ours does not (`bad buny`,
-    `straykids`). This happens only when nothing local matched, so a query
-    that works never has its results replaced, and only for results that
-    resemble the query (see `typos`), so a garbled query shows nothing rather
-    than whatever Deezer returned.
-    """
     query = (query or '').strip()
     if len(query) < 2:
         return []
@@ -1221,70 +1167,54 @@ def _deezer(max_wait: Optional[float] = None) -> DeezerService:
 
 
 def _candidates(matches: Q, query: str) -> list[Track]:
-    """
-    The rows a search ranks: the most popular matches, plus exact titles.
-
-    Popularity alone lost exact titles once the catalogue opened to Deezer and
-    grew past three million rows. `motion` is inside every "(From The Motion
-    Picture …)" soundtrack and `q&a` folds to `q and a`, whose `and` is inside
-    nearly everything, so on prod the 150 most popular matches held neither
-    *The Motion* nor *Q&A* by Drake, and players could not name either song.
-    Both had been found every day until the catalogue grew.
-
-    The exact titles are an equality lookup on the `norm_title` index: at most
-    6ms on prod, even for `intro`, which has four thousand releases. A prefix
-    lookup would also serve half-typed titles, but `the %` took 319ms.
-    """
-    local = list(Track.objects.filter(matches).order_by('-rank')[:150])
+    """Bounded full-text candidates plus exact title and artist lanes."""
     phrase = normalize_query(query)
-    if len(phrase) >= TRIGRAM_MIN_CHARS:
-        seen = {track.id for track in local}
-        local.extend(
-            track
-            for track in Track.objects.filter(norm_title=phrase).order_by('-rank')[:TITLE_MATCHES]
-            if track.id not in seen
-        )
+    blocked = Artist.objects.filter(is_blocked=True).values('deezer_id')
+    base = Track.objects.exclude(deezer_artist_id__in=blocked)
+    exact = Q(search_title=phrase) | Q(search_artist=phrase) | Q(search_title='the '+phrase)
+    tokens = phrase.split()[:16]
+    for split in range(1, len(tokens)):
+        left, right = ' '.join(tokens[:split]), ' '.join(tokens[split:])
+        # Complete title + artist must not compete with popular substrings
+        # before ranking, including repeated names such as "Nés NeS".
+        exact |= Q(search_title=left, search_artist=right)
+        exact |= Q(search_artist=left, search_title=right)
+    local = list(base.filter(exact).order_by('-rank', 'id')[:200])
+    seen = {t.id for t in local}
+    if len(phrase) == 2 and ' ' not in phrase:
+        from django.db.models.functions import Left
+        # Separate ordered lanes let the prefix/rank indexes stop after 200
+        # rows. A trigram bitmap for two letters otherwise rechecks millions
+        # of rows under the VPS's 4 MB work_mem setting.
+        for field in ('search_title', 'search_artist'):
+            rows = base.annotate(short_prefix=Left(field, 2)).filter(
+                short_prefix=phrase,
+            ).order_by('-rank', 'id')[:200]
+            for track in rows:
+                if track.id not in seen:
+                    local.append(track)
+                    seen.add(track.id)
+        return local
+    local.extend(t for t in base.filter(matches).order_by('-rank', 'id')[:200] if t.id not in seen)
     return local
 
 
 def _dedupe(local: Iterable[Track], limit: int, query: str = '') -> list[Track]:
-    """
-    Collapse a result set to one row per song, best release first.
-
-    Split out of `search_tracks` because it now runs twice: once on what the
-    catalogue already held, and again if a live enrichment filled it in.
-    """
+    """Group only full titles with the same stable artist ID; retain distinct remixes."""
+    from .search_ranking import rank_key, group_key
     local = list(local)
-    phrase = normalize_query(query)
-    if phrase and any(_begins_a_word(t.norm_artist, phrase) for t in local):
-        # The query names an artist, or starts to: `rihanna`, `billie`, `cold`.
-        # Their songs are what the player wants, not the songs *called*
-        # "Rihanna" by other people, which the title boost put first on prod.
-        phrase = ''
-
     artist_ids = {t.deezer_artist_id for t in local if t.deezer_artist_id}
-    artists = {
-        a.deezer_id: a
-        for a in Artist.objects.filter(deezer_id__in=artist_ids)
-    }
-
-    seen: set[tuple[str, str]] = set()
-    per_title: dict[str, int] = {}
-    unique: list[Track] = []
-    for track in sorted(local, key=lambda t: -_search_score(t, artists, phrase)):
-        key = (track.norm_title, track.norm_artist)
+    artists = {a.deezer_id: a for a in Artist.objects.filter(deezer_id__in=artist_ids)}
+    seen = set()
+    unique = []
+    for track in sorted(local, key=lambda t: rank_key(t, query, artists)):
+        artist = artists.get(track.deezer_artist_id)
+        if artist and artist.is_blocked:
+            continue
+        key = group_key(track)
         if key in seen:
             continue
-        # Cap how many acts can share one title. Popular songs are covered
-        # dozens of times over: unfiltered, "blinding lights" fills all forty
-        # rows with the same song by forty different unknown singers, and the
-        # list stops being able to show anything else. Three leaves room for
-        # the titles several famous songs genuinely share — Hello by Adele, by
-        # Lionel Richie, by Martin Solveig — while cutting the covers off.
-        if per_title.get(track.norm_title, 0) >= MAX_ARTISTS_PER_TITLE:
-            continue
         seen.add(key)
-        per_title[track.norm_title] = per_title.get(track.norm_title, 0) + 1
         unique.append(track)
         if len(unique) >= limit:
             break

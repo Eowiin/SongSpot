@@ -238,19 +238,15 @@ if CACHE_REDIS_URL and not TESTING:
     }
 else:
     # No Redis configured (local development) or running tests. Works fine —
-    # each process just keeps its own copy and its own rate-limit tally, which
-    # is why production should point at Redis.
+    # each process keeps its own response cache. Quota coordination is always
+    # PostgreSQL-backed and never falls back to this cache.
     CACHES['deezer'] = {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
         'LOCATION': 'songspot-deezer',
     }
 
-# In-process fallback for when the shared cache is unreachable. Not a nicety:
-# the Deezer rate limiter counts through the cache, so a cache that is simply
-# *gone* would leave the limiter with nothing to count in — and it would wave
-# every request through, at the exact moment pacing matters most. Degrading to
-# a per-process cache keeps both the responses and the pacing, and costs only
-# the sharing between workers.
+# Response-cache fallback only. Durable jobs and the rolling quota remain in
+# PostgreSQL; losing this cache can never permit uncoordinated provider calls.
 CACHES['deezer_local'] = {
     'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
     'LOCATION': 'songspot-deezer-local',
@@ -441,3 +437,12 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
 }
+
+# Activate PostgreSQL after migrations/backfill; Meilisearch additionally needs a rebuild.
+SEARCH_BACKEND = os.environ.get('SEARCH_BACKEND', 'legacy')
+SEARCH_INDEX_ENABLED = os.environ.get(
+    'SEARCH_INDEX_ENABLED', 'True' if SEARCH_BACKEND == 'meili' else 'False',
+) == 'True'
+MEILI_URL = os.environ.get('MEILI_URL', 'http://127.0.0.1:7700')
+MEILI_KEY = os.environ.get('MEILI_KEY', '')
+SEARCH_ENRICHMENT_ENABLED = os.environ.get('SEARCH_ENRICHMENT_ENABLED', 'False') == 'True'

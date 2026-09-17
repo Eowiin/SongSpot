@@ -92,7 +92,7 @@ def _http() -> DeezerHttp:
     # A web request is waiting, so this keeps the short MAX_WAIT default: if
     # the quota is spent, giving up quickly and letting the caller try another
     # track beats holding a worker.
-    return DeezerHttp()
+    return DeezerHttp(priority='preview')
 
 
 def _fetch_container(kind: str, ident: int) -> dict[int, str]:

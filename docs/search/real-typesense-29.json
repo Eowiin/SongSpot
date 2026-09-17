@@ -1,0 +1,2624 @@
+{
+  "engine": "typesense-29",
+  "documents": 5363,
+  "queries": 200,
+  "scope": "synthetic, single client, first pass; not capacity/SLA evidence",
+  "results": [
+    {
+      "query": "Blinding Lights (David Garrett Edition) David Garrett",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3093"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.762,
+      "passed": true
+    },
+    {
+      "query": "Don't Leave Me This Way Thelma Houston",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2628",
+        "5004"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.536,
+      "passed": true
+    },
+    {
+      "query": "Cali Pachanguero Grupo Niche",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "5339"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.435,
+      "passed": true
+    },
+    {
+      "query": "You Give Love A Bad Name Bon Jovi",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4871"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.423,
+      "passed": true
+    },
+    {
+      "query": "Chemin d'or Werenoi",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1097"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.442,
+      "passed": true
+    },
+    {
+      "query": "FOREVER TU GANTEL Omar Courtz",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3428"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.326,
+      "passed": true
+    },
+    {
+      "query": "So Fresh, So Clean Outkast",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1272"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.294,
+      "passed": true
+    },
+    {
+      "query": "GET ME BODIED (EXTENDED MIX) Beyoncé",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2947"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.25,
+      "passed": true
+    },
+    {
+      "query": "Best of You Foo Fighters",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3775"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.389,
+      "passed": true
+    },
+    {
+      "query": "GGUM YEONJUN",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2928"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.216,
+      "passed": true
+    },
+    {
+      "query": "Problèmes (feat. MHD) Aya Nakamura",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "496"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.284,
+      "passed": true
+    },
+    {
+      "query": "Crazy In Love (feat. JAY-Z) Beyoncé",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "512"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.371,
+      "passed": true
+    },
+    {
+      "query": "Good Boy Gone Bad TOMORROW X TOGETHER",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2958"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.341,
+      "passed": true
+    },
+    {
+      "query": "Beslama Alik RYM",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "781"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.279,
+      "passed": true
+    },
+    {
+      "query": "Lemon Drop ATEEZ",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "298"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.306,
+      "passed": true
+    },
+    {
+      "query": "Fly Aya Nakamura",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1236"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.233,
+      "passed": true
+    },
+    {
+      "query": "The Fate of Ophelia (The Chainsmokers Remix) Taylor Swift",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2682"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.304,
+      "passed": true
+    },
+    {
+      "query": "My Heart Will Go On (Love Theme from \"Titanic\") Céline Dion",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2773"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.357,
+      "passed": true
+    },
+    {
+      "query": "FLAWS AND ALL Beyoncé",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "563"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.341,
+      "passed": true
+    },
+    {
+      "query": "I Like It Cardi B",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "13"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.798,
+      "passed": true
+    },
+    {
+      "query": "CAN'T STOP THE FEELING! (from DreamWorks Animation's \"TROLLS\") Justin Timberlake",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1180"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.437,
+      "passed": true
+    },
+    {
+      "query": "Sacrifice de poulets (Remasterisé) Ministère A.M.E.R.",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4855"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 2.185,
+      "passed": true
+    },
+    {
+      "query": "Mode AV (feat. Niska & Gazo) Tiakola",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3092"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.562,
+      "passed": true
+    },
+    {
+      "query": "Bandz A Make Her Dance (feat. Lil' Wayne & 2 Chainz) Juicy J",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4550"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.65,
+      "passed": true
+    },
+    {
+      "query": "Joker Sindika",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4503"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.252,
+      "passed": true
+    },
+    {
+      "query": "Blinding Lights Acústico NAVARANDA",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3364"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.424,
+      "passed": true
+    },
+    {
+      "query": "Demain PLK",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "5026"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.197,
+      "passed": true
+    },
+    {
+      "query": "Unfaithful BlasterJaxx",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1137"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.178,
+      "passed": true
+    },
+    {
+      "query": "Fortunate Son Creedence Clearwater Revival",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "7"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.229,
+      "passed": true
+    },
+    {
+      "query": "Victoria (Arena Tour, Le Film) Indochine",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1706"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.647,
+      "passed": true
+    },
+    {
+      "query": "Moonwalkin' LNGSHOT",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2517"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.207,
+      "passed": true
+    },
+    {
+      "query": "Conditionnés à décevoir (Affamé #15) Zamdane",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4988"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.342,
+      "passed": true
+    },
+    {
+      "query": "Brisé (Pilule bleue) GIMS",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3690"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.207,
+      "passed": true
+    },
+    {
+      "query": "BAD TIMES Imael Angel",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4898"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.389,
+      "passed": true
+    },
+    {
+      "query": "Smooth (feat. Rob Thomas) Santana",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4803"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.287,
+      "passed": true
+    },
+    {
+      "query": "18 Carats Alonzo",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4387"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.209,
+      "passed": true
+    },
+    {
+      "query": "Qué Pasaría... Rauw Alejandro",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3614"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.215,
+      "passed": true
+    },
+    {
+      "query": "World Hold On (Children Of The Sky) (FISHER Rework) Bob Sinclar",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3616"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.282,
+      "passed": true
+    },
+    {
+      "query": "Salé Niska",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "203"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.323,
+      "passed": true
+    },
+    {
+      "query": "Rockabye (feat. Sean Paul & Anne-Marie) Clean Bandit",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "453"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.72,
+      "passed": true
+    },
+    {
+      "query": "Midnight Sun Zara Larsson",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4635"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.293,
+      "passed": true
+    },
+    {
+      "query": "Swimming Pools (Drank) Kendrick Lamar",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "846"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.302,
+      "passed": true
+    },
+    {
+      "query": "Drankin N Smokin Future",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1310"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.277,
+      "passed": true
+    },
+    {
+      "query": "Un été français Indochine",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3876"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.603,
+      "passed": true
+    },
+    {
+      "query": "Ivy Frank Ocean",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3150"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.235,
+      "passed": true
+    },
+    {
+      "query": "M.I.L.S 2.0 Ninho",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4488"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.598,
+      "passed": true
+    },
+    {
+      "query": "Stuff Lil Baby",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4402"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.288,
+      "passed": true
+    },
+    {
+      "query": "Sick again Mad Rey",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2837"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.364,
+      "passed": true
+    },
+    {
+      "query": "Blinding Lights Raull Edvaldo",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "5196"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.216,
+      "passed": true
+    },
+    {
+      "query": "Mr. Know It All Teddy Swims",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3090"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.285,
+      "passed": true
+    },
+    {
+      "query": "Alexandrie Alexandra Claude François",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "233",
+        "648"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.272,
+      "passed": true
+    },
+    {
+      "query": "METALLICA SDM",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2368"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.224,
+      "passed": true
+    },
+    {
+      "query": "Corazón partío Alejandro Sanz",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "746"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.429,
+      "passed": true
+    },
+    {
+      "query": "Laissez-moi danser Waxx",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "5171"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.204,
+      "passed": true
+    },
+    {
+      "query": "ABOUT YOU Pnl",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3922"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.276,
+      "passed": true
+    },
+    {
+      "query": "Elisa (Bande originale du film \"L'horizon\") Serge Gainsbourg",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4899"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.287,
+      "passed": true
+    },
+    {
+      "query": "Underdog (From F1® The Movie) Roddy Ricch",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "169"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.289,
+      "passed": true
+    },
+    {
+      "query": "Get Ur Freak On Missy Elliott",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1380"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.29,
+      "passed": true
+    },
+    {
+      "query": "Bodycon Crayon",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1336"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.266,
+      "passed": true
+    },
+    {
+      "query": "House Tour Sabrina Carpenter",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2155"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.268,
+      "passed": true
+    },
+    {
+      "query": "Mr.Scandalous SKRYU",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "923"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.204,
+      "passed": true
+    },
+    {
+      "query": "P.I.M.P. 50 Cent",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3868"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.374,
+      "passed": true
+    },
+    {
+      "query": "Kiss Me Sixpence None the Richer",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3340"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.273,
+      "passed": true
+    },
+    {
+      "query": "Shake Ya Tailfeather Bad Boys 2 The Original Motion Picture Soundtrack featuring P.Diddy, Nelly and Murphy Lee",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "227"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.382,
+      "passed": true
+    },
+    {
+      "query": "Elle danse sexy Sisi K",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2831"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.373,
+      "passed": true
+    },
+    {
+      "query": "Clap Your Hands Kungs",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2676"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.208,
+      "passed": true
+    },
+    {
+      "query": "Recit de vie 5 Dibson",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3822"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.364,
+      "passed": true
+    },
+    {
+      "query": "DNA BTS",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "276"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.278,
+      "passed": true
+    },
+    {
+      "query": "Blinding Lights (Metal Cover) Ravenlight",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1501"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.245,
+      "passed": true
+    },
+    {
+      "query": "POWER Kanye West",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1253"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.234,
+      "passed": true
+    },
+    {
+      "query": "Blinding Lights (remix) Zorzetti",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2289"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.296,
+      "passed": true
+    },
+    {
+      "query": "Je pense à vous Pierre de Maere",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4667"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.277,
+      "passed": true
+    },
+    {
+      "query": "Albireo Rokudenashi",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2247"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.332,
+      "passed": true
+    },
+    {
+      "query": "Up & Down EXID",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "964"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.259,
+      "passed": true
+    },
+    {
+      "query": "Belly Dancer Imanbek",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3416"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.384,
+      "passed": true
+    },
+    {
+      "query": "The Age Of Love (Jam & Spoon Watch Out For Stella Mix) Age Of Love",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3725"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.445,
+      "passed": true
+    },
+    {
+      "query": "Ça parle mal Bouss",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2792"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.385,
+      "passed": true
+    },
+    {
+      "query": "Désert La Fouine",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4124"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.202,
+      "passed": true
+    },
+    {
+      "query": "LA FALDA Myke Towers",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1911",
+        "3854"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.251,
+      "passed": true
+    },
+    {
+      "query": "Ma Tnsani (Yalla Habibi) Vanco",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3176"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.673,
+      "passed": true
+    },
+    {
+      "query": "La Mamma Les Compagnons De La Chanson",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1232"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.311,
+      "passed": true
+    },
+    {
+      "query": "Hardcore Ideal J",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "305"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.36,
+      "passed": true
+    },
+    {
+      "query": "Les lacs du Connemara Michel Sardou",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3128"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.397,
+      "passed": true
+    },
+    {
+      "query": "I'm Not The Only One Sam Smith",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "888"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.423,
+      "passed": true
+    },
+    {
+      "query": "Dikkatina Titi",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1043"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.217,
+      "passed": true
+    },
+    {
+      "query": "Say You Won't Let Go James Arthur",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2526"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.399,
+      "passed": true
+    },
+    {
+      "query": "In Too Deep Sum 41",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "519"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.294,
+      "passed": true
+    },
+    {
+      "query": "Intro Alan Braxe",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4207"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.228,
+      "passed": true
+    },
+    {
+      "query": "The Show Must Go On Queen",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2053"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.48,
+      "passed": true
+    },
+    {
+      "query": "Leave Me Scorpions",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1358"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.184,
+      "passed": true
+    },
+    {
+      "query": "No Stress Aya Nakamura",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "5003"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.481,
+      "passed": true
+    },
+    {
+      "query": "Too Good At Goodbyes Sam Smith",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2052"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.374,
+      "passed": true
+    },
+    {
+      "query": "Eté 90 Therapie TAXI",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4921"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.443,
+      "passed": true
+    },
+    {
+      "query": "Un monde à l'autre GP Explorer",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "786"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.349,
+      "passed": true
+    },
+    {
+      "query": "Ride Twenty One Pilots",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "5151"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.259,
+      "passed": true
+    },
+    {
+      "query": "Calabria 2007 (Radio Mix) Enur",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2406"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.37,
+      "passed": true
+    },
+    {
+      "query": "Raga of Revenge (From \"DC\") Anirudh Ravichander",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "79"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.454,
+      "passed": true
+    },
+    {
+      "query": "LOVE YOU Nono La Grinta",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1255",
+        "4474"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.43,
+      "passed": true
+    },
+    {
+      "query": "Da Ya Think I'm Sexy? Rod Stewart",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "5361"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.276,
+      "passed": true
+    },
+    {
+      "query": "Let's Stay Together Tina Turner",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "5335"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.222,
+      "passed": true
+    },
+    {
+      "query": "Criminal Britney Spears",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4414"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.284,
+      "passed": true
+    },
+    {
+      "query": "Buffalo Soldier Bob Marley & The Wailers",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2066"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.723,
+      "passed": true
+    },
+    {
+      "query": "Nightcall Kavinsky",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3424",
+        "4990"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.735,
+      "passed": true
+    },
+    {
+      "query": "Laptop Kalash",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4429"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.163,
+      "passed": true
+    },
+    {
+      "query": "Shake Kid Winters",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3997"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.324,
+      "passed": true
+    },
+    {
+      "query": "Celui qui part Joseph Kamel",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1799"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.772,
+      "passed": true
+    },
+    {
+      "query": "Pour Le Pire Orelsan",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4090"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.258,
+      "passed": true
+    },
+    {
+      "query": "Dangerous (feat. Sam Martin) David Guetta",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "705"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.391,
+      "passed": true
+    },
+    {
+      "query": "J'ai dix ans Alain Souchon",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "114"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.259,
+      "passed": true
+    },
+    {
+      "query": "Young And Beautiful Lana Del Rey",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1639"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.33,
+      "passed": true
+    },
+    {
+      "query": "THE LONELIEST Måneskin",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4523"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.501,
+      "passed": true
+    },
+    {
+      "query": "Vibration Fireboy Dml",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4965"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.221,
+      "passed": true
+    },
+    {
+      "query": "Sauvignon Blanc ROSALÍA",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1474"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.243,
+      "passed": true
+    },
+    {
+      "query": "Kaishin no ichigeki GLAY",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "5324"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.245,
+      "passed": true
+    },
+    {
+      "query": "Woman Of The Ghetto Marlena Shaw",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3218"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.471,
+      "passed": true
+    },
+    {
+      "query": "LA FAMA ROSALÍA",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2745"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.28,
+      "passed": true
+    },
+    {
+      "query": "Moves Like Jagger (Studio Recording From \"The Voice\" Performance) Maroon 5",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "196"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.329,
+      "passed": true
+    },
+    {
+      "query": "Dazed Split Decision Band",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2304"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.35,
+      "passed": true
+    },
+    {
+      "query": "Bum Baa Diga Diga Anirudh Ravichander",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "5329"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.301,
+      "passed": true
+    },
+    {
+      "query": "CARDIO Blessd",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2278"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.241,
+      "passed": true
+    },
+    {
+      "query": "GROSEILLE Timar",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1952"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.268,
+      "passed": true
+    },
+    {
+      "query": "Save Your Tears Jade Bird",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "864"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.32,
+      "passed": true
+    },
+    {
+      "query": "Le mur GP Explorer",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "76"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.219,
+      "passed": true
+    },
+    {
+      "query": "Mode Akimbo (feat. Jul) SCH",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4866"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.376,
+      "passed": true
+    },
+    {
+      "query": "Bad Boy Red Velvet",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2882"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.611,
+      "passed": true
+    },
+    {
+      "query": "Turn The Lights Off Justė",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2913"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.386,
+      "passed": true
+    },
+    {
+      "query": "Money Pink Floyd",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1888"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.624,
+      "passed": true
+    },
+    {
+      "query": "Falling to Pieces (Omar Khalifa & Turako Remix) I.Am",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3452"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.851,
+      "passed": true
+    },
+    {
+      "query": "Can't Hide It (feat. Jhené Aiko) Lil Durk",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "226"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.309,
+      "passed": true
+    },
+    {
+      "query": "MORNING DEW (DONK) Beyoncé",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2959"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.201,
+      "passed": true
+    },
+    {
+      "query": "Soda Pop Saja Boys",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1803"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.359,
+      "passed": true
+    },
+    {
+      "query": "Original Don Sub Focus",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "60"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.299,
+      "passed": true
+    },
+    {
+      "query": "Anjani X Ezu",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "5037"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.287,
+      "passed": true
+    },
+    {
+      "query": "Blinding Lights (Karaoke Version originally performed by The Weeknd) RPLN",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4097"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.371,
+      "passed": true
+    },
+    {
+      "query": "First! BTS",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "840"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.329,
+      "passed": true
+    },
+    {
+      "query": "As It Was Harry Styles",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1834"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.406,
+      "passed": true
+    },
+    {
+      "query": "When Do the Bells Ring for Me Tony Bennett",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1327"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.341,
+      "passed": true
+    },
+    {
+      "query": "dopamina Peso Pluma",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3665"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.196,
+      "passed": true
+    },
+    {
+      "query": "A la mama Naps",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3709"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.24,
+      "passed": true
+    },
+    {
+      "query": "ICONIC BY MISTAKE LE SSERAFIM",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3462",
+        "4210"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.281,
+      "passed": true
+    },
+    {
+      "query": "Il jouait du piano debout (Remasterisé en 2004) France Gall",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "5180"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.322,
+      "passed": true
+    },
+    {
+      "query": "Location Dave",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1860"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.233,
+      "passed": true
+    },
+    {
+      "query": "Sad Girls Bebe Rexha",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1193"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.199,
+      "passed": true
+    },
+    {
+      "query": "HOLY GHOST Omah lay",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "5032"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.288,
+      "passed": true
+    },
+    {
+      "query": "des fleurs x stromae Tove Lo",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3914"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.4,
+      "passed": true
+    },
+    {
+      "query": "DIM Yves",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3267"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.388,
+      "passed": true
+    },
+    {
+      "query": "Lump Mutiny",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "128"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.223,
+      "passed": true
+    },
+    {
+      "query": "Osaka Orelsan",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "679"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.297,
+      "passed": true
+    },
+    {
+      "query": "Ô travers Zaho de Sagazan",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "564"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.319,
+      "passed": true
+    },
+    {
+      "query": "HEAVENLY RACE Boy Spyce",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "792"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.606,
+      "passed": true
+    },
+    {
+      "query": "Virgil Grain de Caf'",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2571"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.488,
+      "passed": true
+    },
+    {
+      "query": "YAYO Rema",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "834"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.168,
+      "passed": true
+    },
+    {
+      "query": "Free Your Mind Prospa",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "5235"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.168,
+      "passed": true
+    },
+    {
+      "query": "J'ai demandé à la lune Indochine",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "257"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.415,
+      "passed": true
+    },
+    {
+      "query": "Hamari Adhuri Kahani (Title Track) [From \"Hamari Adhuri Kahani\"] Jeet Gannguli",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1633"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.254,
+      "passed": true
+    },
+    {
+      "query": "I KOM Gjiko",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1506"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.994,
+      "passed": true
+    },
+    {
+      "query": "Zaroor Aparshakti Khurana",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1210"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.259,
+      "passed": true
+    },
+    {
+      "query": "Chouchou DJ Kawest",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3531"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.238,
+      "passed": true
+    },
+    {
+      "query": "Manhattan-Kaboul Renaud",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1093"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.267,
+      "passed": true
+    },
+    {
+      "query": "FANCY TWICE",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "584"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.277,
+      "passed": true
+    },
+    {
+      "query": "Mafiosa (feat. Caroliina) Lartiste",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "844"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.268,
+      "passed": true
+    },
+    {
+      "query": "BYE BYE BYE Wei",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4758"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.219,
+      "passed": true
+    },
+    {
+      "query": "Welcome To The Jungle Guns N' Roses",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4383"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.917,
+      "passed": true
+    },
+    {
+      "query": "CARTIER Gazo",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "966"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.225,
+      "passed": true
+    },
+    {
+      "query": "Snow (Hey Oh) Red Hot Chili Peppers",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1405"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.328,
+      "passed": true
+    },
+    {
+      "query": "The Best (Edit) Tina Turner",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3961"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.26,
+      "passed": true
+    },
+    {
+      "query": "Despacito Luis Fonsi",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "309",
+        "2135"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.594,
+      "passed": true
+    },
+    {
+      "query": "Fendi Gang Marwa Loud",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1514"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.614,
+      "passed": true
+    },
+    {
+      "query": "Bizarre Madonna",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "5186"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.177,
+      "passed": true
+    },
+    {
+      "query": "ITALAWA Zlatan",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1667"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.166,
+      "passed": true
+    },
+    {
+      "query": "Crazy Sexy Cool ASTRO",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2126"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.262,
+      "passed": true
+    },
+    {
+      "query": "Por Debajo De La Mesa Luis Miguel",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "174"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.291,
+      "passed": true
+    },
+    {
+      "query": "Save Your Tears Granlund",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3202"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.294,
+      "passed": true
+    },
+    {
+      "query": "ARE WE STILL FRIENDS? Tyler, The Creator",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4437"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.318,
+      "passed": true
+    },
+    {
+      "query": "Allo Doudou Niska",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "101"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.208,
+      "passed": true
+    },
+    {
+      "query": "Alejandro Lady Gaga",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "495"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.252,
+      "passed": true
+    },
+    {
+      "query": "Gasolina (feat. Rsko) Tiakola",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3076"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.272,
+      "passed": true
+    },
+    {
+      "query": "Ghosts Mosimann",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2697"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.252,
+      "passed": true
+    },
+    {
+      "query": "Sign 'O' the Times Prince",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "778"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.303,
+      "passed": true
+    },
+    {
+      "query": "Été solitaire (SABR) Zamdane",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "555"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.218,
+      "passed": true
+    },
+    {
+      "query": "Enséñame a Bailar Bad Bunny",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "5139"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.383,
+      "passed": true
+    },
+    {
+      "query": "Les bourgeois Jacques Brel",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4025"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.285,
+      "passed": true
+    },
+    {
+      "query": "Sitaare (From \"Ikkis\") Arijit Singh",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3872"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.339,
+      "passed": true
+    },
+    {
+      "query": "I Feel It Coming The Weeknd",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2474"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.228,
+      "passed": true
+    },
+    {
+      "query": "Verba Aliena Rone",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2011"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.197,
+      "passed": true
+    },
+    {
+      "query": "Balek TRIANGLE DES BERMUDES",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "232"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.34,
+      "passed": true
+    },
+    {
+      "query": "Somebody Told Me The Killers",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2415"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.337,
+      "passed": true
+    },
+    {
+      "query": "SUGA MAMA Beyoncé",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "374"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.266,
+      "passed": true
+    },
+    {
+      "query": "Locked out of Heaven Bruno Mars",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4504"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.343,
+      "passed": true
+    },
+    {
+      "query": "Pour un violet Jul",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1551"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.354,
+      "passed": true
+    },
+    {
+      "query": "Full Bilouki",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3678"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.184,
+      "passed": true
+    },
+    {
+      "query": "Maladie Mauvais djo",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2873"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.254,
+      "passed": true
+    },
+    {
+      "query": "Mr/Mme Loïc Nottet",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2353"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.256,
+      "passed": true
+    },
+    {
+      "query": "Because You Move Me Tinlicker",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2821"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.244,
+      "passed": true
+    },
+    {
+      "query": "Después de la Playa Bad Bunny",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3420"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.282,
+      "passed": true
+    },
+    {
+      "query": "That’s So True Gracie Abrams",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "932"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.354,
+      "passed": true
+    },
+    {
+      "query": "Mobali Siboy",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4427"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.186,
+      "passed": true
+    },
+    {
+      "query": "La Mamma Dany Brillant",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "96"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.363,
+      "passed": true
+    },
+    {
+      "query": "Come Over BTS",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "960"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.259,
+      "passed": true
+    },
+    {
+      "query": "Pinterest (Spanish) Anitta",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2639"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.18,
+      "passed": true
+    }
+  ],
+  "tuning": {},
+  "validation": {
+    "pass": 200,
+    "count": 200,
+    "recall20": 1.0,
+    "mrr": 1.0,
+    "p95_ms": 1.72,
+    "p99_ms": 1.994
+  }
+}

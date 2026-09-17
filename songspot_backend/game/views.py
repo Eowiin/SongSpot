@@ -386,6 +386,15 @@ class ArtistListView(APIView):
         q = request.query_params.get('q', '').strip()
         if len(q) < 2:
             return Response([])
+        if request.query_params.get('v') == '2':
+            from .services.search import search
+            try:
+                offset = int(request.query_params.get('offset', 0))
+            except ValueError:
+                return Response({'detail': 'Invalid offset'}, status=400)
+            page = search('artists', q, offset=offset)
+            page['results'] = ArtistSerializer(page.pop('rows'), many=True).data
+            return Response(page)
         artists = catalog.search_artists(q, limit=30)
         return Response(ArtistSerializer(artists, many=True).data)
 
@@ -523,6 +532,15 @@ class SearchTracksView(APIView):
         q = request.query_params.get('q', '').strip()
         if len(q) < 2:
             return Response([])
+        if request.query_params.get('v') == '2':
+            from .services.search import search
+            try:
+                offset = int(request.query_params.get('offset', 0))
+            except ValueError:
+                return Response({'detail': 'Invalid offset'}, status=400)
+            page = search('tracks', q, offset=offset)
+            page['results'] = TrackSearchSerializer(page.pop('rows'), many=True).data
+            return Response(page)
         tracks = catalog.search_tracks(q, limit=40)
         return Response(TrackSearchSerializer(tracks, many=True).data)
 

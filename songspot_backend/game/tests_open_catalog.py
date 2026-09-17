@@ -394,12 +394,11 @@ class SearchTracksDedupTests(CatalogTestCase):
             make_track(title, 'The Weeknd', deezer_id=100 + i, rank=900_000 - i)
 
     @patch('game.services.catalog.DeezerService')
-    def test_one_row_per_song(self, mock_deezer):
+    def test_distinct_full_titles_are_not_merged(self, mock_deezer):
         mock_deezer.return_value.search_track.return_value = {'data': []}
         results = catalog.search_tracks('blinding')
-        self.assertEqual(len(results), 1)
-        # The highest-ranked release represents the group, which is also what
-        # NextSongView serves, so the two agree.
+        self.assertEqual(len(results), 4)
+        # Search preserves remixes; answer matching remains release tolerant.
         self.assertEqual(results[0].title, 'Blinding Lights')
 
 
@@ -561,10 +560,11 @@ class SearchRankingTests(CatalogTestCase):
         self.assertEqual(results[0].artist, 'The Weeknd')
 
     @patch('game.services.catalog.DeezerService')
-    def test_covers_do_not_fill_the_whole_list(self, mock_deezer):
+    def test_shared_titles_remain_accessible(self, mock_deezer):
         mock_deezer.return_value.search_track.return_value = {'data': []}
         results = catalog.search_tracks('blinding lights')
-        self.assertLessEqual(len(results), catalog.MAX_ARTISTS_PER_TITLE)
+        self.assertEqual(len(results), 5)
+        self.assertEqual(results[0].artist, 'The Weeknd')
 
     @patch('game.services.catalog.DeezerService')
     def test_distinct_songs_sharing_a_title_all_survive_the_cap(self, mock_deezer):
@@ -716,11 +716,12 @@ class UpsertTrackTests(CatalogTestCase):
         self.assertEqual(Track.objects.count(), 1)
         self.assertEqual(second.cover_url, 'https://example.com/c.jpg')
 
-    def test_a_payload_without_audio_is_not_stored(self):
-        self.assertIsNone(catalog.upsert_track({
+    def test_a_payload_without_audio_is_stored_as_an_answer(self):
+        row = catalog.upsert_track({
             'title': 'Silent', 'artist': 'Nobody', 'preview_url': '',
-        }))
-        self.assertEqual(Track.objects.count(), 0)
+        })
+        self.assertFalse(row.has_preview)
+        self.assertEqual(Track.objects.count(), 1)
 
     def test_distinct_releases_of_one_song_stay_distinct_rows(self):
         # Regression: an earlier version matched on the normalised identity for
