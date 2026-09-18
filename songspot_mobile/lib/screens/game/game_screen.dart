@@ -395,8 +395,6 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
           ),
         ),
         LayoutBuilder(builder: (context, bodyConstraints) {
-          final resultsMax =
-              pinnedResultsMaxHeight(context, bodyConstraints.maxHeight);
           return Column(
             children: [
               // Scrollable top section — shrinks when the keyboard opens.
@@ -425,20 +423,36 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                 ),
               ),
               // Fixed bottom section — always visible above the keyboard.
-              if (!revealed) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  child: _buildGuessField(
-                    provider,
-                    resultsBelow: false,
-                    maxResultsHeight: resultsMax,
+              //
+              // Bounded to the body's own height so the guess box knows what
+              // it has to play with: the result list inside it is flexible and
+              // shrinks to whatever is left once the field, its status line
+              // and the give-up button have taken theirs. Sizing the list from
+              // a constant instead left the button off the bottom of a short
+              // screen as soon as a status line appeared under the field.
+              if (!revealed)
+                ConstrainedBox(
+                  constraints:
+                      BoxConstraints(maxHeight: bodyConstraints.maxHeight),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                          child: _buildGuessField(
+                            provider,
+                            resultsBelow: false,
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                        child: _buildGiveUpButton(provider),
+                      ),
+                    ],
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                  child: _buildGiveUpButton(provider),
-                ),
-              ],
               if (revealed)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -517,11 +531,9 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   Widget _buildGuessField(
     GameSessionProvider provider, {
     required bool resultsBelow,
-    double maxResultsHeight = 260,
   }) {
     final l10n = AppLocalizations.of(context);
     return GuessField(
-      maxResultsHeight: maxResultsHeight,
       controller: _guessController,
       focusNode: _guessFocus,
       results: provider.searchResults,

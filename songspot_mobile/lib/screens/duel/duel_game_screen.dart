@@ -225,7 +225,9 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
       setState(() { _searchResults = []; _isSearching = false; _searchStatus = SearchStatus.idle; });
       return;
     }
-    setState(() { _isSearching = true; _searchResults = []; _searchStatus = SearchStatus.loading; });
+    // The previous suggestions stay up until the new ones land: emptying the
+    // list on every keystroke collapsed the panel and made the stage jump.
+    setState(() { _isSearching = true; _searchStatus = SearchStatus.loading; });
     _searchDebounce = Timer(const Duration(milliseconds: 350), () async {
       try {
         await for (final page in _api.watchSearch(query, artists: false,
@@ -356,37 +358,45 @@ class _DuelGameScreenState extends State<DuelGameScreen> {
   }
 
   Widget _buildNarrowDuelBody(DuelProvider duel, AppLocalizations l10n) {
-    return Column(
-      children: [
-        _buildOpponentPanel(duel, l10n),
-        const SizedBox(height: 8),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              children: [
-                const SizedBox(height: 8),
-                if (duel.errorMessage != null)
-                  _buildConnectionBanner(duel.errorMessage!),
-                _buildRoundIndicator(duel),
-                const SizedBox(height: 20),
-                _buildTrackCard(duel, l10n),
-                const SizedBox(height: 16),
-                _buildSnippetControls(duel, l10n),
-                const SizedBox(height: 16),
-              ],
+    return LayoutBuilder(builder: (context, bodyConstraints) {
+      return Column(
+        children: [
+          _buildOpponentPanel(duel, l10n),
+          const SizedBox(height: 8),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                children: [
+                  const SizedBox(height: 8),
+                  if (duel.errorMessage != null)
+                    _buildConnectionBanner(duel.errorMessage!),
+                  _buildRoundIndicator(duel),
+                  const SizedBox(height: 20),
+                  _buildTrackCard(duel, l10n),
+                  const SizedBox(height: 16),
+                  _buildSnippetControls(duel, l10n),
+                  const SizedBox(height: 16),
+                ],
+              ),
             ),
           ),
-        ),
-        if (!duel.hasSubmitted && !_showRevealOverlay)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-            child: _buildGuessField(l10n, resultsBelow: false),
-          )
-        else if (duel.hasSubmitted && !_showRevealOverlay)
-          _buildSubmittedBanner(l10n),
-      ],
-    );
+          // Bounded to the body so the result list inside gives way rather
+          // than overflowing when the keyboard is up. See the solo screen.
+          if (!duel.hasSubmitted && !_showRevealOverlay)
+            ConstrainedBox(
+              constraints:
+                  BoxConstraints(maxHeight: bodyConstraints.maxHeight),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                child: _buildGuessField(l10n, resultsBelow: false),
+              ),
+            )
+          else if (duel.hasSubmitted && !_showRevealOverlay)
+            _buildSubmittedBanner(l10n),
+        ],
+      );
+    });
   }
 
   AppBar _buildAppBar(DuelProvider duel, AppLocalizations l10n) {

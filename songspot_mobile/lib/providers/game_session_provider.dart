@@ -523,12 +523,22 @@ class GameSessionProvider extends ChangeNotifier {
   }
 
   void searchTracks(String query) {
-    _resetSearch();
+    _searchDebounce?.cancel();
+    _searchRequestId++;
     final requestId = _searchRequestId;
     if (query.length < 2) {
+      _searchResults = [];
+      _searchStatus = SearchStatus.idle;
+      _isSearching = false;
       notifyListeners();
       return;
     }
+    // The suggestions from the previous keystroke stay up until the new ones
+    // land, rather than being wiped here. Emptying the list collapsed the
+    // panel under the field — up to 260px — on every character typed, and the
+    // stage is centred on the page, so the whole screen jumped up and then
+    // back down a third of a second later. The spinner in the field says a
+    // newer answer is coming.
     _isSearching = true;
     _searchStatus = SearchStatus.loading;
     notifyListeners();

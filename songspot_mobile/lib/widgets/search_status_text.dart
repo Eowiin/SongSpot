@@ -17,7 +17,13 @@ class SearchStatusText extends StatelessWidget {
       SearchStatus.refine => l10n.searchRefine,
       SearchStatus.idle => '',
     };
+    // Capped because this line sits between the guess field and the button
+    // under it when the box is pinned above the soft keyboard. The longest
+    // message ("more results exist, add the artist…") runs to eight lines at
+    // text scale 2 on a phone — 272px, more than the whole pinned box has —
+    // and the field itself would be the thing pushed off the screen.
     return Padding(padding: const EdgeInsets.all(8),
-      child: Text(text, style: Theme.of(context).textTheme.bodySmall));
+      child: Text(text, maxLines: 3, overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.bodySmall));
   }
 }
