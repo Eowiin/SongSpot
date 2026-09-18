@@ -12,6 +12,7 @@
 		<array>
 			<string>fr</string>
 			<string>en</string>
+			<string>es</string>
 		</array>
 		<key>CFBundleDisplayName</key>
 		<string>SongSpot</string>
