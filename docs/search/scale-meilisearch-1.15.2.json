@@ -1,0 +1,4101 @@
+{
+  "index_seconds": 1.2807802879997325,
+  "warm_p95_ms": 1.718600999993214,
+  "warm_p99_ms": 1.9569429996408871,
+  "engine": "meilisearch-1.15.2",
+  "documents": 25282,
+  "queries": 310,
+  "scope": "Synthetic fixtures; musical names only, no production export. Alphabet coverage is illustrative, not measured production coverage. Single client, first pass; not capacity/SLA evidence",
+  "results": [
+    {
+      "query": "Q&A",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "1"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.847,
+      "passed": true
+    },
+    {
+      "query": "Q&A Drake",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "1"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.417,
+      "passed": true
+    },
+    {
+      "query": "Drake",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "1",
+        "4"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.552,
+      "passed": true
+    },
+    {
+      "query": "Q&",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "1"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.754,
+      "passed": true
+    },
+    {
+      "query": "Q&",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "1"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.314,
+      "passed": true
+    },
+    {
+      "query": "Drake",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "1",
+        "4"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.417,
+      "passed": true
+    },
+    {
+      "query": "Don't You (Forget About Me)",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "2"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.509,
+      "passed": true
+    },
+    {
+      "query": "Don't You (Forget About Me) Simple Minds",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "2"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.581,
+      "passed": true
+    },
+    {
+      "query": "Simple Minds",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "2"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.444,
+      "passed": true
+    },
+    {
+      "query": "Don't You (Fo",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "2"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.38,
+      "passed": true
+    },
+    {
+      "query": "Don't You (Forget About M",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "2"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.466,
+      "passed": true
+    },
+    {
+      "query": "SimpleMinds",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "2"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.62,
+      "passed": true
+    },
+    {
+      "query": "Sweet Dreams (Are Made of This)",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "3"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.547,
+      "passed": true
+    },
+    {
+      "query": "Sweet Dreams (Are Made of This) Eurythmics",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "3"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.674,
+      "passed": true
+    },
+    {
+      "query": "Eurythmics",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "3"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.631,
+      "passed": true
+    },
+    {
+      "query": "Sweet Dreams (A",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "3"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.484,
+      "passed": true
+    },
+    {
+      "query": "Sweet Dreams (Are Made of Thi",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "3"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.724,
+      "passed": true
+    },
+    {
+      "query": "Eurythmics",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "3"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.447,
+      "passed": true
+    },
+    {
+      "query": "The Motion",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "4"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.942,
+      "passed": true
+    },
+    {
+      "query": "The Motion Drake",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "4"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.476,
+      "passed": true
+    },
+    {
+      "query": "Drake",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "1",
+        "4"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.341,
+      "passed": true
+    },
+    {
+      "query": "The M",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "4"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.684,
+      "passed": true
+    },
+    {
+      "query": "The Moti",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "4"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.643,
+      "passed": true
+    },
+    {
+      "query": "Drake",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "1",
+        "4"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.396,
+      "passed": true
+    },
+    {
+      "query": "INTRO",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "5"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 11,
+      "ms": 1.478,
+      "passed": true
+    },
+    {
+      "query": "INTRO Damso",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "5"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.397,
+      "passed": true
+    },
+    {
+      "query": "Damso",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "5",
+        "16"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.649,
+      "passed": true
+    },
+    {
+      "query": "IN",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "5"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 11,
+      "ms": 1.461,
+      "passed": true
+    },
+    {
+      "query": "INT",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "5"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 11,
+      "ms": 1.406,
+      "passed": true
+    },
+    {
+      "query": "Damso",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "5",
+        "16"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.5,
+      "passed": true
+    },
+    {
+      "query": "Nés",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "6"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.321,
+      "passed": true
+    },
+    {
+      "query": "Nés NeS",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "6"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.27,
+      "passed": true
+    },
+    {
+      "query": "NeS",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "6"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.282,
+      "passed": true
+    },
+    {
+      "query": "Né",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "6"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.424,
+      "passed": true
+    },
+    {
+      "query": "Né",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "6"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.403,
+      "passed": true
+    },
+    {
+      "query": "NeS",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "6"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.321,
+      "passed": true
+    },
+    {
+      "query": "Shape of You",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "7"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.528,
+      "passed": true
+    },
+    {
+      "query": "Shape of You Ed Sheeran",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "7"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.321,
+      "passed": true
+    },
+    {
+      "query": "Ed Sheeran",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "7"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.333,
+      "passed": true
+    },
+    {
+      "query": "Shape ",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "7"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.317,
+      "passed": true
+    },
+    {
+      "query": "Shape of Y",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "7"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.596,
+      "passed": true
+    },
+    {
+      "query": "EdSheeran",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "7"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.49,
+      "passed": true
+    },
+    {
+      "query": "God’s Menu",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "8"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.264,
+      "passed": true
+    },
+    {
+      "query": "God’s Menu Stray Kids",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "8"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.469,
+      "passed": true
+    },
+    {
+      "query": "Stray Kids",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "8"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.34,
+      "passed": true
+    },
+    {
+      "query": "God’s",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "8"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.299,
+      "passed": true
+    },
+    {
+      "query": "God’s Me",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "8"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.368,
+      "passed": true
+    },
+    {
+      "query": "StrayKids",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "8"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.539,
+      "passed": true
+    },
+    {
+      "query": "Back In Black",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "9"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.292,
+      "passed": true
+    },
+    {
+      "query": "Back In Black AC/DC",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "9"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.316,
+      "passed": true
+    },
+    {
+      "query": "AC/DC",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "9"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.326,
+      "passed": true
+    },
+    {
+      "query": "Back I",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "9"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.322,
+      "passed": true
+    },
+    {
+      "query": "Back In Bla",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "9"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.324,
+      "passed": true
+    },
+    {
+      "query": "AC/DC",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "9"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.348,
+      "passed": true
+    },
+    {
+      "query": "Gata Only",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "10"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.265,
+      "passed": true
+    },
+    {
+      "query": "Gata Only Cris MJ",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "10"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.355,
+      "passed": true
+    },
+    {
+      "query": "Cris MJ",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "10"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.407,
+      "passed": true
+    },
+    {
+      "query": "Gata",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "10"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.312,
+      "passed": true
+    },
+    {
+      "query": "Gata On",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "10"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.322,
+      "passed": true
+    },
+    {
+      "query": "CrisMJ",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "10"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.296,
+      "passed": true
+    },
+    {
+      "query": "Si Veo a Tu Mamá",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "11"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.402,
+      "passed": true
+    },
+    {
+      "query": "Si Veo a Tu Mamá Bad Bunny",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "11"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.452,
+      "passed": true
+    },
+    {
+      "query": "Bad Bunny",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "11",
+        "12"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.439,
+      "passed": true
+    },
+    {
+      "query": "Si Veo a",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "11"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.315,
+      "passed": true
+    },
+    {
+      "query": "Si Veo a Tu Ma",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "11"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.573,
+      "passed": true
+    },
+    {
+      "query": "BadBunny",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "11",
+        "12"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.53,
+      "passed": true
+    },
+    {
+      "query": "A Tu Merced",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "12"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.307,
+      "passed": true
+    },
+    {
+      "query": "A Tu Merced Bad Bunny",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "12"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.443,
+      "passed": true
+    },
+    {
+      "query": "Bad Bunny",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "11",
+        "12"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.475,
+      "passed": true
+    },
+    {
+      "query": "A Tu ",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "12"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.389,
+      "passed": true
+    },
+    {
+      "query": "A Tu Merc",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "12"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.247,
+      "passed": true
+    },
+    {
+      "query": "BadBunny",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "11",
+        "12"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.357,
+      "passed": true
+    },
+    {
+      "query": "Désenchantée",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "13"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.452,
+      "passed": true
+    },
+    {
+      "query": "Désenchantée Mylène Farmer",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "13"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.585,
+      "passed": true
+    },
+    {
+      "query": "Mylène Farmer",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "13"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.387,
+      "passed": true
+    },
+    {
+      "query": "Désenc",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "13"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.423,
+      "passed": true
+    },
+    {
+      "query": "Désenchant",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "13"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.559,
+      "passed": true
+    },
+    {
+      "query": "MylèneFarmer",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "13"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.445,
+      "passed": true
+    },
+    {
+      "query": "Déjà Vu",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "14"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.329,
+      "passed": true
+    },
+    {
+      "query": "Déjà Vu Beyoncé",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "14"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.334,
+      "passed": true
+    },
+    {
+      "query": "Beyoncé",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "14"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.355,
+      "passed": true
+    },
+    {
+      "query": "Déj",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "14"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.515,
+      "passed": true
+    },
+    {
+      "query": "Déjà ",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "14"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.41,
+      "passed": true
+    },
+    {
+      "query": "Beyoncé",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "14"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.342,
+      "passed": true
+    },
+    {
+      "query": "Despechá",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "15"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.337,
+      "passed": true
+    },
+    {
+      "query": "Despechá ROSALÍA",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "15"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.394,
+      "passed": true
+    },
+    {
+      "query": "ROSALÍA",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "15"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.325,
+      "passed": true
+    },
+    {
+      "query": "Desp",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "15"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.244,
+      "passed": true
+    },
+    {
+      "query": "Despec",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "15"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.296,
+      "passed": true
+    },
+    {
+      "query": "ROSALÍA",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "15"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.357,
+      "passed": true
+    },
+    {
+      "query": "Feu de bois",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "16"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.35,
+      "passed": true
+    },
+    {
+      "query": "Feu de bois Damso",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "16"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.512,
+      "passed": true
+    },
+    {
+      "query": "Damso",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "5",
+        "16"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.324,
+      "passed": true
+    },
+    {
+      "query": "Feu d",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "16"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.268,
+      "passed": true
+    },
+    {
+      "query": "Feu de bo",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "16"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.6,
+      "passed": true
+    },
+    {
+      "query": "Damso",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "5",
+        "16"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.461,
+      "passed": true
+    },
+    {
+      "query": "Blinding Lights",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "17"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.341,
+      "passed": true
+    },
+    {
+      "query": "Blinding Lights The Weeknd",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "17"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.419,
+      "passed": true
+    },
+    {
+      "query": "The Weeknd",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "17"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.387,
+      "passed": true
+    },
+    {
+      "query": "Blindin",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "17"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.274,
+      "passed": true
+    },
+    {
+      "query": "Blinding Ligh",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "17"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.341,
+      "passed": true
+    },
+    {
+      "query": "TheWeeknd",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "17"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.402,
+      "passed": true
+    },
+    {
+      "query": "Hello",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "18"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.385,
+      "passed": true
+    },
+    {
+      "query": "Hello Adele",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "18"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.425,
+      "passed": true
+    },
+    {
+      "query": "Adele",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "18"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.509,
+      "passed": true
+    },
+    {
+      "query": "He",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "18"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.296,
+      "passed": true
+    },
+    {
+      "query": "Hel",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "18"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.316,
+      "passed": true
+    },
+    {
+      "query": "Adele",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "18"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.398,
+      "passed": true
+    },
+    {
+      "query": "Hello",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "19"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 2,
+      "ms": 1.529,
+      "passed": true
+    },
+    {
+      "query": "Hello Lionel Richie",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "19"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.381,
+      "passed": true
+    },
+    {
+      "query": "Lionel Richie",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "19"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.329,
+      "passed": true
+    },
+    {
+      "query": "He",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "19"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 2,
+      "ms": 1.345,
+      "passed": true
+    },
+    {
+      "query": "Hel",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "19"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 2,
+      "ms": 1.315,
+      "passed": true
+    },
+    {
+      "query": "LionelRichie",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "19"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.455,
+      "passed": true
+    },
+    {
+      "query": "Hello",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "20"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 3,
+      "ms": 1.261,
+      "passed": true
+    },
+    {
+      "query": "Hello Martin Solveig",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "20"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.731,
+      "passed": true
+    },
+    {
+      "query": "Martin Solveig",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "20"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.276,
+      "passed": true
+    },
+    {
+      "query": "He",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "20"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 3,
+      "ms": 1.226,
+      "passed": true
+    },
+    {
+      "query": "Hel",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "20"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 3,
+      "ms": 1.348,
+      "passed": true
+    },
+    {
+      "query": "MartinSolveig",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "20"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.665,
+      "passed": true
+    },
+    {
+      "query": "HUMBLE.",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "21"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.34,
+      "passed": true
+    },
+    {
+      "query": "HUMBLE. Kendrick Lamar",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "21"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.37,
+      "passed": true
+    },
+    {
+      "query": "Kendrick Lamar",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "21"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.277,
+      "passed": true
+    },
+    {
+      "query": "HUM",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "21"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.181,
+      "passed": true
+    },
+    {
+      "query": "HUMBL",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "21"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.322,
+      "passed": true
+    },
+    {
+      "query": "KendrickLamar",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "21"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.36,
+      "passed": true
+    },
+    {
+      "query": "Lose Yourself",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "22"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.688,
+      "passed": true
+    },
+    {
+      "query": "Lose Yourself Eminem",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "22"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.423,
+      "passed": true
+    },
+    {
+      "query": "Eminem",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "22"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.347,
+      "passed": true
+    },
+    {
+      "query": "Lose Y",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "22"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.257,
+      "passed": true
+    },
+    {
+      "query": "Lose Yourse",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "22"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.329,
+      "passed": true
+    },
+    {
+      "query": "Eminem",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "22"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.256,
+      "passed": true
+    },
+    {
+      "query": "Take On Me",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "23"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.322,
+      "passed": true
+    },
+    {
+      "query": "Take On Me a-ha",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "23"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.339,
+      "passed": true
+    },
+    {
+      "query": "a-ha",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "23"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.198,
+      "passed": true
+    },
+    {
+      "query": "Take ",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "23"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.24,
+      "passed": true
+    },
+    {
+      "query": "Take On ",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "23"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.3,
+      "passed": true
+    },
+    {
+      "query": "a-ha",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "23"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.418,
+      "passed": true
+    },
+    {
+      "query": "Do It",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "24"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.191,
+      "passed": true
+    },
+    {
+      "query": "Do It Nelly Furtado",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "24"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.371,
+      "passed": true
+    },
+    {
+      "query": "Nelly Furtado",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "24"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.296,
+      "passed": true
+    },
+    {
+      "query": "Do",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "24"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.268,
+      "passed": true
+    },
+    {
+      "query": "Do ",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "24"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.358,
+      "passed": true
+    },
+    {
+      "query": "NellyFurtado",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "24"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.318,
+      "passed": true
+    },
+    {
+      "query": "Beautiful Day",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "25"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.381,
+      "passed": true
+    },
+    {
+      "query": "Beautiful Day U2",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "25"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.41,
+      "passed": true
+    },
+    {
+      "query": "U2",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "25"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.254,
+      "passed": true
+    },
+    {
+      "query": "Beauti",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "25"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.374,
+      "passed": true
+    },
+    {
+      "query": "Beautiful D",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "25"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.488,
+      "passed": true
+    },
+    {
+      "query": "U2",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "25"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.27,
+      "passed": true
+    },
+    {
+      "query": "Feel Good Inc.",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "26"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.545,
+      "passed": true
+    },
+    {
+      "query": "Feel Good Inc. Gorillaz",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "26"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.687,
+      "passed": true
+    },
+    {
+      "query": "Gorillaz",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "26"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.292,
+      "passed": true
+    },
+    {
+      "query": "Feel Go",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "26"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.354,
+      "passed": true
+    },
+    {
+      "query": "Feel Good In",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "26"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.439,
+      "passed": true
+    },
+    {
+      "query": "Gorillaz",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "26"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.549,
+      "passed": true
+    },
+    {
+      "query": "Satisfaction",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "27"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.655,
+      "passed": true
+    },
+    {
+      "query": "Satisfaction The Rolling Stones",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "27"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.392,
+      "passed": true
+    },
+    {
+      "query": "The Rolling Stones",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "27",
+        "28"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.477,
+      "passed": true
+    },
+    {
+      "query": "Satisf",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "27"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.363,
+      "passed": true
+    },
+    {
+      "query": "Satisfacti",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "27"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.342,
+      "passed": true
+    },
+    {
+      "query": "TheRollingStones",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "27",
+        "28"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": null,
+      "ms": 1.443,
+      "passed": false
+    },
+    {
+      "query": "Paint It, Black",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "28"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.492,
+      "passed": true
+    },
+    {
+      "query": "Paint It, Black The Rolling Stones",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "28"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.417,
+      "passed": true
+    },
+    {
+      "query": "The Rolling Stones",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "27",
+        "28"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.413,
+      "passed": true
+    },
+    {
+      "query": "Paint I",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "28"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.317,
+      "passed": true
+    },
+    {
+      "query": "Paint It, Bla",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "28"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.225,
+      "passed": true
+    },
+    {
+      "query": "TheRollingStones",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "27",
+        "28"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": null,
+      "ms": 1.419,
+      "passed": false
+    },
+    {
+      "query": "505",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "29"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.67,
+      "passed": true
+    },
+    {
+      "query": "505 Arctic Monkeys",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "29"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.367,
+      "passed": true
+    },
+    {
+      "query": "Arctic Monkeys",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "29"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.375,
+      "passed": true
+    },
+    {
+      "query": "50",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "29"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.54,
+      "passed": true
+    },
+    {
+      "query": "50",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "29"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.53,
+      "passed": true
+    },
+    {
+      "query": "ArcticMonkeys",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "29"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.751,
+      "passed": true
+    },
+    {
+      "query": "Billie Jean",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "30"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.656,
+      "passed": true
+    },
+    {
+      "query": "Billie Jean Michael Jackson",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "30"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.618,
+      "passed": true
+    },
+    {
+      "query": "Michael Jackson",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "30"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.298,
+      "passed": true
+    },
+    {
+      "query": "Billi",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "30"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.242,
+      "passed": true
+    },
+    {
+      "query": "Billie Je",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "30"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.278,
+      "passed": true
+    },
+    {
+      "query": "MichaelJackson",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "30"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.572,
+      "passed": true
+    },
+    {
+      "query": "Get Lucky (feat. Pharrell Williams)",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "31"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.322,
+      "passed": true
+    },
+    {
+      "query": "Get Lucky (feat. Pharrell Williams) Daft Punk",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "31"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.441,
+      "passed": true
+    },
+    {
+      "query": "Daft Punk",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "31",
+        "47"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.262,
+      "passed": true
+    },
+    {
+      "query": "Get Lucky (feat. ",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "31"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.266,
+      "passed": true
+    },
+    {
+      "query": "Get Lucky (feat. Pharrell William",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "31"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.772,
+      "passed": true
+    },
+    {
+      "query": "DaftPunk",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "31",
+        "47"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.291,
+      "passed": true
+    },
+    {
+      "query": "Empire State of Mind",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "32"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.339,
+      "passed": true
+    },
+    {
+      "query": "Empire State of Mind JAY-Z & Alicia Keys",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "32"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.565,
+      "passed": true
+    },
+    {
+      "query": "JAY-Z & Alicia Keys",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "32"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.293,
+      "passed": true
+    },
+    {
+      "query": "Empire Sta",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "32"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.324,
+      "passed": true
+    },
+    {
+      "query": "Empire State of Mi",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "32"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.324,
+      "passed": true
+    },
+    {
+      "query": "JAY-Z&AliciaKeys",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "32"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.714,
+      "passed": true
+    },
+    {
+      "query": "See You Again",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "33"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.346,
+      "passed": true
+    },
+    {
+      "query": "See You Again Tyler, The Creator",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "33"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.393,
+      "passed": true
+    },
+    {
+      "query": "Tyler, The Creator",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "33"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.275,
+      "passed": true
+    },
+    {
+      "query": "See Yo",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "33"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.302,
+      "passed": true
+    },
+    {
+      "query": "See You Aga",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "33"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.338,
+      "passed": true
+    },
+    {
+      "query": "Tyler,TheCreator",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "33"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.527,
+      "passed": true
+    },
+    {
+      "query": "Звезда по имени Солнце",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "34"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.487,
+      "passed": true
+    },
+    {
+      "query": "Звезда по имени Солнце Кино",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "34"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.416,
+      "passed": true
+    },
+    {
+      "query": "Кино",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "34"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.257,
+      "passed": true
+    },
+    {
+      "query": "Звезда по и",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "34"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.44,
+      "passed": true
+    },
+    {
+      "query": "Звезда по имени Солн",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "34"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.537,
+      "passed": true
+    },
+    {
+      "query": "Кино",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "34"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.28,
+      "passed": true
+    },
+    {
+      "query": "群青",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "35"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.783,
+      "passed": true
+    },
+    {
+      "query": "群青 YOASOBI",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "35"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.652,
+      "passed": true
+    },
+    {
+      "query": "YOASOBI",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "35"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.301,
+      "passed": true
+    },
+    {
+      "query": "群青",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "35"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.911,
+      "passed": true
+    },
+    {
+      "query": "群青",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "35"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.512,
+      "passed": true
+    },
+    {
+      "query": "YOASOBI",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "35"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.239,
+      "passed": true
+    },
+    {
+      "query": "봄날",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "36"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.51,
+      "passed": true
+    },
+    {
+      "query": "봄날 방탄소년단",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "36"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 2.026,
+      "passed": true
+    },
+    {
+      "query": "방탄소년단",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "36"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.829,
+      "passed": true
+    },
+    {
+      "query": "봄날",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "36"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.524,
+      "passed": true
+    },
+    {
+      "query": "봄날",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "36"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.418,
+      "passed": true
+    },
+    {
+      "query": "방탄소년단",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "36"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.512,
+      "passed": true
+    },
+    {
+      "query": "Dernière danse",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "37"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.378,
+      "passed": true
+    },
+    {
+      "query": "Dernière danse Indila",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "37"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.292,
+      "passed": true
+    },
+    {
+      "query": "Indila",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "37"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.233,
+      "passed": true
+    },
+    {
+      "query": "Dernièr",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "37"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.423,
+      "passed": true
+    },
+    {
+      "query": "Dernière dan",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "37"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.362,
+      "passed": true
+    },
+    {
+      "query": "Indila",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "37"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.237,
+      "passed": true
+    },
+    {
+      "query": "La vie en rose",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "38"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.365,
+      "passed": true
+    },
+    {
+      "query": "La vie en rose Édith Piaf",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "38"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.315,
+      "passed": true
+    },
+    {
+      "query": "Édith Piaf",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "38"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.287,
+      "passed": true
+    },
+    {
+      "query": "La vie ",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "38"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.307,
+      "passed": true
+    },
+    {
+      "query": "La vie en ro",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "38"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.251,
+      "passed": true
+    },
+    {
+      "query": "ÉdithPiaf",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "38"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.302,
+      "passed": true
+    },
+    {
+      "query": "Voilà",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "39"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.708,
+      "passed": true
+    },
+    {
+      "query": "Voilà Barbara Pravi",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "39"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.97,
+      "passed": true
+    },
+    {
+      "query": "Barbara Pravi",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "39"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.483,
+      "passed": true
+    },
+    {
+      "query": "Vo",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "39"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.297,
+      "passed": true
+    },
+    {
+      "query": "Voi",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "39"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.242,
+      "passed": true
+    },
+    {
+      "query": "BarbaraPravi",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "39"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.632,
+      "passed": true
+    },
+    {
+      "query": "Tous les mêmes",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "40"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.612,
+      "passed": true
+    },
+    {
+      "query": "Tous les mêmes Stromae",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "40"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.35,
+      "passed": true
+    },
+    {
+      "query": "Stromae",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "40",
+        "41",
+        "42"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.702,
+      "passed": true
+    },
+    {
+      "query": "Tous le",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "40"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.28,
+      "passed": true
+    },
+    {
+      "query": "Tous les mêm",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "40"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.268,
+      "passed": true
+    },
+    {
+      "query": "Stromae",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "40",
+        "41",
+        "42"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.365,
+      "passed": true
+    },
+    {
+      "query": "Formidable",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "41"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.474,
+      "passed": true
+    },
+    {
+      "query": "Formidable Stromae",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "41"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.352,
+      "passed": true
+    },
+    {
+      "query": "Stromae",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "40",
+        "41",
+        "42"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.453,
+      "passed": true
+    },
+    {
+      "query": "Formi",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "41"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.263,
+      "passed": true
+    },
+    {
+      "query": "Formidab",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "41"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.809,
+      "passed": true
+    },
+    {
+      "query": "Stromae",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "40",
+        "41",
+        "42"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.334,
+      "passed": true
+    },
+    {
+      "query": "Alors on danse",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "42"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.376,
+      "passed": true
+    },
+    {
+      "query": "Alors on danse Stromae",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "42"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.37,
+      "passed": true
+    },
+    {
+      "query": "Stromae",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "40",
+        "41",
+        "42"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.352,
+      "passed": true
+    },
+    {
+      "query": "Alors o",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "42"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.256,
+      "passed": true
+    },
+    {
+      "query": "Alors on dan",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "42"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.281,
+      "passed": true
+    },
+    {
+      "query": "Stromae",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "40",
+        "41",
+        "42"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.3,
+      "passed": true
+    },
+    {
+      "query": "L’amour toujours",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "43"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.315,
+      "passed": true
+    },
+    {
+      "query": "L’amour toujours Gigi D’Agostino",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "43"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.51,
+      "passed": true
+    },
+    {
+      "query": "Gigi D’Agostino",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "43"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.303,
+      "passed": true
+    },
+    {
+      "query": "L’amour ",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "43"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.264,
+      "passed": true
+    },
+    {
+      "query": "L’amour toujou",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "43"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.319,
+      "passed": true
+    },
+    {
+      "query": "GigiD’Agostino",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "43"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.411,
+      "passed": true
+    },
+    {
+      "query": "Enjoy the Silence",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "44"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.362,
+      "passed": true
+    },
+    {
+      "query": "Enjoy the Silence Depeche Mode",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "44"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.403,
+      "passed": true
+    },
+    {
+      "query": "Depeche Mode",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "44"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.317,
+      "passed": true
+    },
+    {
+      "query": "Enjoy th",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "44"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.373,
+      "passed": true
+    },
+    {
+      "query": "Enjoy the Silen",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "44"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.423,
+      "passed": true
+    },
+    {
+      "query": "DepecheMode",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "44"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.366,
+      "passed": true
+    },
+    {
+      "query": "Nothing Else Matters",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "45"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.346,
+      "passed": true
+    },
+    {
+      "query": "Nothing Else Matters Metallica",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "45"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.516,
+      "passed": true
+    },
+    {
+      "query": "Metallica",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "45"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.343,
+      "passed": true
+    },
+    {
+      "query": "Nothing El",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "45"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.367,
+      "passed": true
+    },
+    {
+      "query": "Nothing Else Matte",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "45"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.341,
+      "passed": true
+    },
+    {
+      "query": "Metallica",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "45"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.611,
+      "passed": true
+    },
+    {
+      "query": "Wonderwall",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "46"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.633,
+      "passed": true
+    },
+    {
+      "query": "Wonderwall Oasis",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "46"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.451,
+      "passed": true
+    },
+    {
+      "query": "Oasis",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "46"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.26,
+      "passed": true
+    },
+    {
+      "query": "Wonde",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "46"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.274,
+      "passed": true
+    },
+    {
+      "query": "Wonderwa",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "46"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.227,
+      "passed": true
+    },
+    {
+      "query": "Oasis",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "46"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.258,
+      "passed": true
+    },
+    {
+      "query": "One More Time",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "47"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.348,
+      "passed": true
+    },
+    {
+      "query": "One More Time Daft Punk",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "47"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.302,
+      "passed": true
+    },
+    {
+      "query": "Daft Punk",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "31",
+        "47"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.325,
+      "passed": true
+    },
+    {
+      "query": "One Mo",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "47"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.271,
+      "passed": true
+    },
+    {
+      "query": "One More Ti",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "47"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.215,
+      "passed": true
+    },
+    {
+      "query": "DaftPunk",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "31",
+        "47"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.294,
+      "passed": true
+    },
+    {
+      "query": "Bohemian Rhapsody",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "48"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.376,
+      "passed": true
+    },
+    {
+      "query": "Bohemian Rhapsody Queen",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "48"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.342,
+      "passed": true
+    },
+    {
+      "query": "Queen",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "48",
+        "49",
+        "50"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.308,
+      "passed": true
+    },
+    {
+      "query": "Bohemian",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "48"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.302,
+      "passed": true
+    },
+    {
+      "query": "Bohemian Rhapso",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "48"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.251,
+      "passed": true
+    },
+    {
+      "query": "Queen",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "48",
+        "49",
+        "50"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.296,
+      "passed": true
+    },
+    {
+      "query": "Somebody to Love",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "49"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.409,
+      "passed": true
+    },
+    {
+      "query": "Somebody to Love Queen",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "49"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.355,
+      "passed": true
+    },
+    {
+      "query": "Queen",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "48",
+        "49",
+        "50"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.311,
+      "passed": true
+    },
+    {
+      "query": "Somebody",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "49"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.535,
+      "passed": true
+    },
+    {
+      "query": "Somebody to Lo",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "49"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.453,
+      "passed": true
+    },
+    {
+      "query": "Queen",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "48",
+        "49",
+        "50"
+      ],
+      "split": "validation",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.3,
+      "passed": true
+    },
+    {
+      "query": "I Want to Break Free",
+      "kind": "tracks",
+      "category": "exact",
+      "expected": [
+        "50"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.534,
+      "passed": true
+    },
+    {
+      "query": "I Want to Break Free Queen",
+      "kind": "tracks",
+      "category": "title_artist",
+      "expected": [
+        "50"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.289,
+      "passed": true
+    },
+    {
+      "query": "Queen",
+      "kind": "tracks",
+      "category": "artist",
+      "expected": [
+        "48",
+        "49",
+        "50"
+      ],
+      "split": "tuning",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.693,
+      "passed": true
+    },
+    {
+      "query": "I Want to ",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "50"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.298,
+      "passed": true
+    },
+    {
+      "query": "I Want to Break Fr",
+      "kind": "tracks",
+      "category": "prefix",
+      "expected": [
+        "50"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.285,
+      "passed": true
+    },
+    {
+      "query": "Queen",
+      "kind": "tracks",
+      "category": "spacing",
+      "expected": [
+        "48",
+        "49",
+        "50"
+      ],
+      "split": "tuning",
+      "max_rank": 20,
+      "rank": 1,
+      "ms": 1.307,
+      "passed": true
+    },
+    {
+      "query": "q&a",
+      "kind": "tracks",
+      "category": "regression",
+      "expected": [
+        "1"
+      ],
+      "split": "validation",
+      "max_rank": 1,
+      "rank": 1,
+      "ms": 1.319,
+      "passed": true
+    },
+    {
+      "query": "motion",
+      "kind": "tracks",
+      "category": "regression",
+      "expected": [
+        "4"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.525,
+      "passed": true
+    },
+    {
+      "query": "intro damso",
+      "kind": "tracks",
+      "category": "regression",
+      "expected": [
+        "5"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.318,
+      "passed": true
+    },
+    {
+      "query": "nes",
+      "kind": "tracks",
+      "category": "regression",
+      "expected": [
+        "6"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.265,
+      "passed": true
+    },
+    {
+      "query": "ed sheran",
+      "kind": "tracks",
+      "category": "regression",
+      "expected": [
+        "7"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.21,
+      "passed": true
+    },
+    {
+      "query": "straykids",
+      "kind": "tracks",
+      "category": "regression",
+      "expected": [
+        "8"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.372,
+      "passed": true
+    },
+    {
+      "query": "ac dc",
+      "kind": "tracks",
+      "category": "regression",
+      "expected": [
+        "9"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.361,
+      "passed": true
+    },
+    {
+      "query": "cris mj",
+      "kind": "tracks",
+      "category": "regression",
+      "expected": [
+        "10"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.316,
+      "passed": true
+    },
+    {
+      "query": "si veo a tu mama",
+      "kind": "tracks",
+      "category": "regression",
+      "expected": [
+        "11"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.37,
+      "passed": true
+    },
+    {
+      "query": "a tu merced",
+      "kind": "tracks",
+      "category": "regression",
+      "expected": [
+        "12"
+      ],
+      "split": "validation",
+      "max_rank": 5,
+      "rank": 1,
+      "ms": 1.497,
+      "passed": true
+    }
+  ],
+  "tuning": {
+    "pass": 220,
+    "count": 222,
+    "recall20": 0.990990990990991,
+    "mrr": 0.9752252252252253,
+    "p95_ms": 1.702,
+    "p99_ms": 1.942
+  },
+  "validation": {
+    "pass": 88,
+    "count": 88,
+    "recall20": 1.0,
+    "mrr": 0.96900826446281,
+    "p95_ms": 1.67,
+    "p99_ms": 1.847
+  }
+}

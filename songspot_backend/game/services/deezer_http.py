@@ -21,6 +21,8 @@ Three behaviours matter:
   "serve from the database", never "show the player an error".
 """
 
+import asyncio
+import httpx
 import hashlib
 import json
 import logging
@@ -30,7 +32,7 @@ from typing import Any, Optional
 import requests
 from django.conf import settings
 
-from .cache_utils import cache_add, cache_get, cache_incr, cache_set
+from .cache_utils import cache_get, cache_set
 
 logger = logging.getLogger(__name__)
 
@@ -49,9 +51,8 @@ TTL_ARTIST = 60 * 60 * 24 * 7        # 7 days
 # How long a stale copy is kept as a fallback once its TTL has passed.
 STALE_TTL = 60 * 60 * 24 * 60        # 60 days
 
-# Deezer's documented ceiling is 50 requests / 5 s per IP. We pace to 40 to
-# leave room for the small race in the shared counter and for anything else on
-# this host talking to Deezer (the refresh cron, a management command).
+# Historical 2015 ceiling, not reconfirmed as a current guarantee.
+# All consumers share the durable rolling budget in deezer_budget.py.
 RATE_LIMIT = 40
 RATE_WINDOW = 5
 
@@ -92,28 +93,9 @@ def _cache_key(path: str, params: Optional[dict]) -> str:
     return 'deezer:' + hashlib.sha1(raw.encode()).hexdigest()
 
 
-def _rate_limit_slot() -> bool:
-    """
-    Claim one slot in the current window. False when the window is full.
-
-    A fixed window rather than a rolling one: it is one cache round-trip
-    instead of a sorted-set read, and the cost of the coarser edge is already
-    covered by pacing to 40 instead of 50.
-    """
-    key = f'deezer:rl:{int(time.time() // RATE_WINDOW)}'
-    # `add` returns False when the key already exists, which is the signal that
-    # someone else opened this window and we should increment instead.
-    if cache_add(key, 1, timeout=RATE_WINDOW + 1):
-        return True
-    count = cache_incr(key)
-    if count is None:
-        # The window expired between `add` and `incr`. A genuinely new window,
-        # so there is a slot. This branch must never be reachable *because the
-        # cache is missing*: cache_utils falls back to an in-process cache
-        # precisely so the count always lands somewhere. A limiter that fails
-        # open stops being a limiter at the worst possible moment.
-        return True
-    return count <= RATE_LIMIT
+def _rate_limit_slot(priority='search') -> bool:
+    from .deezer_budget import reserve
+    return reserve(priority)
 
 
 def _is_transient(error: Any) -> bool:
@@ -133,9 +115,11 @@ class DeezerHttp:
         self,
         session: Optional[requests.Session] = None,
         max_wait: float = MAX_WAIT,
+        priority: str = 'search',
     ):
-        self._session = session or requests.Session()
+        self._session = session
         self._max_wait = max_wait
+        self._priority = 'background' if max_wait == BULK_MAX_WAIT else priority
 
     def get(
         self,
@@ -155,6 +139,7 @@ class DeezerHttp:
         now = time.time()
 
         if entry and now - entry.get('t', 0) < ttl:
+            logger.info('deezer_cache priority=%s outcome=fresh', self._priority)
             return entry['d']
 
         stale = entry['d'] if entry and allow_stale else None
@@ -169,6 +154,24 @@ class DeezerHttp:
 
         cache_set(key, {'t': now, 'd': data}, timeout=STALE_TTL)
         return data
+
+    def _network_get(self, url, params, remaining):
+        if self._session is not None:
+            # Injectable synchronous session for deterministic transport tests.
+            from urllib3.util import Timeout
+            return self._session.get(url, params=params, timeout=Timeout(total=remaining))
+
+        async def request():
+            async with httpx.AsyncClient(timeout=remaining) as client:
+                return await client.get(url, params=params)
+
+        async def bounded():
+            return await asyncio.wait_for(request(), timeout=remaining)
+
+        # Cancellation bounds DNS, connection, headers and full body together.
+        # Django calls this synchronous service from its sync worker threads.
+        from .network_loop import run_bounded
+        return run_bounded(bounded(), remaining)
 
     def _fetch(self, path: str, params: Optional[dict]) -> Any:
         """
@@ -191,33 +194,41 @@ class DeezerHttp:
         if getattr(settings, 'TESTING', False):
             raise DeezerUnavailable(f'{path}: live calls are disabled under test')
 
-        deadline = time.time() + self._max_wait
+        deadline = time.monotonic() + self._max_wait
         url = f'{BASE_URL}{path}'
         backoff = RETRY_BACKOFF
         last: Optional[str] = None
 
         while True:
-            while not _rate_limit_slot():
-                if time.time() >= deadline:
+            quota_started = time.monotonic()
+            while not _rate_limit_slot(self._priority):
+                if time.monotonic() >= deadline:
                     raise DeezerUnavailable(f'rate limit exhausted for {path}')
-                time.sleep(0.25)
+                time.sleep(min(0.05, max(0, deadline-time.monotonic())))
 
+            remaining = deadline-time.monotonic()
+            if remaining <= 0:
+                raise DeezerUnavailable(f'{path}: deadline exhausted')
+            logger.info('deezer_outbound priority=%s quota_wait_ms=%.3f',
+                        self._priority, (time.monotonic()-quota_started)*1000)
             try:
-                response = self._session.get(url, params=params, timeout=REQUEST_TIMEOUT)
+                response = self._network_get(url, params, min(REQUEST_TIMEOUT, remaining))
                 response.raise_for_status()
                 payload = response.json()
-            except (requests.RequestException, ValueError) as exc:
+            except (requests.RequestException, httpx.HTTPError, TimeoutError, ValueError) as exc:
                 last = str(exc)
             else:
                 # Deezer answers 200 with an error body rather than an HTTP
                 # status, so a quota breach only shows up in the payload.
                 if not (isinstance(payload, dict) and 'error' in payload):
+                    if time.monotonic() > deadline:
+                        raise DeezerUnavailable(f'{path}: deadline exhausted')
                     return payload
                 last = str(payload['error'])
                 if not _is_transient(payload['error']):
                     raise DeezerUnavailable(f'{path}: {last}')
 
-            if time.time() + backoff >= deadline:
+            if time.monotonic() + backoff >= deadline:
                 raise DeezerUnavailable(f'{path}: {last}')
             logger.info('Deezer refused %s (%s) — retrying in %.1fs', path, last, backoff)
             time.sleep(backoff)

@@ -42,6 +42,22 @@ class Track extends Equatable {
   /// True once the answer is known — after a guess, or on a search result.
   bool get isRevealed => title.isNotEmpty;
 
+  /// Compatibility for rounds without a server token. Album releases have
+  /// different IDs, covers and years but can still name the same song.
+  /// Keep this conservative: edition qualifiers are handled by the server
+  /// on token-based rounds, where the full catalogue identity is available.
+  bool matchesLegacyAnswer(Track guess) {
+    if (id.isNotEmpty && id == guess.id) return true;
+    String normalize(String value) =>
+        value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+    final answerTitle = normalize(title);
+    final answerArtist = normalize(artist);
+    return answerTitle.isNotEmpty &&
+        answerArtist.isNotEmpty &&
+        answerTitle == normalize(guess.title) &&
+        answerArtist == normalize(guess.artist);
+  }
+
   factory Track.fromJson(Map<String, dynamic> json) {
     return Track(
       id: json['id'].toString(),

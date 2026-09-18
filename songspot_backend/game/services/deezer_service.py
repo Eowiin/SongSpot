@@ -498,6 +498,11 @@ class DeezerService:
         # does not fail alone: it raises DataError inside a bulk_create and takes
         # the other 199 rows of the batch down with it.
         return {
+            'contributors': [
+                {'id': c.get('id'), 'name': str(c['name'])[:255]}
+                for c in (track_data.get('contributors') or [])[:20]
+                if isinstance(c, dict) and c.get('name')
+            ],
             'title': track_data.get('title', '')[:255],
             'artist': artist_data.get('name', '')[:255],
             # The artist *entity*, not the credited name. Two releases of one

@@ -65,7 +65,7 @@ void main() {
 
   group('SessionEndScreen', () {
     for (final scale in _scales) {
-      for (final locale in const [Locale('en'), Locale('fr')]) {
+      for (final locale in const [Locale('en'), Locale('es'), Locale('fr')]) {
         testWidgets(
             'no overflow at ${(scale * 100).round()}% (${locale.languageCode})',
             (tester) async {

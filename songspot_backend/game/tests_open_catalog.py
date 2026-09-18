@@ -4,10 +4,12 @@ End-to-end tests for the open catalogue.
 Deezer is mocked throughout: these assert our rules, not Deezer's uptime.
 """
 
+from unittest import skipUnless
 from unittest.mock import patch
 
 from django.conf import settings
 from django.core.cache import cache, caches
+from django.db import connection
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -261,6 +263,19 @@ class CacheResilienceTests(CatalogTestCase):
         self.assertEqual(response.status_code, 200)
 
 
+#: The rolling quota window is a row in PostgreSQL, and `deezer_budget.reserve`
+#: refuses every call on any other backend — fail closed, by design, because a
+#: backend that cannot coordinate cannot pace. Nothing about it can be asserted
+#: on the SQLite the development default and the fast CI job use: the limiter
+#: does not merely behave differently there, it is absent. Left unmarked, these
+#: read as passing while proving nothing, or fail for a reason that is not a bug.
+_needs_postgres = skipUnless(
+    connection.vendor == 'postgresql',
+    'the Deezer quota window is a PostgreSQL row',
+)
+
+
+@_needs_postgres
 class RateLimiterTests(CatalogTestCase):
     """
     The Deezer limiter must not fail open.
@@ -337,7 +352,12 @@ class TransientRefusalTests(CatalogTestCase):
             _FakeResponse({'error': {'message': 'Quota limit exceeded', 'code': 4}}),
             _FakeResponse({'data': [{'id': 1}]}),
         ]
+        # The subject here is the retry, not the quota window. Left to the real
+        # limiter this asserted nothing on SQLite, where a slot is never
+        # granted: the fetch spun until its ten-second deadline and raised
+        # before Deezer was ever asked twice.
         with patch.object(http, '_session') as session, \
+                patch.object(deezer_http, '_rate_limit_slot', return_value=True), \
                 patch.object(deezer_http.time, 'sleep'), \
                 patch.object(settings, 'TESTING', False):
             session.get.side_effect = responses
@@ -350,6 +370,7 @@ class TransientRefusalTests(CatalogTestCase):
         # database to fall back on.
         http = deezer_http.DeezerHttp(max_wait=0)
         with patch.object(http, '_session') as session, \
+                patch.object(deezer_http, '_rate_limit_slot', return_value=True), \
                 patch.object(settings, 'TESTING', False):
             session.get.return_value = _FakeResponse(
                 {'error': {'message': 'Quota limit exceeded', 'code': 4}}
@@ -394,12 +415,11 @@ class SearchTracksDedupTests(CatalogTestCase):
             make_track(title, 'The Weeknd', deezer_id=100 + i, rank=900_000 - i)
 
     @patch('game.services.catalog.DeezerService')
-    def test_one_row_per_song(self, mock_deezer):
+    def test_distinct_full_titles_are_not_merged(self, mock_deezer):
         mock_deezer.return_value.search_track.return_value = {'data': []}
         results = catalog.search_tracks('blinding')
-        self.assertEqual(len(results), 1)
-        # The highest-ranked release represents the group, which is also what
-        # NextSongView serves, so the two agree.
+        self.assertEqual(len(results), 4)
+        # Search preserves remixes; answer matching remains release tolerant.
         self.assertEqual(results[0].title, 'Blinding Lights')
 
 
@@ -561,10 +581,11 @@ class SearchRankingTests(CatalogTestCase):
         self.assertEqual(results[0].artist, 'The Weeknd')
 
     @patch('game.services.catalog.DeezerService')
-    def test_covers_do_not_fill_the_whole_list(self, mock_deezer):
+    def test_shared_titles_remain_accessible(self, mock_deezer):
         mock_deezer.return_value.search_track.return_value = {'data': []}
         results = catalog.search_tracks('blinding lights')
-        self.assertLessEqual(len(results), catalog.MAX_ARTISTS_PER_TITLE)
+        self.assertEqual(len(results), 5)
+        self.assertEqual(results[0].artist, 'The Weeknd')
 
     @patch('game.services.catalog.DeezerService')
     def test_distinct_songs_sharing_a_title_all_survive_the_cap(self, mock_deezer):
@@ -716,11 +737,12 @@ class UpsertTrackTests(CatalogTestCase):
         self.assertEqual(Track.objects.count(), 1)
         self.assertEqual(second.cover_url, 'https://example.com/c.jpg')
 
-    def test_a_payload_without_audio_is_not_stored(self):
-        self.assertIsNone(catalog.upsert_track({
+    def test_a_payload_without_audio_is_stored_as_an_answer(self):
+        row = catalog.upsert_track({
             'title': 'Silent', 'artist': 'Nobody', 'preview_url': '',
-        }))
-        self.assertEqual(Track.objects.count(), 0)
+        })
+        self.assertFalse(row.has_preview)
+        self.assertEqual(Track.objects.count(), 1)
 
     def test_distinct_releases_of_one_song_stay_distinct_rows(self):
         # Regression: an earlier version matched on the normalised identity for

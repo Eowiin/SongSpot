@@ -1,3 +1,4 @@
+import '../services/search_updates.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
@@ -109,6 +110,8 @@ class GameSessionProvider extends ChangeNotifier {
   // Guess autocomplete
   List<Track> _searchResults = [];
   bool _isSearching = false;
+  SearchStatus _searchStatus = SearchStatus.idle;
+  SearchStatus get searchStatus => _searchStatus;
   Timer? _searchDebounce;
   int _searchRequestId = 0;
 
@@ -427,11 +430,11 @@ class GameSessionProvider extends ChangeNotifier {
   /// The server owns the rule now, which also means a bad call can be fixed
   /// without shipping a new build.
   Future<void> submitGuess(Track guessedTrack) =>
-      _judge(guessTrackId: guessedTrack.id, gaveUp: false);
+      _judge(guess: guessedTrack, gaveUp: false);
 
-  Future<void> giveUp() => _judge(guessTrackId: null, gaveUp: true);
+  Future<void> giveUp() => _judge(guess: null, gaveUp: true);
 
-  Future<void> _judge({required String? guessTrackId, required bool gaveUp}) async {
+  Future<void> _judge({required Track? guess, required bool gaveUp}) async {
     final track = _currentTrack;
     if (track == null || _revealAnswer || _isJudging) return;
 
@@ -442,15 +445,15 @@ class GameSessionProvider extends ChangeNotifier {
     final bool isCorrect;
     if (track.roundToken == null) {
       // No token: an older server, or a round rebuilt from cache. Fall back to
-      // the identity comparison rather than refusing to score the round.
-      isCorrect = !gaveUp && guessTrackId == track.id;
+      // title/artist comparison so another album release is accepted too.
+      isCorrect = !gaveUp && guess != null && track.matchesLegacyAnswer(guess);
     } else {
       _isJudging = true;
       notifyListeners();
       try {
         final result = await _api.submitGuess(
           roundToken: track.roundToken!,
-          guessTrackId: guessTrackId,
+          guessTrackId: guess?.id,
         );
         isCorrect = result['correct'] == true;
         final answer = result['answer'];
@@ -515,32 +518,46 @@ class GameSessionProvider extends ChangeNotifier {
     _searchDebounce?.cancel();
     _searchRequestId++;
     _searchResults = [];
+    _searchStatus = SearchStatus.idle;
     _isSearching = false;
   }
 
   void searchTracks(String query) {
-    _resetSearch();
+    _searchDebounce?.cancel();
+    _searchRequestId++;
     final requestId = _searchRequestId;
     if (query.length < 2) {
+      _searchResults = [];
+      _searchStatus = SearchStatus.idle;
+      _isSearching = false;
       notifyListeners();
       return;
     }
+    // The suggestions from the previous keystroke stay up until the new ones
+    // land, rather than being wiped here. Emptying the list collapsed the
+    // panel under the field — up to 260px — on every character typed, and the
+    // stage is centred on the page, so the whole screen jumped up and then
+    // back down a third of a second later. The spinner in the field says a
+    // newer answer is coming.
     _isSearching = true;
+    _searchStatus = SearchStatus.loading;
     notifyListeners();
     _searchDebounce = Timer(const Duration(milliseconds: 350), () async {
-      List<Track> results;
       try {
-        final json = await _api.searchTracks(query);
-        results = json
-            .map((j) => Track.fromJson(j as Map<String, dynamic>))
-            .toList();
+        await for (final page in _api.watchSearch(query, artists: false,
+            isActive: () => requestId == _searchRequestId)) {
+          if (requestId != _searchRequestId) return;
+          _searchResults = page.results.map((j) => Track.fromJson(j as Map<String, dynamic>)).toList();
+          _searchStatus = page.status;
+          _isSearching = false;
+          notifyListeners();
+        }
       } catch (_) {
-        results = [];
+        if (requestId != _searchRequestId) return;
+        _searchStatus = SearchStatus.unavailable;
+        _isSearching = false;
+        notifyListeners();
       }
-      if (requestId != _searchRequestId) return;
-      _searchResults = results;
-      _isSearching = false;
-      notifyListeners();
     });
   }
 
@@ -601,6 +618,7 @@ class GameSessionProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _searchRequestId++;
     _searchDebounce?.cancel();
     _audio.playing.removeListener(_onAudioPlayingChanged);
     _audio.sounding.removeListener(_onAudioSoundingChanged);

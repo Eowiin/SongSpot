@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
 import '../l10n/app_localizations.dart';
 import 'storage_service.dart';
+import 'search_updates.dart';
 
 class ApiException implements Exception {
   final String message;
@@ -482,6 +483,18 @@ class ApiService {
       if (guessTrackId != null) 'guess_track_id': guessTrackId,
     });
   }
+
+  Stream<SearchPage> watchSearch(String query, {
+    required bool artists,
+    required bool Function() isActive,
+  }) => searchUpdates(
+    isActive: isActive,
+    fetch: () async => SearchPage.parse(await get(
+      artists ? ApiConfig.artists : ApiConfig.searchTracks,
+      includeAuth: true,
+      queryParameters: {'q': query, 'v': '2'},
+    )),
+  );
 
   Future<List<dynamic>> searchArtists(String query) async {
     if (query.length < 2) return [];

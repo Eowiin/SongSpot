@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:songspot_mobile/config/app_theme.dart';
 import 'package:songspot_mobile/config/responsive.dart';
+import 'package:songspot_mobile/l10n/app_localizations.dart';
 import 'package:songspot_mobile/models/track.dart';
+import 'package:songspot_mobile/services/search_updates.dart';
 import 'package:songspot_mobile/widgets/guess_field.dart';
 
 /// The wide game stage centres its column in the window *and* holds a guess
@@ -110,10 +112,14 @@ void main() {
     required List<Track> options,
     double height = 390,
     double scale = 1,
+    SearchStatus status = SearchStatus.idle,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.darkTheme,
+        locale: const Locale('fr'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: MediaQuery(
           data: MediaQueryData(textScaler: TextScaler.linear(scale)),
           child: Scaffold(
@@ -128,29 +134,39 @@ void main() {
                         child: SizedBox(key: Key('stage-top'), height: 600),
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                      child: GuessField(
-                        controller: controller,
-                        focusNode: focusNode,
-                        results: options,
-                        resultsBelow: false,
-                        hintText: 'Guess',
-                        maxResultsHeight: pinnedResultsMaxHeight(
-                            context, constraints.maxHeight),
-                        onChanged: (_) {},
-                        onSelected: (_) {},
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                      child: SizedBox(
-                        key: const Key('stage-bottom'),
-                        width: double.infinity,
-                        child: OutlinedButton(
-                          onPressed: () {},
-                          child: const Text('GIVE UP'),
-                        ),
+                    ConstrainedBox(
+                      constraints:
+                          BoxConstraints(maxHeight: constraints.maxHeight),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                              child: GuessField(
+                                controller: controller,
+                                focusNode: focusNode,
+                                results: options,
+                                resultsBelow: false,
+                                hintText: 'Guess',
+                                searchStatus: status,
+                                onChanged: (_) {},
+                                onSelected: (_) {},
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                            child: SizedBox(
+                              key: const Key('stage-bottom'),
+                              width: double.infinity,
+                              child: OutlinedButton(
+                                onPressed: () {},
+                                child: const Text('GIVE UP'),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -182,6 +198,50 @@ void main() {
         reason: 'the give-up button stays on screen at text scale $scale',
       );
     }
+  });
+
+  testWidgets('the status line does not push the button off the screen',
+      (tester) async {
+    // The line under the field — "searching", "adding more songs", "no
+    // match" — appears only while a search is running, so a budget worked out
+    // for the field and the button alone overflowed the moment it showed up.
+    final many = List.generate(
+      40,
+      (i) => Track(id: '$i', title: 'Song $i', artist: 'Artist $i'),
+    );
+
+    for (final status in [
+      SearchStatus.loading,
+      SearchStatus.enriching,
+      SearchStatus.refine,
+    ]) {
+      for (final scale in [1.0, 1.3, 2.0]) {
+        await pumpPinnedStage(tester,
+            options: many, scale: scale, status: status);
+        expect(tester.takeException(), isNull,
+            reason: 'no overflow with a $status line at text scale $scale');
+        expect(
+          tester.getBottomLeft(find.byKey(const Key('stage-bottom'))).dy,
+          lessThanOrEqualTo(390),
+          reason: 'the give-up button stays on screen with a $status line',
+        );
+      }
+    }
+  });
+
+  testWidgets('a very short body keeps the button rather than the list',
+      (tester) async {
+    final many = List.generate(
+      40,
+      (i) => Track(id: '$i', title: 'Song $i', artist: 'Artist $i'),
+    );
+    await pumpPinnedStage(tester,
+        options: many, height: 200, status: SearchStatus.enriching);
+    expect(tester.takeException(), isNull);
+    expect(
+      tester.getBottomLeft(find.byKey(const Key('stage-bottom'))).dy,
+      lessThanOrEqualTo(200),
+    );
   });
 
   testWidgets('a short window scrolls instead of overflowing', (tester) async {

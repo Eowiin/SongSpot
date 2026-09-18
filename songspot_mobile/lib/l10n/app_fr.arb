@@ -223,5 +223,10 @@
   "duelPlayAgain": "Rejouer",
   "duelBackToHome": "Retour à l'accueil",
   "settingsAnalytics": "Partager les statistiques d'usage",
-  "settingsAnalyticsSubtitle": "Nous aide à voir quels genres et difficultés fonctionnent. N'inclut jamais vos réponses ni vos données personnelles."
+  "settingsAnalyticsSubtitle": "Nous aide à voir quels genres et difficultés fonctionnent. N'inclut jamais vos réponses ni vos données personnelles.",
+  "searchLoading": "Recherche…",
+  "searchEnriching": "Recherche de résultats supplémentaires…",
+  "searchEmpty": "Aucun résultat. Essayez un titre ou un artiste.",
+  "searchUnavailable": "Recherche temporairement indisponible. Réessayez.",
+  "searchRefine": "D’autres résultats existent : ajoutez l’artiste ou le titre pour préciser la recherche."
 }

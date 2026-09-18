@@ -14,11 +14,21 @@ l'utilisateur doit sélectionner l'entrée à la main.
 | `assetlinks.json` | `https://songspot.eowinstudio.com/.well-known/assetlinks.json` | Android |
 | `apple-app-site-association` | `https://songspot.eowinstudio.com/.well-known/apple-app-site-association` | iOS |
 
-## État
+## État — vérifié le 2026-08-31
 
-- **iOS** : capability activée sur l'App ID, testé et fonctionnel.
-- **Android** : empreintes renseignées ci-dessous ; reste à mettre les deux
-  fichiers en ligne (§ 2.2 à 2.4).
+Les deux plateformes sont en place et validées en production.
+
+| Contrôle | Résultat |
+|---|---|
+| `assetlinks.json` en ligne | 200, `application/json` |
+| API Digital Asset Links de Google | 200, statement validée sur `02:48:F0:2F:…` |
+| `apple-app-site-association` en ligne | 200, `application/json`, **0 redirection** |
+| CDN Apple (`app-site-association.cdn-apple.com`) | 200, contenu à jour |
+| Autofill iOS sur appareil | testé, fonctionnel |
+
+Les sections qui suivent restent la référence pour refaire l'opération : rotation
+d'une clé de signature, changement de domaine, ou remise en place après une
+réinstallation du serveur.
 
 ---
 

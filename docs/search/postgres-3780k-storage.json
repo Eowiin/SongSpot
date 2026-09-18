@@ -1,0 +1,156 @@
+{
+  "tracks": 3780448,
+  "artists": 778434,
+  "database_bytes": 3468123159,
+  "tracks_heap_bytes": 853598208,
+  "tracks_indexes_bytes": 2226544640,
+  "artists_heap_bytes": 82059264,
+  "artists_indexes_bytes": 295075840,
+  "indexes": [
+    {
+      "name": "artists_blocked_search",
+      "bytes": 40960,
+      "valid": true
+    },
+    {
+      "name": "artists_name_trgm",
+      "bytes": 60497920,
+      "valid": true
+    },
+    {
+      "name": "artists_nb_fan_d01ff82b",
+      "bytes": 21381120,
+      "valid": true
+    },
+    {
+      "name": "artists_norm_name_338dd1a7",
+      "bytes": 42098688,
+      "valid": true
+    },
+    {
+      "name": "artists_norm_name_338dd1a7_like",
+      "bytes": 42098688,
+      "valid": true
+    },
+    {
+      "name": "artists_norm_name_trgm",
+      "bytes": 60473344,
+      "valid": true
+    },
+    {
+      "name": "artists_pkey",
+      "bytes": 17522688,
+      "valid": true
+    },
+    {
+      "name": "artists_upper_name_trgm",
+      "bytes": 50913280,
+      "valid": true
+    },
+    {
+      "name": "tracks_artist_trgm",
+      "bytes": 151732224,
+      "valid": true
+    },
+    {
+      "name": "tracks_deezer_artist_id_09542e67",
+      "bytes": 35487744,
+      "valid": true
+    },
+    {
+      "name": "tracks_deezer_id_2c8b9893",
+      "bytes": 112140288,
+      "valid": true
+    },
+    {
+      "name": "tracks_norm_artist_c45e9881",
+      "bytes": 37601280,
+      "valid": true
+    },
+    {
+      "name": "tracks_norm_artist_c45e9881_like",
+      "bytes": 37601280,
+      "valid": true
+    },
+    {
+      "name": "tracks_norm_artist_trgm",
+      "bytes": 152150016,
+      "valid": true
+    },
+    {
+      "name": "tracks_norm_ti_e42a36_idx",
+      "bytes": 46055424,
+      "valid": true
+    },
+    {
+      "name": "tracks_norm_title_13bf251c",
+      "bytes": 41795584,
+      "valid": true
+    },
+    {
+      "name": "tracks_norm_title_13bf251c_like",
+      "bytes": 41795584,
+      "valid": true
+    },
+    {
+      "name": "tracks_norm_title_trgm",
+      "bytes": 141082624,
+      "valid": true
+    },
+    {
+      "name": "tracks_pkey",
+      "bytes": 153174016,
+      "valid": true
+    },
+    {
+      "name": "tracks_search_artist_prefix",
+      "bytes": 38526976,
+      "valid": true
+    },
+    {
+      "name": "tracks_search_artist_short_rank",
+      "bytes": 153632768,
+      "valid": true
+    },
+    {
+      "name": "tracks_search_artist_trgm",
+      "bytes": 152018944,
+      "valid": true
+    },
+    {
+      "name": "tracks_search_title_prefix",
+      "bytes": 61693952,
+      "valid": true
+    },
+    {
+      "name": "tracks_search_title_short_rank",
+      "bytes": 153616384,
+      "valid": true
+    },
+    {
+      "name": "tracks_search_title_trgm",
+      "bytes": 150544384,
+      "valid": true
+    },
+    {
+      "name": "tracks_title_trgm",
+      "bytes": 150822912,
+      "valid": true
+    },
+    {
+      "name": "tracks_upper_artist_trgm",
+      "bytes": 151846912,
+      "valid": true
+    },
+    {
+      "name": "tracks_upper_title_trgm",
+      "bytes": 150626304,
+      "valid": true
+    },
+    {
+      "name": "uniq_track_deezer_id",
+      "bytes": 112140288,
+      "valid": true
+    }
+  ]
+}

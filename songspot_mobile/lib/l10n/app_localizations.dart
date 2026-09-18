@@ -6,6 +6,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/intl.dart' as intl;
 
 import 'app_localizations_en.dart';
+import 'app_localizations_es.dart';
 import 'app_localizations_fr.dart';
 
 // ignore_for_file: type=lint
@@ -95,6 +96,7 @@ abstract class AppLocalizations {
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
     Locale('en'),
+    Locale('es'),
     Locale('fr'),
   ];
 
@@ -1351,6 +1353,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Helps us see which genres and difficulties work. Never includes your guesses or personal data.'**
   String get settingsAnalyticsSubtitle;
+
+  /// No description provided for @searchLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Searching…'**
+  String get searchLoading;
+
+  /// No description provided for @searchEnriching.
+  ///
+  /// In en, this message translates to:
+  /// **'Looking for more results…'**
+  String get searchEnriching;
+
+  /// No description provided for @searchEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No results. Try a title or artist.'**
+  String get searchEmpty;
+
+  /// No description provided for @searchUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Search temporarily unavailable. Please try again.'**
+  String get searchUnavailable;
+
+  /// No description provided for @searchRefine.
+  ///
+  /// In en, this message translates to:
+  /// **'More results available: add the artist or title to narrow your search.'**
+  String get searchRefine;
 }
 
 class _AppLocalizationsDelegate
@@ -1364,7 +1396,7 @@ class _AppLocalizationsDelegate
 
   @override
   bool isSupported(Locale locale) =>
-      <String>['en', 'fr'].contains(locale.languageCode);
+      <String>['en', 'es', 'fr'].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
@@ -1375,6 +1407,8 @@ AppLocalizations lookupAppLocalizations(Locale locale) {
   switch (locale.languageCode) {
     case 'en':
       return AppLocalizationsEn();
+    case 'es':
+      return AppLocalizationsEs();
     case 'fr':
       return AppLocalizationsFr();
   }

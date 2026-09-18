@@ -8,3 +8,9 @@ REPONSES_AVIS_PLAYSTORE.md
 ._*
 .Spotlight-V100
 .Trashes
+
+# Private deployment locks, database snapshots and recovery configuration
+.deploy/
+
+# Python helpers and local test runs
+__pycache__/

@@ -478,7 +478,7 @@ python -c "from django.core.management.utils import get_random_secret_key; print
 
 ## 16. Automatic Deploy from GitHub
 
-The repo includes `.github/workflows/backend-deploy.yml` which deploys automatically when `main` is pushed with changes to `songspot_backend/**`, `docker-compose.yml`, or `scripts/deploy_backend.sh`.
+The backend workflow deploys automatically when `main` receives backend, deployment script/helper, worker unit or backend workflow changes (also `docker-compose.yml`). Push to `dev`, open a PR and wait for all CI checks before merging: the deployment workflow does not wait for the separate CI workflow on `main`. Flutter changes also trigger the existing web deployment workflow.
 
 ### GitHub Secrets Required
 
@@ -492,20 +492,25 @@ Set in `Settings -> Secrets and variables -> Actions`:
 | `VPS_APP_DIR` | Yes | Repo path on VPS (e.g. `/var/www/songspot`) |
 | `VPS_PORT` | No | SSH port (default: `22`) |
 | `VPS_HOST_KEY` | No | Pinned host key for `known_hosts` |
-| `VPS_DEPLOY_SCRIPT` | No | Deploy script path (default: `scripts/deploy_backend.sh`) |
+| `VPS_DEPLOY_SCRIPT` | No | Path inside the GitHub checkout, not on the VPS (default: `scripts/deploy_backend.sh`) |
 
 ### VPS Requirements
 
-1. Clone the repo on the VPS at `VPS_APP_DIR`
-2. Ensure `main` tracks the remote correctly
-3. Ensure the VPS user can run:
-   - `sudo -n systemctl restart songspot`
+1. Existing clean checkout on `main` at `VPS_APP_DIR`, with its Python virtualenv and backend `.env`.
+2. `git`, `flock`, `systemctl`, compatible `pg_dump`/`pg_restore`, and a PostgreSQL role allowed to install `unaccent`.
+3. Root access or noninteractive sudo for service management and writing systemd configuration.
 
-The deploy script (`scripts/deploy_backend.sh`) runs:
-- `pip install -r requirements.txt`
-- `python manage.py migrate --noinput`
-- `python manage.py collectstatic --noinput`
-- Restarts the `songspot` service
+The script backs up PostgreSQL before stopping writers, checks out the exact
+commit, installs dependencies, migrates and backfills search fields/indexes,
+configures PostgreSQL search and its worker, checks readiness, then restarts
+services and previously active catalogue timers. **The first deployment has a
+maintenance window while the catalogue is prepared.** Recovery files are kept
+under private `.deploy/`; failures during maintenance leave services stopped.
+
+See [the search deployment procedure](search/deployment.md) for the exact order,
+configuration defaults, prerequisites and recovery. No Meilisearch service or
+VPS upgrade is needed. Complete the [Flutter checklist](search/flutter-checklist.md)
+on Android, iOS and web before publishing the mobile update.
 
 ---
 

@@ -1,0 +1,36 @@
+# Local CPU/RAM approximation, not an emulator of the VPS CPU or storage.
+services:
+  db:
+    image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+    cpus: '${PG_CPUS:-2.0}'
+    mem_limit: 3g
+    memswap_limit: 3g
+    shm_size: 1200m
+    command: ['postgres', '-c', 'shared_buffers=1GB', '-c', 'work_mem=4MB', '-c', 'effective_cache_size=2500MB', '-c', 'max_parallel_workers_per_gather=2', '-c', 'track_io_timing=on']
+    environment:
+      POSTGRES_USER: search_test
+      POSTGRES_PASSWORD: local-search-only
+      POSTGRES_DB: search_test
+    volumes: ['scale_db:/var/lib/postgresql/data']
+  runner:
+    image: songspot-backend:latest
+    cpus: '${APP_CPUS:-1.0}'
+    mem_limit: 512m
+    memswap_limit: 512m
+    working_dir: /workspace/songspot_backend
+    volumes: ['../..:/workspace']
+    environment:
+      DATABASE_URL: postgres://search_test:local-search-only@db:5432/search_test
+      DJANGO_SECRET_KEY: local-search-only
+      DEBUG: 'False'
+      CACHE_REDIS_URL: ''
+      CHANNEL_LAYERS_REDIS_URL: ''
+      USE_REDIS_CHANNEL_LAYER: 'False'
+      SEARCH_BACKEND: postgres
+      SEARCH_ENRICHMENT_ENABLED: 'True'
+    entrypoint: ['python', '/workspace/scripts/search_benchmark/postgres_scale.py']
+networks:
+  default:
+    internal: true
+volumes:
+  scale_db:

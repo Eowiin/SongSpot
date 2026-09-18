@@ -704,4 +704,21 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get settingsAnalyticsSubtitle =>
       'Nous aide à voir quels genres et difficultés fonctionnent. N\'inclut jamais vos réponses ni vos données personnelles.';
+
+  @override
+  String get searchLoading => 'Recherche…';
+
+  @override
+  String get searchEnriching => 'Recherche de résultats supplémentaires…';
+
+  @override
+  String get searchEmpty => 'Aucun résultat. Essayez un titre ou un artiste.';
+
+  @override
+  String get searchUnavailable =>
+      'Recherche temporairement indisponible. Réessayez.';
+
+  @override
+  String get searchRefine =>
+      'D’autres résultats existent : ajoutez l’artiste ou le titre pour préciser la recherche.';
 }
