@@ -1,0 +1,38 @@
+# Isolated, synthetic data only; no production environment files.
+services:
+  db:
+    image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+    environment:
+      POSTGRES_USER: search_test
+      POSTGRES_PASSWORD: local-search-only
+      POSTGRES_DB: search_test
+    ports: ['127.0.0.1:55432:5432']
+  typesense:
+    image: typesense/typesense:29.0@sha256:316b7e71c21f7e5e5caa8daa150e1b3f2be8c876081ee1f77bc2d92cd7f137d0
+    command: '--data-dir /data --api-key local-search-only --enable-cors=false'
+    tmpfs: ['/data']
+    ports: ['127.0.0.1:58108:8108']
+  meili:
+    image: getmeili/meilisearch:v1.15.2@sha256:fe500cf9cca05cb9f027981583f28eccf17d35d94499c1f8b7b844e7418152fc
+    environment:
+      MEILI_MASTER_KEY: local-search-only
+      MEILI_NO_ANALYTICS: 'true'
+      MEILI_ENV: production
+      MEILI_MAX_INDEXING_MEMORY: 256Mb
+      MEILI_MAX_INDEXING_THREADS: '2'
+    ports: ['127.0.0.1:57700:7700']
+  runner:
+    image: songspot-backend:latest
+    working_dir: /workspace/songspot_backend
+    volumes: ['../..:/workspace', '/tmp/songspot-search-baseline.py:/baseline.py:ro']
+    environment:
+      DATABASE_URL: postgres://search_test:local-search-only@db:5432/search_test
+      DJANGO_SECRET_KEY: local-search-only
+      DEBUG: 'False'
+      CACHE_REDIS_URL: ''
+      CHANNEL_LAYERS_REDIS_URL: ''
+      USE_REDIS_CHANNEL_LAYER: 'False'
+      TYPESENSE_URL: http://typesense:8108
+      MEILI_URL: http://meili:7700
+      MEILI_KEY: local-search-only
+    entrypoint: ['python']

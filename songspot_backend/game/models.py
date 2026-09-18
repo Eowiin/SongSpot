@@ -30,6 +30,9 @@ class Track(models.Model):
     # album cut, the single and the live version of one song are different
     # tracks; these two columns are what make them the same answer. Maintained
     # in save(), never set by hand.
+    contributors = models.JSONField(default=list, blank=True)
+    search_title = models.TextField(blank=True, default='')
+    search_artist = models.TextField(blank=True, default='')
     norm_title = models.CharField(max_length=255, blank=True, default='', db_index=True)
     norm_artist = models.CharField(max_length=255, blank=True, default='', db_index=True)
     last_seen_at = models.DateTimeField(null=True, blank=True)
@@ -82,6 +85,9 @@ class Track(models.Model):
     def save(self, *args, **kwargs):
         from .services.matching import is_variant_title, normalize_artist, normalize_title
 
+        from .services.matching import normalize_query
+        self.search_title = normalize_query(self.title)
+        self.search_artist = normalize_query(self.artist)
         self.norm_title = normalize_title(self.title)
         self.norm_artist = normalize_artist(self.artist)
         self.is_variant = is_variant_title(self.title)
@@ -89,9 +95,9 @@ class Track(models.Model):
         if update_fields is not None:
             update_fields = set(update_fields)
             if 'title' in update_fields:
-                update_fields.add('norm_title')
+                update_fields.update(['norm_title', 'search_title'])
             if 'artist' in update_fields:
-                update_fields.add('norm_artist')
+                update_fields.update(['norm_artist', 'search_artist'])
             if 'title' in update_fields:
                 update_fields.add('is_variant')
             kwargs['update_fields'] = tuple(update_fields)
@@ -279,6 +285,13 @@ class SearchEnrichment(models.Model):
     kind = models.CharField(max_length=16, help_text="'tracks' or 'artists'.")
     norm_query = models.CharField(max_length=255)
     enriched_at = models.DateTimeField()
+    state = models.CharField(max_length=16, default='legacy', db_index=True)
+    query = models.CharField(max_length=255, default='')
+    next_attempt_at = models.DateTimeField(null=True, db_index=True)
+    lease_until = models.DateTimeField(null=True)
+    lease_token = models.UUIDField(null=True)
+    attempts = models.PositiveIntegerField(default=0)
+    last_error = models.CharField(max_length=64, default='')
     # For a query only Deezer could answer (a typo, a missing space): the
     # tracks it matched that resemble the query. Kept for as long as the claim
     # holds, so the next player who types it sees the same list. See
@@ -634,3 +647,19 @@ class UserBest(models.Model):
             self.per_genre[score.genre] = entry
         self.save()
         return changed
+
+
+class SearchOutbox(models.Model):
+    """Transactional change log. Consumers always re-read the current source row."""
+    kind = models.CharField(max_length=16)
+    entity_id = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'search_outbox'
+
+
+class DeezerBudget(models.Model):
+    """Non-evictable coordination shared by every process on this database."""
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1)
+    calls = models.JSONField(default=list)

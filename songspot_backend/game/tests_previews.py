@@ -234,11 +234,13 @@ class BulkUpsertTests(CatalogTestCase):
         catalog.bulk_upsert_tracks([self.info('Song', 'Act', 6)])
         self.assertTrue(Track.objects.get(deezer_id=6).has_preview)
 
-    def test_payloads_without_audio_are_rejected(self):
+    def test_payloads_without_audio_are_searchable_but_not_playable(self):
         catalog.bulk_upsert_tracks([
             {'title': 'X', 'artist': 'Y', 'deezer_id': 9, 'preview_url': ''},
         ])
-        self.assertFalse(Track.objects.filter(deezer_id=9).exists())
+        row = Track.objects.get(deezer_id=9)
+        self.assertFalse(row.has_preview)
+        self.assertFalse(catalog.playable(Track.objects.filter(pk=row.pk), directed=True).exists())
 
 
 class VariantPlayabilityTests(CatalogTestCase):

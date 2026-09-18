@@ -692,4 +692,21 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get settingsAnalyticsSubtitle =>
       'Helps us see which genres and difficulties work. Never includes your guesses or personal data.';
+
+  @override
+  String get searchLoading => 'Searching…';
+
+  @override
+  String get searchEnriching => 'Looking for more results…';
+
+  @override
+  String get searchEmpty => 'No results. Try a title or artist.';
+
+  @override
+  String get searchUnavailable =>
+      'Search temporarily unavailable. Please try again.';
+
+  @override
+  String get searchRefine =>
+      'More results available: add the artist or title to narrow your search.';
 }

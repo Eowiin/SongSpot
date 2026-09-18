@@ -32,19 +32,6 @@ extension ResponsiveContext on BuildContext {
   }
 }
 
-/// How tall the guess result list may be when the guess box is pinned above
-/// the soft keyboard, given the [available] height of the screen body.
-///
-/// With the keyboard up there is barely more room than the field, its list and
-/// the button under them need, so the list takes what is left over rather than
-/// its natural height — otherwise it pushes the button off the bottom of the
-/// screen. The 160 is what the field, the button and their padding measure at
-/// text scale 1, grown with the text scale the same way they are.
-double pinnedResultsMaxHeight(BuildContext context, double available) {
-  final chrome = MediaQuery.textScalerOf(context).scale(160);
-  return (available - chrome).clamp(0.0, 260.0);
-}
-
 /// Centres [child] in a readable column and applies the page gutter.
 ///
 /// Full-bleed backgrounds stay full-bleed — only the content is bounded, which

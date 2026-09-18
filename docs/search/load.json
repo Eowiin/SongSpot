@@ -1,0 +1,20 @@
+{
+  "enrichment_enqueue": true,
+  "enrichment_worker_running": false,
+  "scope": "25282 synthetic tracks, 8 closed-loop clients; new connection per request; no real production catalogue, no OS cache eviction",
+  "tracks": 25282,
+  "rebuild_seconds": 5.4949103469989495,
+  "previous_indexes": {
+    "tracks": "songspot_tracks_b18ae72a0eb7",
+    "artists": "songspot_artists_b18ae72a0eb7"
+  },
+  "first_request_ms": 22.878468000271823,
+  "warm_p95_ms": 19.617971000116086,
+  "warm_p99_ms": 33.08014000140247,
+  "requests": 930,
+  "concurrency": 8,
+  "throughput_per_second": 159.176422749615,
+  "p50_ms": 47.29596700053662,
+  "p95_ms": 68.64738500007661,
+  "p99_ms": 91.84230100072455
+}

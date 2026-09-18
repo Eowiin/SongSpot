@@ -163,12 +163,40 @@ docker compose up --build -d
 ```
 
 This starts:
-- `backend` (Django + Daphne)
+- `backend` (Django + Daphne, PostgreSQL search)
+- `search-worker` (background Deezer discovery; starts after backend readiness)
 - `db` (Postgres 16, published on host port 5433)
 - `redis`
 
 ### Run Backend Setup Commands in Container
-`docker-compose.yml` runs `python manage.py migrate` automatically before `runserver` on backend startup.
+`docker-compose.yml` runs migrations, `search_backfill`, `search_health` and
+static collection before starting Daphne. The code is bind-mounted from the
+checkout: a backend restart loads Python changes, but `docker compose restart`
+does not apply changed environment variables or add the new worker service.
+After pulling this search branch, recreate the local stack:
+
+```bash
+git pull --ff-only
+docker compose down
+docker compose up --build -d
+docker compose logs -f backend search-worker
+```
+
+`down` without `-v` retains the local database and Redis volumes. The first
+backfill can take time on an existing catalogue; the API and worker start only
+after it finishes. No production services are involved. Check readiness with:
+
+```bash
+docker compose exec backend python manage.py search_health
+```
+
+Expected: `backend: postgres`, `external_index_enabled: false`,
+`missing_search_fields: 0` and ten SQL indexes set to `true`. Enrichment is
+on by default locally; set `SEARCH_ENRICHMENT_ENABLED=False` in the host
+environment before `up` to disable provider discovery. The worker is needed
+for automatic complements. Rebuilding containers does not populate the music
+catalogue by itself.
+
 You still need to fill the catalogue manually:
 ```bash
 docker compose exec backend python manage.py refresh_catalog

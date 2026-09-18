@@ -8,20 +8,27 @@ on:
       - "songspot_backend/**"
       - "docker-compose.yml"
       - "scripts/deploy_backend.sh"
+      - "scripts/deploy_support.py"
+      - "scripts/systemd/songspot-search-worker.service"
+      - ".github/workflows/backend-deploy.yml"
 
 concurrency:
   group: deploy-backend-production
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
     name: Deploy to VPS
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     permissions:
       contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Test deployment orchestration
+        run: python3 -m unittest discover -s scripts/tests -v
 
       - name: Load SSH private key
         uses: webfactory/ssh-agent@v0.9.0
@@ -60,7 +67,7 @@ jobs:
           port="${VPS_PORT:-22}"
           ssh-keyscan -p "${port}" -H "${VPS_HOST}" >> ~/.ssh/known_hosts
 
-      - name: Pull latest code and deploy backend
+      - name: Prepare and deploy the exact commit
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_PORT: ${{ secrets.VPS_PORT }}
@@ -73,12 +80,8 @@ jobs:
           port="${VPS_PORT:-22}"
           deploy_script="${VPS_DEPLOY_SCRIPT:-scripts/deploy_backend.sh}"
 
-          ssh -p "${port}" "${VPS_USER}@${VPS_HOST}" "
-            set -euo pipefail
-            cd '${VPS_APP_DIR}'
-            git fetch --prune origin main
-            git checkout main
-            git pull --ff-only origin main
-            chmod +x '${deploy_script}'
-            '${deploy_script}'
-          "
+          # Execute the new orchestrator from stdin. It stops existing writers
+          # before updating the live checkout, and locks the whole deployment.
+          test -f "${deploy_script}"
+          printf -v remote_command 'bash -s -- %q %q' "${VPS_APP_DIR}" "${GITHUB_SHA}"
+          ssh -p "${port}" "${VPS_USER}@${VPS_HOST}" "${remote_command}" < "${deploy_script}"

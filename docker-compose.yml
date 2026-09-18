@@ -8,13 +8,13 @@
 #
 services:
   backend:
-    build:
+    build: &backend_build
       context: .
       dockerfile: songspot_backend/Dockerfile
     container_name: songspot_backend_dev
     working_dir: /app/songspot_backend
-    command: sh -c "python manage.py migrate && python manage.py collectstatic --noinput && exec daphne -b 0.0.0.0 -p 8000 songspot.asgi:application"
-    environment:
+    command: sh -c "python manage.py migrate && python manage.py search_backfill && python manage.py search_health && python manage.py collectstatic --noinput && exec daphne -b 0.0.0.0 -p 8000 songspot.asgi:application"
+    environment: &backend_environment
       DJANGO_SECRET_KEY: docker-dev-secret-key
       DEBUG: "True"
       ALLOWED_HOSTS: '*'
@@ -24,6 +24,9 @@ services:
       # for is never exercised — which is how 0011 and 0014 both reached prod
       # with a CREATE INDEX that only fails on Postgres.
       DATABASE_URL: postgres://songspot:songspot@db:5432/songspot
+      SEARCH_BACKEND: postgres
+      SEARCH_INDEX_ENABLED: "False"
+      SEARCH_ENRICHMENT_ENABLED: "${SEARCH_ENRICHMENT_ENABLED:-True}"
       # Redis backs the websocket channel layer and the Django cache.
       USE_REDIS_CHANNEL_LAYER: "True"
       CHANNEL_LAYERS_REDIS_URL: redis://redis:6379/1
@@ -35,11 +38,29 @@ services:
       - ./songspot_backend:/app/songspot_backend
     stdin_open: true
     tty: true
+    # Daphne only listens once migrations, backfill and readiness checks pass.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8000), timeout=2).close()"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30m
+      retries: 3
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_started
+
+  search-worker:
+    build: *backend_build
+    working_dir: /app/songspot_backend
+    command: python manage.py search_worker
+    environment: *backend_environment
+    volumes:
+      - ./songspot_backend:/app/songspot_backend
+    depends_on:
+      backend:
+        condition: service_healthy
 
   db:
     # Matches the VPS, which runs PostgreSQL 16.

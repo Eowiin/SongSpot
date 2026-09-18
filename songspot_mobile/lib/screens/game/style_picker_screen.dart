@@ -1,3 +1,5 @@
+import '../../services/search_updates.dart';
+import '../../widgets/search_status_text.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -59,6 +61,7 @@ class _StylePickerScreenState extends State<StylePickerScreen> {
   int _searchId = 0;
   List<ArtistInfo> _results = [];
   bool _searching = false;
+  SearchStatus _searchStatus = SearchStatus.idle;
 
   List<ArtistInfo> _favourites = [];
 
@@ -109,25 +112,26 @@ class _StylePickerScreenState extends State<StylePickerScreen> {
       setState(() {
         _results = [];
         _searching = false;
+        _searchStatus = SearchStatus.idle;
       });
       return;
     }
-    setState(() => _searching = true);
+    setState(() { _searching = true; _results = []; _searchStatus = SearchStatus.loading; });
     _searchDebounce = Timer(const Duration(milliseconds: 350), () async {
-      List<ArtistInfo> results;
       try {
-        final rows = await _api.searchArtists(q);
-        results = rows
-            .map((j) => ArtistInfo.fromJson(j as Map<String, dynamic>))
-            .toList();
+        await for (final page in _api.watchSearch(q, artists: true,
+            isActive: () => mounted && id == _searchId)) {
+          if (!mounted || id != _searchId) return;
+          setState(() {
+            _results = page.results.map((j) => ArtistInfo.fromJson(j as Map<String, dynamic>)).toList();
+            _searchStatus = page.status;
+            _searching = false;
+          });
+        }
       } catch (_) {
-        results = [];
+        if (!mounted || id != _searchId) return;
+        setState(() { _searchStatus = SearchStatus.unavailable; _searching = false; });
       }
-      if (!mounted || id != _searchId) return;
-      setState(() {
-        _results = results;
-        _searching = false;
-      });
     });
   }
 
@@ -260,21 +264,14 @@ class _StylePickerScreenState extends State<StylePickerScreen> {
   }
 
   Widget _buildResults(AppLocalizations l10n) {
-    if (_results.isEmpty) {
-      return Center(
-        child: _searching
-            ? const SizedBox.shrink()
-            : Text(
-                l10n.categoryNoArtistsFound,
-                style: const TextStyle(color: AppTheme.textSecondary),
-              ),
-      );
-    }
-    return ListView.builder(
-      padding: EdgeInsets.only(bottom: MediaQuery.viewPaddingOf(context).bottom),
-      itemCount: _results.length,
-      itemBuilder: (context, i) => _artistTile(_results[i]),
-    );
+    return Column(children: [
+      SearchStatusText(status: _searchStatus),
+      Expanded(child: ListView.builder(
+        padding: EdgeInsets.only(bottom: MediaQuery.viewPaddingOf(context).bottom),
+        itemCount: _results.length,
+        itemBuilder: (context, i) => _artistTile(_results[i]),
+      )),
+    ]);
   }
 
   Widget _buildStyles(AppLocalizations l10n) {

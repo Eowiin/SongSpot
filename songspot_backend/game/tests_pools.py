@@ -37,6 +37,18 @@ def _stock(category, *titles):
     return playlist
 
 
+def _release_of(track, title=None):
+    """Another Deezer release of the same song — the best-of next to the album."""
+    return Track.objects.create(
+        title=title or track.title,
+        artist=track.artist,
+        has_preview=True,
+        deezer_id=next(_deezer_ids),
+        rank=400_000,
+        is_curated=True,
+    )
+
+
 def _track(title):
     return Track.objects.create(
         title=title,
@@ -198,6 +210,60 @@ class MixPopularityTests(PoolsTestCase):
         ids = self._rank(self.pop, [900_000, 850_000, 100_000])
         for _ in range(10):
             self.assertNotIn(ids[2], {str(t.id) for t in _pick_tracks(None, 7)})
+
+
+@patch('game.services.previews.resolve', return_value=PREVIEW_URL)
+class SameSongTwiceTests(PoolsTestCase):
+    """
+    One song, several releases: it may open a run only once.
+
+    Deezer holds a row per release, so the album cut and the best-of cut are
+    two tracks with two IDs. Excluding what has been played by ID alone let a
+    run serve the same song again under its other release.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.album = Track.objects.get(title='Kpop One')
+        self.best_of = _release_of(self.album)
+        PlaylistTrack.objects.create(
+            playlist=self.kpop, track=self.best_of, order_in_playlist=1,
+        )
+
+    def _round(self, **params):
+        return self.client.get(reverse('game:next_song'), {'mix': '1', **params})
+
+    def test_the_other_release_is_not_served_again(self, _resolve):
+        heard = self._ids(self.pop) | self._ids(self.rock) | {str(self.album.id)}
+        response = self._round(exclude=','.join(heard))
+        self.assertEqual(
+            response.status_code, 404,
+            'the best-of cut of a song already heard is not a new round',
+        )
+
+    def test_a_reissued_title_counts_as_the_same_song(self, _resolve):
+        # Deezer titles the same song differently per release. Not a variant
+        # marker — `(Live)` would already be excluded from picks — but the
+        # kind of difference a re-release carries: a credited guest, a
+        # language tag, a soundtrack mention.
+        self.best_of.title = 'Kpop One (feat. Someone)'
+        self.best_of.save()
+        heard = self._ids(self.pop) | self._ids(self.rock) | {str(self.album.id)}
+        self.assertEqual(self._round(exclude=','.join(heard)).status_code, 404)
+
+    def test_a_different_song_still_plays(self, _resolve):
+        heard = self._ids(self.pop) | self._ids(self.rock)
+        response = self._round(exclude=','.join(heard))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            response.data['id'], {str(self.album.id), str(self.best_of.id)},
+        )
+
+    def test_a_match_never_draws_one_song_twice(self, _resolve):
+        for _ in range(20):
+            picks = _pick_tracks(None, 8)
+            songs = [(t.norm_title, t.norm_artist) for t in picks]
+            self.assertEqual(len(songs), len(set(songs)), songs)
 
 
 class DuelPickTests(PoolsTestCase):

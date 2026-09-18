@@ -1,0 +1,24 @@
+{
+  "source": "Read-only ssh songspot: lscpu, free, df, uptime, pg_settings, pg_stats and pg_class; no workload run or catalogue export",
+  "cpu": "AMD EPYC-Rome, 4 virtual CPUs; guest reports 2.0GHz BIOS and 4990.62 BogoMIPS, neither is a performance calibration",
+  "ram_total_bytes": 8127729664,
+  "ram_available_bytes": 3851415552,
+  "swap_bytes": 0,
+  "disk_available_bytes": 52293775360,
+  "postgres": {
+    "shared_buffers_bytes": 1073741824,
+    "work_mem_bytes": 4194304,
+    "effective_cache_size_bytes": 2621440000,
+    "max_parallel_workers_per_gather": 2,
+    "tracks_estimated_rows": 3780448,
+    "artists_estimated_rows": 774780,
+    "tracks_table_bytes": 1141907456,
+    "tracks_indexes_bytes": 2276352000,
+    "artists_table_bytes": 156082176,
+    "artists_indexes_bytes": 195706880,
+    "estimated_distinct_track_artist_ids": 92512,
+    "estimated_distinct_titles": 357629,
+    "estimated_distinct_normalized_titles": 159372
+  },
+  "limits": "Snapshots and planner estimates, not exact counts, spare capacity guarantees or current CPU utilisation measurements. Local Ryzen 7 9800X3D differs from VPS CPU; quotas do not emulate it."
+}

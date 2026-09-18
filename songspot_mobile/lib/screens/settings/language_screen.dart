@@ -9,6 +9,7 @@ class LanguageScreen extends StatelessWidget {
 
   static const _locales = [
     (locale: Locale('en'), nativeName: 'English', flag: '🇬🇧'),
+    (locale: Locale('es'), nativeName: 'Español', flag: '🇪🇸'),
     (locale: Locale('fr'), nativeName: 'Français', flag: '🇫🇷'),
   ];
 

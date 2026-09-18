@@ -1,4 +1,8 @@
+import '../services/search_updates.dart';
+import 'search_status_text.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import '../config/app_theme.dart';
@@ -29,6 +33,7 @@ class GuessField extends StatefulWidget {
     required this.hintText,
     this.keyboardHint,
     this.isSearching = false,
+    this.searchStatus = SearchStatus.idle,
     this.resultsBelow = false,
     this.autofocus = false,
     this.onClear,
@@ -47,6 +52,7 @@ class GuessField extends StatefulWidget {
   final String? keyboardHint;
 
   final bool isSearching;
+  final SearchStatus searchStatus;
   final bool resultsBelow;
   final bool autofocus;
   final VoidCallback? onClear;
@@ -62,14 +68,41 @@ class _GuessFieldState extends State<GuessField> {
   final ScrollController _scrollController = ScrollController();
   int _highlighted = 0;
 
+  /// The query the visible list was last reset for. See [didUpdateWidget].
+  late String _query = widget.controller.text;
+
   @override
   void didUpdateWidget(GuessField oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // A new set of results starts the highlight at the top again.
-    if (!identical(oldWidget.results, widget.results)) {
+    // Only a *new query* starts the highlight at the top again.
+    //
+    // One query is answered more than once: the server sends a first page and
+    // then an enriched one 0.6s to 4s later (see `searchUpdates`). Comparing
+    // the list identity reset on every arrival, so a player scrolling the
+    // suggestions was thrown back to the first row seconds after they began
+    // reading.
+    if (widget.controller.text != _query) {
+      _query = widget.controller.text;
       _highlighted = 0;
-      if (_scrollController.hasClients) _scrollController.jumpTo(0);
+      _jumpToTopAfterFrame();
+    } else if (_highlighted >= widget.results.length) {
+      // A refreshed page can be shorter than the one being read.
+      _highlighted = widget.results.isEmpty ? 0 : widget.results.length - 1;
     }
+  }
+
+  /// Sends the list back to the top once the current frame is done.
+  ///
+  /// Not straight away: the screen rebuilds this box from inside a
+  /// [LayoutBuilder], so `didUpdateWidget` can run during layout, and
+  /// `jumpTo` dispatches a scroll notification synchronously. The app bar
+  /// listens for those and would call `setState` in the middle of a build.
+  void _jumpToTopAfterFrame() {
+    if (!_scrollController.hasClients || _scrollController.offset == 0) return;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      _scrollController.jumpTo(0);
+    });
   }
 
   @override
@@ -109,6 +142,12 @@ class _GuessFieldState extends State<GuessField> {
     );
   }
 
+  /// True where the only keyboard is the on-screen one, web included — a
+  /// phone browser reports its OS, not `TargetPlatform.web`.
+  bool get _touchOnly =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+
   void _submitHighlighted() {
     if (widget.results.isEmpty) return;
     final index = _highlighted.clamp(0, widget.results.length - 1);
@@ -123,20 +162,37 @@ class _GuessFieldState extends State<GuessField> {
 
   @override
   Widget build(BuildContext context) {
-    final field = _buildField(context);
-    final results = widget.results.isEmpty
-        ? const SizedBox.shrink()
-        : _buildResults(context);
-
-    // No Flexible here: the list is already capped by [maxResultsHeight], and
-    // a flex child would blow up in the phone layout, where this sits in a
-    // column of unbounded height above the soft keyboard.
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: widget.resultsBelow
-          ? [field, const SizedBox(height: 8), results]
-          : [results, const SizedBox(height: 8), field],
+    // The list is the part that gives way when there is not enough room.
+    //
+    // Where the parent bounds the height — the phone layout, which pins this
+    // box above the soft keyboard — the list is a flex child and takes what is
+    // left once the field, its status line and whatever sits under them have
+    // had theirs. Sizing it from a constant instead is what let the status
+    // line ("adding more songs…") push the give-up button off a short screen:
+    // that line is only there while a search runs, so the budget was right
+    // exactly when nothing was happening.
+    //
+    // In the wide layout the box lives in a scroll view, so the height is
+    // unbounded and a flex child would assert. There the list keeps its
+    // natural height, capped by [maxResultsHeight], and the page scrolls.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final field = _buildField(context);
+        Widget results = widget.results.isEmpty
+            ? const SizedBox.shrink()
+            : _buildResults(context);
+        if (constraints.maxHeight.isFinite) {
+          results = Flexible(child: results);
+        }
+        final status = SearchStatusText(status: widget.searchStatus);
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: widget.resultsBelow
+              ? [field, status, const SizedBox(height: 8), results]
+              : [results, status, const SizedBox(height: 8), field],
+        );
+      },
     );
   }
 
@@ -181,7 +237,19 @@ class _GuessFieldState extends State<GuessField> {
                 fillColor: AppTheme.surfaceColor,
               ),
               onChanged: widget.onChanged,
-              onSubmitted: (_) => _submitHighlighted(),
+              onSubmitted: (_) {
+                // On a phone the "search" key means "I have finished typing",
+                // not "take whatever is first": a player still reading the
+                // list had a song submitted for them. Put the keyboard away
+                // and leave the suggestions up to be tapped. A physical
+                // keyboard keeps Enter as the pick, which is what the
+                // highlight and the shortcut hint are there for.
+                if (_touchOnly) {
+                  widget.focusNode.unfocus();
+                  return;
+                }
+                _submitHighlighted();
+              },
             ),
             if (widget.keyboardHint != null) ...[
               const SizedBox(height: 6),
