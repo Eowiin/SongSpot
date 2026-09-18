@@ -4,10 +4,12 @@ End-to-end tests for the open catalogue.
 Deezer is mocked throughout: these assert our rules, not Deezer's uptime.
 """
 
+from unittest import skipUnless
 from unittest.mock import patch
 
 from django.conf import settings
 from django.core.cache import cache, caches
+from django.db import connection
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -261,6 +263,19 @@ class CacheResilienceTests(CatalogTestCase):
         self.assertEqual(response.status_code, 200)
 
 
+#: The rolling quota window is a row in PostgreSQL, and `deezer_budget.reserve`
+#: refuses every call on any other backend — fail closed, by design, because a
+#: backend that cannot coordinate cannot pace. Nothing about it can be asserted
+#: on the SQLite the development default and the fast CI job use: the limiter
+#: does not merely behave differently there, it is absent. Left unmarked, these
+#: read as passing while proving nothing, or fail for a reason that is not a bug.
+_needs_postgres = skipUnless(
+    connection.vendor == 'postgresql',
+    'the Deezer quota window is a PostgreSQL row',
+)
+
+
+@_needs_postgres
 class RateLimiterTests(CatalogTestCase):
     """
     The Deezer limiter must not fail open.
@@ -337,7 +352,12 @@ class TransientRefusalTests(CatalogTestCase):
             _FakeResponse({'error': {'message': 'Quota limit exceeded', 'code': 4}}),
             _FakeResponse({'data': [{'id': 1}]}),
         ]
+        # The subject here is the retry, not the quota window. Left to the real
+        # limiter this asserted nothing on SQLite, where a slot is never
+        # granted: the fetch spun until its ten-second deadline and raised
+        # before Deezer was ever asked twice.
         with patch.object(http, '_session') as session, \
+                patch.object(deezer_http, '_rate_limit_slot', return_value=True), \
                 patch.object(deezer_http.time, 'sleep'), \
                 patch.object(settings, 'TESTING', False):
             session.get.side_effect = responses
@@ -350,6 +370,7 @@ class TransientRefusalTests(CatalogTestCase):
         # database to fall back on.
         http = deezer_http.DeezerHttp(max_wait=0)
         with patch.object(http, '_session') as session, \
+                patch.object(deezer_http, '_rate_limit_slot', return_value=True), \
                 patch.object(settings, 'TESTING', False):
             session.get.return_value = _FakeResponse(
                 {'error': {'message': 'Quota limit exceeded', 'code': 4}}

@@ -171,4 +171,7 @@ jobs:
           cache: pip
           cache-dependency-path: songspot_backend/requirements.txt
       - run: pip install -r requirements.txt
-      - run: python manage.py test game.tests_search_redesign game.tests_search_deploy --verbosity 1
+      # tests_open_catalog carries the Deezer quota tests, which assert a
+      # PostgreSQL row and skip themselves on the SQLite job above. Without
+      # them here they would run nowhere at all.
+      - run: python manage.py test game.tests_search_redesign game.tests_search_deploy game.tests_open_catalog --verbosity 1
