@@ -23,6 +23,8 @@ class Command(BaseCommand):
         }
         expected_indexes = [f'tracks_search_{field}_{suffix}' for field in ('title','artist') for suffix in ('trgm','prefix')]
         expected_indexes.append('artists_blocked_search')
+        expected_indexes.append('tracks_search_words')
+        expected_indexes.append('tracks_search_rank')
         expected_indexes.append('artists_upper_name_trgm')
         expected_indexes.extend(f'tracks_search_{field}_short_rank' for field in ('title', 'artist'))
         with connection.cursor() as cursor:

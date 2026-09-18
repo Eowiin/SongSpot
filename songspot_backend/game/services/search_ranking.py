@@ -21,7 +21,9 @@ def lexical_tier(title, artist, query):
     if title.startswith(q) or artist.startswith(q):
         return 3
     if all(any(w.startswith(t) for w in words) for t in tokens):
-        return 4
+        # With only two letters there is no evidence that the player meant
+        # the first word: let popularity rank all matching word prefixes.
+        return 3 if len(q) == 2 else 4
     if q.replace(' ', '') in (title.replace(' ', ''), artist.replace(' ', '')):
         return 4
     return 5

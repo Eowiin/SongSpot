@@ -272,6 +272,22 @@ class PostgresWorkerTests(TestCase):
 
 
 class ShortPrefixTests(TestCase):
+    def test_two_letters_match_later_words_in_title_and_artist(self):
+        song = Track.objects.create(title='Love You', artist='Nono La Grinta', rank=100)
+        first_word = Track.objects.create(title='Yodel', artist='Someone', rank=1)
+        artist = Track.objects.create(title='Heart of Gold', artist='Neil Young')
+        unrelated = Track.objects.create(title='Beyond', artist='Someone', rank=999999)
+        rows = catalog._dedupe(catalog._candidates(catalog._query_filter('yo'), 'yo'), 40, 'yo')
+        self.assertIn(song, rows)
+        self.assertIn(artist, rows)
+        self.assertNotIn(unrelated, rows)
+        self.assertLess(rows.index(song), rows.index(first_word))
+
+    def test_later_word_prefix_still_respects_artist_blocks(self):
+        Artist.objects.create(deezer_id=89, name='Nono La Grinta', is_blocked=True)
+        hidden = Track.objects.create(title='Love You', artist='Nono La Grinta', deezer_artist_id=89)
+        self.assertNotIn(hidden, catalog._candidates(catalog._query_filter('yo'), 'yo'))
+
     def test_two_letter_query_keeps_exact_title_and_both_prefix_fields(self):
         exact = Track.objects.create(title='Li', artist='Rare act', rank=1)
         title = Track.objects.create(title='Light', artist='Other act', rank=100)

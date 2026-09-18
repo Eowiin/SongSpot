@@ -35,7 +35,7 @@ interface via stdin : chemin du dépôt, puis SHA complet.
    (cinq minutes maximum). Arrête backend et worker, puis avance le checkout
    jusqu’au SHA demandé et installe les dépendances.
 4. Applique les migrations additives et lance `search_backfill` : champs
-   normalisés, huit index SQL et statistiques. Les index laissés invalides par
+   normalisés, dix index SQL et statistiques (dont les préfixes de mots courts). Les index laissés invalides par
    une interruption sont reconstruits. Les attentes de verrou DDL sont bornées
    à cinq secondes ; la durée totale du remplissage ne l’est pas.
 5. Configure `SEARCH_BACKEND=postgres`, `SEARCH_INDEX_ENABLED=False`, installe

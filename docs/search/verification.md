@@ -125,3 +125,46 @@ revalidée pour ce correctif. Les dépendances et le lockfile du projet restent
 inchangés. La syntaxe du provider a été vérifiée par le formateur Dart sans
 réécriture du fichier ; `git diff --check` passe. Recette et tests Flutter
 complets à relancer sur le MacBook avant publication. Production non modifiée.
+
+## Préfixes de mots courts — 18 septembre 2026
+
+`yo` peut maintenant retrouver `Love You` et un artiste comme `Neil Young`,
+au lieu de ne regarder que le début du champ. Les occurrences au milieu d’un
+mot (`Beyond`) ne sont pas retenues. Les préfixes internes de deux lettres ont
+le même niveau de pertinence que ceux du premier mot ; la popularité les départage.
+Cela ne garantit pas qu’un titre précis apparaisse parmi les 40 premiers d’une
+requête très générale. Les artistes bloqués restent exclus.
+
+Deux index supplémentaires sont préparés par `search_backfill` et vérifiés par
+`search_health` : un index GIN de mots, dictionnaire `simple` sans racinisation,
+et un index de classement qui permet de s’arrêter tôt sur les préfixes fréquents.
+Le déploiement attend maintenant dix index. L’index GIN seul avait rendu `li`
+trop lent (2,5 à 3,2 secondes) ; l’ajout du classement ramène cette mesure à
+22–23 ms. Les index existants restent en place.
+
+Validation finale : **367 tests backend réussis sur PostgreSQL**, quatre tests
+de préfixes réussis aussi sur SQLite, Ruff et `git diff --check` sans problème.
+La suite complète utilise `SEARCH_BACKEND=legacy` comme ses tests historiques
+l’attendent ; les tests du nouveau backend imposent leurs réglages spécifiques.
+Un premier lancement avec le mode postgres global avait échoué sur les attentes
+legacy et sur l’ancien test qui imposait précisément de ne pas trouver `Do It`
+avec `it`. Cette dernière attente est remplacée par le comportement demandé.
+
+Mesure isolée sur 3 780 448 titres synthétiques, PostgreSQL limité à 2 CPU et
+3 GiB : 15 préfixes, trois passages chacun, aucun appel fournisseur. `yo` :
+52,58 ms au premier passage, puis 40,17 et 39,20 ms ; maximum observé sur cette
+série : 164,74 ms (`on`). Préfixes sans résultat : environ 5 ms. Ce petit essai
+séquentiel n’est pas un test de concurrence ni une simulation exacte du VPS.
+Les deux index ajoutent respectivement 67,05 et 146,41 MiB sur ce corpus.
+Plans vérifiés : GIN pour `yo` et `qz`, index de classement pour `li`.
+
+Rapport : [postgres-short-words.json](postgres-short-words.json). Reproduction :
+
+```sh
+docker compose -p songspot-pgscale -f scripts/search_benchmark/postgres-scale.yml run --rm --entrypoint python runner manage.py search_backfill
+docker compose -p songspot-pgscale -f scripts/search_benchmark/postgres-scale.yml run --rm --entrypoint python runner /workspace/scripts/search_benchmark/short_words.py
+```
+
+Correction backend uniquement ; aucun changement supplémentaire de Flutter.
+Aucune opération en production. Le nouveau backend et ses index doivent être
+installés dans l’environnement de recette pour tester ce comportement.

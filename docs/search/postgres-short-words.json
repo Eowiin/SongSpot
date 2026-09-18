@@ -1,0 +1,628 @@
+{
+  "scope": "Local synthetic catalogue, 2 CPU/3 GiB PostgreSQL; no provider",
+  "metadata": {
+    "tracks": 3780448,
+    "artists": 778434,
+    "database_bytes": 3691977751,
+    "tracks_heap_bytes": 853598208,
+    "tracks_indexes_bytes": 2450382848,
+    "artists_heap_bytes": 82059264,
+    "artists_indexes_bytes": 295075840
+  },
+  "queries": [
+    {
+      "query": "yo",
+      "ms": [
+        52.58,
+        40.17,
+        39.2
+      ],
+      "results": 40
+    },
+    {
+      "query": "li",
+      "ms": [
+        22.53,
+        23.27,
+        22.08
+      ],
+      "results": 40
+    },
+    {
+      "query": "lo",
+      "ms": [
+        22.54,
+        21.76,
+        22.31
+      ],
+      "results": 40
+    },
+    {
+      "query": "th",
+      "ms": [
+        22.66,
+        21.45,
+        21.21
+      ],
+      "results": 40
+    },
+    {
+      "query": "an",
+      "ms": [
+        29.13,
+        29.01,
+        30.47
+      ],
+      "results": 40
+    },
+    {
+      "query": "in",
+      "ms": [
+        45.58,
+        45.69,
+        45.87
+      ],
+      "results": 40
+    },
+    {
+      "query": "de",
+      "ms": [
+        29.44,
+        28.24,
+        26.96
+      ],
+      "results": 40
+    },
+    {
+      "query": "la",
+      "ms": [
+        49.5,
+        40.34,
+        36.97
+      ],
+      "results": 40
+    },
+    {
+      "query": "on",
+      "ms": [
+        157.6,
+        159.25,
+        164.74
+      ],
+      "results": 40
+    },
+    {
+      "query": "be",
+      "ms": [
+        32.21,
+        25.42,
+        30.14
+      ],
+      "results": 40
+    },
+    {
+      "query": "we",
+      "ms": [
+        32.35,
+        30.08,
+        30.05
+      ],
+      "results": 40
+    },
+    {
+      "query": "to",
+      "ms": [
+        38.18,
+        40.14,
+        38.43
+      ],
+      "results": 40
+    },
+    {
+      "query": "zx",
+      "ms": [
+        6.32,
+        6.35,
+        5.84
+      ],
+      "results": 1
+    },
+    {
+      "query": "qz",
+      "ms": [
+        5.31,
+        5.39,
+        5.22
+      ],
+      "results": 0
+    },
+    {
+      "query": "xq",
+      "ms": [
+        5.27,
+        5.32,
+        5.51
+      ],
+      "results": 0
+    }
+  ],
+  "word_index_bytes": 70311936,
+  "rank_index_bytes": 153526272,
+  "plans": {
+    "yo": [
+      {
+        "Plan": {
+          "Node Type": "Limit",
+          "Parallel Aware": false,
+          "Async Capable": false,
+          "Startup Cost": 8539.8,
+          "Total Cost": 8540.3,
+          "Plan Rows": 200,
+          "Plan Width": 20,
+          "Actual Startup Time": 13.616,
+          "Actual Total Time": 13.629,
+          "Actual Rows": 200,
+          "Actual Loops": 1,
+          "Shared Hit Blocks": 3636,
+          "Shared Read Blocks": 0,
+          "Shared Dirtied Blocks": 0,
+          "Shared Written Blocks": 0,
+          "Local Hit Blocks": 0,
+          "Local Read Blocks": 0,
+          "Local Dirtied Blocks": 0,
+          "Local Written Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0,
+          "I/O Read Time": 0.0,
+          "I/O Write Time": 0.0,
+          "Temp I/O Read Time": 0.0,
+          "Temp I/O Write Time": 0.0,
+          "Plans": [
+            {
+              "Node Type": "Sort",
+              "Parent Relationship": "Outer",
+              "Parallel Aware": false,
+              "Async Capable": false,
+              "Startup Cost": 8539.8,
+              "Total Cost": 8545.31,
+              "Plan Rows": 2206,
+              "Plan Width": 20,
+              "Actual Startup Time": 13.615,
+              "Actual Total Time": 13.62,
+              "Actual Rows": 200,
+              "Actual Loops": 1,
+              "Sort Key": [
+                "rank DESC",
+                "id"
+              ],
+              "Sort Method": "top-N heapsort",
+              "Sort Space Used": 48,
+              "Sort Space Type": "Memory",
+              "Shared Hit Blocks": 3636,
+              "Shared Read Blocks": 0,
+              "Shared Dirtied Blocks": 0,
+              "Shared Written Blocks": 0,
+              "Local Hit Blocks": 0,
+              "Local Read Blocks": 0,
+              "Local Dirtied Blocks": 0,
+              "Local Written Blocks": 0,
+              "Temp Read Blocks": 0,
+              "Temp Written Blocks": 0,
+              "I/O Read Time": 0.0,
+              "I/O Write Time": 0.0,
+              "Temp I/O Read Time": 0.0,
+              "Temp I/O Write Time": 0.0,
+              "Plans": [
+                {
+                  "Node Type": "Bitmap Heap Scan",
+                  "Parent Relationship": "Outer",
+                  "Parallel Aware": false,
+                  "Async Capable": false,
+                  "Relation Name": "tracks",
+                  "Alias": "tracks",
+                  "Startup Cost": 70.42,
+                  "Total Cost": 8444.46,
+                  "Plan Rows": 2206,
+                  "Plan Width": 20,
+                  "Actual Startup Time": 3.075,
+                  "Actual Total Time": 11.257,
+                  "Actual Rows": 54956,
+                  "Actual Loops": 1,
+                  "Recheck Cond": "(to_tsvector('simple'::regconfig, ((search_title || ' '::text) || search_artist)) @@ '''yo'':*'::tsquery)",
+                  "Rows Removed by Index Recheck": 0,
+                  "Exact Heap Blocks": 3611,
+                  "Lossy Heap Blocks": 0,
+                  "Shared Hit Blocks": 3636,
+                  "Shared Read Blocks": 0,
+                  "Shared Dirtied Blocks": 0,
+                  "Shared Written Blocks": 0,
+                  "Local Hit Blocks": 0,
+                  "Local Read Blocks": 0,
+                  "Local Dirtied Blocks": 0,
+                  "Local Written Blocks": 0,
+                  "Temp Read Blocks": 0,
+                  "Temp Written Blocks": 0,
+                  "I/O Read Time": 0.0,
+                  "I/O Write Time": 0.0,
+                  "Temp I/O Read Time": 0.0,
+                  "Temp I/O Write Time": 0.0,
+                  "Plans": [
+                    {
+                      "Node Type": "Bitmap Index Scan",
+                      "Parent Relationship": "Outer",
+                      "Parallel Aware": false,
+                      "Async Capable": false,
+                      "Index Name": "tracks_search_words",
+                      "Startup Cost": 0.0,
+                      "Total Cost": 69.87,
+                      "Plan Rows": 2206,
+                      "Plan Width": 0,
+                      "Actual Startup Time": 2.815,
+                      "Actual Total Time": 2.815,
+                      "Actual Rows": 54956,
+                      "Actual Loops": 1,
+                      "Index Cond": "(to_tsvector('simple'::regconfig, ((search_title || ' '::text) || search_artist)) @@ '''yo'':*'::tsquery)",
+                      "Shared Hit Blocks": 25,
+                      "Shared Read Blocks": 0,
+                      "Shared Dirtied Blocks": 0,
+                      "Shared Written Blocks": 0,
+                      "Local Hit Blocks": 0,
+                      "Local Read Blocks": 0,
+                      "Local Dirtied Blocks": 0,
+                      "Local Written Blocks": 0,
+                      "Temp Read Blocks": 0,
+                      "Temp Written Blocks": 0,
+                      "I/O Read Time": 0.0,
+                      "I/O Write Time": 0.0,
+                      "Temp I/O Read Time": 0.0,
+                      "Temp I/O Write Time": 0.0
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "Planning": {
+          "Shared Hit Blocks": 1,
+          "Shared Read Blocks": 0,
+          "Shared Dirtied Blocks": 0,
+          "Shared Written Blocks": 0,
+          "Local Hit Blocks": 0,
+          "Local Read Blocks": 0,
+          "Local Dirtied Blocks": 0,
+          "Local Written Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0,
+          "I/O Read Time": 0.0,
+          "I/O Write Time": 0.0,
+          "Temp I/O Read Time": 0.0,
+          "Temp I/O Write Time": 0.0
+        },
+        "Planning Time": 0.123,
+        "Triggers": [],
+        "Execution Time": 13.689
+      }
+    ],
+    "li": [
+      {
+        "Plan": {
+          "Node Type": "Limit",
+          "Parallel Aware": false,
+          "Async Capable": false,
+          "Startup Cost": 0.43,
+          "Total Cost": 885.87,
+          "Plan Rows": 200,
+          "Plan Width": 20,
+          "Actual Startup Time": 0.023,
+          "Actual Total Time": 3.028,
+          "Actual Rows": 200,
+          "Actual Loops": 1,
+          "Shared Hit Blocks": 388,
+          "Shared Read Blocks": 0,
+          "Shared Dirtied Blocks": 0,
+          "Shared Written Blocks": 0,
+          "Local Hit Blocks": 0,
+          "Local Read Blocks": 0,
+          "Local Dirtied Blocks": 0,
+          "Local Written Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0,
+          "I/O Read Time": 0.0,
+          "I/O Write Time": 0.0,
+          "Temp I/O Read Time": 0.0,
+          "Temp I/O Write Time": 0.0,
+          "Plans": [
+            {
+              "Node Type": "Index Scan",
+              "Parent Relationship": "Outer",
+              "Parallel Aware": false,
+              "Async Capable": false,
+              "Scan Direction": "Forward",
+              "Index Name": "tracks_search_rank",
+              "Relation Name": "tracks",
+              "Alias": "tracks",
+              "Startup Cost": 0.43,
+              "Total Cost": 1522073.8,
+              "Plan Rows": 343802,
+              "Plan Width": 20,
+              "Actual Startup Time": 0.022,
+              "Actual Total Time": 3.018,
+              "Actual Rows": 200,
+              "Actual Loops": 1,
+              "Filter": "(to_tsvector('simple'::regconfig, ((search_title || ' '::text) || search_artist)) @@ '''li'':*'::tsquery)",
+              "Rows Removed by Filter": 1250,
+              "Shared Hit Blocks": 388,
+              "Shared Read Blocks": 0,
+              "Shared Dirtied Blocks": 0,
+              "Shared Written Blocks": 0,
+              "Local Hit Blocks": 0,
+              "Local Read Blocks": 0,
+              "Local Dirtied Blocks": 0,
+              "Local Written Blocks": 0,
+              "Temp Read Blocks": 0,
+              "Temp Written Blocks": 0,
+              "I/O Read Time": 0.0,
+              "I/O Write Time": 0.0,
+              "Temp I/O Read Time": 0.0,
+              "Temp I/O Write Time": 0.0
+            }
+          ]
+        },
+        "Planning": {
+          "Shared Hit Blocks": 1,
+          "Shared Read Blocks": 0,
+          "Shared Dirtied Blocks": 0,
+          "Shared Written Blocks": 0,
+          "Local Hit Blocks": 0,
+          "Local Read Blocks": 0,
+          "Local Dirtied Blocks": 0,
+          "Local Written Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0,
+          "I/O Read Time": 0.0,
+          "I/O Write Time": 0.0,
+          "Temp I/O Read Time": 0.0,
+          "Temp I/O Write Time": 0.0
+        },
+        "Planning Time": 0.123,
+        "Triggers": [],
+        "Execution Time": 3.051
+      }
+    ],
+    "qz": [
+      {
+        "Plan": {
+          "Node Type": "Limit",
+          "Parallel Aware": false,
+          "Async Capable": false,
+          "Startup Cost": 8539.8,
+          "Total Cost": 8540.3,
+          "Plan Rows": 200,
+          "Plan Width": 20,
+          "Actual Startup Time": 0.009,
+          "Actual Total Time": 0.01,
+          "Actual Rows": 0,
+          "Actual Loops": 1,
+          "Shared Hit Blocks": 4,
+          "Shared Read Blocks": 0,
+          "Shared Dirtied Blocks": 0,
+          "Shared Written Blocks": 0,
+          "Local Hit Blocks": 0,
+          "Local Read Blocks": 0,
+          "Local Dirtied Blocks": 0,
+          "Local Written Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0,
+          "I/O Read Time": 0.0,
+          "I/O Write Time": 0.0,
+          "Temp I/O Read Time": 0.0,
+          "Temp I/O Write Time": 0.0,
+          "Plans": [
+            {
+              "Node Type": "Sort",
+              "Parent Relationship": "Outer",
+              "Parallel Aware": false,
+              "Async Capable": false,
+              "Startup Cost": 8539.8,
+              "Total Cost": 8545.31,
+              "Plan Rows": 2206,
+              "Plan Width": 20,
+              "Actual Startup Time": 0.009,
+              "Actual Total Time": 0.009,
+              "Actual Rows": 0,
+              "Actual Loops": 1,
+              "Sort Key": [
+                "rank DESC",
+                "id"
+              ],
+              "Sort Method": "quicksort",
+              "Sort Space Used": 25,
+              "Sort Space Type": "Memory",
+              "Shared Hit Blocks": 4,
+              "Shared Read Blocks": 0,
+              "Shared Dirtied Blocks": 0,
+              "Shared Written Blocks": 0,
+              "Local Hit Blocks": 0,
+              "Local Read Blocks": 0,
+              "Local Dirtied Blocks": 0,
+              "Local Written Blocks": 0,
+              "Temp Read Blocks": 0,
+              "Temp Written Blocks": 0,
+              "I/O Read Time": 0.0,
+              "I/O Write Time": 0.0,
+              "Temp I/O Read Time": 0.0,
+              "Temp I/O Write Time": 0.0,
+              "Plans": [
+                {
+                  "Node Type": "Bitmap Heap Scan",
+                  "Parent Relationship": "Outer",
+                  "Parallel Aware": false,
+                  "Async Capable": false,
+                  "Relation Name": "tracks",
+                  "Alias": "tracks",
+                  "Startup Cost": 70.42,
+                  "Total Cost": 8444.46,
+                  "Plan Rows": 2206,
+                  "Plan Width": 20,
+                  "Actual Startup Time": 0.006,
+                  "Actual Total Time": 0.007,
+                  "Actual Rows": 0,
+                  "Actual Loops": 1,
+                  "Recheck Cond": "(to_tsvector('simple'::regconfig, ((search_title || ' '::text) || search_artist)) @@ '''qz'':*'::tsquery)",
+                  "Rows Removed by Index Recheck": 0,
+                  "Exact Heap Blocks": 0,
+                  "Lossy Heap Blocks": 0,
+                  "Shared Hit Blocks": 4,
+                  "Shared Read Blocks": 0,
+                  "Shared Dirtied Blocks": 0,
+                  "Shared Written Blocks": 0,
+                  "Local Hit Blocks": 0,
+                  "Local Read Blocks": 0,
+                  "Local Dirtied Blocks": 0,
+                  "Local Written Blocks": 0,
+                  "Temp Read Blocks": 0,
+                  "Temp Written Blocks": 0,
+                  "I/O Read Time": 0.0,
+                  "I/O Write Time": 0.0,
+                  "Temp I/O Read Time": 0.0,
+                  "Temp I/O Write Time": 0.0,
+                  "Plans": [
+                    {
+                      "Node Type": "Bitmap Index Scan",
+                      "Parent Relationship": "Outer",
+                      "Parallel Aware": false,
+                      "Async Capable": false,
+                      "Index Name": "tracks_search_words",
+                      "Startup Cost": 0.0,
+                      "Total Cost": 69.87,
+                      "Plan Rows": 2206,
+                      "Plan Width": 0,
+                      "Actual Startup Time": 0.006,
+                      "Actual Total Time": 0.006,
+                      "Actual Rows": 0,
+                      "Actual Loops": 1,
+                      "Index Cond": "(to_tsvector('simple'::regconfig, ((search_title || ' '::text) || search_artist)) @@ '''qz'':*'::tsquery)",
+                      "Shared Hit Blocks": 4,
+                      "Shared Read Blocks": 0,
+                      "Shared Dirtied Blocks": 0,
+                      "Shared Written Blocks": 0,
+                      "Local Hit Blocks": 0,
+                      "Local Read Blocks": 0,
+                      "Local Dirtied Blocks": 0,
+                      "Local Written Blocks": 0,
+                      "Temp Read Blocks": 0,
+                      "Temp Written Blocks": 0,
+                      "I/O Read Time": 0.0,
+                      "I/O Write Time": 0.0,
+                      "Temp I/O Read Time": 0.0,
+                      "Temp I/O Write Time": 0.0
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "Planning": {
+          "Shared Hit Blocks": 1,
+          "Shared Read Blocks": 0,
+          "Shared Dirtied Blocks": 0,
+          "Shared Written Blocks": 0,
+          "Local Hit Blocks": 0,
+          "Local Read Blocks": 0,
+          "Local Dirtied Blocks": 0,
+          "Local Written Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0,
+          "I/O Read Time": 0.0,
+          "I/O Write Time": 0.0,
+          "Temp I/O Read Time": 0.0,
+          "Temp I/O Write Time": 0.0
+        },
+        "Planning Time": 0.244,
+        "Triggers": [],
+        "Execution Time": 0.04
+      }
+    ]
+  },
+  "resources": {
+    "samples": 16,
+    "seconds": 1.6155625809999492,
+    "db_cpu_quota": "200000 100000",
+    "app_cpu_quota": "100000 100000",
+    "db": {
+      "peak_sampled_cpu_cores": 1.7416825050446396,
+      "average_cpu_cores": 1.1161981722081349,
+      "max_sampled_memory_bytes": 2464923648,
+      "throttled_periods": 1,
+      "scheduling_periods": 16,
+      "memory_events_end": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "memory_breakdown_end": {
+        "anon": 6705152,
+        "file": 2433961984,
+        "kernel": 19349504,
+        "kernel_stack": 114688,
+        "pagetables": 3207168,
+        "sec_pagetables": 0,
+        "percpu": 8712,
+        "sock": 0,
+        "vmalloc": 12288,
+        "shmem": 1117503488,
+        "file_mapped": 500097024,
+        "file_dirty": 0,
+        "file_writeback": 0,
+        "swapcached": 0,
+        "anon_thp": 0,
+        "file_thp": 0,
+        "shmem_thp": 0,
+        "inactive_anon": 68943872,
+        "active_anon": 1055248384,
+        "inactive_file": 253968384,
+        "active_file": 1062490112,
+        "unevictable": 0,
+        "slab_reclaimable": 15169816,
+        "slab_unreclaimable": 661496,
+        "slab": 15831312,
+        "workingset_refault_anon": 0,
+        "workingset_refault_file": 0,
+        "workingset_activate_anon": 0,
+        "workingset_activate_file": 0,
+        "workingset_restore_anon": 0,
+        "workingset_restore_file": 0,
+        "workingset_nodereclaim": 0,
+        "pgscan": 0,
+        "pgsteal": 0,
+        "pgscan_kswapd": 0,
+        "pgscan_direct": 0,
+        "pgscan_khugepaged": 0,
+        "pgsteal_kswapd": 0,
+        "pgsteal_direct": 0,
+        "pgsteal_khugepaged": 0,
+        "pgfault": 2628766,
+        "pgmajfault": 714,
+        "pgrefill": 0,
+        "pgactivate": 568407,
+        "pgdeactivate": 0,
+        "pglazyfree": 0,
+        "pglazyfreed": 0,
+        "thp_fault_alloc": 0,
+        "thp_collapse_alloc": 0
+      }
+    },
+    "app": {
+      "peak_sampled_cpu_cores": 0.7188209823409353,
+      "average_cpu_cores": 0.38362364125591214,
+      "max_sampled_memory_bytes": 89059328,
+      "throttled_periods": 0,
+      "scheduling_periods": 17
+    }
+  }
+}

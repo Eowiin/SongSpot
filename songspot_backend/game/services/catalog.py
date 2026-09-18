@@ -1194,6 +1194,25 @@ def _candidates(matches: Q, query: str) -> list[Track]:
                 if track.id not in seen:
                     local.append(track)
                     seen.add(track.id)
+        # Also match the beginning of any later word ("yo" -> "Love You").
+        # The simple dictionary keeps words intact, without language stemming.
+        from django.db import connection
+        if connection.vendor == 'postgresql':
+            from django.db.models import BooleanField
+            from django.db.models.expressions import RawSQL
+            words = base.alias(word_match=RawSQL(
+                "to_tsvector('simple', search_title || ' ' || search_artist) "
+                "@@ to_tsquery('simple', %s)", [phrase + ':*'],
+                output_field=BooleanField(),
+            )).filter(word_match=True)
+        else:
+            import re
+            word_prefix = r'(^| )' + re.escape(phrase)
+            words = base.filter(Q(search_title__regex=word_prefix) | Q(search_artist__regex=word_prefix))
+        for track in words.order_by('-rank', 'id')[:200]:
+            if track.id not in seen:
+                local.append(track)
+                seen.add(track.id)
         return local
     local.extend(t for t in base.filter(matches).order_by('-rank', 'id')[:200] if t.id not in seen)
     return local

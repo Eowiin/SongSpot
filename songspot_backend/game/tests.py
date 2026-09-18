@@ -840,10 +840,10 @@ class ShortTokenSearchTests(TestCase):
         results = catalog.search_tracks('u2')
         self.assertEqual([t.artist for t in results], ['U2'])
 
-    def test_short_token_no_longer_matches_mid_field(self):
-        # The deliberate cost of anchoring: `it` stops offering `Do It`.
+    def test_short_token_matches_a_later_word(self):
+        # Word indexing avoids the old field-start-only compromise.
         _make_track(title='Do It', artist='Chase Atlantic')
-        self.assertEqual(catalog.search_tracks('it'), [])
+        self.assertEqual([t.title for t in catalog.search_tracks('it')], ['Do It'])
 
     def test_short_token_query_carries_no_leading_wildcard(self):
         sql = str(Track.objects.filter(catalog._query_filter('u2')).query)

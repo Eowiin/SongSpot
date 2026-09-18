@@ -31,4 +31,4 @@ class SearchDeploymentTests(TransactionTestCase):
         call_command('search_health', stdout=output)
         report=json.loads(output.getvalue())
         self.assertFalse(report['external_index_enabled'])
-        self.assertEqual(len(report['sql_indexes']),8)
+        self.assertEqual(len(report['sql_indexes']),10)

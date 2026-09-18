@@ -42,6 +42,8 @@ class Command(BaseCommand):
                         (f'tracks_{field}_short_rank', f'ON tracks (left({field}, 2), rank DESC, id)'),
                     ])
                 definitions.extend([
+                    ('tracks_search_rank', 'ON tracks (rank DESC, id)'),
+                    ('tracks_search_words', "ON tracks USING gin (to_tsvector('simple', search_title || ' ' || search_artist))"),
                     ('artists_blocked_search', 'ON artists (deezer_id) WHERE is_blocked'),
                     ('artists_upper_name_trgm', 'ON artists USING gin (upper(name::text) gin_trgm_ops)'),
                 ])

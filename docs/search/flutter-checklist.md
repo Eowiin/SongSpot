@@ -7,7 +7,9 @@ sur les trois plateformes, avec un backend contenant la nouvelle version
 Dans les trois parcours **choix d’artiste, partie solo et duel** :
 
 1. Chercher un artiste ou titre connu, puis une saisie courte de deux lettres :
-   résultats affichés, aucun chargement interminable. Dans les recherches de
+   résultats affichés, aucun chargement interminable. Vérifier aussi `yo` :
+   des titres contenant un mot tel que « you » après le premier mot doivent
+   pouvoir apparaître, selon leur classement et leur présence dans le catalogue. Dans les recherches de
    titres, vérifier `q&a Drake` et un titre complet avec parenthèses et artiste.
 2. Taper rapidement, effacer et changer de saisie : les anciens résultats ne
    doivent pas revenir. Quitter l’écran ou passer à la manche suivante pendant
