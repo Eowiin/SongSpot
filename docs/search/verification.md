@@ -168,3 +168,22 @@ docker compose -p songspot-pgscale -f scripts/search_benchmark/postgres-scale.ym
 Correction backend uniquement ; aucun changement supplémentaire de Flutter.
 Aucune opération en production. Le nouveau backend et ses index doivent être
 installés dans l’environnement de recette pour tester ce comportement.
+
+## Démarrage Docker local — 18 septembre 2026
+
+Le Compose racine montait le code local et appliquait les migrations, mais
+n’exécutait ni `search_backfill` ni le worker, et ne fixait pas les réglages du
+nouveau moteur. Il prépare maintenant les champs/index, contrôle `search_health`,
+puis démarre Daphne et le worker après disponibilité du backend. Les services
+partagent explicitement le mode PostgreSQL sans index externe.
+
+Validation réelle sur une copie isolée du Compose : image backend locale déjà
+construite, base et réseau distincts, aucun port exposé, réseau interne et
+compléments Deezer désactivés. Démarrage complet réussi, dix index valides,
+zéro champ de recherche manquant, worker actif. Après insertion d’une fixture
+`LOVE YOU / Nono La Grinta`, un appel HTTP à
+`/api/game/tracks/search/?q=yo&v=2` retrouve le titre. Cela valide le démarrage et
+le cas minimal ; cela ne prouve pas le classement dans la base du MacBook.
+
+Le fichier `pubspec.lock` modifié localement par ailleurs n’a pas été inclus
+ni réécrit. Les conteneurs locaux existants et la production restent inchangés.
