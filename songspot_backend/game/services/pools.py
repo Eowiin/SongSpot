@@ -188,8 +188,10 @@ def pick_mixed_tracks(count: int, rng=random) -> list[Track]:
     for _ in range(count):
         for playlist_id in mix_order(rng):
             track = (
-                catalog.playable(mix_tracks(playlist_id), directed=False)
-                .exclude(id__in=[pick.id for pick in picks])
+                catalog.exclude_songs(
+                    catalog.playable(mix_tracks(playlist_id), directed=False),
+                    picks,
+                )
                 .order_by('?')
                 .first()
             )

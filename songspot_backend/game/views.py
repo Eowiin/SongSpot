@@ -161,8 +161,7 @@ class NextSongView(APIView):
             qs = Track.objects.all()
 
         qs = catalog.playable(qs, directed=directed)
-        if exclude_ids:
-            qs = qs.exclude(id__in=exclude_ids)
+        qs = _exclude_played(qs, exclude_ids)
 
         track, preview_url = _pick_with_audio(qs, containers)
         return _round_response(
@@ -208,6 +207,24 @@ def _round_response(request, track, preview_url, *, directed, pool_size=None):
 MIX_CATEGORY_ATTEMPTS = 3
 
 
+def _exclude_played(qs, exclude_ids):
+    """
+    Drop what the run has already played — by song, not by row.
+
+    The client sends the track IDs it has been given. Those name *releases*,
+    and one song can be in the catalogue several times over: the album cut and
+    the best-of cut are two rows with two Deezer IDs. Excluding the rows alone
+    replayed the same song later in the run under its other release, with a
+    different snippet and a different cover. See `catalog.exclude_songs`.
+    """
+    if not exclude_ids:
+        return qs
+    played = Track.objects.filter(id__in=exclude_ids).values_list(
+        'norm_title', 'norm_artist',
+    )
+    return catalog.exclude_songs(qs.exclude(id__in=exclude_ids), played)
+
+
 def _pick_mixed(exclude_ids):
     """An all-genre round: `_pick_with_audio` over one weighted category at a time."""
     for playlist_id in pools.mix_order()[:MIX_CATEGORY_ATTEMPTS]:
@@ -215,8 +232,7 @@ def _pick_mixed(exclude_ids):
         if playlist is None:
             continue
         qs = catalog.playable(pools.mix_tracks(playlist_id), directed=False)
-        if exclude_ids:
-            qs = qs.exclude(id__in=exclude_ids)
+        qs = _exclude_played(qs, exclude_ids)
         track, preview_url = _pick_with_audio(
             qs, previews.playlist_containers(playlist),
         )

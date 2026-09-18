@@ -857,6 +857,33 @@ def playable(qs: QuerySet, directed: bool = False) -> QuerySet:
     )
 
 
+def exclude_songs(qs: QuerySet, tracks) -> QuerySet:
+    """
+    Drop every release of the songs `tracks` already covers.
+
+    Deezer ships one row per *release*, so a song the player has already heard
+    is still in the pool under its other releases: "Superstition" is in the
+    catalogue twice, once from `Talking Book` and once from a `Number 1's`
+    compilation, with different Deezer IDs, different covers and — because
+    Deezer counts popularity per release — ranks 400 000 apart. Excluding what
+    has been played by primary key let the same song open two rounds of the
+    same run with two different snippets.
+
+    `tracks` may be Track instances or `(norm_title, norm_artist)` pairs.
+    """
+    pairs = {
+        t if isinstance(t, tuple) else (t.norm_title, t.norm_artist)
+        for t in tracks
+    }
+    pairs.discard(('', ''))
+    if not pairs:
+        return qs
+    clause = Q()
+    for norm_title, norm_artist in pairs:
+        clause |= Q(norm_title=norm_title, norm_artist=norm_artist)
+    return qs.exclude(clause)
+
+
 #: Why a payload was turned away, in the order the floor tests them. Kept as
 #: stable slugs rather than prose because `crawl_artists --floor-report` groups
 #: on them and a report is read by comparing runs.
