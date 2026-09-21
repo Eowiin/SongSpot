@@ -56,6 +56,9 @@ class _MyDataScreenState extends State<MyDataScreen> {
     try {
       final apiService = ApiService();
       final payload = await apiService.exportData();
+      // The user may leave while the request is in flight. Do not open a
+      // share sheet for a screen that has already been closed.
+      if (!mounted) return;
       // The endpoint returns decoded JSON, so re-encode it before saving.
       final bytes = utf8.encode(
         const JsonEncoder.withIndent('  ').convert(payload),
@@ -68,9 +71,9 @@ class _MyDataScreenState extends State<MyDataScreen> {
         subject: 'SongSpot — My data export',
       );
     } on ApiException catch (e) {
-      setState(() => _exportError = e.message);
+      if (mounted) setState(() => _exportError = e.message);
     } catch (e) {
-      setState(() => _exportError = e.toString());
+      if (mounted) setState(() => _exportError = e.toString());
     } finally {
       if (mounted) setState(() => _isExporting = false);
     }

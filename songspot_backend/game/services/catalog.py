@@ -982,7 +982,16 @@ def ensure_artist_tracks(deezer_artist_id: int, minimum: int = 30) -> list[Track
     existing = list(playable(
         Track.objects.filter(deezer_artist_id=deezer_artist_id), directed=True,
     ))
-    if fresh and len(existing) >= minimum:
+    directed_fresh = (
+        artist is not None and artist.directed_refreshed_at is not None
+        and timezone.now() - artist.directed_refreshed_at
+        < timedelta(days=config.artist_top_ttl_days)
+    )
+    # A small discography is still a completed refresh. Rewalking its albums
+    # on every round cannot manufacture the missing thirty tracks.
+    # Keep retrying an empty pool: provider methods may return [] on an outage.
+    # A background top-only crawl must not suppress the first album walk.
+    if existing and (directed_fresh or (fresh and len(existing) >= minimum)):
         return existing
 
     picture = artist.picture_url if artist else None
@@ -995,7 +1004,8 @@ def ensure_artist_tracks(deezer_artist_id: int, minimum: int = 30) -> list[Track
 
     if artist is not None:
         artist.top_refreshed_at = timezone.now()
-        artist.save(update_fields=['top_refreshed_at'])
+        artist.directed_refreshed_at = artist.top_refreshed_at
+        artist.save(update_fields=['top_refreshed_at', 'directed_refreshed_at'])
 
     return list(playable(
         Track.objects.filter(deezer_artist_id=deezer_artist_id), directed=True,
@@ -1015,9 +1025,10 @@ def _import_artist_albums(
     already: list[Track],
 ) -> list[Track]:
     """Walk the discography until `wanted` playable tracks exist, or albums run out."""
-    collected = list(already)
+    collected_ids = {track.deezer_id for track in already}
+    pending = []
     for album in deezer.get_artist_albums(artist_id, limit=25):
-        if len(collected) >= wanted:
+        if len(collected_ids) >= wanted:
             break
         album_id = album.get('id')
         if not album_id:
@@ -1030,8 +1041,15 @@ def _import_artist_albums(
             payload.setdefault('album', {})
             if cover:
                 payload['album'].setdefault('cover_xl', cover)
-        collected.extend(_persist_artist_payloads(deezer, payloads, artist_id, picture))
-    return collected
+        pending.extend(payloads)
+        collected_ids.update(
+            payload['id'] for payload in payloads
+            if payload.get('id') and payload.get('preview')
+            and payload.get('title') and payload.get('artist', {}).get('name')
+        )
+    # Keep the necessary provider calls, but persist all album pages together:
+    # artist lookups, track lookups and writes must not repeat for every album.
+    return list(already) + _persist_artist_payloads(deezer, pending, artist_id, picture)
 
 
 def _persist_artist_payloads(
@@ -1106,8 +1124,11 @@ def _query_filter(query: str) -> Optional[Q]:
             combined &= (Q(search_title__startswith=token) | Q(search_title__contains=' '+token)
                          | Q(search_artist__startswith=token) | Q(search_artist__contains=' '+token))
         else:
-            combined &= (Q(search_title__contains=token) | Q(search_artist__contains=token)
-                         | Q(title__icontains=token) | Q(artist__icontains=token))
+            # Full search fields retain every word in the original credits and
+            # are maintained on import/save (and by PostgreSQL triggers).
+            # Repeating the same match against UPPER(raw fields) doubles the
+            # trigram branches and heap rechecks on large catalogues.
+            combined &= (Q(search_title__contains=token) | Q(search_artist__contains=token))
     return combined
 
 
