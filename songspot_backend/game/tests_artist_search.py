@@ -74,6 +74,22 @@ class ArtistSearchRankingTests(TestCase):
 
         self.assertNotIn('NeS', self._search('nes'))
 
+    def test_a_collaboration_credit_never_appears(self):
+        # Deezer's entity for a multi-artist credit: separator and no photo.
+        empty = 'https://cdn-images.dzcdn.net/images/artist//1000x1000-000000-80-0-0.jpg'
+        _artist(1, 'Damso', 5_119_127, picture_url='https://example.test/damso.jpg')
+        _artist(2, 'No Limit, Gazo & Damso', 2_415, picture_url=empty)
+        _artist(3, 'Zola feat. Damso, PRINC€', 2, picture_url=empty)
+
+        self.assertEqual(self._search('damso'), ['Damso'])
+
+    def test_real_acts_with_a_separator_or_no_photo_still_appear(self):
+        empty = 'https://cdn-images.dzcdn.net/images/artist//1000x1000-000000-80-0-0.jpg'
+        _artist(1, 'Simon & Garfunkel', 1_165_430, picture_url='https://example.test/sg.jpg')
+        _artist(2, 'Simon Unknown', 12, picture_url=empty)
+
+        self.assertEqual(self._search('simon'), ['Simon & Garfunkel', 'Simon Unknown'])
+
     def test_the_best_match_survives_a_crowded_field(self):
         # The slice defect: with no ordering before the cut, the one exact
         # match was dropped before anything ranked it.

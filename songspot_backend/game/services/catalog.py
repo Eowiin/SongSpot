@@ -57,6 +57,7 @@ from .deezer_http import DeezerHttp
 from .deezer_service import DeezerService
 from .matching import (
     answer_matches,
+    is_collab_credit,
     is_junk_artist,
     is_variant_title,
     normalize_artist,
@@ -369,6 +370,7 @@ def search_artists(query: str, limit: int = 25) -> list[Artist]:
                     a for a in artists if a.deezer_id not in known
                 ]
 
+    artists = [a for a in artists if not is_collab_credit(a.name, a.picture_url)]
     norm = normalize_artist(query)
     artists.sort(key=lambda a: (a.is_junk, _match_tier(a, norm), -a.nb_fan))
     return artists[:limit]
