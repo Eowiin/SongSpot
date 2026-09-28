@@ -33,8 +33,8 @@ class Track(models.Model):
     contributors = models.JSONField(default=list, blank=True)
     search_title = models.TextField(blank=True, default='')
     search_artist = models.TextField(blank=True, default='')
-    norm_title = models.CharField(max_length=255, blank=True, default='', db_index=True)
-    norm_artist = models.CharField(max_length=255, blank=True, default='', db_index=True)
+    norm_title = models.CharField(max_length=1024, blank=True, default='', db_index=True)
+    norm_artist = models.CharField(max_length=1024, blank=True, default='', db_index=True)
     last_seen_at = models.DateTimeField(null=True, blank=True)
     # True when the track came from a Deezer chart or editorial playlist rather
     # than open search. That provenance *is* a popularity signal — a better one
@@ -116,7 +116,8 @@ class Artist(models.Model):
     """
     deezer_id = models.BigIntegerField(primary_key=True)
     name = models.CharField(max_length=255)
-    norm_name = models.CharField(max_length=255, blank=True, default='', db_index=True)
+    # Normalization can expand a valid 255-character credit (e.g. & -> and).
+    norm_name = models.CharField(max_length=1024, blank=True, default='', db_index=True)
     picture_url = models.URLField(max_length=500, blank=True, null=True)
     nb_fan = models.PositiveIntegerField(default=0, db_index=True)
     # Set for karaoke/tribute/cover acts. Keeps them out of undirected picks;
@@ -125,6 +126,8 @@ class Artist(models.Model):
     # Manual override for anything that has to disappear entirely.
     is_blocked = models.BooleanField(default=False)
     top_refreshed_at = models.DateTimeField(null=True, blank=True)
+    # Unlike the background top-tracks crawl, directed play also walks albums.
+    directed_refreshed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

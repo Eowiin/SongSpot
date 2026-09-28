@@ -186,6 +186,22 @@ def is_junk_artist(name: str) -> bool:
     return bool(_JUNK_ARTIST_RE.search(name))
 
 
+# Deezer mints an artist entity for some multi-artist credits — "No Limit, Gazo
+# & Damso", "Zola feat. Damso, PRINC€" — and those entities never get a photo:
+# their picture URL carries an empty hash. The separator alone is not enough
+# (Simon & Garfunkel, Tyler, The Creator are real acts, and have photos), nor is
+# the missing photo alone (plenty of small real acts have none). Both together
+# are a credit, not an act, and nobody means to start a game on one.
+_CREDIT_SEPARATOR_RE = re.compile(r'\s&\s|,\s|;|\bfeat\.?\s|\bft\.?\s', re.IGNORECASE)
+
+
+def is_collab_credit(name: str, picture_url: Optional[str]) -> bool:
+    """True for a Deezer pseudo-artist standing for several credited acts."""
+    if not name or not picture_url or '/artist//' not in picture_url:
+        return False
+    return bool(_CREDIT_SEPARATOR_RE.search(name))
+
+
 def answer_matches(
     *,
     answer_deezer_id: Optional[int],
