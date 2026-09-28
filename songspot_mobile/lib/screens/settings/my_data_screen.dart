@@ -22,6 +22,7 @@ class MyDataScreen extends StatefulWidget {
 
 class _MyDataScreenState extends State<MyDataScreen> {
   final _deleteScrollController = ScrollController();
+  final _exportButtonKey = GlobalKey();
   bool _isExporting = false;
   bool _isDeleting = false;
   String? _exportError;
@@ -69,6 +70,7 @@ class _MyDataScreenState extends State<MyDataScreen> {
         fileName: 'songspot_data.json',
         mimeType: 'application/json',
         subject: 'SongSpot — My data export',
+        origin: _exportButtonRect(),
       );
     } on ApiException catch (e) {
       if (mounted) setState(() => _exportError = e.message);
@@ -77,6 +79,18 @@ class _MyDataScreenState extends State<MyDataScreen> {
     } finally {
       if (mounted) setState(() => _isExporting = false);
     }
+  }
+
+  /// The export button's rect in global coordinates, for anchoring the iOS
+  /// share sheet. Falls back to a point at the centre of the screen: iOS only
+  /// needs a non-empty rect inside the view, and a missing one is a crash.
+  Rect _exportButtonRect() {
+    final box = _exportButtonKey.currentContext?.findRenderObject();
+    if (box is RenderBox && box.hasSize && !box.size.isEmpty) {
+      return box.localToGlobal(Offset.zero) & box.size;
+    }
+    final center = MediaQuery.sizeOf(context).center(Offset.zero);
+    return Rect.fromCenter(center: center, width: 1, height: 1);
   }
 
   Future<void> _handleDelete() async {
@@ -164,6 +178,7 @@ class _MyDataScreenState extends State<MyDataScreen> {
                         description: l10n.myDataExportDescription,
                         errorMessage: _exportError,
                         child: GradientButton(
+                          key: _exportButtonKey,
                           text: l10n.myDataExportButton,
                           onPressed: _handleExport,
                           isLoading: _isExporting,
