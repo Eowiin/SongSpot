@@ -1,5 +1,6 @@
 import 'dart:js_interop';
 import 'dart:typed_data';
+import 'dart:ui' show Rect;
 
 import 'package:web/web.dart' as web;
 
@@ -8,6 +9,7 @@ Future<void> savePlatformBytesAsFile({
   required String fileName,
   required String mimeType,
   String? subject,
+  Rect? origin,
 }) async {
   final blob = web.Blob(
     [bytes.toJS].toJS,

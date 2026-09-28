@@ -3,7 +3,7 @@ import logging
 import time
 from django.conf import settings
 from ..models import Artist, Track, SearchEnrichment
-from .matching import normalize_query
+from .matching import is_collab_credit, normalize_query
 from .search_index import Index, IndexUnavailable
 from .search_ranking import lexical_tier
 
@@ -54,7 +54,8 @@ def search(kind, query, limit=40, offset=0, enqueue=True):
     else:
         rows = [r for r in rows if not r.is_blocked]
         local = catalog._local_artists(query, 400)
-        unique = {str(r.pk) if r.pk else r.name: r for r in rows+local}
+        unique = {str(r.pk) if r.pk else r.name: r for r in rows+local
+                  if not is_collab_credit(r.name, r.picture_url)}
         rows = sorted(unique.values(), key=lambda r: (
             lexical_tier('', r.name, query), r.is_junk, -r.nb_fan, str(r.pk)))
     # Exact/full-token coverage is evidence of confidence; fuzzy/prefix-only

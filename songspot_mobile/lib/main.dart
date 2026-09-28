@@ -63,6 +63,11 @@ Future<void> main() async {
         // in this app. Dart-side capturing stays on, so failures of our own
         // API calls are still reported.
         options.captureNativeFailedRequests = false;
+        // App-hang detection watches the iOS main thread, but Dart runs on
+        // Flutter's own UI thread, so a hang in our code never shows up there.
+        // What it did report was the system keyboard cold-loading on first
+        // focus — native events that beforeSend cannot filter.
+        options.enableAppHangTracking = false;
         options.beforeSend = (event, hint) {
           if (kDebugMode) return null;
           if (isDroppedSentryEvent(event)) return null;
