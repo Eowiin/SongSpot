@@ -143,10 +143,8 @@ session navigateur encore ouverte ou d'un numéro de téléphone rendu avec le P
 
 ### 1.4 Sécuriser l'accès au VPS et les sauvegardes de production
 
-Le repo ne contient pas l'adresse SSH certaine du VPS. L'IP
-`77.42.85.235` figure dans la configuration CSRF locale, mais elle peut être
-ancienne. La source de vérité est le DNS actuel, le portail de l'hébergeur et le
-secret GitHub `VPS_HOST`.
+Le repo ne contient pas l'adresse SSH du VPS. La source de vérité est le DNS
+actuel, le portail de l'hébergeur et le secret GitHub `VPS_HOST`.
 
 Avant migration :
 
