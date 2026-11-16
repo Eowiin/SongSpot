@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.http import HttpRequest
 from .models import (
-    Artist, CatalogSetting, Track, Playlist, PlaylistTrack,
+    AppRelease, Artist, CatalogSetting, Track, Playlist, PlaylistTrack,
     GameScore, UserBest, FavouriteArtist,
 )
 
@@ -45,6 +45,25 @@ class CatalogSettingAdmin(admin.ModelAdmin):
         return not CatalogSetting.objects.exists()
 
     def has_delete_permission(self, request: HttpRequest, obj: CatalogSetting | None = None) -> bool:
+        return False
+
+
+@admin.register(AppRelease)
+class AppReleaseAdmin(admin.ModelAdmin):
+    """
+    Forces players onto the current release.
+
+    An app older than the version set here for its platform is locked behind
+    an "update required" screen. Set a version only once that release is live
+    on the store, or players get locked out with nothing to update to.
+    """
+    list_display = ('latest_android_version', 'latest_ios_version', 'updated_at')
+    readonly_fields = ('updated_at',)
+
+    def has_add_permission(self, request: HttpRequest) -> bool:
+        return not AppRelease.objects.exists()
+
+    def has_delete_permission(self, request: HttpRequest, obj: AppRelease | None = None) -> bool:
         return False
 
 

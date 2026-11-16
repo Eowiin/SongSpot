@@ -1383,6 +1383,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'More results available: add the artist or title to narrow your search.'**
   String get searchRefine;
+
+  /// Shown in the duel queue after a minute without an opponent
+  ///
+  /// In en, this message translates to:
+  /// **'Not many players are online right now. You can keep waiting or play solo.'**
+  String get duelFewPlayersOnline;
+
+  /// Button in the duel queue that leaves it for solo play
+  ///
+  /// In en, this message translates to:
+  /// **'Play solo'**
+  String get duelPlaySolo;
+
+  /// Title of the blocking screen shown when the installed app is outdated
+  ///
+  /// In en, this message translates to:
+  /// **'Update required'**
+  String get updateRequiredTitle;
+
+  /// Body of the blocking update screen
+  ///
+  /// In en, this message translates to:
+  /// **'A new version of SongSpot is available. Update the app to keep playing.'**
+  String get updateRequiredBody;
+
+  /// Button opening the store page to update the app
+  ///
+  /// In en, this message translates to:
+  /// **'Update'**
+  String get updateRequiredButton;
 }
 
 class _AppLocalizationsDelegate

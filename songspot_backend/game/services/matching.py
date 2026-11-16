@@ -179,6 +179,43 @@ def is_variant_title(title: str) -> bool:
     return bool(_VARIANT_PAREN_RE.search(title) or _VARIANT_SUFFIX_RE.search(title))
 
 
+# A track shorter than this is not a song a player can be expected to know: on
+# K-pop albums it is a member's voice note or a drama-style narration, on rap
+# albums a skit. Measured on ENHYPEN's Deezer discography, the 14 "Voice Note"
+# tracks run 30-46s and the narrated "Breaking News"/"The Final Moment" pieces
+# 49-78s, while released singles essentially never go under 80s.
+MIN_SONG_SECONDS = 80
+
+# Album filler, named as such. Only trusted on a short track: "Intro" by The xx
+# (127s) is a real song, an untitled 99s album opener is not.
+_FILLER_TITLE_RE = re.compile(
+    r'\b(?:skit|interlude|intro|outro|prologue|epilogue|narration|voice\s?note|voicemail)\b',
+    re.IGNORECASE,
+)
+_FILLER_MAX_SECONDS = 120
+# Skits are never songs, whatever their length or whether it is known yet.
+_SKIT_RE = re.compile(r'\bskit\b', re.IGNORECASE)
+
+
+def is_non_song(title: str, duration: Optional[int]) -> bool:
+    """
+    True for album filler that cannot be a round: voice notes, skits, intros.
+
+    Unlike a variant, this is excluded from directed play too. A player who
+    picked ENHYPEN still has no way to guess thirty seconds of a member talking.
+    `duration` is None for rows imported before it was recorded; the length
+    rules then wait for a refresh to supply it.
+    """
+    title = title or ''
+    if _SKIT_RE.search(title):
+        return True
+    if not duration:
+        return False
+    if duration < MIN_SONG_SECONDS:
+        return True
+    return duration < _FILLER_MAX_SECONDS and bool(_FILLER_TITLE_RE.search(title))
+
+
 def is_junk_artist(name: str) -> bool:
     """True for karaoke, tribute and cover acts."""
     if not name:

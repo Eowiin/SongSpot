@@ -1,5 +1,6 @@
 from django.urls import path
 from .views import (
+    AppVersionView,
     PlaylistListView,
     NextSongView,
     GuessView,
@@ -22,6 +23,7 @@ from .views import (
 app_name = 'game'
 
 urlpatterns = [
+    path('app-version/', AppVersionView.as_view(), name='app_version'),
     path('categories/', PlaylistListView.as_view(), name='categories'),
     path('next-song/', NextSongView.as_view(), name='next_song'),
     path('guess/', GuessView.as_view(), name='guess'),

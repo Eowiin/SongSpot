@@ -645,5 +645,15 @@
   "searchEnriching": "Looking for more results…",
   "searchEmpty": "No results. Try a title or artist.",
   "searchUnavailable": "Search temporarily unavailable. Please try again.",
-  "searchRefine": "More results available: add the artist or title to narrow your search."
+  "searchRefine": "More results available: add the artist or title to narrow your search.",
+  "duelFewPlayersOnline": "Not many players are online right now. You can keep waiting or play solo.",
+  "@duelFewPlayersOnline": { "description": "Shown in the duel queue after a minute without an opponent" },
+  "duelPlaySolo": "Play solo",
+  "@duelPlaySolo": { "description": "Button in the duel queue that leaves it for solo play" },
+  "updateRequiredTitle": "Update required",
+  "@updateRequiredTitle": { "description": "Title of the blocking screen shown when the installed app is outdated" },
+  "updateRequiredBody": "A new version of SongSpot is available. Update the app to keep playing.",
+  "@updateRequiredBody": { "description": "Body of the blocking update screen" },
+  "updateRequiredButton": "Update",
+  "@updateRequiredButton": { "description": "Button opening the store page to update the app" }
 }

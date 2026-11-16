@@ -15,6 +15,8 @@ import 'providers/settings_provider.dart';
 import 'providers/stats_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
+import 'screens/update_required_screen.dart';
+import 'services/app_update_service.dart';
 import 'services/analytics_service.dart';
 import 'services/audio_service.dart';
 import 'services/boot_splash.dart';
@@ -44,6 +46,33 @@ bool leavesForeground(AppLifecycleState state) {
 }
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+bool _updateScreenShown = false;
+DateTime? _lastUpdateCheck;
+
+/// A resume is frequent (Android reports one after the notification shade),
+/// so the check on resume runs at most this often.
+const _resumeCheckInterval = Duration(minutes: 15);
+
+/// Replaces the whole navigation stack with the "update required" screen when
+/// this install is behind the store. Returns whether it did.
+Future<bool> enforceRequiredUpdate() async {
+  if (_updateScreenShown) return true;
+  final now = DateTime.now();
+  final last = _lastUpdateCheck;
+  if (last != null && now.difference(last) < _resumeCheckInterval) return false;
+  _lastUpdateCheck = now;
+  final update = await AppUpdateService.instance.checkRequiredUpdate();
+  final navigator = navigatorKey.currentState;
+  if (update == null || navigator == null || _updateScreenShown) return false;
+  _updateScreenShown = true;
+  unawaited(AudioService().haltForInterruption());
+  navigator.pushAndRemoveUntil(
+    MaterialPageRoute(builder: (_) => UpdateRequiredScreen(update: update)),
+    (_) => false,
+  );
+  return true;
+}
 final RouteObserver<ModalRoute<void>> routeObserver = RouteObserver<ModalRoute<void>>();
 
 Future<void> main() async {
@@ -126,6 +155,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // An app left in the background survives a store release; catch it
+      // when it comes back rather than only on a cold start.
+      unawaited(enforceRequiredUpdate());
+      return;
+    }
     if (!leavesForeground(state)) return;
     FocusManager.instance.primaryFocus?.unfocus();
     // Stop any snippet when the app leaves the foreground: on Android the
@@ -196,10 +231,21 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _checkAuthStatus() async {
     final authProvider = context.read<AuthProvider>();
+    _lastUpdateCheck = DateTime.now();
+    final updateCheck = AppUpdateService.instance.checkRequiredUpdate();
     await Future.wait([
       authProvider.checkAuthStatus(),
       ConsentService().gatherConsent(),
     ]);
+
+    final update = await updateCheck;
+    if (update != null && mounted) {
+      _updateScreenShown = true;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => UpdateRequiredScreen(update: update)),
+      );
+      return;
+    }
 
     if (mounted) {
       PushNotificationService().setOnNotificationTap(_handleNotificationTap);

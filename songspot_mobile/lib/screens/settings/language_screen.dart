@@ -7,11 +7,20 @@ import '../../providers/settings_provider.dart';
 class LanguageScreen extends StatelessWidget {
   const LanguageScreen({super.key});
 
-  static const _locales = [
+  /// Every language the app ships, in the order the picker lists them.
+  static const locales = [
     (locale: Locale('en'), nativeName: 'English', flag: '🇬🇧'),
     (locale: Locale('es'), nativeName: 'Español', flag: '🇪🇸'),
     (locale: Locale('fr'), nativeName: 'Français', flag: '🇫🇷'),
   ];
+
+  /// The native name of [locale], as the picker shows it.
+  static String nativeNameOf(Locale locale) => locales
+      .firstWhere(
+        (entry) => entry.locale.languageCode == locale.languageCode,
+        orElse: () => locales.first,
+      )
+      .nativeName;
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +55,7 @@ class LanguageScreen extends StatelessWidget {
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.all(16),
-                  children: _locales.map((entry) {
+                  children: locales.map((entry) {
                     final isSelected = settings.locale.languageCode == entry.locale.languageCode;
                     return Semantics(
                       selected: isSelected,
