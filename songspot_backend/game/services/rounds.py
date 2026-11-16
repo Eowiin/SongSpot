@@ -18,6 +18,7 @@ they come back from `/guess/`.
 """
 
 from typing import Optional
+from uuid import UUID
 
 from django.core import signing
 
@@ -33,7 +34,7 @@ class InvalidRoundToken(Exception):
     """The token was tampered with, malformed, or too old to trust."""
 
 
-def issue(track_id: str, *, difficulty: str = '', directed: bool = False) -> str:
+def issue(track_id: str | UUID, *, difficulty: str = '', directed: bool = False) -> str:
     """Mint the token handed out with a round."""
     return signing.dumps(
         {'t': str(track_id), 'd': difficulty, 'a': directed},

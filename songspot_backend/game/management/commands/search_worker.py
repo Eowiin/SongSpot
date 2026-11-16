@@ -1,6 +1,7 @@
 import time
+from typing import Any
 from django.conf import settings
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandParser
 from game.models import SearchOutbox
 from game.services.search_index import Index, consumer_lock, drain
 from game.services.search_enrichment import run_one
@@ -9,10 +10,10 @@ from game.services.search_enrichment import run_one
 class Command(BaseCommand):
     help = 'Durable index/enrichment worker. Supervise with systemd.'
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument('--once', action='store_true')
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         with consumer_lock():
             while True:
                 if settings.SEARCH_INDEX_ENABLED:

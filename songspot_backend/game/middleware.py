@@ -3,10 +3,13 @@ WebSocket authentication middleware using JWT tokens.
 """
 
 import logging
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from channels.db import database_sync_to_async
 from channels.middleware import BaseMiddleware
 from django.conf import settings
+from django.contrib.auth.base_user import AbstractBaseUser
 from django.contrib.auth.models import AnonymousUser
 from rest_framework_simplejwt.tokens import AccessToken
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
@@ -14,8 +17,12 @@ from urllib.parse import parse_qs
 
 logger = logging.getLogger(__name__)
 
+Scope = dict[str, Any]
+Receive = Callable[[], Awaitable[dict[str, Any]]]
+Send = Callable[[dict[str, Any]], Awaitable[None]]
 
-def _header_value(scope, name):
+
+def _header_value(scope: Scope, name: str) -> str | None:
     target = name.lower().encode()
     for key, value in scope.get('headers', []):
         if key == target:
@@ -24,7 +31,7 @@ def _header_value(scope, name):
 
 
 @database_sync_to_async
-def get_user_from_token(token_key):
+def get_user_from_token(token_key: str) -> AbstractBaseUser | AnonymousUser:
     """
     Validate JWT token and return the associated user.
     """
@@ -32,7 +39,9 @@ def get_user_from_token(token_key):
     User = get_user_model()
 
     try:
-        access_token = AccessToken(token_key)
+        # simplejwt annotates `token` as `Token | None`, but it decodes the raw
+        # encoded string it is given here.
+        access_token = AccessToken(token_key)  # type: ignore[arg-type]
         user_id = access_token['user_id']
         return User.objects.get(id=user_id)
     except (InvalidToken, TokenError, User.DoesNotExist):
@@ -53,7 +62,7 @@ class JWTAuthMiddleware(BaseMiddleware):
         )
     """
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         path = scope.get('path', '')
         host = _header_value(scope, 'host')
         origin = _header_value(scope, 'origin')
@@ -110,7 +119,7 @@ class OriginValidatorMiddleware(BaseMiddleware):
     is disabled entirely, which keeps local development friction-free.
     """
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         allowed = getattr(settings, 'WEBSOCKET_ALLOWED_ORIGINS', None) or []
         origin = _header_value(scope, 'origin')
 

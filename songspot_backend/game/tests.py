@@ -1,5 +1,7 @@
+from collections.abc import Awaitable, Callable
 from datetime import timedelta
 import itertools
+from typing import Any
 from unittest import mock
 
 from django.test import TestCase, override_settings
@@ -18,7 +20,7 @@ from .services.matching import normalize_artist, normalize_title
 from django.core.cache import cache
 
 
-def _make_user(username, email=None, password='testpass123'):
+def _make_user(username: str, email: str | None = None, password: str = 'testpass123') -> User:
     return User.objects.create_user(
         username=username,
         email=email or f'{username}@example.com',
@@ -29,7 +31,7 @@ def _make_user(username, email=None, password='testpass123'):
 _next_deezer_id = itertools.count(1)
 
 
-def _make_track(title='Test Song', artist='Test Artist', genre='pop'):
+def _make_track(title: str = 'Test Song', artist: str = 'Test Artist', genre: str = 'pop') -> Track:
     return Track.objects.create(
         title=title,
         artist=artist,
@@ -39,22 +41,22 @@ def _make_track(title='Test Song', artist='Test Artist', genre='pop'):
     )
 
 
-def _bearer(user):
+def _bearer(user: User) -> str:
     return f'Bearer {str(RefreshToken.for_user(user).access_token)}'
 
 
 class TrackModelTests(TestCase):
-    def test_create_track(self):
+    def test_create_track(self) -> None:
         track = _make_track()
         self.assertEqual(track.title, 'Test Song')
         self.assertEqual(track.artist, 'Test Artist')
         self.assertIsNotNone(track.id)
 
-    def test_track_string_representation(self):
+    def test_track_string_representation(self) -> None:
         track = _make_track()
         self.assertEqual(str(track), 'Test Song - Test Artist')
 
-    def test_optional_fields_nullable(self):
+    def test_optional_fields_nullable(self) -> None:
         track = Track.objects.create(
             title='Bare Track',
             artist='Bare Artist',
@@ -67,10 +69,10 @@ class TrackModelTests(TestCase):
 
 
 class GameScoreModelTests(TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.user = _make_user('scorer')
 
-    def test_create_game_score(self):
+    def test_create_game_score(self) -> None:
         score = GameScore.objects.create(
             user=self.user,
             songs_played=10,
@@ -82,7 +84,7 @@ class GameScoreModelTests(TestCase):
         self.assertEqual(score.songs_played, 10)
         self.assertEqual(score.total_score, 120)
 
-    def test_genre_and_artist_filter_default_blank(self):
+    def test_genre_and_artist_filter_default_blank(self) -> None:
         score = GameScore.objects.create(
             user=self.user,
             songs_played=5,
@@ -93,7 +95,7 @@ class GameScoreModelTests(TestCase):
         self.assertIsNone(score.genre)
         self.assertEqual(score.artist_filter, '')
 
-    def test_string_representation(self):
+    def test_string_representation(self) -> None:
         score = GameScore.objects.create(
             user=self.user,
             genre='pop',
@@ -107,17 +109,17 @@ class GameScoreModelTests(TestCase):
 
 
 class UserBestModelTests(TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.user = _make_user('best_player')
 
-    def test_created_with_defaults(self):
+    def test_created_with_defaults(self) -> None:
         best = UserBest.objects.create(user=self.user)
         self.assertEqual(best.best_score_overall, 0)
         self.assertEqual(best.best_streak_overall, 0)
         self.assertEqual(best.total_songs_played, 0)
         self.assertEqual(best.per_genre, {})
 
-    def test_update_from_score_improves_bests(self):
+    def test_update_from_score_improves_bests(self) -> None:
         best = UserBest.objects.create(user=self.user)
         score = GameScore.objects.create(
             user=self.user,
@@ -135,7 +137,7 @@ class UserBestModelTests(TestCase):
         self.assertEqual(best.total_songs_played, 8)
         self.assertEqual(best.per_genre['hiphop']['best_score'], 200)
 
-    def test_update_from_score_no_change_when_lower(self):
+    def test_update_from_score_no_change_when_lower(self) -> None:
         best = UserBest.objects.create(
             user=self.user,
             best_score_overall=500,
@@ -153,7 +155,7 @@ class UserBestModelTests(TestCase):
         self.assertFalse(changed)
         self.assertEqual(best.best_score_overall, 500)
 
-    def test_total_songs_always_accumulates(self):
+    def test_total_songs_always_accumulates(self) -> None:
         best = UserBest.objects.create(user=self.user, total_songs_played=5)
         score = GameScore.objects.create(
             user=self.user,
@@ -170,7 +172,7 @@ class UserBestModelTests(TestCase):
 class PlaylistListViewTests(APITestCase):
     url = '/api/game/categories/'
 
-    def setUp(self):
+    def setUp(self) -> None:
         cache.clear()
         self.pop_playlist = Playlist.objects.create(name='Pop', category='pop')
         self.hiphop_playlist = Playlist.objects.create(name='Hip-Hop / Rap', category='hiphop')
@@ -182,23 +184,23 @@ class PlaylistListViewTests(APITestCase):
         PlaylistTrack.objects.create(playlist=self.pop_playlist, track=t2, order_in_playlist=2)
         PlaylistTrack.objects.create(playlist=self.hiphop_playlist, track=t3, order_in_playlist=1)
 
-    def test_returns_playlists_with_track_count(self):
+    def test_returns_playlists_with_track_count(self) -> None:
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         by_category = {r['category']: r['track_count'] for r in response.data}
         self.assertEqual(by_category.get('pop'), 2)
         self.assertEqual(by_category.get('hiphop'), 1)
 
-    def test_excludes_empty_playlists(self):
+    def test_excludes_empty_playlists(self) -> None:
         response = self.client.get(self.url)
         categories = [r['category'] for r in response.data]
         self.assertNotIn('rock', categories)
 
-    def test_accessible_without_auth(self):
+    def test_accessible_without_auth(self) -> None:
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_each_entry_has_required_fields(self):
+    def test_each_entry_has_required_fields(self) -> None:
         response = self.client.get(self.url)
         for entry in response.data:
             self.assertIn('id', entry)
@@ -210,7 +212,7 @@ class PlaylistListViewTests(APITestCase):
 class NextSongViewTests(APITestCase):
     url = '/api/game/next-song/'
 
-    def setUp(self):
+    def setUp(self) -> None:
         cache.clear()
         self.pop_playlist = Playlist.objects.create(name='Pop', category='pop')
         self.rock_playlist = Playlist.objects.create(name='Rock', category='rock')
@@ -221,37 +223,37 @@ class NextSongViewTests(APITestCase):
         PlaylistTrack.objects.create(playlist=self.pop_playlist, track=self.pop2, order_in_playlist=2)
         PlaylistTrack.objects.create(playlist=self.rock_playlist, track=self.rock, order_in_playlist=1)
 
-    def test_returns_a_track(self):
+    def test_returns_a_track(self) -> None:
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('id', response.data)
         self.assertIn('title', response.data)
         self.assertIn('preview_url', response.data)
 
-    def test_playlist_filter_returns_matching_tracks(self):
+    def test_playlist_filter_returns_matching_tracks(self) -> None:
         response = self.client.get(self.url, {'playlist': str(self.rock_playlist.id)})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['title'], 'Rock Song')
 
-    def test_artist_filter(self):
+    def test_artist_filter(self) -> None:
         _make_track(title='Artist Song', artist='Unique Solo Artist', genre='pop')
         response = self.client.get(self.url, {'artist': 'Unique Solo'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('Unique Solo Artist', response.data['artist'])
 
-    def test_exclude_ids_filters_out_seen_tracks(self):
+    def test_exclude_ids_filters_out_seen_tracks(self) -> None:
         exclude = str(self.pop1.id)
         for _ in range(5):
             response = self.client.get(self.url, {'playlist': str(self.pop_playlist.id), 'exclude': exclude})
             self.assertEqual(response.status_code, status.HTTP_200_OK)
             self.assertNotEqual(response.data['id'], exclude)
 
-    def test_404_when_playlist_is_empty(self):
+    def test_404_when_playlist_is_empty(self) -> None:
         empty = Playlist.objects.create(name='Empty', category='kpop')
         response = self.client.get(self.url, {'playlist': str(empty.id)})
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_accessible_without_auth(self):
+    def test_accessible_without_auth(self) -> None:
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -259,31 +261,31 @@ class NextSongViewTests(APITestCase):
 class ArtistListViewTests(APITestCase):
     url = '/api/game/artists/'
 
-    def setUp(self):
+    def setUp(self) -> None:
         cache.clear()
         _make_track(title='Song A', artist='Beyoncé')
         _make_track(title='Song B', artist='The Beatles')
         _make_track(title='Song C', artist='Beatles Revival Band')
 
-    def test_returns_matching_artists(self):
+    def test_returns_matching_artists(self) -> None:
         response = self.client.get(self.url, {'q': 'Beat'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         names = [a['name'] for a in response.data]
         self.assertIn('The Beatles', names)
         self.assertIn('Beatles Revival Band', names)
 
-    def test_empty_for_short_query(self):
+    def test_empty_for_short_query(self) -> None:
         response = self.client.get(self.url, {'q': 'B'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, [])
 
-    def test_each_entry_has_name_and_picture_url(self):
+    def test_each_entry_has_name_and_picture_url(self) -> None:
         response = self.client.get(self.url, {'q': 'Bey'})
         for entry in response.data:
             self.assertIn('name', entry)
             self.assertIn('picture_url', entry)
 
-    def test_accessible_without_auth(self):
+    def test_accessible_without_auth(self) -> None:
         response = self.client.get(self.url, {'q': 'Beat'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -291,7 +293,7 @@ class ArtistListViewTests(APITestCase):
 class ArtistTrendingViewTests(APITestCase):
     url = '/api/game/artists/trending/'
 
-    def setUp(self):
+    def setUp(self) -> None:
         cache.clear()
         self.user = _make_user('trend_user')
         GameScore.objects.create(
@@ -307,18 +309,18 @@ class ArtistTrendingViewTests(APITestCase):
             songs_played=2, songs_correct=1, best_streak=1, total_score=20,
         )
 
-    def test_returns_trending_artists(self):
+    def test_returns_trending_artists(self) -> None:
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         names = [a['name'] for a in response.data]
         self.assertIn('Drake', names)
         self.assertIn('Adele', names)
 
-    def test_most_played_artist_appears_first(self):
+    def test_most_played_artist_appears_first(self) -> None:
         response = self.client.get(self.url)
         self.assertEqual(response.data[0]['name'], 'Drake')
 
-    def test_old_scores_excluded(self):
+    def test_old_scores_excluded(self) -> None:
         old_score = GameScore.objects.create(
             user=self.user, artist_filter='Old Artist',
             songs_played=100, songs_correct=100, best_streak=100, total_score=9999,
@@ -329,7 +331,7 @@ class ArtistTrendingViewTests(APITestCase):
         names = [a['name'] for a in response.data]
         self.assertNotIn('Old Artist', names)
 
-    def test_accessible_without_auth(self):
+    def test_accessible_without_auth(self) -> None:
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -337,59 +339,59 @@ class ArtistTrendingViewTests(APITestCase):
 class FavouriteArtistViewTests(APITestCase):
     url = '/api/game/artists/favourites/'
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.user = _make_user('fav_user')
         self.client.credentials(HTTP_AUTHORIZATION=_bearer(self.user))
 
-    def test_list_empty_by_default(self):
+    def test_list_empty_by_default(self) -> None:
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, [])
 
-    def test_add_favourite_artist(self):
+    def test_add_favourite_artist(self) -> None:
         response = self.client.post(self.url, {'artist_name': 'Kendrick Lamar'}, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(FavouriteArtist.objects.filter(user=self.user, artist_name='Kendrick Lamar').exists())
 
-    def test_add_favourite_idempotent(self):
+    def test_add_favourite_idempotent(self) -> None:
         self.client.post(self.url, {'artist_name': 'Kendrick Lamar'}, format='json')
         self.client.post(self.url, {'artist_name': 'Kendrick Lamar'}, format='json')
         self.assertEqual(
             FavouriteArtist.objects.filter(user=self.user, artist_name='Kendrick Lamar').count(), 1
         )
 
-    def test_list_shows_added_artists(self):
+    def test_list_shows_added_artists(self) -> None:
         FavouriteArtist.objects.create(user=self.user, artist_name='Jay-Z')
         response = self.client.get(self.url)
         names = [a['name'] for a in response.data]
         self.assertIn('Jay-Z', names)
 
-    def test_add_requires_artist_name(self):
+    def test_add_requires_artist_name(self) -> None:
         response = self.client.post(self.url, {}, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_requires_authentication(self):
+    def test_requires_authentication(self) -> None:
         self.client.credentials()
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 class FavouriteArtistDetailViewTests(APITestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.user = _make_user('fav_detail_user')
         self.client.credentials(HTTP_AUTHORIZATION=_bearer(self.user))
         FavouriteArtist.objects.create(user=self.user, artist_name='Rihanna')
 
-    def test_delete_favourite_artist(self):
+    def test_delete_favourite_artist(self) -> None:
         response = self.client.delete('/api/game/artists/favourites/Rihanna/')
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(FavouriteArtist.objects.filter(user=self.user, artist_name='Rihanna').exists())
 
-    def test_delete_nonexistent_is_idempotent(self):
+    def test_delete_nonexistent_is_idempotent(self) -> None:
         response = self.client.delete('/api/game/artists/favourites/Unknown/')
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
-    def test_delete_requires_authentication(self):
+    def test_delete_requires_authentication(self) -> None:
         self.client.credentials()
         response = self.client.delete('/api/game/artists/favourites/Rihanna/')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
@@ -398,34 +400,34 @@ class FavouriteArtistDetailViewTests(APITestCase):
 class SearchTracksViewTests(APITestCase):
     url = '/api/game/tracks/search/'
 
-    def setUp(self):
+    def setUp(self) -> None:
         cache.clear()
         _make_track(title='Bohemian Rhapsody', artist='Queen', genre='rock')
         _make_track(title='Somebody That I Used to Know', artist='Gotye', genre='pop')
         _make_track(title='Another Brick', artist='Pink Floyd', genre='rock')
 
-    def test_search_by_title(self):
+    def test_search_by_title(self) -> None:
         response = self.client.get(self.url, {'q': 'Bohemian'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         titles = [t['title'] for t in response.data]
         self.assertIn('Bohemian Rhapsody', titles)
 
-    def test_search_by_artist(self):
+    def test_search_by_artist(self) -> None:
         response = self.client.get(self.url, {'q': 'Gotye'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
 
-    def test_short_query_returns_empty(self):
+    def test_short_query_returns_empty(self) -> None:
         response = self.client.get(self.url, {'q': 'B'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, [])
 
-    def test_no_preview_url_in_search_results(self):
+    def test_no_preview_url_in_search_results(self) -> None:
         response = self.client.get(self.url, {'q': 'Brick'})
         for entry in response.data:
             self.assertNotIn('preview_url', entry)
 
-    def test_accessible_without_auth(self):
+    def test_accessible_without_auth(self) -> None:
         response = self.client.get(self.url, {'q': 'Queen'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -433,11 +435,11 @@ class SearchTracksViewTests(APITestCase):
 class SubmitScoreViewTests(APITestCase):
     url = '/api/game/score/'
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.user = _make_user('scorer')
         self.client.credentials(HTTP_AUTHORIZATION=_bearer(self.user))
 
-    def _payload(self, **overrides):
+    def _payload(self, **overrides: Any) -> dict[str, Any]:
         base = {
             'genre': 'pop',
             'artist_filter': '',
@@ -450,30 +452,30 @@ class SubmitScoreViewTests(APITestCase):
         base.update(overrides)
         return base
 
-    def test_submit_score_creates_game_score(self):
+    def test_submit_score_creates_game_score(self) -> None:
         response = self.client.post(self.url, self._payload(), format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(GameScore.objects.filter(user=self.user).exists())
 
-    def test_submit_score_creates_user_best(self):
+    def test_submit_score_creates_user_best(self) -> None:
         self.client.post(self.url, self._payload(), format='json')
         self.assertTrue(UserBest.objects.filter(user=self.user).exists())
         best = UserBest.objects.get(user=self.user)
         self.assertEqual(best.best_score_overall, 120)
 
-    def test_submit_score_response_has_required_fields(self):
+    def test_submit_score_response_has_required_fields(self) -> None:
         response = self.client.post(self.url, self._payload(), format='json')
         for field in ('id', 'genre', 'songs_played', 'songs_correct', 'best_streak', 'total_score'):
             self.assertIn(field, response.data)
 
-    def test_second_better_score_updates_user_best(self):
+    def test_second_better_score_updates_user_best(self) -> None:
         self.client.post(self.url, self._payload(total_score=100), format='json')
         self.client.post(self.url, self._payload(total_score=300, best_streak=10), format='json')
         best = UserBest.objects.get(user=self.user)
         self.assertEqual(best.best_score_overall, 300)
         self.assertEqual(best.best_streak_overall, 10)
 
-    def test_artist_filter_score_stored(self):
+    def test_artist_filter_score_stored(self) -> None:
         response = self.client.post(
             self.url,
             self._payload(genre='', artist_filter='Daft Punk'),
@@ -484,21 +486,21 @@ class SubmitScoreViewTests(APITestCase):
         self.assertEqual(score.artist_filter, 'Daft Punk')
         self.assertIsNone(score.genre)
 
-    def test_requires_authentication(self):
+    def test_requires_authentication(self) -> None:
         self.client.credentials()
         response = self.client.post(self.url, self._payload(), format='json')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_missing_required_fields_returns_400(self):
+    def test_missing_required_fields_returns_400(self) -> None:
         response = self.client.post(self.url, {}, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_difficulty_choices_accepted(self):
+    def test_difficulty_choices_accepted(self) -> None:
         for diff in ('easy', 'medium', 'hard'):
             response = self.client.post(self.url, self._payload(difficulty=diff), format='json')
             self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_invalid_difficulty_rejected(self):
+    def test_invalid_difficulty_rejected(self) -> None:
         response = self.client.post(self.url, self._payload(difficulty='expert'), format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -506,17 +508,17 @@ class SubmitScoreViewTests(APITestCase):
 class UserStatsViewTests(APITestCase):
     url = '/api/game/stats/'
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.user = _make_user('stats_user')
         self.client.credentials(HTTP_AUTHORIZATION=_bearer(self.user))
 
-    def test_returns_default_stats_for_new_user(self):
+    def test_returns_default_stats_for_new_user(self) -> None:
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['best_score_overall'], 0)
         self.assertEqual(response.data['total_songs_played'], 0)
 
-    def test_returns_existing_user_best(self):
+    def test_returns_existing_user_best(self) -> None:
         UserBest.objects.create(
             user=self.user,
             best_score_overall=500,
@@ -527,12 +529,12 @@ class UserStatsViewTests(APITestCase):
         self.assertEqual(response.data['best_score_overall'], 500)
         self.assertEqual(response.data['best_streak_overall'], 8)
 
-    def test_requires_authentication(self):
+    def test_requires_authentication(self) -> None:
         self.client.credentials()
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_response_has_required_fields(self):
+    def test_response_has_required_fields(self) -> None:
         response = self.client.get(self.url)
         for field in ('best_score_overall', 'best_streak_overall',
                       'total_songs_played', 'total_songs_correct', 'per_genre'):
@@ -542,7 +544,7 @@ class UserStatsViewTests(APITestCase):
 class LeaderboardViewTests(APITestCase):
     url = '/api/game/leaderboard/'
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.user = _make_user('leaderboard_user')
         self.client.credentials(HTTP_AUTHORIZATION=_bearer(self.user))
         self.other = _make_user('other_user')
@@ -560,19 +562,19 @@ class LeaderboardViewTests(APITestCase):
             songs_played=5, songs_correct=3, best_streak=2, total_score=50,
         )
 
-    def test_returns_scores_ordered_by_total_score_desc(self):
+    def test_returns_scores_ordered_by_total_score_desc(self) -> None:
         response = self.client.get(self.url, {'timeframe': 'alltime'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         scores = [entry['total_score'] for entry in response.data]
         self.assertEqual(scores, sorted(scores, reverse=True))
 
-    def test_genre_filter(self):
+    def test_genre_filter(self) -> None:
         response = self.client.get(self.url, {'timeframe': 'alltime', 'genre': 'rock'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         for entry in response.data:
             self.assertEqual(entry['genre'], 'rock')
 
-    def test_daily_timeframe_excludes_old_scores(self):
+    def test_daily_timeframe_excludes_old_scores(self) -> None:
         old_score = GameScore.objects.create(
             user=self.user, genre='pop',
             songs_played=5, songs_correct=5, best_streak=5, total_score=9999,
@@ -583,22 +585,22 @@ class LeaderboardViewTests(APITestCase):
         score_ids = [e['id'] for e in response.data]
         self.assertNotIn(str(old_score.id), score_ids)
 
-    def test_alltime_includes_all_scores(self):
+    def test_alltime_includes_all_scores(self) -> None:
         response = self.client.get(self.url, {'timeframe': 'alltime'})
         self.assertEqual(len(response.data), 3)
 
-    def test_limit_param_respected(self):
-        response = self.client.get(self.url, {'timeframe': 'alltime', 'limit': 2})
+    def test_limit_param_respected(self) -> None:
+        response = self.client.get(self.url, {'timeframe': 'alltime', 'limit': '2'})
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertLessEqual(len(response.data), 2)
 
-    def test_response_entries_have_user_field(self):
+    def test_response_entries_have_user_field(self) -> None:
         response = self.client.get(self.url, {'timeframe': 'alltime'})
         for entry in response.data:
             self.assertIn('user', entry)
             self.assertIn('username', entry['user'])
 
-    def test_requires_authentication(self):
+    def test_requires_authentication(self) -> None:
         self.client.credentials()
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
@@ -607,11 +609,11 @@ class LeaderboardViewTests(APITestCase):
 class MigrateGuestStatsViewTests(APITestCase):
     url = '/api/game/migrate-guest-stats/'
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.user = _make_user('migrator')
         self.client.credentials(HTTP_AUTHORIZATION=_bearer(self.user))
 
-    def _payload(self, **overrides):
+    def _payload(self, **overrides: Any) -> dict[str, Any]:
         base = {
             'best_score': 150,
             'best_streak': 6,
@@ -621,7 +623,7 @@ class MigrateGuestStatsViewTests(APITestCase):
         base.update(overrides)
         return base
 
-    def test_migrate_creates_user_best(self):
+    def test_migrate_creates_user_best(self) -> None:
         response = self.client.post(self.url, self._payload(), format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['status'], 'migrated')
@@ -629,7 +631,7 @@ class MigrateGuestStatsViewTests(APITestCase):
         self.assertEqual(best.best_score_overall, 150)
         self.assertEqual(best.total_songs_played, 20)
 
-    def test_migrate_merges_keeps_higher_existing_best(self):
+    def test_migrate_merges_keeps_higher_existing_best(self) -> None:
         UserBest.objects.create(
             user=self.user,
             best_score_overall=200,
@@ -643,23 +645,23 @@ class MigrateGuestStatsViewTests(APITestCase):
         self.assertEqual(best.best_score_overall, 200)
         self.assertEqual(best.total_songs_played, 30)
 
-    def test_migrate_applies_higher_guest_score(self):
+    def test_migrate_applies_higher_guest_score(self) -> None:
         UserBest.objects.create(user=self.user, best_score_overall=50)
         self.client.post(self.url, self._payload(best_score=300), format='json')
         best = UserBest.objects.get(user=self.user)
         self.assertEqual(best.best_score_overall, 300)
 
-    def test_nothing_migrated_when_songs_played_zero(self):
+    def test_nothing_migrated_when_songs_played_zero(self) -> None:
         response = self.client.post(self.url, self._payload(songs_played=0), format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['status'], 'nothing_to_migrate')
 
-    def test_requires_authentication(self):
+    def test_requires_authentication(self) -> None:
         self.client.credentials()
         response = self.client.post(self.url, self._payload(), format='json')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_missing_fields_returns_400(self):
+    def test_missing_fields_returns_400(self) -> None:
         response = self.client.post(self.url, {}, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -670,56 +672,60 @@ class WebSocketOriginValidatorTests(TestCase):
     an Origin header. Native clients send none and must never be blocked.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         from .middleware import OriginValidatorMiddleware
 
-        self.sent = []
+        self.sent: list[dict[str, Any]] = []
 
-        async def inner(scope, receive, send):
+        async def inner(
+            scope: dict[str, Any],
+            receive: Callable[[], Awaitable[dict[str, Any]]],
+            send: Callable[[dict[str, Any]], Awaitable[None]],
+        ) -> None:
             self.sent.append({'type': 'reached_inner'})
 
         self.middleware = OriginValidatorMiddleware(inner)
 
-    def _scope(self, origin=None):
+    def _scope(self, origin: str | None = None) -> dict[str, Any]:
         headers = [(b'host', b'api.example.com')]
         if origin is not None:
             headers.append((b'origin', origin.encode()))
         return {'type': 'websocket', 'path': '/ws/duel/queue/', 'headers': headers}
 
-    def _run(self, scope):
+    def _run(self, scope: dict[str, Any]) -> list[dict[str, Any]]:
         import asyncio
 
-        async def send(message):
+        async def send(message: dict[str, Any]) -> None:
             self.sent.append(message)
 
-        async def receive():
+        async def receive() -> dict[str, Any]:
             return {'type': 'websocket.connect'}
 
         asyncio.run(self.middleware(scope, receive, send))
         return self.sent
 
     @override_settings(WEBSOCKET_ALLOWED_ORIGINS=['https://play.example.com'])
-    def test_allowed_origin_reaches_inner_app(self):
+    def test_allowed_origin_reaches_inner_app(self) -> None:
         sent = self._run(self._scope('https://play.example.com'))
         self.assertEqual(sent, [{'type': 'reached_inner'}])
 
     @override_settings(WEBSOCKET_ALLOWED_ORIGINS=['https://play.example.com'])
-    def test_trailing_slash_on_origin_is_tolerated(self):
+    def test_trailing_slash_on_origin_is_tolerated(self) -> None:
         sent = self._run(self._scope('https://play.example.com/'))
         self.assertEqual(sent, [{'type': 'reached_inner'}])
 
     @override_settings(WEBSOCKET_ALLOWED_ORIGINS=['https://play.example.com'])
-    def test_disallowed_origin_is_closed(self):
+    def test_disallowed_origin_is_closed(self) -> None:
         sent = self._run(self._scope('https://evil.example.com'))
         self.assertEqual(sent, [{'type': 'websocket.close', 'code': 4003}])
 
     @override_settings(WEBSOCKET_ALLOWED_ORIGINS=['https://play.example.com'])
-    def test_missing_origin_is_allowed_for_native_clients(self):
+    def test_missing_origin_is_allowed_for_native_clients(self) -> None:
         sent = self._run(self._scope(None))
         self.assertEqual(sent, [{'type': 'reached_inner'}])
 
     @override_settings(WEBSOCKET_ALLOWED_ORIGINS=[])
-    def test_empty_allowlist_disables_the_check(self):
+    def test_empty_allowlist_disables_the_check(self) -> None:
         sent = self._run(self._scope('https://anything.example.com'))
         self.assertEqual(sent, [{'type': 'reached_inner'}])
 
@@ -729,7 +735,7 @@ class CorsHeaderTests(APITestCase):
 
     @override_settings(CORS_ALLOWED_ORIGINS=['https://play.example.com'],
                        CORS_ALLOWED_ORIGIN_REGEXES=[])
-    def test_allowed_origin_gets_cors_header(self):
+    def test_allowed_origin_gets_cors_header(self) -> None:
         response = self.client.get(
             '/api/game/categories/', HTTP_ORIGIN='https://play.example.com'
         )
@@ -740,7 +746,7 @@ class CorsHeaderTests(APITestCase):
 
     @override_settings(CORS_ALLOWED_ORIGINS=['https://play.example.com'],
                        CORS_ALLOWED_ORIGIN_REGEXES=[])
-    def test_unknown_origin_gets_no_cors_header(self):
+    def test_unknown_origin_gets_no_cors_header(self) -> None:
         response = self.client.get(
             '/api/game/categories/', HTTP_ORIGIN='https://evil.example.com'
         )
@@ -748,7 +754,7 @@ class CorsHeaderTests(APITestCase):
 
     @override_settings(CORS_ALLOWED_ORIGINS=['https://play.example.com'],
                        CORS_ALLOWED_ORIGIN_REGEXES=[])
-    def test_preflight_is_answered_without_auth(self):
+    def test_preflight_is_answered_without_auth(self) -> None:
         response = self.client.options(
             '/api/game/categories/',
             HTTP_ORIGIN='https://play.example.com',
@@ -772,25 +778,25 @@ class PlayableQueryShapeTests(TestCase):
     the results changes when it regresses, so only the query shape catches it.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         cache.clear()
         catalog.clear_junk_artist_cache()
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         catalog.clear_junk_artist_cache()
 
-    def _track_by(self, artist, deezer_artist_id):
+    def _track_by(self, artist: str, deezer_artist_id: int) -> Track:
         track = _make_track(artist=artist)
         Track.objects.filter(pk=track.pk).update(deezer_artist_id=deezer_artist_id)
         return track
 
-    def test_only_indexed_hard_blocks_use_an_artist_subquery(self):
+    def test_only_indexed_hard_blocks_use_an_artist_subquery(self) -> None:
         Artist.objects.create(deezer_id=9001, name='Tribute Band', is_junk=True)
         sql = str(catalog.playable(Track.objects.all()).query)
         self.assertIn('"is_blocked"', sql)
         self.assertNotIn('"is_junk"', sql)
 
-    def test_junk_artist_tracks_stay_out_of_undirected_picks(self):
+    def test_junk_artist_tracks_stay_out_of_undirected_picks(self) -> None:
         Artist.objects.create(deezer_id=9002, name='Tribute Band', is_junk=True)
         junk = self._track_by('Tribute Band', 9002)
         keeper = self._track_by('Real Artist', 9003)
@@ -799,7 +805,7 @@ class PlayableQueryShapeTests(TestCase):
         self.assertIn(keeper.pk, {t.pk for t in playable})
         self.assertNotIn(junk.pk, {t.pk for t in playable})
 
-    def test_blocking_an_artist_takes_effect_without_waiting_for_the_ttl(self):
+    def test_blocking_an_artist_takes_effect_without_waiting_for_the_ttl(self) -> None:
         artist = Artist.objects.create(deezer_id=9004, name='Ordinary Act')
         track = self._track_by('Ordinary Act', 9004)
         # Warm both cache tiers before the block, which is the case that would
@@ -811,7 +817,7 @@ class PlayableQueryShapeTests(TestCase):
 
         self.assertNotIn(track.pk, {t.pk for t in catalog.playable(Track.objects.all())})
 
-    def test_directed_picks_respect_hard_blocks(self):
+    def test_directed_picks_respect_hard_blocks(self) -> None:
         Artist.objects.create(deezer_id=9005, name='Ordinary Act', is_blocked=True)
         track = self._track_by('Ordinary Act', 9005)
         directed = catalog.playable(Track.objects.all(), directed=True)
@@ -832,30 +838,30 @@ class ShortTokenSearchTests(TestCase):
     the Play Store.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         cache.clear()
 
-    def test_short_token_matches_at_the_start(self):
+    def test_short_token_matches_at_the_start(self) -> None:
         _make_track(title='Beautiful Day', artist='U2')
         results = catalog.search_tracks('u2')
         self.assertEqual([t.artist for t in results], ['U2'])
 
-    def test_short_token_matches_a_later_word(self):
+    def test_short_token_matches_a_later_word(self) -> None:
         # Word indexing avoids the old field-start-only compromise.
         _make_track(title='Do It', artist='Chase Atlantic')
         self.assertEqual([t.title for t in catalog.search_tracks('it')], ['Do It'])
 
-    def test_short_token_query_carries_no_leading_wildcard(self):
+    def test_short_token_query_carries_no_leading_wildcard(self) -> None:
         sql = str(Track.objects.filter(catalog._query_filter('u2')).query)
         self.assertNotIn('%u2%', sql)
         self.assertIn('LIKE u2%', sql)
 
-    def test_long_token_still_matches_mid_field(self):
+    def test_long_token_still_matches_mid_field(self) -> None:
         _make_track(title='Blinding Lights', artist='The Weeknd')
         results = catalog.search_tracks('lights')
         self.assertEqual([t.title for t in results], ['Blinding Lights'])
 
-    def test_mixed_lengths_apply_their_own_rule(self):
+    def test_mixed_lengths_apply_their_own_rule(self) -> None:
         _make_track(title='Do It', artist='Chase Atlantic')
         _make_track(title='Doing Fine', artist='Chase Atlantic')
         # `do` has to begin a word, `chase` can sit anywhere — both titles
@@ -865,36 +871,36 @@ class ShortTokenSearchTests(TestCase):
             sorted(t.title for t in results), ['Do It', 'Doing Fine'],
         )
 
-    def test_a_title_stays_found_while_it_is_typed(self):
+    def test_a_title_stays_found_while_it_is_typed(self) -> None:
         _make_track(title='Feu de bois', artist='Damso')
         for query in ('feu', 'feu de', 'feu de b', 'feu de bois', 'damso feu de'):
             with self.subTest(query=query):
                 results = catalog.search_tracks(query)
                 self.assertIn('Feu de bois', [t.title for t in results])
 
-    def test_a_short_word_has_to_begin_a_word(self):
+    def test_a_short_word_has_to_begin_a_word(self) -> None:
         # `eu` sits inside `feu` but begins no word of the title or artist.
         _make_track(title='Feu de bois', artist='Damso')
         self.assertEqual(catalog.search_tracks('bois eu'), [])
 
-    def test_short_words_alone_match_as_a_phrase(self):
+    def test_short_words_alone_match_as_a_phrase(self) -> None:
         _make_track(title='Do It', artist='Stray Kids')
         self.assertEqual([t.title for t in catalog.search_tracks('do it')], ['Do It'])
 
-    def test_short_words_alone_match_across_title_and_artist(self):
+    def test_short_words_alone_match_across_title_and_artist(self) -> None:
         _make_track(title='Esquina', artist='UANA')
         self.assertEqual([t.title for t in catalog.search_tracks('es ua')], ['Esquina'])
 
-    def test_a_short_word_next_to_a_long_one_is_anchored_to_a_word(self):
+    def test_a_short_word_next_to_a_long_one_is_anchored_to_a_word(self) -> None:
         sql = str(Track.objects.filter(catalog._query_filter('feu de')).query)
         self.assertNotIn('%de%', sql)
         self.assertIn('% de%', sql)
 
-    def test_short_words_alone_carry_no_leading_wildcard(self):
+    def test_short_words_alone_carry_no_leading_wildcard(self) -> None:
         sql = str(Track.objects.filter(catalog._query_filter('do it')).query)
         self.assertNotIn('LIKE %', sql)
 
-    def test_a_one_letter_word_only_counts_as_part_of_the_phrase(self):
+    def test_a_one_letter_word_only_counts_as_part_of_the_phrase(self) -> None:
         # `a%` on its own matches hundreds of thousands of rows per field.
         _make_track(title='Take on Me', artist='a-ha')
         self.assertEqual([t.title for t in catalog.search_tracks('a ha')], ['Take on Me'])
@@ -914,10 +920,10 @@ class ExactTitleSearchTests(TestCase):
     table but in neither list. Reported by a player by email.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         cache.clear()
 
-    def _crowd(self, title, artist, count=160):
+    def _crowd(self, title: str, artist: str, count: int = 160) -> None:
         Track.objects.bulk_create(
             Track(
                 title=f'{title} {i}', artist=artist, rank=900_000 - i,
@@ -928,25 +934,25 @@ class ExactTitleSearchTests(TestCase):
             for i in range(count)
         )
 
-    def _track(self, title, artist, rank):
+    def _track(self, title: str, artist: str, rank: int) -> Track:
         track = _make_track(title=title, artist=artist)
         track.rank = rank
         track.save(update_fields=['rank'])
         return track
 
-    def test_an_exact_title_outranks_popular_rows_containing_its_words(self, *_):
+    def test_an_exact_title_outranks_popular_rows_containing_its_words(self, *_: mock.MagicMock) -> None:
         self._crowd('Venom (From The Motion Picture)', 'Eminem')
         self._track('The Motion', 'Drake', 473_341)
         results = catalog.search_tracks('the motion', limit=20)
         self.assertEqual(results[0].title, 'The Motion')
 
-    def test_an_exact_title_outside_the_popular_matches_is_still_found(self, *_):
+    def test_an_exact_title_outside_the_popular_matches_is_still_found(self, *_: mock.MagicMock) -> None:
         self._crowd('Quiet and Alone', 'Henrique & Juliano')
         self._track('Q&A', 'Drake', 461_205)
         results = catalog.search_tracks('Q&A', limit=20)
         self.assertIn('Q&A', [t.title for t in results])
 
-    def test_a_title_named_like_an_artist_does_not_bury_the_artist(self, *_):
+    def test_a_title_named_like_an_artist_does_not_bury_the_artist(self, *_: mock.MagicMock) -> None:
         # On prod the boost alone put "Rihanna" by SDM above every Rihanna song.
         self._track("Don't Stop The Music", 'Rihanna', 700_000)
         self._track('We Found Love', 'Rihanna', 690_000)
@@ -969,34 +975,34 @@ class EnrichmentClaimTests(TestCase):
     held ingestion at a floor that never decayed.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         cache.clear()
 
-    def test_first_caller_claims_and_second_does_not(self):
+    def test_first_caller_claims_and_second_does_not(self) -> None:
         self.assertTrue(catalog._claim('tracks', 'despacito'))
         self.assertFalse(catalog._claim('tracks', 'despacito'))
 
-    def test_claim_survives_the_cache_being_wiped(self):
+    def test_claim_survives_the_cache_being_wiped(self) -> None:
         self.assertTrue(catalog._claim('tracks', 'despacito'))
         cache.clear()
         self.assertFalse(catalog._claim('tracks', 'despacito'))
 
-    def test_claim_is_keyed_on_the_normalised_query(self):
+    def test_claim_is_keyed_on_the_normalised_query(self) -> None:
         self.assertTrue(catalog._claim('tracks', 'Rosalía'))
         self.assertFalse(catalog._claim('tracks', 'rosalia'))
 
-    def test_kinds_claim_independently(self):
+    def test_kinds_claim_independently(self) -> None:
         self.assertTrue(catalog._claim('tracks', 'rosalia'))
         self.assertTrue(catalog._claim('artists', 'rosalia'))
 
-    def test_expired_claim_is_reusable(self):
+    def test_expired_claim_is_reusable(self) -> None:
         self.assertTrue(catalog._claim('tracks', 'despacito'))
         SearchEnrichment.objects.update(
             enriched_at=timezone.now() - timedelta(seconds=catalog.ENRICH_DEDUP_TTL + 60)
         )
         self.assertTrue(catalog._claim('tracks', 'despacito'))
 
-    def test_expired_claim_goes_to_one_caller_only(self):
+    def test_expired_claim_goes_to_one_caller_only(self) -> None:
         self.assertTrue(catalog._claim('tracks', 'despacito'))
         SearchEnrichment.objects.update(
             enriched_at=timezone.now() - timedelta(seconds=catalog.ENRICH_DEDUP_TTL + 60)
@@ -1006,12 +1012,12 @@ class EnrichmentClaimTests(TestCase):
         self.assertTrue(catalog._claim('tracks', 'despacito'))
         self.assertFalse(catalog._claim('tracks', 'despacito'))
 
-    def test_release_reopens_the_query(self):
+    def test_release_reopens_the_query(self) -> None:
         self.assertTrue(catalog._claim('tracks', 'despacito'))
         catalog._release('tracks', 'despacito')
         self.assertTrue(catalog._claim('tracks', 'despacito'))
 
-    def test_blank_query_never_claims(self):
+    def test_blank_query_never_claims(self) -> None:
         self.assertFalse(catalog._claim('tracks', '   '))
         self.assertEqual(SearchEnrichment.objects.count(), 0)
 
@@ -1019,7 +1025,7 @@ class EnrichmentClaimTests(TestCase):
 class PurgeExpiredClaimsTests(TestCase):
     """The sweep the cache used to do for free, now that claims are rows."""
 
-    def test_expired_claims_go_and_live_ones_stay(self):
+    def test_expired_claims_go_and_live_ones_stay(self) -> None:
         catalog._claim('tracks', 'fresh')
         catalog._claim('tracks', 'ancient')
         SearchEnrichment.objects.filter(norm_query='ancient').update(
@@ -1032,5 +1038,5 @@ class PurgeExpiredClaimsTests(TestCase):
             ['fresh'],
         )
 
-    def test_purge_is_safe_on_an_empty_table(self):
+    def test_purge_is_safe_on_an_empty_table(self) -> None:
         self.assertEqual(catalog.purge_expired_claims(), 0)

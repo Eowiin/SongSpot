@@ -1,3 +1,4 @@
+from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 from django.core.cache import cache
@@ -14,11 +15,14 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
 from .models import BugReport, User
 
+if TYPE_CHECKING:
+    from rest_framework.response import _MonkeyPatchedResponse
+
 
 class UserModelTests(TestCase):
     """Tests for the custom User model."""
 
-    def test_create_user(self):
+    def test_create_user(self) -> None:
         """Test creating a regular user."""
         user = User.objects.create_user(
             username='testuser',
@@ -31,7 +35,7 @@ class UserModelTests(TestCase):
         self.assertFalse(user.is_staff)
         self.assertTrue(user.check_password('testpass123'))
 
-    def test_create_user_without_email_raises_error(self):
+    def test_create_user_without_email_raises_error(self) -> None:
         """Test that creating a user without email raises an error."""
         with self.assertRaises(ValueError):
             User.objects.create_user(
@@ -40,7 +44,7 @@ class UserModelTests(TestCase):
                 password='testpass123'
             )
 
-    def test_create_superuser(self):
+    def test_create_superuser(self) -> None:
         """Test creating a superuser."""
         admin = User.objects.create_superuser(
             username='admin',
@@ -50,7 +54,7 @@ class UserModelTests(TestCase):
         self.assertTrue(admin.is_staff)
         self.assertTrue(admin.is_superuser)
 
-    def test_user_string_representation(self):
+    def test_user_string_representation(self) -> None:
         """Test the string representation of a user."""
         user = User.objects.create_user(
             username='testuser',
@@ -59,7 +63,7 @@ class UserModelTests(TestCase):
         )
         self.assertEqual(str(user), 'test@example.com')
 
-    def test_create_user_normalizes_email_to_lowercase(self):
+    def test_create_user_normalizes_email_to_lowercase(self) -> None:
         user = User.objects.create_user(
             username='testuser',
             email='Test@Example.COM',
@@ -71,11 +75,11 @@ class UserModelTests(TestCase):
 class RegisterViewTests(APITestCase):
     """Tests for user registration endpoint."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         cache.clear()
         self.register_url = '/api/auth/register/'
 
-    def test_register_user_success(self):
+    def test_register_user_success(self) -> None:
         """Test successful user registration."""
         data = {
             'email': 'newuser@example.com',
@@ -91,7 +95,7 @@ class RegisterViewTests(APITestCase):
         self.assertIn('refresh', response.data['tokens'])
         self.assertEqual(response.data['user']['email'], 'newuser@example.com')
 
-    def test_register_user_password_mismatch(self):
+    def test_register_user_password_mismatch(self) -> None:
         """Test registration fails when passwords don't match."""
         data = {
             'email': 'newuser@example.com',
@@ -102,7 +106,7 @@ class RegisterViewTests(APITestCase):
         response = self.client.post(self.register_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_register_user_duplicate_email(self):
+    def test_register_user_duplicate_email(self) -> None:
         """Test registration fails with duplicate email."""
         User.objects.create_user(
             username='existing',
@@ -118,7 +122,7 @@ class RegisterViewTests(APITestCase):
         response = self.client.post(self.register_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_register_user_missing_fields(self):
+    def test_register_user_missing_fields(self) -> None:
         """Test registration fails with missing fields."""
         data = {
             'email': 'newuser@example.com'
@@ -126,7 +130,7 @@ class RegisterViewTests(APITestCase):
         response = self.client.post(self.register_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_register_user_lowercases_email(self):
+    def test_register_user_lowercases_email(self) -> None:
         data = {
             'email': 'NewUser@Example.COM',
             'username': 'newuser',
@@ -141,7 +145,7 @@ class RegisterViewTests(APITestCase):
 class LoginViewTests(APITestCase):
     """Tests for user login endpoint."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         cache.clear()
         self.login_url = '/api/auth/login/'
         self.user = User.objects.create_user(
@@ -150,7 +154,7 @@ class LoginViewTests(APITestCase):
             password='testpass123'
         )
 
-    def test_login_success(self):
+    def test_login_success(self) -> None:
         """Test successful login."""
         data = {
             'email': 'test@example.com',
@@ -163,7 +167,7 @@ class LoginViewTests(APITestCase):
         self.assertIn('access', response.data['tokens'])
         self.assertIn('refresh', response.data['tokens'])
 
-    def test_login_wrong_password(self):
+    def test_login_wrong_password(self) -> None:
         """Test login fails with wrong password."""
         data = {
             'email': 'test@example.com',
@@ -172,7 +176,7 @@ class LoginViewTests(APITestCase):
         response = self.client.post(self.login_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_login_nonexistent_user(self):
+    def test_login_nonexistent_user(self) -> None:
         """Test login fails with nonexistent email."""
         data = {
             'email': 'nonexistent@example.com',
@@ -181,7 +185,7 @@ class LoginViewTests(APITestCase):
         response = self.client.post(self.login_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_login_missing_fields(self):
+    def test_login_missing_fields(self) -> None:
         """Test login fails with missing fields."""
         data = {
             'email': 'test@example.com'
@@ -189,7 +193,7 @@ class LoginViewTests(APITestCase):
         response = self.client.post(self.login_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_login_is_case_insensitive_for_email(self):
+    def test_login_is_case_insensitive_for_email(self) -> None:
         data = {
             'email': 'Test@Example.COM',
             'password': 'testpass123'
@@ -201,7 +205,7 @@ class LoginViewTests(APITestCase):
 class LogoutViewTests(APITestCase):
     """Tests for user logout endpoint."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         cache.clear()
         self.logout_url = '/api/auth/logout/'
         self.user = User.objects.create_user(
@@ -213,7 +217,7 @@ class LogoutViewTests(APITestCase):
         self.access_token = str(self.refresh.access_token)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
 
-    def test_logout_success(self):
+    def test_logout_success(self) -> None:
         """Test successful logout."""
         data = {
             'refresh': str(self.refresh)
@@ -221,12 +225,12 @@ class LogoutViewTests(APITestCase):
         response = self.client.post(self.logout_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_logout_without_refresh_token(self):
+    def test_logout_without_refresh_token(self) -> None:
         """Test logout fails without refresh token."""
         response = self.client.post(self.logout_url, {}, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_logout_unauthenticated(self):
+    def test_logout_unauthenticated(self) -> None:
         """Test logout fails without authentication."""
         self.client.credentials()  # Remove auth
         data = {
@@ -239,7 +243,7 @@ class LogoutViewTests(APITestCase):
 class RefreshTokenViewTests(APITestCase):
     """Tests for token refresh endpoint."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         cache.clear()
         self.refresh_url = '/api/auth/token/refresh/'
         self.user = User.objects.create_user(
@@ -249,7 +253,7 @@ class RefreshTokenViewTests(APITestCase):
         )
         self.refresh = RefreshToken.for_user(self.user)
 
-    def test_refresh_token_success(self):
+    def test_refresh_token_success(self) -> None:
         """Test successful token refresh."""
         data = {
             'refresh': str(self.refresh)
@@ -259,12 +263,12 @@ class RefreshTokenViewTests(APITestCase):
         self.assertIn('access', response.data)
         self.assertIn('refresh', response.data)
 
-    def test_refresh_token_missing(self):
+    def test_refresh_token_missing(self) -> None:
         """Test refresh fails without token."""
         response = self.client.post(self.refresh_url, {}, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_refresh_token_invalid(self):
+    def test_refresh_token_invalid(self) -> None:
         """Test refresh fails with invalid token."""
         data = {
             'refresh': 'invalid-token'
@@ -278,7 +282,7 @@ class RefreshTokenViewTests(APITestCase):
     DEFAULT_FROM_EMAIL='no-reply@songspot.test',
 )
 class PasswordResetFlowTests(APITestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         cache.clear()
         self.request_url = '/api/auth/password-reset/request/'
         self.user = User.objects.create_user(
@@ -287,7 +291,7 @@ class PasswordResetFlowTests(APITestCase):
             password='oldpass123A',
         )
 
-    def test_password_reset_request_sends_email_and_includes_lang(self):
+    def test_password_reset_request_sends_email_and_includes_lang(self) -> None:
         response = self.client.post(
             self.request_url,
             {'email': 'Reset@Example.com', 'locale': 'fr'},
@@ -299,7 +303,7 @@ class PasswordResetFlowTests(APITestCase):
         self.assertIn('/reset-password/', mail.outbox[0].body)
         self.assertIn('lang=fr', mail.outbox[0].body)
 
-    def test_password_reset_request_is_silent_for_unknown_email(self):
+    def test_password_reset_request_is_silent_for_unknown_email(self) -> None:
         response = self.client.post(
             self.request_url,
             {'email': 'missing@example.com'},
@@ -309,7 +313,7 @@ class PasswordResetFlowTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(mail.outbox), 0)
 
-    def test_password_reset_request_enforces_email_cooldown(self):
+    def test_password_reset_request_enforces_email_cooldown(self) -> None:
         first = self.client.post(
             self.request_url,
             {'email': 'reset@example.com'},
@@ -325,7 +329,7 @@ class PasswordResetFlowTests(APITestCase):
         self.assertEqual(second.status_code, status.HTTP_200_OK)
         self.assertEqual(len(mail.outbox), 1)
 
-    def test_password_reset_request_ip_throttle_blocks_after_three_attempts(self):
+    def test_password_reset_request_ip_throttle_blocks_after_three_attempts(self) -> None:
         responses = []
         for email in (
             'one@example.com',
@@ -346,7 +350,7 @@ class PasswordResetFlowTests(APITestCase):
         self.assertEqual(responses[2].status_code, status.HTTP_200_OK)
         self.assertEqual(responses[3].status_code, status.HTTP_429_TOO_MANY_REQUESTS)
 
-    def test_password_reset_confirm_updates_password_and_blacklists_tokens(self):
+    def test_password_reset_confirm_updates_password_and_blacklists_tokens(self) -> None:
         refresh = RefreshToken.for_user(self.user)
         reset_url = reverse(
             'password_reset_confirm',
@@ -376,7 +380,7 @@ class PasswordResetFlowTests(APITestCase):
 class BugReportViewTests(APITestCase):
     url = '/api/auth/bug-report/'
 
-    def setUp(self):
+    def setUp(self) -> None:
         cache.clear()
         self.user = User.objects.create_user(
             username='reporter',
@@ -384,7 +388,7 @@ class BugReportViewTests(APITestCase):
             password='testpass123',
         )
 
-    def _report(self, **overrides):
+    def _report(self, **overrides: Any) -> '_MonkeyPatchedResponse':
         body = {
             'message': 'The song never started after I picked Rock.',
             'app_version': '2.3.1 (50)',
@@ -394,7 +398,7 @@ class BugReportViewTests(APITestCase):
         body.update(overrides)
         return self.client.post(self.url, body, format='json')
 
-    def test_a_report_is_emailed_to_the_developer(self):
+    def test_a_report_is_emailed_to_the_developer(self) -> None:
         self.client.force_authenticate(self.user)
         response = self._report()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -407,25 +411,25 @@ class BugReportViewTests(APITestCase):
         self.assertIn('2.3.1 (50)', email.body)
         self.assertTrue(BugReport.objects.get().emailed)
 
-    def test_a_guest_can_report_too(self):
+    def test_a_guest_can_report_too(self) -> None:
         response = self._report()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIsNone(BugReport.objects.get().user)
         self.assertEqual(mail.outbox[0].reply_to, [])
 
-    def test_a_report_is_kept_when_the_email_fails(self):
+    def test_a_report_is_kept_when_the_email_fails(self) -> None:
         with patch('authentication.views.EmailMessage.send', side_effect=OSError('smtp down')):
             response = self._report()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertFalse(BugReport.objects.get().emailed)
 
-    def test_a_report_too_short_to_describe_anything_is_refused(self):
+    def test_a_report_too_short_to_describe_anything_is_refused(self) -> None:
         response = self._report(message='   bug   ')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(len(mail.outbox), 0)
         self.assertFalse(BugReport.objects.exists())
 
-    def test_reports_are_limited_per_account(self):
+    def test_reports_are_limited_per_account(self) -> None:
         self.client.force_authenticate(self.user)
         codes = [self._report().status_code for _ in range(6)]
         self.assertEqual(codes[:5], [status.HTTP_201_CREATED] * 5)
@@ -435,7 +439,7 @@ class BugReportViewTests(APITestCase):
 class UserProfileViewTests(APITestCase):
     """Tests for user profile endpoint."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         cache.clear()
         self.profile_url = '/api/auth/profile/'
         self.user = User.objects.create_user(
@@ -446,7 +450,7 @@ class UserProfileViewTests(APITestCase):
         self.refresh = RefreshToken.for_user(self.user)
         self.access_token = str(self.refresh.access_token)
 
-    def test_get_profile_authenticated(self):
+    def test_get_profile_authenticated(self) -> None:
         """Test getting profile when authenticated."""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
         response = self.client.get(self.profile_url)
@@ -454,7 +458,7 @@ class UserProfileViewTests(APITestCase):
         self.assertEqual(response.data['email'], 'test@example.com')
         self.assertEqual(response.data['username'], 'testuser')
 
-    def test_get_profile_unauthenticated(self):
+    def test_get_profile_unauthenticated(self) -> None:
         """Test getting profile fails when not authenticated."""
         response = self.client.get(self.profile_url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
@@ -463,7 +467,7 @@ class UserProfileViewTests(APITestCase):
 class DeleteAccountViewTests(APITestCase):
     """Tests for the account deletion endpoint."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         cache.clear()
         self.delete_url = '/api/auth/account/'
         self.user = User.objects.create_user(
@@ -475,7 +479,7 @@ class DeleteAccountViewTests(APITestCase):
         self.access_token = str(self.refresh.access_token)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
 
-    def test_delete_account_success(self):
+    def test_delete_account_success(self) -> None:
         """Test the password sent in the DELETE body is read and the user removed."""
         response = self.client.delete(
             self.delete_url, {'password': 'testpass123'}, format='json'
@@ -483,7 +487,7 @@ class DeleteAccountViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(User.objects.filter(pk=self.user.pk).exists())
 
-    def test_delete_account_wrong_password(self):
+    def test_delete_account_wrong_password(self) -> None:
         """Test deletion fails with a wrong password and keeps the user."""
         response = self.client.delete(
             self.delete_url, {'password': 'wrongpass'}, format='json'
@@ -491,13 +495,13 @@ class DeleteAccountViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertTrue(User.objects.filter(pk=self.user.pk).exists())
 
-    def test_delete_account_without_password(self):
+    def test_delete_account_without_password(self) -> None:
         """Test deletion fails when no password is sent at all."""
         response = self.client.delete(self.delete_url, {}, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertTrue(User.objects.filter(pk=self.user.pk).exists())
 
-    def test_delete_account_unauthenticated(self):
+    def test_delete_account_unauthenticated(self) -> None:
         """Test deletion fails without authentication."""
         self.client.credentials()
         response = self.client.delete(
@@ -509,7 +513,7 @@ class DeleteAccountViewTests(APITestCase):
 class ChangeEmailViewTests(APITestCase):
     """Tests for the email change endpoint."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         cache.clear()
         self.change_email_url = reverse('authentication:change_email')
         self.user = User.objects.create_user(
@@ -521,7 +525,7 @@ class ChangeEmailViewTests(APITestCase):
         self.access_token = str(self.refresh.access_token)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
 
-    def test_change_email_success(self):
+    def test_change_email_success(self) -> None:
         """Test the password sent in the body is read and the email updated."""
         response = self.client.post(self.change_email_url, {
             'current_password': 'testpass123',
@@ -531,7 +535,7 @@ class ChangeEmailViewTests(APITestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.email, 'new@example.com')
 
-    def test_change_email_wrong_password(self):
+    def test_change_email_wrong_password(self) -> None:
         """Test the change fails with a wrong password and keeps the old email."""
         response = self.client.post(self.change_email_url, {
             'current_password': 'wrongpass',
@@ -541,7 +545,7 @@ class ChangeEmailViewTests(APITestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.email, 'test@example.com')
 
-    def test_change_email_without_password(self):
+    def test_change_email_without_password(self) -> None:
         """Test the change fails when no password is sent at all."""
         response = self.client.post(self.change_email_url, {
             'new_email': 'new@example.com',
@@ -550,7 +554,7 @@ class ChangeEmailViewTests(APITestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.email, 'test@example.com')
 
-    def test_change_email_already_taken(self):
+    def test_change_email_already_taken(self) -> None:
         """Test the change fails when another account already uses that email."""
         User.objects.create_user(
             username='other', email='taken@example.com', password='otherpass123'
@@ -563,7 +567,7 @@ class ChangeEmailViewTests(APITestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.email, 'test@example.com')
 
-    def test_change_email_unauthenticated(self):
+    def test_change_email_unauthenticated(self) -> None:
         """Test the change fails without authentication."""
         self.client.credentials()
         response = self.client.post(self.change_email_url, {

@@ -1,8 +1,10 @@
 from datetime import timedelta
+from typing import Any, cast
 from unittest.mock import patch
 from concurrent.futures import ThreadPoolExecutor
 from django.test import TestCase, TransactionTestCase, override_settings
 from django.db import connection, close_old_connections
+from django.db.models import Q
 from django.utils import timezone
 from game.models import Artist, Track, SearchEnrichment, SearchOutbox, DeezerBudget
 from game.services import catalog, search_enrichment
@@ -11,37 +13,38 @@ from game.services.deezer_budget import reserve
 
 
 class SearchRegressionTests(TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.artist = Artist.objects.create(deezer_id=1,name='Simple Minds')
 
-    def track(self,title,artist='Simple Minds', **kwargs):
+    def track(self, title: str, artist: str = 'Simple Minds', **kwargs: Any) -> Track:
         return Track.objects.create(title=title,artist=artist,deezer_artist_id=1,**kwargs)
 
-    def test_full_parenthetical_and_short_words(self):
+    def test_full_parenthetical_and_short_words(self) -> None:
         song=self.track("Don't You (Forget About Me)")
-        self.assertIn(song, catalog._candidates(catalog._query_filter(song.title),song.title))
+        self.assertIn(song, catalog._candidates(cast(Q, catalog._query_filter(song.title)),song.title))
 
-    def test_no_preview_searchable_not_playable(self):
+    def test_no_preview_searchable_not_playable(self) -> None:
         song=catalog.upsert_track(dict(title='A Song',artist='Simple Minds',deezer_id=44))
         self.assertIsNotNone(song)
+        assert song is not None
         self.assertFalse(song.has_preview)
         self.assertFalse(catalog.playable(Track.objects.filter(pk=song.pk),directed=True).exists())
 
-    def test_no_artist_cap_or_name_collision(self):
+    def test_no_artist_cap_or_name_collision(self) -> None:
         songs=[Track.objects.create(title='INTRO',artist='Same name',deezer_artist_id=i,rank=i) for i in range(10,20)]
         self.assertEqual(len(catalog._dedupe(songs,40,'intro')),10)
 
-    def test_artist_exact_precedes_popular_substrings(self):
+    def test_artist_exact_precedes_popular_substrings(self) -> None:
         song=self.track('Rare song','NeS',rank=1)
         others=[self.track('The Motion Picture '+str(i),'Genesis',rank=999999) for i in range(220)]
         self.assertEqual(catalog._dedupe([song]+others,40,'nes')[0],song)
 
-    def test_blocked_artist_never_returned(self):
+    def test_blocked_artist_never_returned(self) -> None:
         song=self.track('Secret Song')
         self.artist.is_blocked=True;self.artist.save()
         self.assertEqual(catalog._dedupe([song],40,'Secret Song'),[])
 
-    def test_transactional_outbox_on_bulk_update_and_delete(self):
+    def test_transactional_outbox_on_bulk_update_and_delete(self) -> None:
         if connection.vendor!='postgresql':self.skipTest('PostgreSQL triggers required')
         song=self.track('First')
         SearchOutbox.objects.all().delete()
@@ -52,27 +55,29 @@ class SearchRegressionTests(TestCase):
         song.delete()
         self.assertEqual(SearchOutbox.objects.filter(kind='tracks').count(),2)
 
-    def test_job_failure_retry_and_abandoned_lease(self):
+    def test_job_failure_retry_and_abandoned_lease(self) -> None:
         search_enrichment.schedule('tracks','new band')
         with patch('game.services.search_enrichment.DeezerHttp.get',side_effect=DeezerUnavailable()):
             self.assertTrue(search_enrichment.run_one())
         row=SearchEnrichment.objects.get()
         self.assertEqual(row.state,'failed')
+        assert row.next_attempt_at is not None
         self.assertLess(row.next_attempt_at-timezone.now(),timedelta(minutes=6))
         row.state='running';row.lease_until=timezone.now()-timedelta(seconds=1);row.save()
         self.assertIsNotNone(search_enrichment.claim())
 
-    def test_empty_success_and_dedup_distinct(self):
+    def test_empty_success_and_dedup_distinct(self) -> None:
         for _ in range(4):search_enrichment.schedule('artists','unknown')
         self.assertEqual(SearchEnrichment.objects.count(),1)
         with patch('game.services.search_enrichment.DeezerHttp.get',return_value={'data':[]}):
             search_enrichment.run_one()
         row=SearchEnrichment.objects.get()
         self.assertEqual(row.state,'empty')
+        assert row.next_attempt_at is not None
         self.assertLess(row.next_attempt_at-timezone.now(),timedelta(hours=7))
 
     @override_settings(SEARCH_BACKEND='legacy', SEARCH_ENRICHMENT_ENABLED=False)
-    def test_v2_and_legacy_contract(self):
+    def test_v2_and_legacy_contract(self) -> None:
         from rest_framework.test import APIRequestFactory
         from game.views import SearchTracksView
         self.track('Example')
@@ -86,10 +91,10 @@ class SearchRegressionTests(TestCase):
 
 
 class BudgetConcurrencyTests(TransactionTestCase):
-    def test_global_window_and_reservations(self):
+    def test_global_window_and_reservations(self) -> None:
         if connection.vendor!='postgresql':self.skipTest('PostgreSQL required')
         DeezerBudget.objects.create(pk=1)
-        def take(_):
+        def take(_: int) -> bool:
             close_old_connections()
             try:return reserve('preview')
             finally:close_old_connections()
@@ -104,7 +109,7 @@ class BudgetConcurrencyTests(TransactionTestCase):
 
 
 class TransportDeadlineTests(TestCase):
-    def test_quota_preserves_callers_transaction_timeouts(self):
+    def test_quota_preserves_callers_transaction_timeouts(self) -> None:
         if connection.vendor != 'postgresql':
             self.skipTest('PostgreSQL required')
         with connection.cursor() as cursor:
@@ -120,12 +125,12 @@ class TransportDeadlineTests(TestCase):
                 self.assertEqual(cursor.fetchone(), ('2s', '3s'))
 
     @override_settings(TESTING=False)
-    def test_total_deadline_cancels_slow_network(self):
+    def test_total_deadline_cancels_slow_network(self) -> None:
         import asyncio
         import time
         from unittest.mock import AsyncMock
         from game.services.deezer_http import DeezerHttp
-        async def slow(*args, **kwargs):
+        async def slow(*args: Any, **kwargs: Any) -> None:
             await asyncio.sleep(1)
         client = AsyncMock()
         client.__aenter__.return_value = client
@@ -137,7 +142,7 @@ class TransportDeadlineTests(TestCase):
         self.assertLess(time.monotonic()-start, .3)
 
     @override_settings(TESTING=False)
-    def test_http_429_and_body_code_4_are_not_empty(self):
+    def test_http_429_and_body_code_4_are_not_empty(self) -> None:
         import httpx
         from unittest.mock import Mock
         from game.services.deezer_http import DeezerHttp
@@ -148,23 +153,23 @@ class TransportDeadlineTests(TestCase):
                 with self.assertRaises(DeezerUnavailable):
                     DeezerHttp(session=session,max_wait=.1)._fetch('/search',None)
 
-    def test_coordination_loss_fails_closed(self):
+    def test_coordination_loss_fails_closed(self) -> None:
         from django.db import DatabaseError
         with patch('game.services.deezer_budget.DeezerBudget.objects.get_or_create',side_effect=DatabaseError('offline')):
             self.assertFalse(reserve('preview'))
 
 
 class RollingWindowTests(TestCase):
-    def test_fixed_window_boundary_cannot_double_budget(self):
+    def test_fixed_window_boundary_cannot_double_budget(self) -> None:
         from game.services.deezer_budget import admit
-        calls = []
+        calls: list[float] = []
         for _ in range(40):
-            calls = admit(calls, 4.999, 'preview')
+            calls = cast(list[float], admit(calls, 4.999, 'preview'))
         self.assertIsNone(admit(calls, 5.001, 'preview'))
         self.assertIsNone(admit(calls, 9.998, 'preview'))
         self.assertEqual(admit(calls, 10.0, 'preview'), [10.0])
 
-    def test_lower_priorities_preserve_preview_headroom(self):
+    def test_lower_priorities_preserve_preview_headroom(self) -> None:
         from game.services.deezer_budget import admit
         calls = [1.0]*24
         self.assertIsNone(admit(calls, 2.0, 'background'))
@@ -176,7 +181,7 @@ class RollingWindowTests(TestCase):
 
 class EnrichmentVisibilityTests(TestCase):
     @override_settings(SEARCH_BACKEND='postgres', SEARCH_ENRICHMENT_ENABLED=False)
-    def test_typo_result_visible_before_index_catches_up(self):
+    def test_typo_result_visible_before_index_catches_up(self) -> None:
         from game.services.search import search
         song = Track.objects.create(title='Shape of You', artist='Ed Sheeran', deezer_id=123)
         SearchEnrichment.objects.create(kind='tracks', norm_query='ed sheran',
@@ -184,7 +189,7 @@ class EnrichmentVisibilityTests(TestCase):
         self.assertIn(song, search('tracks', 'ed sheran', enqueue=False)['rows'])
 
     @override_settings(SEARCH_BACKEND='postgres', SEARCH_ENRICHMENT_ENABLED=False)
-    def test_unrelated_remembered_results_are_not_suggestions(self):
+    def test_unrelated_remembered_results_are_not_suggestions(self) -> None:
         from game.services.search import search
         song = Track.objects.create(title='Unrelated', artist='Different Act')
         SearchEnrichment.objects.create(kind='tracks', norm_query='ed sheran',
@@ -193,7 +198,7 @@ class EnrichmentVisibilityTests(TestCase):
 
 
 class ContributorTests(TestCase):
-    def test_credits_are_search_aliases_without_changing_answer_identity(self):
+    def test_credits_are_search_aliases_without_changing_answer_identity(self) -> None:
         from game.services.search_index import documents
         rows=catalog.upsert_tracks([{'id':321, 'title':'A Collaboration',
             'artist':{'id':123, 'name':'Primary Artist'},
@@ -207,13 +212,15 @@ class ContributorTests(TestCase):
 
 
 class RetryPolicyTests(TestCase):
-    def test_new_queries_precede_background_retries(self):
+    def test_new_queries_precede_background_retries(self) -> None:
         old = SearchEnrichment.objects.create(kind='tracks', norm_query='old', state='failed',
             enriched_at=timezone.now(), next_attempt_at=timezone.now()-timedelta(hours=1))
         search_enrichment.schedule('tracks','new')
-        self.assertNotEqual(search_enrichment.claim().pk, old.pk)
+        claimed = search_enrichment.claim()
+        assert claimed is not None
+        self.assertNotEqual(claimed.pk, old.pk)
 
-    def test_failed_queries_stop_retrying_until_requested_again(self):
+    def test_failed_queries_stop_retrying_until_requested_again(self) -> None:
         row = SearchEnrichment.objects.create(kind='tracks', norm_query='unknown', state='failed',
             enriched_at=timezone.now(), next_attempt_at=timezone.now(), attempts=7)
         with patch('game.services.search_enrichment.DeezerHttp.get',side_effect=DeezerUnavailable()):
@@ -227,7 +234,7 @@ class RetryPolicyTests(TestCase):
 
 
 class BlockedGameplayTests(TestCase):
-    def test_hard_block_applies_to_directed_rounds_despite_warm_quality_cache(self):
+    def test_hard_block_applies_to_directed_rounds_despite_warm_quality_cache(self) -> None:
         artist = Artist.objects.create(pk=9876, name='An Artist')
         track = Track.objects.create(title='A Title', artist=artist.name, deezer_artist_id=artist.pk,
                                     deezer_id=54321, has_preview=True)
@@ -242,7 +249,7 @@ class BlockedGameplayTests(TestCase):
 @override_settings(SEARCH_BACKEND='postgres', SEARCH_INDEX_ENABLED=False)
 class PostgresWorkerTests(TestCase):
     @override_settings(SEARCH_ENRICHMENT_ENABLED=True)
-    def test_worker_without_external_index_discards_only_one_bounded_batch(self):
+    def test_worker_without_external_index_discards_only_one_bounded_batch(self) -> None:
         if connection.vendor != 'postgresql':
             self.skipTest('PostgreSQL advisory lock required')
         from django.core.management import call_command
@@ -259,7 +266,7 @@ class PostgresWorkerTests(TestCase):
         self.assertEqual(SearchOutbox.objects.count(), 1)
 
     @override_settings(SEARCH_ENRICHMENT_ENABLED=False)
-    def test_disabled_enrichment_never_contacts_provider(self):
+    def test_disabled_enrichment_never_contacts_provider(self) -> None:
         if connection.vendor != 'postgresql':
             self.skipTest('PostgreSQL advisory lock required')
         from django.core.management import call_command
@@ -272,41 +279,41 @@ class PostgresWorkerTests(TestCase):
 
 
 class ShortPrefixTests(TestCase):
-    def test_two_letters_match_later_words_in_title_and_artist(self):
+    def test_two_letters_match_later_words_in_title_and_artist(self) -> None:
         song = Track.objects.create(title='Love You', artist='Nono La Grinta', rank=100)
         first_word = Track.objects.create(title='Yodel', artist='Someone', rank=1)
         artist = Track.objects.create(title='Heart of Gold', artist='Neil Young')
         unrelated = Track.objects.create(title='Beyond', artist='Someone', rank=999999)
-        rows = catalog._dedupe(catalog._candidates(catalog._query_filter('yo'), 'yo'), 40, 'yo')
+        rows = catalog._dedupe(catalog._candidates(cast(Q, catalog._query_filter('yo')), 'yo'), 40, 'yo')
         self.assertIn(song, rows)
         self.assertIn(artist, rows)
         self.assertNotIn(unrelated, rows)
         self.assertLess(rows.index(song), rows.index(first_word))
 
-    def test_later_word_prefix_still_respects_artist_blocks(self):
+    def test_later_word_prefix_still_respects_artist_blocks(self) -> None:
         Artist.objects.create(deezer_id=89, name='Nono La Grinta', is_blocked=True)
         hidden = Track.objects.create(title='Love You', artist='Nono La Grinta', deezer_artist_id=89)
-        self.assertNotIn(hidden, catalog._candidates(catalog._query_filter('yo'), 'yo'))
+        self.assertNotIn(hidden, catalog._candidates(cast(Q, catalog._query_filter('yo')), 'yo'))
 
-    def test_two_letter_query_keeps_exact_title_and_both_prefix_fields(self):
+    def test_two_letter_query_keeps_exact_title_and_both_prefix_fields(self) -> None:
         exact = Track.objects.create(title='Li', artist='Rare act', rank=1)
         title = Track.objects.create(title='Light', artist='Other act', rank=100)
         artist = Track.objects.create(title='Song', artist='Little band', rank=200)
         unrelated = Track.objects.create(title='Climb', artist='Unrelated', rank=999999)
-        rows = catalog._dedupe(catalog._candidates(catalog._query_filter('li'), 'li'), 40, 'li')
+        rows = catalog._dedupe(catalog._candidates(cast(Q, catalog._query_filter('li')), 'li'), 40, 'li')
         self.assertEqual(rows[0], exact)
         self.assertIn(title, rows)
         self.assertIn(artist, rows)
         self.assertNotIn(unrelated, rows)
 
-    def test_two_letter_lanes_apply_artist_blocks(self):
+    def test_two_letter_lanes_apply_artist_blocks(self) -> None:
         blocked = Artist.objects.create(deezer_id=88, name='Little band', is_blocked=True)
         hidden = Track.objects.create(title='Light', artist=blocked.name, deezer_artist_id=88)
-        self.assertNotIn(hidden, catalog._candidates(catalog._query_filter('li'), 'li'))
+        self.assertNotIn(hidden, catalog._candidates(cast(Q, catalog._query_filter('li')), 'li'))
 
 
 class CompleteTitleArtistTests(TestCase):
-    def test_repeated_title_artist_survives_popular_substring_candidates(self):
+    def test_repeated_title_artist_survives_popular_substring_candidates(self) -> None:
         artist = Artist.objects.create(deezer_id=18, name='NeS')
         wanted = Track.objects.create(title='Nés', artist=artist.name, deezer_artist_id=18, rank=1)
         Track.objects.bulk_create([
@@ -314,13 +321,13 @@ class CompleteTitleArtistTests(TestCase):
                   search_title=f'late goodness {i}', search_artist='other act')
             for i in range(220)
         ])
-        rows = catalog._dedupe(catalog._candidates(catalog._query_filter('Nés NeS'), 'Nés NeS'), 40, 'Nés NeS')
+        rows = catalog._dedupe(catalog._candidates(cast(Q, catalog._query_filter('Nés NeS')), 'Nés NeS'), 40, 'Nés NeS')
         self.assertEqual(rows[0], wanted)
 
-    def test_full_hangul_title_and_artist_remain_searchable(self):
+    def test_full_hangul_title_and_artist_remain_searchable(self) -> None:
         song = Track.objects.create(title='봄날', artist='방탄소년단')
         query = '봄날 방탄소년단'
-        self.assertIn(song, catalog._candidates(catalog._query_filter(query), query))
+        self.assertIn(song, catalog._candidates(cast(Q, catalog._query_filter(query)), query))
         song.refresh_from_db()
         from game.services.matching import normalize_query
         self.assertEqual(song.search_title, normalize_query(song.title))

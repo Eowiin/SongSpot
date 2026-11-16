@@ -5,7 +5,9 @@ Edit ARTIST_MAP below to adjust any placement, then re-run.
   python manage.py seed_curated_playlists --dry-run   # preview
   python manage.py seed_curated_playlists              # apply
 """
-from django.core.management.base import BaseCommand
+from typing import Any
+
+from django.core.management.base import BaseCommand, CommandParser
 from game.models import Playlist, PlaylistTrack, Track
 
 ARTIST_MAP = {
@@ -108,11 +110,11 @@ ARTIST_MAP = {
 class Command(BaseCommand):
     help = 'Populate all playlists from the artist map defined in this file.'
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument('--dry-run', action='store_true',
                             help='Preview without making changes.')
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         dry_run = options['dry_run']
         if dry_run:
             self.stdout.write(self.style.WARNING('--- DRY RUN ---'))

@@ -18,6 +18,8 @@ import math
 import random
 from collections import Counter
 from datetime import timedelta
+from types import ModuleType
+from uuid import UUID
 
 from django.db.models import Count, QuerySet
 from django.utils import timezone
@@ -62,7 +64,7 @@ MIX_TOP_SHARE = 0.5
 MIX_WELL_KNOWN_RANK = 600_000
 
 
-def playlist_tracks(playlist_id) -> QuerySet:
+def playlist_tracks(playlist_id: UUID | str) -> QuerySet[Track]:
     """
     Every track in one category, as a queryset that stays cheap to filter.
 
@@ -81,7 +83,7 @@ def playlist_tracks(playlist_id) -> QuerySet:
     return Track.objects.filter(id__in=track_ids)
 
 
-def mix_tracks(playlist_id) -> QuerySet:
+def mix_tracks(playlist_id: UUID | str) -> QuerySet[Track]:
     """
     The part of one category that the all-genre mix plays. See MIX_TOP_SHARE.
 
@@ -136,7 +138,7 @@ def mix_weights() -> dict[str, float]:
         .values_list('genre')
         .annotate(sessions=Count('id'))
     )
-    plays = Counter()
+    plays: Counter[str | None] = Counter()
     for genre, sessions in recent:
         plays[LEGACY_GENRES.get(genre, genre)] += sessions
     playlists_per_category = Counter(category for _, category, _ in stocked)
@@ -160,7 +162,7 @@ def mix_weights() -> dict[str, float]:
     return weights
 
 
-def mix_order(rng=random) -> list[str]:
+def mix_order(rng: random.Random | ModuleType = random) -> list[str]:
     """
     Every stocked category's playlist id, in a random order weighted by share.
 
@@ -176,7 +178,7 @@ def mix_order(rng=random) -> list[str]:
     )
 
 
-def pick_mixed_tracks(count: int, rng=random) -> list[Track]:
+def pick_mixed_tracks(count: int, rng: random.Random | ModuleType = random) -> list[Track]:
     """
     Up to `count` distinct tracks drawn across the categories, for a 1v1 match.
 

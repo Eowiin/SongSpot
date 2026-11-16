@@ -14,6 +14,7 @@ import os
 import re
 import sys
 from pathlib import Path
+from typing import Any
 from dotenv import load_dotenv
 import dj_database_url
 import sentry_sdk
@@ -215,7 +216,7 @@ BACKGROUND_TASKS_ENABLED = (
 # Tests that assert on the resolver itself override it back to False.
 PREVIEWS_FAKE_URL = TESTING
 
-CACHES = {
+CACHES: dict[str, dict[str, Any]] = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
         'LOCATION': 'songspot-default',

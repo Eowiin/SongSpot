@@ -1,5 +1,5 @@
 import random
-from typing import Optional, Dict, List
+from typing import Any, Optional, Dict, List
 
 from .deezer_http import (
     DeezerHttp,
@@ -421,7 +421,7 @@ class DeezerService:
         return all_tracks[:count]
 
     @staticmethod
-    def _parse_release_year(raw_date) -> Optional[int]:
+    def _parse_release_year(raw_date: Any) -> Optional[int]:
         if not raw_date:
             return None
 

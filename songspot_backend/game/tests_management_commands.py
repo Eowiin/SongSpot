@@ -1,5 +1,5 @@
 from io import StringIO
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.core.management import call_command
 from django.test import TestCase
@@ -12,9 +12,9 @@ class UpdateTrackMetadataCommandTests(TestCase):
     @patch('game.management.commands.update_track_metadata.DeezerService.get_track')
     def test_backfills_missing_metadata_from_existing_deezer_id(
         self,
-        mock_get_track,
-        mock_enrich_track_info,
-    ):
+        mock_get_track: MagicMock,
+        mock_enrich_track_info: MagicMock,
+    ) -> None:
         track = Track.objects.create(
             title='Existing Song',
             artist='Existing Artist',
@@ -41,9 +41,9 @@ class UpdateTrackMetadataCommandTests(TestCase):
     @patch('game.management.commands.update_track_metadata.DeezerService.search_track')
     def test_search_missing_can_attach_deezer_id_for_existing_track(
         self,
-        mock_search_track,
-        mock_enrich_track_info,
-    ):
+        mock_search_track: MagicMock,
+        mock_enrich_track_info: MagicMock,
+    ) -> None:
         track = Track.objects.create(
             title='Search Song',
             artist='Search Artist',

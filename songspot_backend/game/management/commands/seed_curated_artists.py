@@ -1,8 +1,9 @@
 import json
 import time
 from pathlib import Path
+from typing import Any
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandParser
 
 from game.services import DeezerService
 from ._artist_utils import fetch_and_save_artist, resolve_artist_id
@@ -13,7 +14,7 @@ CURATED_FILE = Path(__file__).resolve().parent.parent / 'curated_artists.json'
 class Command(BaseCommand):
     help = 'Seed tracks from the curated artist list (game/management/curated_artists.json)'
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument(
             '--tracks',
             type=int,
@@ -39,7 +40,7 @@ class Command(BaseCommand):
             help='Re-fetch all artists even if they already have tracks',
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         tracks_per_artist = options['tracks']
         delay = options['delay']
         skip_existing = not options['force']

@@ -1,4 +1,6 @@
-from django.core.management.base import BaseCommand
+from typing import Any
+
+from django.core.management.base import BaseCommand, CommandParser
 from game.models import Track
 from game.services import DeezerService
 from ._artist_utils import is_variant_title
@@ -7,7 +9,7 @@ from ._artist_utils import is_variant_title
 class Command(BaseCommand):
     help = 'Fetch random tracks from Deezer API and save to database'
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument(
             '--count',
             type=int,
@@ -15,7 +17,7 @@ class Command(BaseCommand):
             help='Number of tracks to fetch (default: 50)',
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         count = options['count']
         deezer = DeezerService()
 

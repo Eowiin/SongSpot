@@ -1,6 +1,7 @@
 """Versioned local search. No round state enters candidate generation."""
 import logging
 import time
+from typing import Any
 from django.conf import settings
 from ..models import Artist, Track, SearchEnrichment
 from .matching import is_collab_credit, normalize_query
@@ -10,7 +11,9 @@ from .search_ranking import lexical_tier
 logger = logging.getLogger(__name__)
 
 
-def search(kind, query, limit=40, offset=0, enqueue=True):
+def search(
+    kind: str, query: str | None, limit: int = 40, offset: int = 0, enqueue: bool = True,
+) -> dict[str, Any]:
     started = time.monotonic()
     from . import catalog, typos
     from .search_enrichment import schedule, status
@@ -34,9 +37,10 @@ def search(kind, query, limit=40, offset=0, enqueue=True):
             degraded = True
             logger.warning('search_index_unavailable kind=%s', kind)
     ids = [h['id'] for h in hits]
-    model = Track if kind == 'tracks' else Artist
+    model: Any = Track if kind == 'tracks' else Artist
     objects = {str(r.pk): r for r in model.objects.filter(pk__in=ids)}
-    rows = [objects[x] for x in ids if x in objects]
+    # Tracks or Artists depending on `kind`; every branch below is kind-specific.
+    rows: Any = [objects[x] for x in ids if x in objects]
     # Provider matches survive the short import -> index acknowledgement gap.
     # This also keeps a typo usable while the projection is unavailable.
     remembered = SearchEnrichment.objects.filter(kind=kind, norm_query=normalize_query(query)[:255]).values_list('track_ids', flat=True).first()
@@ -49,7 +53,7 @@ def search(kind, query, limit=40, offset=0, enqueue=True):
         # Complete local fields guarantee new playable rows remain findable
         # before the index worker catches up (including an index outage).
         matches = catalog._query_filter(query)
-        local = catalog._candidates(matches, query) if matches else []
+        local: list[Any] = catalog._candidates(matches, query) if matches else []
         rows = catalog._dedupe(rows+local, 400, query)
     else:
         rows = [r for r in rows if not r.is_blocked]

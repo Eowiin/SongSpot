@@ -38,7 +38,7 @@ import logging
 import math
 import time
 from datetime import timedelta
-from typing import Iterable, Optional
+from typing import Any, Callable, Iterable, Optional
 
 from django.db import IntegrityError, transaction
 from django.db.models import F, Q, QuerySet
@@ -213,7 +213,7 @@ def _release(kind: str, query: str) -> None:
         SearchEnrichment.objects.filter(kind=kind, norm_query=norm).delete()
 
 
-def _enrich_later(fn, kind: str, query: str) -> None:
+def _enrich_later(fn: Callable[..., Any], kind: str, query: str) -> None:
     """Queue enrichment to run after the response. Silent if already claimed."""
     if not _claim(kind, query):
         return
@@ -221,7 +221,7 @@ def _enrich_later(fn, kind: str, query: str) -> None:
         _release(kind, query)
 
 
-def _enrich_now(fn, kind: str, query: str) -> Optional[list]:
+def _enrich_now(fn: Callable[..., Any], kind: str, query: str) -> Optional[list]:
     """
     Enrich inline, for a query with nothing to show.
 
@@ -477,7 +477,8 @@ def _local_artists(query: str, limit: int) -> list[Artist]:
     ):
         if len(found) >= limit:
             break
-        rows = (
+        # Artist rows here, then the legacy name strings below.
+        rows: Any = (
             Artist.objects.filter(condition, is_blocked=False)
             .exclude(pk__in=seen)
             .order_by('is_junk', '-nb_fan')[: limit - len(found)]
@@ -502,7 +503,8 @@ def _local_artists(query: str, limit: int) -> list[Artist]:
         if normalize_artist(name) in known:
             continue
         known.add(normalize_artist(name))
-        found.append(Artist(deezer_id=None, name=name, nb_fan=0))
+        # An unsaved stand-in: the primary key is legitimately None until saved.
+        found.append(Artist(deezer_id=None, name=name, nb_fan=0))  # type: ignore[misc]
     return found
 
 
@@ -666,6 +668,7 @@ def bulk_upsert_tracks(infos: Iterable[dict]) -> list[Track]:
         for i in without_id
     }
     legacy: dict[tuple[str, str], Track] = {}
+    track: Track | None
     if identities:
         candidates = Track.objects.filter(
             norm_title__in=[t for t, _ in identities],
@@ -859,7 +862,7 @@ def playable(qs: QuerySet, directed: bool = False) -> QuerySet:
     )
 
 
-def exclude_songs(qs: QuerySet, tracks) -> QuerySet:
+def exclude_songs(qs: QuerySet, tracks: Iterable[Track | tuple[str, str]]) -> QuerySet:
     """
     Drop every release of the songs `tracks` already covers.
 
@@ -1231,6 +1234,7 @@ def _candidates(matches: Q, query: str) -> list[Track]:
         exact |= Q(search_artist=left, search_title=right)
     local = list(base.filter(exact).order_by('-rank', 'id')[:200])
     seen = {t.id for t in local}
+    track: Track
     if len(phrase) == 2 and ' ' not in phrase:
         from django.db.models.functions import Left
         # Separate ordered lanes let the prefix/rank indexes stop after 200
@@ -1247,6 +1251,7 @@ def _candidates(matches: Q, query: str) -> list[Track]:
         # Also match the beginning of any later word ("yo" -> "Love You").
         # The simple dictionary keeps words intact, without language stemming.
         from django.db import connection
+        words: QuerySet[Track]
         if connection.vendor == 'postgresql':
             from django.db.models import BooleanField
             from django.db.models.expressions import RawSQL
@@ -1273,7 +1278,9 @@ def _dedupe(local: Iterable[Track], limit: int, query: str = '') -> list[Track]:
     from .search_ranking import rank_key, group_key
     local = list(local)
     artist_ids = {t.deezer_artist_id for t in local if t.deezer_artist_id}
-    artists = {a.deezer_id: a for a in Artist.objects.filter(deezer_id__in=artist_ids)}
+    artists: dict[int | None, Artist] = {
+        a.deezer_id: a for a in Artist.objects.filter(deezer_id__in=artist_ids)
+    }
     seen = set()
     unique = []
     for track in sorted(local, key=lambda t: rank_key(t, query, artists)):

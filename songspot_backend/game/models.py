@@ -1,6 +1,11 @@
 import uuid
+from typing import TYPE_CHECKING, Any
+
 from django.db import models
 from django.conf import settings
+
+if TYPE_CHECKING:
+    from authentication.models import User
 
 
 class Track(models.Model):
@@ -79,10 +84,10 @@ class Track(models.Model):
             ),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.title} - {self.artist}"
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         from .services.matching import is_variant_title, normalize_artist, normalize_title
 
         from .services.matching import normalize_query
@@ -134,10 +139,10 @@ class Artist(models.Model):
         db_table = 'artists'
         ordering = ['-nb_fan']
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.name} ({self.nb_fan} fans)"
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         from .services.matching import is_junk_artist, normalize_artist
 
         self.norm_name = normalize_artist(self.name)
@@ -189,10 +194,10 @@ class CatalogSetting(models.Model):
         verbose_name = 'Catalog settings'
         verbose_name_plural = 'Catalog settings'
 
-    def __str__(self):
+    def __str__(self) -> str:
         return 'Catalog settings'
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         self.singleton_id = 1
         super().save(*args, **kwargs)
         self.__class__.clear_cache()
@@ -209,7 +214,7 @@ class CatalogSetting(models.Model):
     _local = None
 
     @classmethod
-    def clear_cache(cls):
+    def clear_cache(cls) -> None:
         from .services.cache_utils import cache_delete
         cls._local = None
         cache_delete(cls._CACHE_KEY)
@@ -263,7 +268,7 @@ class SearchMiss(models.Model):
             models.Index(fields=['crawled_at', '-hits']),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.query} ({self.hits})'
 
 
@@ -309,7 +314,7 @@ class SearchEnrichment(models.Model):
             ),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.kind}:{self.norm_query}'
 
 
@@ -360,11 +365,11 @@ class Playlist(models.Model):
         db_table = 'playlists'
         ordering = ['name']
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
     @property
-    def track_count(self):
+    def track_count(self) -> int:
         return self.playlist_tracks.count()
 
 
@@ -393,7 +398,7 @@ class PlaylistTrack(models.Model):
             models.Index(fields=['playlist', 'order_in_playlist']),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.playlist.name} - {self.track.title}"
 
 
@@ -414,7 +419,7 @@ class FavouriteArtist(models.Model):
         unique_together = [['user', 'artist_name']]
         ordering = ['-created_at']
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.user.username} ♥ {self.artist_name}"
 
 
@@ -465,7 +470,7 @@ class GameScore(models.Model):
             ),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         label = self.genre or self.artist_filter or 'Mix'
         return f"{self.user.username} — {label} — {self.total_score}pts"
 
@@ -485,10 +490,10 @@ class UserElo(models.Model):
     class Meta:
         db_table = 'user_elos'
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.user.username} — ELO {self.elo}"
 
-    def update(self, opponent_elo: int, result: str):
+    def update(self, opponent_elo: int, result: str) -> None:
         """result: 'win' | 'loss' | 'draw'"""
         expected = 1 / (1 + 10 ** ((opponent_elo - self.elo) / 400))
         score = {'win': 1.0, 'loss': 0.0, 'draw': 0.5}[result]
@@ -542,13 +547,13 @@ class DuelMatch(models.Model):
             models.Index(fields=['status']),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.player1.username} vs {self.player2.username} [{self.status}]"
 
-    def get_opponent(self, user):
+    def get_opponent(self, user: 'User') -> 'User':
         return self.player2 if self.player1_id == user.id else self.player1
 
-    def is_player(self, user):
+    def is_player(self, user: 'User') -> bool:
         return user.id in (self.player1_id, self.player2_id)
 
 
@@ -577,7 +582,7 @@ class DuelRound(models.Model):
         unique_together = [['match', 'round_number']]
         ordering = ['round_number']
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Round {self.round_number} of {self.match}"
 
     @staticmethod
@@ -585,7 +590,7 @@ class DuelRound(models.Model):
         return SNIPPET_POINTS.get(snippets_used, 0)
 
     @property
-    def both_submitted(self):
+    def both_submitted(self) -> bool:
         return self.player1_submitted_at is not None and self.player2_submitted_at is not None
 
 
@@ -602,7 +607,7 @@ class MatchmakingQueue(models.Model):
     class Meta:
         db_table = 'matchmaking_queue'
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.user.username} in queue (ELO {self.elo_at_join})"
 
 
@@ -627,10 +632,10 @@ class UserBest(models.Model):
     class Meta:
         db_table = 'user_bests'
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.user.username} — best {self.best_score_overall}"
 
-    def update_from_score(self, score: 'GameScore'):
+    def update_from_score(self, score: 'GameScore') -> bool:
         changed = False
         if score.total_score > self.best_score_overall:
             self.best_score_overall = score.total_score

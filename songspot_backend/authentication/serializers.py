@@ -1,7 +1,9 @@
+from typing import Any
+
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from .models import UserDevicePushToken
+from .models import User as UserModel, UserDevicePushToken
 from .utils import normalize_locale
 
 User = get_user_model()
@@ -14,18 +16,18 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         model = User
         fields = ('email', 'username', 'password', 'password_confirm')
 
-    def validate_email(self, value):
+    def validate_email(self, value: str) -> str:
         value = User.normalize_email_value(value)
         if User.objects.filter(email__iexact=value).exists():
             raise serializers.ValidationError('This email address is already in use.')
         return value
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         if attrs['password'] != attrs['password_confirm']:
             raise serializers.ValidationError({"password": "Password fields didn't match."})
         return attrs
 
-    def create(self, validated_data):
+    def create(self, validated_data: dict[str, Any]) -> UserModel:
         validated_data.pop('password_confirm')
         user = User.objects.create_user(
             email=validated_data['email'],
@@ -65,7 +67,7 @@ class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
     password = serializers.CharField(required=True, write_only=True)
 
-    def validate_email(self, value):
+    def validate_email(self, value: str) -> str:
         return User.normalize_email_value(value)
 
 
@@ -81,11 +83,11 @@ class PushDeviceRegisterSerializer(serializers.ModelSerializer):
             'daily_song_enabled',
             'messages_enabled',
         )
-        extra_kwargs = {
+        extra_kwargs: dict[str, dict[str, Any]] = {
             'token': {'validators': []},  # Remove UniqueValidator; view handles upsert
         }
 
-    def validate_token(self, value):
+    def validate_token(self, value: str) -> str:
         value = value.strip()
         if len(value) < 32:
             raise serializers.ValidationError('Invalid FCM token.')
@@ -95,7 +97,7 @@ class PushDeviceRegisterSerializer(serializers.ModelSerializer):
 class PushDeviceUnregisterSerializer(serializers.Serializer):
     token = serializers.CharField(required=True)
 
-    def validate_token(self, value):
+    def validate_token(self, value: str) -> str:
         value = value.strip()
         if not value:
             raise serializers.ValidationError('Token is required.')
@@ -106,7 +108,7 @@ class ChangeEmailSerializer(serializers.Serializer):
     current_password = serializers.CharField(required=True, write_only=True)
     new_email = serializers.EmailField(required=True)
 
-    def validate_new_email(self, value):
+    def validate_new_email(self, value: str) -> str:
         value = User.normalize_email_value(value)
         current_user = self.context.get('user')
         existing = User.objects.filter(email__iexact=value)
@@ -121,10 +123,10 @@ class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
     locale = serializers.CharField(required=False, allow_blank=True, max_length=10)
 
-    def validate_email(self, value):
+    def validate_email(self, value: str) -> str:
         return User.normalize_email_value(value)
 
-    def validate_locale(self, value):
+    def validate_locale(self, value: str) -> str:
         return normalize_locale(value)
 
 
@@ -133,7 +135,7 @@ class ChangePasswordSerializer(serializers.Serializer):
     new_password = serializers.CharField(required=True, write_only=True, validators=[validate_password])
     confirm_new_password = serializers.CharField(required=True, write_only=True)
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         if attrs['new_password'] != attrs['confirm_new_password']:
             raise serializers.ValidationError({'new_password': "New passwords didn't match."})
         return attrs

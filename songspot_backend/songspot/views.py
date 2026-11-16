@@ -1,38 +1,38 @@
 from pathlib import Path
 
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, HttpRequest, HttpResponse
 from django.shortcuts import render
 
 
-def landing_page(request):
+def landing_page(request: HttpRequest) -> HttpResponse:
     return render(request, "site/index.html", {"active_page": "home"})
 
 
-def privacy_page(request):
+def privacy_page(request: HttpRequest) -> HttpResponse:
     return render(request, "site/privacy.html", {"active_page": "privacy"})
 
 
-def support_page(request):
+def support_page(request: HttpRequest) -> HttpResponse:
     return render(request, "site/support.html", {"active_page": "support"})
 
 
-def terms_page(request):
+def terms_page(request: HttpRequest) -> HttpResponse:
     return render(request, "site/terms.html", {"active_page": "terms"})
 
 
-def account_page(request):
+def account_page(request: HttpRequest) -> HttpResponse:
     return render(request, "site/account.html", {"active_page": "account"})
 
 
-def account_delete_page(request):
+def account_delete_page(request: HttpRequest) -> HttpResponse:
     return render(request, "site/account_delete.html", {"active_page": "account"})
 
 
-def account_export_page(request):
+def account_export_page(request: HttpRequest) -> HttpResponse:
     return render(request, "site/account_export.html", {"active_page": "account"})
 
 
-def site_logo(request):
+def site_logo(request: HttpRequest) -> FileResponse:
     logo_path = Path(__file__).resolve().parent / "static" / "site" / "songspot-logo.png"
     if not logo_path.exists():
         raise Http404("Logo file not found")

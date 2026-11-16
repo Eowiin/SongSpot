@@ -1,3 +1,5 @@
+from typing import Any
+
 from rest_framework.response import Response
 
 
@@ -24,9 +26,9 @@ def error_response(
     status_code: int,
     params: dict | None = None,
     reason: str | None = None,
-    **extra,
-):
-    payload = {
+    **extra: Any,
+) -> Response:
+    payload: dict[str, Any] = {
         'error': message,
         'message': message,
         'error_code': code,

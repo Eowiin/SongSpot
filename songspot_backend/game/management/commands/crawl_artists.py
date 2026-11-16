@@ -32,8 +32,9 @@ tomorrow's run continues where this one stopped rather than starting over.
 
 import time
 from collections import Counter, deque
+from typing import Any
 
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.utils import timezone
 
 from game.models import Artist, SearchMiss
@@ -67,7 +68,7 @@ MIN_FANS_TO_EXPAND = 5_000
 class Command(BaseCommand):
     help = "Crawl Deezer's artist graph to widen catalogue coverage."
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument(
             '--max-calls', type=int, default=DEFAULT_MAX_CALLS,
             help=f'Deezer requests to spend on this run (default: {DEFAULT_MAX_CALLS}).',
@@ -100,7 +101,7 @@ class Command(BaseCommand):
             ),
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         budget = max(1, options['max_calls'])
         dry_run = options['dry_run']
         report = options['floor_report']
@@ -187,6 +188,8 @@ class Command(BaseCommand):
                 artist = _transient_artist(payload) if report else upsert_artist(payload)
                 if artist is None:
                     continue
+            # needs_fetch covers artist being None, so it is set by now.
+            assert artist is not None
 
             if artist.is_blocked or artist.is_junk:
                 continue
@@ -262,7 +265,7 @@ class Command(BaseCommand):
             f'{len(queue)} left in the frontier.'
         ))
 
-    def _judge(self, deezer, payloads: list[dict], artist: Artist) -> list[str]:
+    def _judge(self, deezer: DeezerService, payloads: list[dict], artist: Artist) -> list[str]:
         """
         The floor's verdict on each track of one artist's haul, as reason slugs.
 
@@ -278,8 +281,8 @@ class Command(BaseCommand):
             for payload in payloads
         ]
 
-    def _print_report(self, verdicts, artists, calls, elapsed, frontier,
-                      skipped, track_min_fans):
+    def _print_report(self, verdicts: Counter[str], artists: int, calls: int, elapsed: float,
+                      frontier: int, skipped: int, track_min_fans: int) -> None:
         total = sum(verdicts.values())
         if not total:
             self.stdout.write(self.style.WARNING(

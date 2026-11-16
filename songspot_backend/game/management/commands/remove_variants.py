@@ -1,4 +1,6 @@
-from django.core.management.base import BaseCommand
+from typing import Any
+
+from django.core.management.base import BaseCommand, CommandParser
 from game.models import Track
 from ._artist_utils import is_variant_title
 
@@ -6,7 +8,7 @@ from ._artist_utils import is_variant_title
 class Command(BaseCommand):
     help = 'Remove remastered, live, acoustic, demo and similar variant tracks from the database'
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument(
             '--dry-run',
             action='store_true',
@@ -14,7 +16,7 @@ class Command(BaseCommand):
             help='Preview what would be deleted without actually deleting',
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         dry_run = options['dry_run']
 
         variants = [t for t in Track.objects.only('id', 'title', 'artist') if is_variant_title(t.title)]
