@@ -15,6 +15,7 @@ from songspot.api_errors import ErrorCode, error_response
 from songspot.throttling import GameSearchThrottle
 
 from .models import (
+    AppRelease,
     Artist, Track, GameScore, UserBest, FavouriteArtist,
     Playlist,
     DuelMatch, UserElo,
@@ -81,6 +82,29 @@ class PlaylistListView(APIView):
             for p in playlists
         ]
         return Response(result)
+
+
+class AppVersionView(APIView):
+    """
+    The version each platform's store currently serves.
+
+    Read by the app on launch: an install older than the version listed for
+    its platform shows a blocking "update required" screen. A platform with no
+    version or no store link configured is absent, which the app reads as "no
+    check". Public and sessionless, so neither an expired token nor a missing
+    account can keep a player from learning they must update.
+    """
+    permission_classes = [AllowAny]
+    authentication_classes: list[type] = []
+
+    def get(self, request: Request) -> Response:
+        release = AppRelease.get_solo()
+        platforms = {
+            platform: info
+            for platform in ('android', 'ios')
+            if (info := release.for_platform(platform)) is not None
+        }
+        return Response(platforms)
 
 
 class NextSongView(APIView):

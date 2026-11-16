@@ -1,11 +1,17 @@
 import uuid
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
-from django.db import models
 from django.conf import settings
+from django.core.validators import RegexValidator
+from django.db import models
 
 if TYPE_CHECKING:
     from authentication.models import User
+
+
+class PlatformRelease(TypedDict):
+    latest_version: str
+    store_url: str
 
 
 class Track(models.Model):
@@ -59,6 +65,14 @@ class Track(models.Model):
     # walks make that worse, since their tracks often carry rank 0, which
     # passes the popularity floor by design.
     is_variant = models.BooleanField(default=False)
+    # Length in seconds as Deezer reports it. Null for rows imported before it
+    # was recorded; refreshes and `backfill_track_durations` fill it in.
+    duration = models.PositiveSmallIntegerField(null=True, blank=True)
+    # Album filler — a voice note, a skit, a short intro. Unlike a variant it
+    # is never played, not even to a player who picked the artist, because
+    # there is nothing in it to recognise. Maintained in save() from title and
+    # duration; see matching.is_non_song.
+    is_non_song = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -88,23 +102,29 @@ class Track(models.Model):
         return f"{self.title} - {self.artist}"
 
     def save(self, *args: Any, **kwargs: Any) -> None:
-        from .services.matching import is_variant_title, normalize_artist, normalize_title
+        from .services.matching import (
+            is_non_song,
+            is_variant_title,
+            normalize_artist,
+            normalize_query,
+            normalize_title,
+        )
 
-        from .services.matching import normalize_query
         self.search_title = normalize_query(self.title)
         self.search_artist = normalize_query(self.artist)
         self.norm_title = normalize_title(self.title)
         self.norm_artist = normalize_artist(self.artist)
         self.is_variant = is_variant_title(self.title)
+        self.is_non_song = is_non_song(self.title, self.duration)
         update_fields = kwargs.get('update_fields')
         if update_fields is not None:
             update_fields = set(update_fields)
             if 'title' in update_fields:
-                update_fields.update(['norm_title', 'search_title'])
+                update_fields.update(['norm_title', 'search_title', 'is_variant'])
             if 'artist' in update_fields:
                 update_fields.update(['norm_artist', 'search_artist'])
-            if 'title' in update_fields:
-                update_fields.add('is_variant')
+            if 'title' in update_fields or 'duration' in update_fields:
+                update_fields.add('is_non_song')
             kwargs['update_fields'] = tuple(update_fields)
         super().save(*args, **kwargs)
 
@@ -138,6 +158,17 @@ class Artist(models.Model):
     class Meta:
         db_table = 'artists'
         ordering = ['-nb_fan']
+        indexes = [
+            # `is_blocked=True` is read on every search and every round, as a
+            # subquery inside playable(). Without an index Postgres answers it
+            # with a sequential scan of the whole artists table (~430k rows) for
+            # a handful of matches; this partial index holds only those rows.
+            models.Index(
+                fields=['deezer_id'],
+                condition=models.Q(is_blocked=True),
+                name='artists_blocked_idx',
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"{self.name} ({self.nb_fan} fans)"
@@ -671,3 +702,74 @@ class DeezerBudget(models.Model):
     """Non-evictable coordination shared by every process on this database."""
     id = models.PositiveSmallIntegerField(primary_key=True, default=1)
     calls = models.JSONField(default=list)
+
+
+SEMVER_VALIDATOR = RegexValidator(
+    regex=r'^\d+\.\d+\.\d+$',
+    message='Use the store version name, e.g. 2.3.4 (no build number).',
+)
+
+
+class AppRelease(models.Model):
+    """
+    The app version currently live on each store, editable from the admin.
+
+    An installed app older than the version listed for its platform is blocked
+    behind an "update required" screen until the player updates. Leaving a
+    version blank turns the check off for that platform.
+
+    Fill a platform in only once its release is actually downloadable: the
+    stores review and roll out on their own schedule, and a version listed
+    before the store serves it would lock every player out with nothing to
+    update to. That is also why each platform has its own field — iOS and
+    Android are rarely approved on the same day.
+    """
+    singleton_id = models.PositiveSmallIntegerField(primary_key=True, default=1)
+
+    latest_android_version = models.CharField(
+        max_length=20, blank=True, validators=[SEMVER_VALIDATOR],
+        help_text='Version live on Google Play, e.g. 2.3.4. Blank disables the check.',
+    )
+    android_store_url = models.URLField(
+        blank=True,
+        default='https://play.google.com/store/apps/details?id=com.songspot.app',
+    )
+    latest_ios_version = models.CharField(
+        max_length=20, blank=True, validators=[SEMVER_VALIDATOR],
+        help_text='Version live on the App Store, e.g. 2.3.4. Blank disables the check.',
+    )
+    ios_store_url = models.URLField(
+        blank=True,
+        help_text='App Store page, e.g. https://apps.apple.com/app/id0000000000.',
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'app_release'
+        verbose_name = 'App release'
+        verbose_name_plural = 'App release'
+
+    def __str__(self) -> str:
+        return 'App release'
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        self.singleton_id = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_solo(cls) -> 'AppRelease':
+        obj, _ = cls.objects.get_or_create(singleton_id=1)
+        return obj
+
+    def for_platform(self, platform: str) -> PlatformRelease | None:
+        """The release a client on `platform` must run, or None if unchecked."""
+        if platform == 'android':
+            version, url = self.latest_android_version, self.android_store_url
+        elif platform == 'ios':
+            version, url = self.latest_ios_version, self.ios_store_url
+        else:
+            return None
+        # Without a store link there is nowhere to send a blocked player.
+        if not version or not url:
+            return None
+        return PlatformRelease(latest_version=version, store_url=url)
