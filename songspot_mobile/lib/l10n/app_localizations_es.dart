@@ -725,4 +725,21 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get searchRefine =>
       'Hay más resultados: añade el artista o el título para acotar la búsqueda.';
+
+  @override
+  String get duelFewPlayersOnline =>
+      'Hay pocos jugadores conectados ahora mismo. Puedes seguir esperando o jugar en solitario.';
+
+  @override
+  String get duelPlaySolo => 'Jugar en solitario';
+
+  @override
+  String get updateRequiredTitle => 'Actualización necesaria';
+
+  @override
+  String get updateRequiredBody =>
+      'Hay una nueva versión de SongSpot. Actualiza la app para seguir jugando.';
+
+  @override
+  String get updateRequiredButton => 'Actualizar';
 }

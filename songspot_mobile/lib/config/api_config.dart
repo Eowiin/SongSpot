@@ -28,6 +28,7 @@ class ApiConfig {
   static const String bugReport = '/auth/bug-report/';
 
   // Game endpoints
+  static const String appVersion = '/game/app-version/';
   static const String categories = '/game/categories/';
   static const String nextSong = '/game/next-song/';
   static const String guess = '/game/guess/';
