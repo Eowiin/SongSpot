@@ -19,7 +19,9 @@ Usage examples:
   # Combine: genre + artist filter (e.g. only R&B tracks by a specific artist)
   python manage.py populate_playlist rnb --genre "R&B" --artist "The Weeknd"
 """
-from django.core.management.base import BaseCommand, CommandError
+from typing import Any
+
+from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db.models import Count
 
 from game.models import Playlist, PlaylistTrack, Track, CATEGORY_CHOICES
@@ -31,7 +33,7 @@ CATEGORY_DISPLAY = dict(CATEGORY_CHOICES)
 class Command(BaseCommand):
     help = 'Add tracks to a playlist by Deezer genre tag or artist name.'
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument(
             'category', nargs='?',
             help='Playlist category key (e.g. hiphop, pop, rock). Omit to use --list-genres.',
@@ -47,7 +49,7 @@ class Command(BaseCommand):
             help='List all Deezer genre tags currently in the track library.',
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         if options['list_genres']:
             self._list_genres()
             return
@@ -138,7 +140,7 @@ class Command(BaseCommand):
             f'Added {len(to_add)} tracks to "{playlist.name}".'
         ))
 
-    def _list_genres(self):
+    def _list_genres(self) -> None:
         rows = (
             Track.objects
             .exclude(genre__isnull=True)

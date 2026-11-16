@@ -1,18 +1,21 @@
 import random
 import uuid
 from datetime import timedelta
+from typing import TYPE_CHECKING, Any, cast
 
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Q, QuerySet
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from songspot.api_errors import ErrorCode, error_response
 from songspot.throttling import GameSearchThrottle
 
 from .models import (
+    AppRelease,
     Artist, Track, GameScore, UserBest, FavouriteArtist,
     Playlist,
     DuelMatch, UserElo,
@@ -36,6 +39,9 @@ from .serializers import (
 )
 from .services import catalog, pools, previews, rounds
 
+if TYPE_CHECKING:
+    from authentication.models import User
+
 # A round is played by one client version or the other. v1 judges the guess
 # locally and therefore needs the answer in the payload; v2 posts to /guess/
 # and gets the answer back only once it has committed to one. Both are served
@@ -49,7 +55,7 @@ API_V2 = 2
 MAX_EXCLUDE = 200
 
 
-def _client_version(request) -> int:
+def _client_version(request: Request) -> int:
     try:
         return int(request.query_params.get('v', 1))
     except (TypeError, ValueError):
@@ -59,7 +65,7 @@ class PlaylistListView(APIView):
     """Return all playlists that have at least one track."""
     permission_classes = [AllowAny]
 
-    def get(self, request):
+    def get(self, request: Request) -> Response:
         playlists = (
             Playlist.objects
             .annotate(num_tracks=Count('playlist_tracks'))
@@ -76,6 +82,29 @@ class PlaylistListView(APIView):
             for p in playlists
         ]
         return Response(result)
+
+
+class AppVersionView(APIView):
+    """
+    The version each platform's store currently serves.
+
+    Read by the app on launch: an install older than the version listed for
+    its platform shows a blocking "update required" screen. A platform with no
+    version or no store link configured is absent, which the app reads as "no
+    check". Public and sessionless, so neither an expired token nor a missing
+    account can keep a player from learning they must update.
+    """
+    permission_classes = [AllowAny]
+    authentication_classes: list[type] = []
+
+    def get(self, request: Request) -> Response:
+        release = AppRelease.get_solo()
+        platforms = {
+            platform: info
+            for platform in ('android', 'ios')
+            if (info := release.for_platform(platform)) is not None
+        }
+        return Response(platforms)
 
 
 class NextSongView(APIView):
@@ -99,7 +128,7 @@ class NextSongView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [GameSearchThrottle]
 
-    def get(self, request):
+    def get(self, request: Request) -> Response:
         playlist_id = request.query_params.get('playlist', '').strip()
         artist_name = request.query_params.get('artist', '').strip()
         artist_id_raw = request.query_params.get('artist_id', '').strip()
@@ -169,7 +198,14 @@ class NextSongView(APIView):
         )
 
 
-def _round_response(request, track, preview_url, *, directed, pool_size=None):
+def _round_response(
+    request: Request,
+    track: Track | None,
+    preview_url: str | None,
+    *,
+    directed: bool,
+    pool_size: int | None = None,
+) -> Response:
     """Turn a pick into the round the client plays, or the error saying why not."""
     if track is None:
         return Response(
@@ -188,7 +224,7 @@ def _round_response(request, track, preview_url, *, directed, pool_size=None):
         )
     # Set in memory only, and there is nowhere to persist it to: `tracks`
     # holds `has_preview`, not the URL. See services/previews.
-    track.preview_url = preview_url
+    track.preview_url = preview_url  # type: ignore[attr-defined]
 
     if _client_version(request) >= API_V2:
         payload = TrackRoundSerializer(track).data
@@ -207,7 +243,7 @@ def _round_response(request, track, preview_url, *, directed, pool_size=None):
 MIX_CATEGORY_ATTEMPTS = 3
 
 
-def _exclude_played(qs, exclude_ids):
+def _exclude_played(qs: QuerySet[Track], exclude_ids: list[str]) -> QuerySet[Track]:
     """
     Drop what the run has already played — by song, not by row.
 
@@ -225,7 +261,7 @@ def _exclude_played(qs, exclude_ids):
     return catalog.exclude_songs(qs.exclude(id__in=exclude_ids), played)
 
 
-def _pick_mixed(exclude_ids):
+def _pick_mixed(exclude_ids: list[str]) -> tuple[Track | None, str | None]:
     """An all-genre round: `_pick_with_audio` over one weighted category at a time."""
     for playlist_id in pools.mix_order()[:MIX_CATEGORY_ATTEMPTS]:
         playlist = Playlist.objects.filter(id=playlist_id).first()
@@ -252,7 +288,7 @@ PREVIEW_ATTEMPTS = 3
 CANDIDATE_BLOCK = 500
 
 
-def _random_candidates(qs, limit: int) -> list:
+def _random_candidates(qs: QuerySet[Track], limit: int) -> list[Track]:
     """
     Up to `limit` tracks drawn at random, without counting the table.
 
@@ -284,7 +320,9 @@ def _random_candidates(qs, limit: int) -> list:
     return [by_id[i] for i in picks if i in by_id]
 
 
-def _pick_with_audio(qs, containers):
+def _pick_with_audio(
+    qs: QuerySet[Track], containers: list[tuple[str, int]],
+) -> tuple[Track | None, str | None]:
     """
     A track from `qs` and a preview URL that will actually play.
 
@@ -348,7 +386,7 @@ class GuessView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [GameSearchThrottle]
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         serializer = GuessSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -398,7 +436,7 @@ class ArtistListView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [GameSearchThrottle]
 
-    def get(self, request):
+    def get(self, request: Request) -> Response:
         q = request.query_params.get('q', '').strip()
         if len(q) < 2:
             return Response([])
@@ -422,7 +460,7 @@ class ArtistTrendingView(APIView):
     """
     permission_classes = [AllowAny]
 
-    def get(self, request):
+    def get(self, request: Request) -> Response:
         since = timezone.now() - timedelta(days=30)
         rows = (
             GameScore.objects
@@ -436,7 +474,7 @@ class ArtistTrendingView(APIView):
         return Response(_artist_cards(artist_names))
 
 
-def _artist_cards(names: list[str]) -> list[dict]:
+def _artist_cards(names: list[str]) -> list[dict[str, Any]]:
     """
     Build the {name, picture_url, deezer_id} rows the select screen shows.
 
@@ -448,7 +486,7 @@ def _artist_cards(names: list[str]) -> list[dict]:
     from .services.matching import normalize_artist
 
     by_norm = {normalize_artist(n): n for n in names}
-    cards = {n: {'name': n, 'picture_url': None, 'deezer_id': None} for n in names}
+    cards: dict[str, dict[str, Any]] = {n: {'name': n, 'picture_url': None, 'deezer_id': None} for n in names}
 
     for artist in Artist.objects.filter(norm_name__in=by_norm.keys()).order_by('-nb_fan'):
         name = by_norm.get(artist.norm_name)
@@ -462,13 +500,13 @@ def _artist_cards(names: list[str]) -> list[dict]:
     # `artists` since migration 0016.
     missing = [n for n, card in cards.items() if card['deezer_id'] is None]
     if missing:
-        by_artist_id = {}
+        by_artist_id: dict[int, str] = {}
         for row in (
             Track.objects
             .filter(artist__in=missing, deezer_artist_id__isnull=False)
             .values('artist', 'deezer_artist_id')
         ):
-            by_artist_id.setdefault(row['deezer_artist_id'], row['artist'])
+            by_artist_id.setdefault(cast(int, row['deezer_artist_id']), row['artist'])
         for artist in Artist.objects.filter(deezer_id__in=by_artist_id):
             card = cards.get(by_artist_id[artist.deezer_id])
             if card and card['deezer_id'] is None:
@@ -482,10 +520,10 @@ class FavouriteArtistView(APIView):
     """List and add favourite artists for the current user."""
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
+    def get(self, request: Request) -> Response:
         rows = list(
             FavouriteArtist.objects
-            .filter(user=request.user)
+            .filter(user=cast('User', request.user))
             .values_list('artist_name', 'artist_deezer_id')
         )
         cards = _artist_cards([name for name, _ in rows])
@@ -497,19 +535,21 @@ class FavouriteArtistView(APIView):
                 card['deezer_id'] = stored[card['name']]
         return Response(cards)
 
-    def post(self, request):
-        artist_name = (request.data.get('artist_name') or '').strip()
+    def post(self, request: Request) -> Response:
+        # request.data may be a list (JSON array body), which has no .get(): that
+        # raises AttributeError (a 500) today. Left as is, typing-only change.
+        artist_name = (request.data.get('artist_name') or '').strip()  # type: ignore[union-attr]
         if not artist_name:
             return Response({'detail': 'artist_name is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        deezer_id = request.data.get('artist_deezer_id')
+        deezer_id = request.data.get('artist_deezer_id')  # type: ignore[union-attr]  # see above
         try:
             deezer_id = int(deezer_id) if deezer_id else None
         except (TypeError, ValueError):
             deezer_id = None
 
         favourite, _ = FavouriteArtist.objects.get_or_create(
-            user=request.user, artist_name=artist_name,
+            user=cast('User', request.user), artist_name=artist_name,
         )
         # Backfill the entity on a favourite saved before the app sent one, so
         # older rows stop depending on name resolution over time.
@@ -527,8 +567,8 @@ class FavouriteArtistDetailView(APIView):
     """Remove a single favourite artist."""
     permission_classes = [IsAuthenticated]
 
-    def delete(self, request, artist_name):
-        FavouriteArtist.objects.filter(user=request.user, artist_name=artist_name).delete()
+    def delete(self, request: Request, artist_name: str) -> Response:
+        FavouriteArtist.objects.filter(user=cast('User', request.user), artist_name=artist_name).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -544,7 +584,7 @@ class SearchTracksView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [GameSearchThrottle]
 
-    def get(self, request):
+    def get(self, request: Request) -> Response:
         q = request.query_params.get('q', '').strip()
         if len(q) < 2:
             return Response([])
@@ -572,7 +612,7 @@ class TrackRefreshPreviewView(APIView):
     """
     permission_classes = [AllowAny]
 
-    def post(self, request, track_id):
+    def post(self, request: Request, track_id: uuid.UUID) -> Response:
         try:
             track = Track.objects.get(id=track_id)
         except Track.DoesNotExist:
@@ -591,7 +631,7 @@ class SubmitScoreView(APIView):
     """Submit a completed session score. Creates GameScore and updates UserBest."""
     permission_classes = [IsAuthenticated]
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         serializer = GameScoreSubmitSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -612,15 +652,15 @@ class SubmitScoreView(APIView):
         with transaction.atomic():
             if session_uuid:
                 score, _ = GameScore.objects.update_or_create(
-                    user=request.user,
+                    user=cast('User', request.user),
                     session_uuid=session_uuid,
                     defaults=score_fields,
                 )
             else:
-                score = GameScore.objects.create(user=request.user, **score_fields)
+                score = GameScore.objects.create(user=cast('User', request.user), **score_fields)
 
             if not is_partial:
-                best, _ = UserBest.objects.select_for_update().get_or_create(user=request.user)
+                best, _ = UserBest.objects.select_for_update().get_or_create(user=cast('User', request.user))
                 best.update_from_score(score)
 
         return Response(GameScoreSerializer(score).data, status=status.HTTP_201_CREATED)
@@ -630,8 +670,8 @@ class UserStatsView(APIView):
     """Personal bests and aggregate stats for the current user."""
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        best, _ = UserBest.objects.get_or_create(user=request.user)
+    def get(self, request: Request) -> Response:
+        best, _ = UserBest.objects.get_or_create(user=cast('User', request.user))
         return Response(UserBestSerializer(best).data)
 
 
@@ -646,7 +686,7 @@ class LeaderboardView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
+    def get(self, request: Request) -> Response:
         timeframe = request.query_params.get('timeframe', 'daily')
         genre = request.query_params.get('genre', '').strip()
         try:
@@ -676,7 +716,7 @@ class MigrateGuestStatsView(APIView):
     """Merge guest-accumulated local stats into the authenticated user's UserBest."""
     permission_classes = [IsAuthenticated]
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         serializer = MigrateGuestStatsSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -685,7 +725,7 @@ class MigrateGuestStatsView(APIView):
             return Response({'status': 'nothing_to_migrate'})
 
         with transaction.atomic():
-            best, _ = UserBest.objects.select_for_update().get_or_create(user=request.user)
+            best, _ = UserBest.objects.select_for_update().get_or_create(user=cast('User', request.user))
             best.best_score_overall = max(best.best_score_overall, data['best_score'])
             best.best_streak_overall = max(best.best_streak_overall, data['best_streak'])
             best.total_songs_played += data['songs_played']
@@ -701,12 +741,12 @@ class DuelMatchDetailView(APIView):
     """Return full match state (used for reconnection after app restart)."""
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, pk):
+    def get(self, request: Request, pk: uuid.UUID) -> Response:
         try:
             match = DuelMatch.objects.prefetch_related('rounds__track').get(id=pk)
         except DuelMatch.DoesNotExist:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-        if not match.is_player(request.user):
+        if not match.is_player(cast('User', request.user)):
             return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         return Response(DuelMatchSerializer(match).data)
 
@@ -715,7 +755,7 @@ class DuelHistoryView(APIView):
     """Paginated list of completed duels for the current user."""
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
+    def get(self, request: Request) -> Response:
         limit = min(int(request.query_params.get('limit', 20)), 50)
         qs = (
             DuelMatch.objects
@@ -734,8 +774,8 @@ class DuelEloView(APIView):
     """Current user's ELO and global rank."""
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        elo_obj, _ = UserElo.objects.get_or_create(user=request.user, defaults={'elo': 1000})
+    def get(self, request: Request) -> Response:
+        elo_obj, _ = UserElo.objects.get_or_create(user=cast('User', request.user), defaults={'elo': 1000})
         return Response(UserEloSerializer(elo_obj).data)
 
 
@@ -743,7 +783,7 @@ class DuelLeaderboardView(APIView):
     """Top players ranked by ELO."""
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
+    def get(self, request: Request) -> Response:
         limit = min(int(request.query_params.get('limit', 50)), 100)
         top = list(
             UserElo.objects

@@ -5,6 +5,8 @@ Cases are taken from real Deezer responses rather than invented, because the
 whole point of this module is that the catalogue is messier than it looks.
 """
 
+from typing import Any
+
 from django.test import SimpleTestCase
 
 from game.services.matching import (
@@ -18,7 +20,7 @@ from game.services.matching import (
 
 
 class NormalizeTitleTests(SimpleTestCase):
-    def test_every_release_of_one_song_collapses_to_one_key(self):
+    def test_every_release_of_one_song_collapses_to_one_key(self) -> None:
         # These six are what `/search?q=blinding lights` and the artist's own
         # discography actually return. Under the old UUID rule, five of them
         # would be marked wrong.
@@ -35,7 +37,7 @@ class NormalizeTitleTests(SimpleTestCase):
         keys = {normalize_title(title) for title in releases}
         self.assertEqual(keys, {'blinding lights'})
 
-    def test_featured_guests_are_dropped(self):
+    def test_featured_guests_are_dropped(self) -> None:
         self.assertEqual(
             normalize_title('Save Your Tears (feat. Ariana Grande)'),
             normalize_title('Save Your Tears'),
@@ -45,41 +47,41 @@ class NormalizeTitleTests(SimpleTestCase):
             'get lucky',
         )
 
-    def test_accents_and_punctuation_do_not_matter(self):
+    def test_accents_and_punctuation_do_not_matter(self) -> None:
         self.assertEqual(normalize_title('Déjà Vu'), normalize_title('Deja Vu'))
         self.assertEqual(normalize_title("Ain't It Fun"), 'ain t it fun')
 
-    def test_a_title_that_is_only_a_qualifier_keeps_a_key(self):
+    def test_a_title_that_is_only_a_qualifier_keeps_a_key(self) -> None:
         # Stripping would empty this one out, and an empty key would match
         # every other emptied title.
         self.assertEqual(normalize_title('(Reprise)'), 'reprise')
 
-    def test_leading_parenthetical_is_dropped(self):
+    def test_leading_parenthetical_is_dropped(self) -> None:
         self.assertEqual(normalize_title("(I Can't Get No) Satisfaction"), 'satisfaction')
 
-    def test_empty_input(self):
+    def test_empty_input(self) -> None:
         self.assertEqual(normalize_title(''), '')
         self.assertEqual(normalize_title(None), '')
 
 
 class NormalizeArtistTests(SimpleTestCase):
-    def test_leading_the_is_ignored(self):
+    def test_leading_the_is_ignored(self) -> None:
         self.assertEqual(normalize_artist('The Weeknd'), normalize_artist('Weeknd'))
 
-    def test_collaborations_are_not_split(self):
+    def test_collaborations_are_not_split(self) -> None:
         # Splitting on "&" or "," would turn these into different acts.
         self.assertEqual(normalize_artist('Simon & Garfunkel'), 'simon and garfunkel')
         self.assertEqual(normalize_artist('Tyler, The Creator'), 'tyler the creator')
 
-    def test_featured_guests_are_dropped(self):
+    def test_featured_guests_are_dropped(self) -> None:
         self.assertEqual(normalize_artist('Drake feat. Future'), 'drake')
 
-    def test_accents(self):
+    def test_accents(self) -> None:
         self.assertEqual(normalize_artist('Beyoncé'), 'beyonce')
 
 
 class VariantAndJunkTests(SimpleTestCase):
-    def test_variants_are_recognised(self):
+    def test_variants_are_recognised(self) -> None:
         for title in [
             'Blinding Lights (Live)',
             'Bohemian Rhapsody - 2011 Remaster',
@@ -88,26 +90,26 @@ class VariantAndJunkTests(SimpleTestCase):
         ]:
             self.assertTrue(is_variant_title(title), title)
 
-    def test_plain_titles_and_features_are_not_variants(self):
+    def test_plain_titles_and_features_are_not_variants(self) -> None:
         # A featured guest describes the song, not an alternate release.
         for title in ['Blinding Lights', 'Save Your Tears (feat. Ariana Grande)']:
             self.assertFalse(is_variant_title(title), title)
 
-    def test_junk_artists(self):
+    def test_junk_artists(self) -> None:
         self.assertTrue(is_junk_artist('Karaoke Kings'))
         self.assertTrue(is_junk_artist('The Beatles Tribute Band'))
         self.assertFalse(is_junk_artist('The Weeknd'))
 
 
 class AnswerMatchesTests(SimpleTestCase):
-    ANSWER = dict(
+    ANSWER: dict[str, Any] = dict(
         answer_deezer_id=908604612,
         answer_norm_title='blinding lights',
         answer_norm_artist='weeknd',
         answer_artist_deezer_id=4050205,
     )
 
-    def test_same_song_other_release_is_correct(self):
+    def test_same_song_other_release_is_correct(self) -> None:
         # The remix: different Deezer track, same song.
         self.assertTrue(answer_matches(
             **self.ANSWER,
@@ -117,7 +119,7 @@ class AnswerMatchesTests(SimpleTestCase):
             guess_artist_deezer_id=4050205,
         ))
 
-    def test_identical_track_is_correct(self):
+    def test_identical_track_is_correct(self) -> None:
         self.assertTrue(answer_matches(
             **self.ANSWER,
             guess_deezer_id=908604612,
@@ -126,7 +128,7 @@ class AnswerMatchesTests(SimpleTestCase):
             guess_artist_deezer_id=4050205,
         ))
 
-    def test_artist_entity_carries_a_differently_spelled_credit(self):
+    def test_artist_entity_carries_a_differently_spelled_credit(self) -> None:
         self.assertTrue(answer_matches(
             **self.ANSWER,
             guess_deezer_id=999,
@@ -135,7 +137,7 @@ class AnswerMatchesTests(SimpleTestCase):
             guess_artist_deezer_id=4050205,
         ))
 
-    def test_different_song_by_same_artist_is_wrong(self):
+    def test_different_song_by_same_artist_is_wrong(self) -> None:
         self.assertFalse(answer_matches(
             **self.ANSWER,
             guess_deezer_id=111,
@@ -144,7 +146,7 @@ class AnswerMatchesTests(SimpleTestCase):
             guess_artist_deezer_id=4050205,
         ))
 
-    def test_same_title_by_an_unrelated_artist_is_wrong(self):
+    def test_same_title_by_an_unrelated_artist_is_wrong(self) -> None:
         self.assertFalse(answer_matches(
             **self.ANSWER,
             guess_deezer_id=222,
@@ -153,7 +155,7 @@ class AnswerMatchesTests(SimpleTestCase):
             guess_artist_deezer_id=777,
         ))
 
-    def test_empty_guess_is_wrong(self):
+    def test_empty_guess_is_wrong(self) -> None:
         self.assertFalse(answer_matches(
             **self.ANSWER,
             guess_deezer_id=None,
@@ -164,7 +166,7 @@ class AnswerMatchesTests(SimpleTestCase):
 
 
 class SongKeyTests(SimpleTestCase):
-    def test_the_18_duplicate_groups_already_in_the_catalogue(self):
+    def test_the_18_duplicate_groups_already_in_the_catalogue(self) -> None:
         # These pairs are real rows from the seeded catalogue. Before this
         # change they were distinct answers, so a player naming the song had
         # to also name the right release.

@@ -16,6 +16,11 @@ class DuelLobbyScreen extends StatefulWidget {
 
 class _DuelLobbyScreenState extends State<DuelLobbyScreen>
     with SingleTickerProviderStateMixin {
+  /// How long the queue runs before the player is told it may be empty.
+  /// Matchmaking itself never gives up — the ELO window keeps widening — so
+  /// without this a player alone in the queue just watches the clock forever.
+  static const _quietQueueAfterSeconds = 60;
+
   late AnimationController _pulseController;
   Timer? _elapsedTimer;
   int _elapsedSeconds = 0;
@@ -52,6 +57,11 @@ class _DuelLobbyScreenState extends State<DuelLobbyScreen>
   void _onCancel() {
     _elapsedTimer?.cancel();
     context.read<DuelProvider>().leaveQueue();
+  }
+
+  void _onPlaySolo() {
+    _onCancel();
+    Navigator.of(context).pop();
   }
 
   @override
@@ -174,6 +184,22 @@ class _DuelLobbyScreenState extends State<DuelLobbyScreen>
           elapsed,
           style: const TextStyle(color: AppTheme.textSecondary, fontSize: 16),
         ),
+        if (_elapsedSeconds >= _quietQueueAfterSeconds) ...[
+          const SizedBox(height: 24),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(
+              l10n.duelFewPlayersOnline,
+              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 15),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton(
+            onPressed: _onPlaySolo,
+            child: Text(l10n.duelPlaySolo),
+          ),
+        ],
         const SizedBox(height: 48),
         TextButton(
           onPressed: _onCancel,

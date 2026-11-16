@@ -1,14 +1,19 @@
 import uuid
+from datetime import date
+from typing import Any
+
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.db.models.functions import Lower
 from django.utils import timezone
 
-class CustomUserManager(BaseUserManager):
-    def normalize_full_email(self, email):
+class CustomUserManager(BaseUserManager['User']):
+    def normalize_full_email[T](self, email: T) -> T | str:
         return self.model.normalize_email_value(email)
 
-    def create_user(self, username, email, password=None, **extra_fields):
+    def create_user(
+        self, username: str, email: str, password: str | None = None, **extra_fields: Any,
+    ) -> 'User':
         if not email:
             raise ValueError('The Email field must be set')
         email = self.normalize_full_email(email)
@@ -17,7 +22,9 @@ class CustomUserManager(BaseUserManager):
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, username, email, password=None, **extra_fields):
+    def create_superuser(
+        self, username: str, email: str, password: str | None = None, **extra_fields: Any,
+    ) -> 'User':
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
 
@@ -28,7 +35,7 @@ class CustomUserManager(BaseUserManager):
 
         return self.create_user(username, email, password, **extra_fields)
 
-    def get_by_natural_key(self, username):
+    def get_by_natural_key(self, username: str | None) -> 'User':
         return self.get(
             **{self.model.USERNAME_FIELD: self.normalize_full_email(username)}
         )
@@ -65,33 +72,33 @@ class User(AbstractBaseUser, PermissionsMixin):
         ]
 
     @staticmethod
-    def normalize_email_value(email):
+    def normalize_email_value[T](email: T) -> T | str:
         if not isinstance(email, str):
             return email
         return email.strip().lower()
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.email
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         self.email = self.normalize_email_value(self.email)
         super().save(*args, **kwargs)
 
     @property
-    def win_rate(self):
+    def win_rate(self) -> float:
         """Calculate win percentage."""
         if self.games_played == 0:
             return 0.0
         return round((self.games_won / self.games_played) * 100, 1)
 
     @property
-    def average_points(self):
+    def average_points(self) -> float:
         """Calculate average points per game."""
         if self.games_played == 0:
             return 0.0
         return round(self.total_points / self.games_played, 1)
 
-    def update_streak(self, won_today, played_date):
+    def update_streak(self, won_today: bool, played_date: date) -> None:
         """Update streak based on game result."""
         if self.last_played_date:
             days_since_last = (played_date - self.last_played_date).days
@@ -158,7 +165,7 @@ class UserDevicePushToken(models.Model):
             models.Index(fields=['device_id'], name='udpt_device_id_idx'),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.user.username} ({self.platform})"
 
 
@@ -189,7 +196,7 @@ class BugReport(models.Model):
         db_table = 'bug_reports'
         ordering = ['-created_at']
 
-    def __str__(self):
+    def __str__(self) -> str:
         who = self.user.username if self.user else 'guest'
         return f'{who}: {self.message[:60]}'
 

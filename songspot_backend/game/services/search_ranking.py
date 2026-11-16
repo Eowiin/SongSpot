@@ -1,13 +1,18 @@
 """Search normalization is deliberately separate from answer identity."""
+from typing import TYPE_CHECKING
+
 from .matching import normalize_query
 
+if TYPE_CHECKING:
+    from ..models import Artist, Track
 
-def group_key(track):
+
+def group_key(track: 'Track') -> tuple[str, str]:
     # Remixes/parenthetical songs are distinct. Unknown identities stay separate.
     return (normalize_query(track.title), str(track.deezer_artist_id or track.pk))
 
 
-def lexical_tier(title, artist, query):
+def lexical_tier(title: str | None, artist: str | None, query: str | None) -> int:
     q = normalize_query(query)
     title, artist = normalize_query(title), normalize_query(artist)
     if q in (title, artist):
@@ -29,7 +34,9 @@ def lexical_tier(title, artist, query):
     return 5
 
 
-def rank_key(track, query, artists=None):
+def rank_key(
+    track: 'Track', query: str | None, artists: 'dict[int | None, Artist] | None' = None,
+) -> tuple[int, bool, int, int, str]:
     artist = (artists or {}).get(track.deezer_artist_id)
     tier = lexical_tier(track.title, track.artist, query)
     if artist:

@@ -201,9 +201,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       icon: Icons.language_outlined,
                       title: l10n.settingsLanguage,
                       trailing: Text(
-                        settings.locale.languageCode == 'fr'
-                            ? 'Français'
-                            : 'English',
+                        LanguageScreen.nativeNameOf(settings.locale),
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       onTap: () => Navigator.of(context).push(

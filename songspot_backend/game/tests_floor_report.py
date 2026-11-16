@@ -7,6 +7,7 @@ would make the next real run skip exactly the gaps a player asked for.
 
 import contextlib
 import io
+from collections.abc import Iterator
 from unittest.mock import patch
 
 from django.core.management import call_command
@@ -30,7 +31,7 @@ def _track(deezer_id: int, *, rank: int, title: str = 'Song') -> dict:
 
 
 @contextlib.contextmanager
-def _crawl(payloads: list[dict], artist: dict = ARTIST):
+def _crawl(payloads: list[dict], artist: dict = ARTIST) -> Iterator[io.StringIO]:
     """Run the crawler against a one-artist Deezer, capturing its output."""
     out = io.StringIO()
     with patch('game.services.DeezerService.search_artists', return_value=[artist]), \
@@ -43,10 +44,10 @@ def _crawl(payloads: list[dict], artist: dict = ARTIST):
 
 
 class FloorReportTests(TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         SearchMiss.objects.create(query='famous act', norm_query='famous act', hits=9)
 
-    def test_writes_nothing(self):
+    def test_writes_nothing(self) -> None:
         with _crawl([_track(1, rank=900_000), _track(2, rank=10)]):
             call_command('crawl_artists', floor_report=True, seeds_only='misses')
 
@@ -55,7 +56,7 @@ class FloorReportTests(TestCase):
         # The miss must stay uncrawled, or the next real run skips this gap.
         self.assertIsNone(SearchMiss.objects.get().crawled_at)
 
-    def test_separates_kept_from_rejected(self):
+    def test_separates_kept_from_rejected(self) -> None:
         payloads = [
             _track(1, rank=900_000),
             _track(2, rank=900_000),
@@ -70,7 +71,7 @@ class FloorReportTests(TestCase):
         self.assertIn('variant', report)
         self.assertIn('would store 2 of 4 tracks', report)
 
-    def test_below_floor_artist_keeps_its_row_but_not_its_tracks(self):
+    def test_below_floor_artist_keeps_its_row_but_not_its_tracks(self) -> None:
         # The row is what answers "you don't have my artist". The tracks are
         # what nothing can ever play, so they are not worth the write.
         obscure = {'id': 901, 'name': 'Small Act', 'nb_fan': 12}
@@ -80,7 +81,7 @@ class FloorReportTests(TestCase):
         self.assertEqual(Artist.objects.filter(deezer_id=901).count(), 1)
         self.assertEqual(Track.objects.count(), 0)
 
-    def test_the_floor_trims_tracks_without_narrowing_the_walk(self):
+    def test_the_floor_trims_tracks_without_narrowing_the_walk(self) -> None:
         # Between the two floors: too small to stock, big enough to still be a
         # bridge to someone larger. Cutting the walk here would shrink the
         # crawl's reach rather than just trimming what it writes.
@@ -96,21 +97,21 @@ class FloorReportTests(TestCase):
         self.assertIn('left in the frontier', out.getvalue())
         self.assertNotIn('0 left in the frontier', out.getvalue())
 
-    def test_an_override_can_still_import_everything(self):
+    def test_an_override_can_still_import_everything(self) -> None:
         obscure = {'id': 901, 'name': 'Small Act', 'nb_fan': 12}
         with _crawl([_track(1, rank=900_000)], artist=obscure):
             call_command('crawl_artists', seeds_only='misses', track_min_fans=0)
 
         self.assertEqual(Track.objects.count(), 1)
 
-    def test_a_real_run_still_writes(self):
+    def test_a_real_run_still_writes(self) -> None:
         with _crawl([_track(1, rank=900_000)]):
             call_command('crawl_artists', seeds_only='misses')
 
         self.assertEqual(Track.objects.count(), 1)
         self.assertIsNotNone(SearchMiss.objects.get().crawled_at)
 
-    def test_dry_run_and_floor_report_are_exclusive(self):
+    def test_dry_run_and_floor_report_are_exclusive(self) -> None:
         with self.assertRaises(CommandError):
             call_command('crawl_artists', dry_run=True, floor_report=True)
 
@@ -122,7 +123,7 @@ class PayloadRejectionTests(TestCase):
     reason has to keep working, and keep being told apart from the rank floor.
     """
 
-    def test_fan_floor_and_rank_floor_are_distinct_reasons(self):
+    def test_fan_floor_and_rank_floor_are_distinct_reasons(self) -> None:
         from game.services import DeezerService
         from game.services.catalog import (
             REJECT_ARTIST_FANS, REJECT_RANK, payload_rejection,
@@ -138,7 +139,7 @@ class PayloadRejectionTests(TestCase):
         low = DeezerService().extract_track_info(_track(2, rank=10))
         self.assertEqual(payload_rejection(low, big, directed=False), REJECT_RANK)
 
-    def test_a_named_artist_bypasses_both_floors(self):
+    def test_a_named_artist_bypasses_both_floors(self) -> None:
         from game.services import DeezerService
         from game.services.catalog import payload_rejection
 
@@ -154,10 +155,10 @@ class UnknownFollowerCountTests(TestCase):
     payloads carry no count — so the crawl has to look it up before deciding.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         SearchMiss.objects.create(query='small act', norm_query='small act', hits=3)
 
-    def test_an_unmeasured_artist_is_looked_up_before_the_floor_decides(self):
+    def test_an_unmeasured_artist_is_looked_up_before_the_floor_decides(self) -> None:
         # Already known, named, but never measured: the state the crawl used to
         # read as "no floor applies".
         Artist.objects.create(deezer_id=901, name='Small Act', norm_name='small act', nb_fan=0)
@@ -170,7 +171,7 @@ class UnknownFollowerCountTests(TestCase):
         # The lookup must also be written back, or every run re-fetches it.
         self.assertEqual(Artist.objects.get(deezer_id=901).nb_fan, 12)
 
-    def test_an_unmeasured_artist_over_the_floor_still_gets_its_tracks(self):
+    def test_an_unmeasured_artist_over_the_floor_still_gets_its_tracks(self) -> None:
         Artist.objects.create(deezer_id=900, name='Famous Act', norm_name='famous act', nb_fan=0)
 
         with _crawl([_track(1, rank=900_000)]):
@@ -178,7 +179,7 @@ class UnknownFollowerCountTests(TestCase):
 
         self.assertEqual(Track.objects.count(), 1)
 
-    def test_an_already_stocked_artist_costs_no_extra_lookup(self):
+    def test_an_already_stocked_artist_costs_no_extra_lookup(self) -> None:
         # top_refreshed_at set: no track decision pending, so nb_fan is not
         # worth a call however unknown it is.
         Artist.objects.create(

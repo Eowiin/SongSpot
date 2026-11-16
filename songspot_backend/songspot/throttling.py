@@ -2,7 +2,9 @@
 Custom throttle classes for rate limiting specific endpoints.
 """
 
+from rest_framework.request import Request
 from rest_framework.throttling import AnonRateThrottle, SimpleRateThrottle, UserRateThrottle
+from rest_framework.views import APIView
 
 
 class AuthRateThrottle(AnonRateThrottle):
@@ -54,7 +56,7 @@ class BugReportRateThrottle(SimpleRateThrottle):
     """
     scope = 'bug_report'
 
-    def get_cache_key(self, request, view):
+    def get_cache_key(self, request: Request, view: APIView) -> str:
         if request.user and request.user.is_authenticated:
             ident = f'user-{request.user.pk}'
         else:

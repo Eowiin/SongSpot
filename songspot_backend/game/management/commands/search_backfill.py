@@ -1,3 +1,5 @@
+from typing import Any
+
 from django.core.management.base import BaseCommand
 from django.db import connection
 from game.models import Track
@@ -7,7 +9,7 @@ from game.services.matching import normalize_query
 class Command(BaseCommand):
     help = 'Resumable bounded backfill of full search fields; run before activating search.'
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         count = 0
         after = None
         while True:

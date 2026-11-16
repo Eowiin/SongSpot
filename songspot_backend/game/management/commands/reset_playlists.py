@@ -1,3 +1,5 @@
+from typing import Any
+
 from django.core.management.base import BaseCommand
 from game.models import Playlist, CATEGORY_CHOICES
 
@@ -5,7 +7,7 @@ from game.models import Playlist, CATEGORY_CHOICES
 class Command(BaseCommand):
     help = 'Delete all playlists and create one empty playlist per genre category.'
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         deleted_count, _ = Playlist.objects.all().delete()
 
         created = 0

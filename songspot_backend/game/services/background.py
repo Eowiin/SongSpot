@@ -29,7 +29,7 @@ Three rules make an in-process pool safe on a web server:
 import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable
+from typing import Any, Callable
 
 from django.conf import settings
 from django.db import connections
@@ -71,7 +71,7 @@ def _run(fn: Callable, args: tuple, kwargs: dict) -> None:
             _pending -= 1
 
 
-def submit(fn: Callable, *args, **kwargs) -> bool:
+def submit(fn: Callable, *args: Any, **kwargs: Any) -> bool:
     """
     Queue `fn` to run after the response. False when it will not run.
 

@@ -213,5 +213,10 @@
   "searchEnriching": "Buscando más resultados…",
   "searchEmpty": "Sin resultados. Prueba con un título o un artista.",
   "searchUnavailable": "Búsqueda no disponible temporalmente. Inténtalo de nuevo.",
-  "searchRefine": "Hay más resultados: añade el artista o el título para acotar la búsqueda."
+  "searchRefine": "Hay más resultados: añade el artista o el título para acotar la búsqueda.",
+  "duelFewPlayersOnline": "Hay pocos jugadores conectados ahora mismo. Puedes seguir esperando o jugar en solitario.",
+  "duelPlaySolo": "Jugar en solitario",
+  "updateRequiredTitle": "Actualización necesaria",
+  "updateRequiredBody": "Hay una nueva versión de SongSpot. Actualiza la app para seguir jugando.",
+  "updateRequiredButton": "Actualizar"
 }

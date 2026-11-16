@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase
 
@@ -21,11 +21,11 @@ class DeezerServiceRandomTracksTests(SimpleTestCase):
     @patch.object(DeezerService, 'get_random_tracks_from_genre')
     def test_get_random_tracks_can_return_more_than_80(
         self,
-        mock_get_random_tracks_from_genre,
-        mock_get_chart_tracks,
-        mock_get_top_artists,
-        mock_get_artist_top_tracks,
-    ):
+        mock_get_random_tracks_from_genre: MagicMock,
+        mock_get_chart_tracks: MagicMock,
+        mock_get_top_artists: MagicMock,
+        mock_get_artist_top_tracks: MagicMock,
+    ) -> None:
         service = DeezerService()
 
         # Same 10 tracks from every genre call to force de-duplication.
@@ -37,7 +37,7 @@ class DeezerServiceRandomTracksTests(SimpleTestCase):
         ]
         mock_get_top_artists.return_value = [{'id': artist_id} for artist_id in range(1, 300)]
 
-        def artist_tracks_side_effect(artist_id: int, limit: int = 3):
+        def artist_tracks_side_effect(artist_id: int, limit: int = 3) -> list[dict]:
             start = 1000 + (artist_id * 10)
             return [_build_track(start + idx) for idx in range(limit)]
 
@@ -54,11 +54,11 @@ class DeezerServiceRandomTracksTests(SimpleTestCase):
     @patch.object(DeezerService, 'get_random_tracks_from_genre')
     def test_get_random_tracks_filters_missing_preview_and_duplicates(
         self,
-        mock_get_random_tracks_from_genre,
-        mock_get_chart_tracks,
-        _mock_get_top_artists,
-        _mock_get_artist_top_tracks,
-    ):
+        mock_get_random_tracks_from_genre: MagicMock,
+        mock_get_chart_tracks: MagicMock,
+        _mock_get_top_artists: MagicMock,
+        _mock_get_artist_top_tracks: MagicMock,
+    ) -> None:
         service = DeezerService()
 
         mock_get_random_tracks_from_genre.return_value = [
@@ -73,7 +73,7 @@ class DeezerServiceRandomTracksTests(SimpleTestCase):
 
         self.assertEqual({track['id'] for track in tracks}, {1, 3})
 
-    def test_get_random_tracks_returns_empty_for_non_positive_count(self):
+    def test_get_random_tracks_returns_empty_for_non_positive_count(self) -> None:
         service = DeezerService()
         self.assertEqual(service.get_random_tracks(count=0), [])
         self.assertEqual(service.get_random_tracks(count=-5), [])
@@ -84,9 +84,9 @@ class DeezerServiceMetadataTests(SimpleTestCase):
     @patch.object(DeezerService, 'get_track')
     def test_enrich_track_info_uses_full_track_and_album_metadata(
         self,
-        mock_get_track,
-        mock_get_album,
-    ):
+        mock_get_track: MagicMock,
+        mock_get_album: MagicMock,
+    ) -> None:
         service = DeezerService()
         raw_track = {
             'id': 42,
@@ -119,7 +119,7 @@ class DeezerServiceMetadataTests(SimpleTestCase):
 class DeezerServiceFieldWidthTests(SimpleTestCase):
     """A Deezer payload has to fit the columns in game.models.Track."""
 
-    def test_overlong_title_and_artist_are_truncated(self):
+    def test_overlong_title_and_artist_are_truncated(self) -> None:
         service = DeezerService()
 
         info = service.extract_track_info({
@@ -134,7 +134,7 @@ class DeezerServiceFieldWidthTests(SimpleTestCase):
         self.assertEqual(len(info['title']), 255)
         self.assertEqual(len(info['artist']), 255)
 
-    def test_ordinary_title_and_artist_are_untouched(self):
+    def test_ordinary_title_and_artist_are_untouched(self) -> None:
         service = DeezerService()
 
         info = service.extract_track_info({

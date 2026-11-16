@@ -33,7 +33,7 @@ import logging
 import time
 from typing import Any, Optional
 
-from django.core.cache import caches
+from django.core.cache import BaseCache, caches
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ _skip_until = 0.0
 _ERRORS = Exception
 
 
-def _cache():
+def _cache() -> BaseCache:
     """The shared cache, or the in-process one while the breaker is open."""
     return caches[CACHE_ALIAS] if _available() else caches[LOCAL_ALIAS]
 

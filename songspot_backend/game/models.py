@@ -1,6 +1,17 @@
 import uuid
-from django.db import models
+from typing import TYPE_CHECKING, Any, TypedDict
+
 from django.conf import settings
+from django.core.validators import RegexValidator
+from django.db import models
+
+if TYPE_CHECKING:
+    from authentication.models import User
+
+
+class PlatformRelease(TypedDict):
+    latest_version: str
+    store_url: str
 
 
 class Track(models.Model):
@@ -54,6 +65,14 @@ class Track(models.Model):
     # walks make that worse, since their tracks often carry rank 0, which
     # passes the popularity floor by design.
     is_variant = models.BooleanField(default=False)
+    # Length in seconds as Deezer reports it. Null for rows imported before it
+    # was recorded; refreshes and `backfill_track_durations` fill it in.
+    duration = models.PositiveSmallIntegerField(null=True, blank=True)
+    # Album filler — a voice note, a skit, a short intro. Unlike a variant it
+    # is never played, not even to a player who picked the artist, because
+    # there is nothing in it to recognise. Maintained in save() from title and
+    # duration; see matching.is_non_song.
+    is_non_song = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -79,27 +98,33 @@ class Track(models.Model):
             ),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.title} - {self.artist}"
 
-    def save(self, *args, **kwargs):
-        from .services.matching import is_variant_title, normalize_artist, normalize_title
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        from .services.matching import (
+            is_non_song,
+            is_variant_title,
+            normalize_artist,
+            normalize_query,
+            normalize_title,
+        )
 
-        from .services.matching import normalize_query
         self.search_title = normalize_query(self.title)
         self.search_artist = normalize_query(self.artist)
         self.norm_title = normalize_title(self.title)
         self.norm_artist = normalize_artist(self.artist)
         self.is_variant = is_variant_title(self.title)
+        self.is_non_song = is_non_song(self.title, self.duration)
         update_fields = kwargs.get('update_fields')
         if update_fields is not None:
             update_fields = set(update_fields)
             if 'title' in update_fields:
-                update_fields.update(['norm_title', 'search_title'])
+                update_fields.update(['norm_title', 'search_title', 'is_variant'])
             if 'artist' in update_fields:
                 update_fields.update(['norm_artist', 'search_artist'])
-            if 'title' in update_fields:
-                update_fields.add('is_variant')
+            if 'title' in update_fields or 'duration' in update_fields:
+                update_fields.add('is_non_song')
             kwargs['update_fields'] = tuple(update_fields)
         super().save(*args, **kwargs)
 
@@ -133,11 +158,22 @@ class Artist(models.Model):
     class Meta:
         db_table = 'artists'
         ordering = ['-nb_fan']
+        indexes = [
+            # `is_blocked=True` is read on every search and every round, as a
+            # subquery inside playable(). Without an index Postgres answers it
+            # with a sequential scan of the whole artists table (~430k rows) for
+            # a handful of matches; this partial index holds only those rows.
+            models.Index(
+                fields=['deezer_id'],
+                condition=models.Q(is_blocked=True),
+                name='artists_blocked_idx',
+            ),
+        ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.name} ({self.nb_fan} fans)"
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         from .services.matching import is_junk_artist, normalize_artist
 
         self.norm_name = normalize_artist(self.name)
@@ -189,10 +225,10 @@ class CatalogSetting(models.Model):
         verbose_name = 'Catalog settings'
         verbose_name_plural = 'Catalog settings'
 
-    def __str__(self):
+    def __str__(self) -> str:
         return 'Catalog settings'
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         self.singleton_id = 1
         super().save(*args, **kwargs)
         self.__class__.clear_cache()
@@ -209,7 +245,7 @@ class CatalogSetting(models.Model):
     _local = None
 
     @classmethod
-    def clear_cache(cls):
+    def clear_cache(cls) -> None:
         from .services.cache_utils import cache_delete
         cls._local = None
         cache_delete(cls._CACHE_KEY)
@@ -263,7 +299,7 @@ class SearchMiss(models.Model):
             models.Index(fields=['crawled_at', '-hits']),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.query} ({self.hits})'
 
 
@@ -309,7 +345,7 @@ class SearchEnrichment(models.Model):
             ),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.kind}:{self.norm_query}'
 
 
@@ -360,11 +396,11 @@ class Playlist(models.Model):
         db_table = 'playlists'
         ordering = ['name']
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
     @property
-    def track_count(self):
+    def track_count(self) -> int:
         return self.playlist_tracks.count()
 
 
@@ -393,7 +429,7 @@ class PlaylistTrack(models.Model):
             models.Index(fields=['playlist', 'order_in_playlist']),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.playlist.name} - {self.track.title}"
 
 
@@ -414,7 +450,7 @@ class FavouriteArtist(models.Model):
         unique_together = [['user', 'artist_name']]
         ordering = ['-created_at']
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.user.username} ♥ {self.artist_name}"
 
 
@@ -465,7 +501,7 @@ class GameScore(models.Model):
             ),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         label = self.genre or self.artist_filter or 'Mix'
         return f"{self.user.username} — {label} — {self.total_score}pts"
 
@@ -485,10 +521,10 @@ class UserElo(models.Model):
     class Meta:
         db_table = 'user_elos'
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.user.username} — ELO {self.elo}"
 
-    def update(self, opponent_elo: int, result: str):
+    def update(self, opponent_elo: int, result: str) -> None:
         """result: 'win' | 'loss' | 'draw'"""
         expected = 1 / (1 + 10 ** ((opponent_elo - self.elo) / 400))
         score = {'win': 1.0, 'loss': 0.0, 'draw': 0.5}[result]
@@ -542,13 +578,13 @@ class DuelMatch(models.Model):
             models.Index(fields=['status']),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.player1.username} vs {self.player2.username} [{self.status}]"
 
-    def get_opponent(self, user):
+    def get_opponent(self, user: 'User') -> 'User':
         return self.player2 if self.player1_id == user.id else self.player1
 
-    def is_player(self, user):
+    def is_player(self, user: 'User') -> bool:
         return user.id in (self.player1_id, self.player2_id)
 
 
@@ -577,7 +613,7 @@ class DuelRound(models.Model):
         unique_together = [['match', 'round_number']]
         ordering = ['round_number']
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Round {self.round_number} of {self.match}"
 
     @staticmethod
@@ -585,7 +621,7 @@ class DuelRound(models.Model):
         return SNIPPET_POINTS.get(snippets_used, 0)
 
     @property
-    def both_submitted(self):
+    def both_submitted(self) -> bool:
         return self.player1_submitted_at is not None and self.player2_submitted_at is not None
 
 
@@ -602,7 +638,7 @@ class MatchmakingQueue(models.Model):
     class Meta:
         db_table = 'matchmaking_queue'
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.user.username} in queue (ELO {self.elo_at_join})"
 
 
@@ -627,10 +663,10 @@ class UserBest(models.Model):
     class Meta:
         db_table = 'user_bests'
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.user.username} — best {self.best_score_overall}"
 
-    def update_from_score(self, score: 'GameScore'):
+    def update_from_score(self, score: 'GameScore') -> bool:
         changed = False
         if score.total_score > self.best_score_overall:
             self.best_score_overall = score.total_score
@@ -666,3 +702,74 @@ class DeezerBudget(models.Model):
     """Non-evictable coordination shared by every process on this database."""
     id = models.PositiveSmallIntegerField(primary_key=True, default=1)
     calls = models.JSONField(default=list)
+
+
+SEMVER_VALIDATOR = RegexValidator(
+    regex=r'^\d+\.\d+\.\d+$',
+    message='Use the store version name, e.g. 2.3.4 (no build number).',
+)
+
+
+class AppRelease(models.Model):
+    """
+    The app version currently live on each store, editable from the admin.
+
+    An installed app older than the version listed for its platform is blocked
+    behind an "update required" screen until the player updates. Leaving a
+    version blank turns the check off for that platform.
+
+    Fill a platform in only once its release is actually downloadable: the
+    stores review and roll out on their own schedule, and a version listed
+    before the store serves it would lock every player out with nothing to
+    update to. That is also why each platform has its own field — iOS and
+    Android are rarely approved on the same day.
+    """
+    singleton_id = models.PositiveSmallIntegerField(primary_key=True, default=1)
+
+    latest_android_version = models.CharField(
+        max_length=20, blank=True, validators=[SEMVER_VALIDATOR],
+        help_text='Version live on Google Play, e.g. 2.3.4. Blank disables the check.',
+    )
+    android_store_url = models.URLField(
+        blank=True,
+        default='https://play.google.com/store/apps/details?id=com.songspot.app',
+    )
+    latest_ios_version = models.CharField(
+        max_length=20, blank=True, validators=[SEMVER_VALIDATOR],
+        help_text='Version live on the App Store, e.g. 2.3.4. Blank disables the check.',
+    )
+    ios_store_url = models.URLField(
+        blank=True,
+        help_text='App Store page, e.g. https://apps.apple.com/app/id0000000000.',
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'app_release'
+        verbose_name = 'App release'
+        verbose_name_plural = 'App release'
+
+    def __str__(self) -> str:
+        return 'App release'
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        self.singleton_id = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_solo(cls) -> 'AppRelease':
+        obj, _ = cls.objects.get_or_create(singleton_id=1)
+        return obj
+
+    def for_platform(self, platform: str) -> PlatformRelease | None:
+        """The release a client on `platform` must run, or None if unchecked."""
+        if platform == 'android':
+            version, url = self.latest_android_version, self.android_store_url
+        elif platform == 'ios':
+            version, url = self.latest_ios_version, self.ios_store_url
+        else:
+            return None
+        # Without a store link there is nowhere to send a blocked player.
+        if not version or not url:
+            return None
+        return PlatformRelease(latest_version=version, store_url=url)

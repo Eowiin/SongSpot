@@ -93,7 +93,7 @@ def _cache_key(path: str, params: Optional[dict]) -> str:
     return 'deezer:' + hashlib.sha1(raw.encode()).hexdigest()
 
 
-def _rate_limit_slot(priority='search') -> bool:
+def _rate_limit_slot(priority: str = 'search') -> bool:
     from .deezer_budget import reserve
     return reserve(priority)
 
@@ -155,17 +155,23 @@ class DeezerHttp:
         cache_set(key, {'t': now, 'd': data}, timeout=STALE_TTL)
         return data
 
-    def _network_get(self, url, params, remaining):
+    def _network_get(
+        self, url: str, params: Optional[dict], remaining: float,
+    ) -> requests.Response | httpx.Response:
         if self._session is not None:
             # Injectable synchronous session for deterministic transport tests.
             from urllib3.util import Timeout
-            return self._session.get(url, params=params, timeout=Timeout(total=remaining))
+            # requests hands a urllib3 Timeout straight through to its adapter;
+            # the stubs only model float/tuple timeouts.
+            return self._session.get(
+                url, params=params, timeout=Timeout(total=remaining),  # type: ignore[arg-type]
+            )
 
-        async def request():
+        async def request() -> httpx.Response:
             async with httpx.AsyncClient(timeout=remaining) as client:
                 return await client.get(url, params=params)
 
-        async def bounded():
+        async def bounded() -> httpx.Response:
             return await asyncio.wait_for(request(), timeout=remaining)
 
         # Cancellation bounds DNS, connection, headers and full body together.

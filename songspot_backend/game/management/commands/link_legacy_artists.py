@@ -24,7 +24,9 @@ follower count. A refused artist keeps working exactly as it does today, by
 name.
 """
 
-from django.core.management.base import BaseCommand
+from typing import Any
+
+from django.core.management.base import BaseCommand, CommandParser
 
 from game.models import Track
 from game.services import catalog
@@ -33,7 +35,7 @@ from game.services import catalog
 class Command(BaseCommand):
     help = 'Attach deezer_artist_id to seeded tracks that only have an artist name.'
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument(
             '--limit', type=int, default=1000,
             help='Distinct artist names to resolve in this run (default: 1000).',
@@ -43,7 +45,7 @@ class Command(BaseCommand):
             help='Report the matches without writing or resolving.',
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         names = list(
             Track.objects
             .filter(deezer_artist_id__isnull=True)

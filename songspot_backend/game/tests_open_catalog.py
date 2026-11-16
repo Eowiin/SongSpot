@@ -4,11 +4,12 @@ End-to-end tests for the open catalogue.
 Deezer is mocked throughout: these assert our rules, not Deezer's uptime.
 """
 
+from typing import Any
 from unittest import skipUnless
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.conf import settings
-from django.core.cache import cache, caches
+from django.core.cache import BaseCache, cache, caches
 from django.db import connection
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -17,7 +18,10 @@ from game.models import Artist, CatalogSetting, Playlist, PlaylistTrack, SearchM
 from game.services import DeezerService, cache_utils, catalog, deezer_http, rounds
 
 
-def make_track(title, artist, *, deezer_id, rank=500_000, artist_id=4050205, **kwargs):
+def make_track(
+    title: str, artist: str, *, deezer_id: int, rank: int = 500_000, artist_id: int = 4050205,
+    **kwargs: Any,
+) -> Track:
     return Track.objects.create(
         title=title,
         artist=artist,
@@ -30,14 +34,14 @@ def make_track(title, artist, *, deezer_id, rank=500_000, artist_id=4050205, **k
 
 
 class CatalogTestCase(TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self._reset_caches()
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         self._reset_caches()
 
     @staticmethod
-    def _reset_caches():
+    def _reset_caches() -> None:
         """
         Clear every alias, not just `default`.
 
@@ -56,12 +60,12 @@ class CatalogTestCase(TestCase):
 
 
 class NormalisedColumnsTests(CatalogTestCase):
-    def test_save_maintains_the_identity_columns(self):
+    def test_save_maintains_the_identity_columns(self) -> None:
         track = make_track('Blinding Lights (Live)', 'The Weeknd', deezer_id=1)
         self.assertEqual(track.norm_title, 'blinding lights')
         self.assertEqual(track.norm_artist, 'weeknd')
 
-    def test_renaming_a_track_updates_its_identity(self):
+    def test_renaming_a_track_updates_its_identity(self) -> None:
         track = make_track('Wrong Title', 'The Weeknd', deezer_id=2)
         track.title = 'Blinding Lights'
         track.save(update_fields=['title'])
@@ -70,7 +74,7 @@ class NormalisedColumnsTests(CatalogTestCase):
 
 
 class CheckGuessTests(CatalogTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
         self.answer = make_track('Blinding Lights', 'The Weeknd', deezer_id=908604612)
         self.remix = make_track(
@@ -81,16 +85,16 @@ class CheckGuessTests(CatalogTestCase):
             'Blinding Lights', 'Victoria Voss', deezer_id=851937072, artist_id=999,
         )
 
-    def test_a_different_release_of_the_same_song_is_accepted(self):
+    def test_a_different_release_of_the_same_song_is_accepted(self) -> None:
         self.assertTrue(catalog.check_guess(self.answer, guess_track_id=str(self.remix.id)))
 
-    def test_the_exact_track_is_accepted(self):
+    def test_the_exact_track_is_accepted(self) -> None:
         self.assertTrue(catalog.check_guess(self.answer, guess_track_id=str(self.answer.id)))
 
-    def test_a_different_song_is_rejected(self):
+    def test_a_different_song_is_rejected(self) -> None:
         self.assertFalse(catalog.check_guess(self.answer, guess_track_id=str(self.other_song.id)))
 
-    def test_a_cover_by_another_act_is_rejected(self):
+    def test_a_cover_by_another_act_is_rejected(self) -> None:
         # The line between the two rules: a different *release* of the song is
         # the same answer, a different *artist* is not. The autocomplete prints
         # the artist on every row and keeps distinct artists as distinct rows,
@@ -100,35 +104,35 @@ class CheckGuessTests(CatalogTestCase):
             catalog.check_guess(self.answer, guess_track_id=str(self.other_artist.id))
         )
 
-    def test_a_guess_by_deezer_id_works(self):
+    def test_a_guess_by_deezer_id_works(self) -> None:
         self.assertTrue(catalog.check_guess(self.answer, guess_deezer_id=1078622722))
 
-    def test_a_guess_by_raw_title_works_when_nothing_is_stored(self):
+    def test_a_guess_by_raw_title_works_when_nothing_is_stored(self) -> None:
         self.assertTrue(catalog.check_guess(
             self.answer, guess_title='Blinding Lights', guess_artist='The Weeknd',
         ))
 
-    def test_an_empty_guess_is_rejected(self):
+    def test_an_empty_guess_is_rejected(self) -> None:
         self.assertFalse(catalog.check_guess(self.answer))
 
 
 class RoundTokenTests(CatalogTestCase):
-    def test_round_trip(self):
+    def test_round_trip(self) -> None:
         token = rounds.issue('abc-123', directed=True)
         payload = rounds.resolve(token)
         self.assertEqual(payload['t'], 'abc-123')
         self.assertTrue(payload['a'])
 
-    def test_a_tampered_token_is_rejected(self):
+    def test_a_tampered_token_is_rejected(self) -> None:
         token = rounds.issue('abc-123')
         with self.assertRaises(rounds.InvalidRoundToken):
             rounds.resolve(token[:-4] + 'zzzz')
 
-    def test_an_empty_token_is_rejected(self):
+    def test_an_empty_token_is_rejected(self) -> None:
         with self.assertRaises(rounds.InvalidRoundToken):
             rounds.resolve('')
 
-    def test_an_expired_token_is_rejected(self):
+    def test_an_expired_token_is_rejected(self) -> None:
         token = rounds.issue('abc-123')
         with patch.object(rounds, 'MAX_AGE_SECONDS', -1):
             with self.assertRaises(rounds.InvalidRoundToken):
@@ -136,7 +140,7 @@ class RoundTokenTests(CatalogTestCase):
 
 
 class PlayableFilterTests(CatalogTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
         CatalogSetting.objects.create(min_track_rank=200_000, min_artist_fans=50_000)
         self.popular = make_track('Hit', 'Big Act', deezer_id=1, rank=900_000, artist_id=10)
@@ -144,23 +148,23 @@ class PlayableFilterTests(CatalogTestCase):
         Artist.objects.create(deezer_id=10, name='Big Act', nb_fan=5_000_000)
         Artist.objects.create(deezer_id=20, name='Tiny Act', nb_fan=200)
 
-    def test_undirected_picks_apply_the_rank_floor(self):
+    def test_undirected_picks_apply_the_rank_floor(self) -> None:
         playable = catalog.playable(Track.objects.all(), directed=False)
         self.assertIn(self.popular, playable)
         self.assertNotIn(self.obscure, playable)
 
-    def test_a_directed_pick_ignores_every_threshold(self):
+    def test_a_directed_pick_ignores_every_threshold(self) -> None:
         # The whole point: someone who asks for a 200-fan artist gets them.
         playable = catalog.playable(Track.objects.all(), directed=True)
         self.assertIn(self.obscure, playable)
 
-    def test_a_track_without_audio_is_never_playable(self):
+    def test_a_track_without_audio_is_never_playable(self) -> None:
         Track.objects.filter(id=self.popular.id).update(has_preview=False)
         self.assertNotIn(
             self.popular, catalog.playable(Track.objects.all(), directed=True),
         )
 
-    def test_curated_tracks_bypass_the_popularity_floor(self):
+    def test_curated_tracks_bypass_the_popularity_floor(self) -> None:
         # Provenance beats thresholds. A track from Deezer's own "Top J-Pop"
         # playlist is a hit in its market even at a fraction of the follower
         # count a European act would have.
@@ -171,7 +175,7 @@ class PlayableFilterTests(CatalogTestCase):
         Artist.objects.create(deezer_id=40, name='Niche Act', nb_fan=7_879)
         self.assertIn(curated, catalog.playable(Track.objects.all(), directed=False))
 
-    def test_a_curated_source_skips_the_import_time_floors(self):
+    def test_a_curated_source_skips_the_import_time_floors(self) -> None:
         info = {
             'title': 'J-pop hit', 'artist': 'Niche Act',
             'preview_url': 'https://example.com/a.mp3',
@@ -183,7 +187,7 @@ class PlayableFilterTests(CatalogTestCase):
             catalog.is_playable_payload(info, artist, directed=False, curated=True)
         )
 
-    def test_a_curated_source_still_rejects_karaoke_and_variants(self):
+    def test_a_curated_source_still_rejects_karaoke_and_variants(self) -> None:
         # Curation buys a pass on popularity, not on everything.
         artist = Artist.objects.create(deezer_id=41, name='Karaoke Kings', nb_fan=9_000_000)
         base = {
@@ -199,7 +203,7 @@ class PlayableFilterTests(CatalogTestCase):
             None, directed=False, curated=True,
         ))
 
-    def test_junk_artists_are_excluded_from_undirected_picks_only(self):
+    def test_junk_artists_are_excluded_from_undirected_picks_only(self) -> None:
         Artist.objects.create(deezer_id=30, name='Karaoke Kings', nb_fan=1_000_000)
         junk = make_track('Hit', 'Karaoke Kings', deezer_id=3, rank=900_000, artist_id=30)
         self.assertNotIn(junk, catalog.playable(Track.objects.all(), directed=False))
@@ -216,29 +220,29 @@ class CacheResilienceTests(CatalogTestCase):
     cache now lives on its own alias, and every access to it is wrapped.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
         cache_utils.reset_breaker()
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         cache_utils.reset_breaker()
         super().tearDown()
 
-    def test_djangos_default_cache_is_never_the_redis_one(self):
+    def test_djangos_default_cache_is_never_the_redis_one(self) -> None:
         # DRF throttling, sessions and anything else reaching for `default`
         # must not be able to fail because Redis is down.
         self.assertIn('locmem', settings.CACHES['default']['BACKEND'])
 
-    def test_a_read_failure_reads_as_a_miss(self):
+    def test_a_read_failure_reads_as_a_miss(self) -> None:
         with patch.object(cache_utils, '_cache', side_effect=RuntimeError('redis down')):
             self.assertIsNone(cache_utils.cache_get('anything'))
 
-    def test_a_write_failure_falls_through_to_the_local_cache(self):
+    def test_a_write_failure_falls_through_to_the_local_cache(self) -> None:
         with patch.object(cache_utils, 'caches', _BrokenSharedCache()):
             self.assertTrue(cache_utils.cache_set('k', 'v', timeout=60))
             self.assertEqual(cache_utils.cache_get('k'), 'v')
 
-    def test_the_breaker_stops_paying_the_timeout_on_every_call(self):
+    def test_the_breaker_stops_paying_the_timeout_on_every_call(self) -> None:
         # Each attempt on a dead Redis costs a connect timeout, so a page
         # needing a dozen reads would take a dozen seconds. After the threshold
         # the shared cache must stop being touched at all.
@@ -248,7 +252,7 @@ class CacheResilienceTests(CatalogTestCase):
                 cache_utils.cache_get('k')
         self.assertLessEqual(broken.shared_attempts, cache_utils._BREAKER_THRESHOLD)
 
-    def test_the_breaker_lets_traffic_through_again_after_the_cooldown(self):
+    def test_the_breaker_lets_traffic_through_again_after_the_cooldown(self) -> None:
         with patch.object(cache_utils, '_cache', side_effect=RuntimeError('redis down')):
             for _ in range(cache_utils._BREAKER_THRESHOLD):
                 cache_utils.cache_get('k')
@@ -256,7 +260,7 @@ class CacheResilienceTests(CatalogTestCase):
         cache_utils.cache_set('k', 'recovered')
         self.assertEqual(cache_utils.cache_get('k'), 'recovered')
 
-    def test_a_round_is_still_served_with_the_cache_down(self):
+    def test_a_round_is_still_served_with_the_cache_down(self) -> None:
         make_track('Hit', 'Big Act', deezer_id=1, rank=900_000)
         with patch.object(cache_utils, '_cache', side_effect=RuntimeError('redis down')):
             response = self.client.get(reverse('game:next_song'), {'v': 2})
@@ -287,24 +291,24 @@ class RateLimiterTests(CatalogTestCase):
     calls, exhausted the quota, and failed every category after the second.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
         cache_utils.reset_breaker()
         caches[cache_utils.LOCAL_ALIAS].clear()
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         cache_utils.reset_breaker()
         caches[cache_utils.LOCAL_ALIAS].clear()
         super().tearDown()
 
-    def test_it_stops_traffic_once_the_window_is_full(self):
+    def test_it_stops_traffic_once_the_window_is_full(self) -> None:
         allowed = sum(
             1 for _ in range(deezer_http.RATE_LIMIT + 20)
             if deezer_http._rate_limit_slot()
         )
         self.assertLessEqual(allowed, deezer_http.RATE_LIMIT)
 
-    def test_it_still_limits_when_the_shared_cache_is_gone(self):
+    def test_it_still_limits_when_the_shared_cache_is_gone(self) -> None:
         broken = _BrokenSharedCache()
         with patch.object(cache_utils, 'caches', broken):
             allowed = sum(
@@ -314,7 +318,7 @@ class RateLimiterTests(CatalogTestCase):
         self.assertLessEqual(allowed, deezer_http.RATE_LIMIT)
         self.assertGreater(allowed, 0, 'it must not block everything either')
 
-    def test_responses_are_still_cached_when_the_shared_cache_is_gone(self):
+    def test_responses_are_still_cached_when_the_shared_cache_is_gone(self) -> None:
         # Degrading to no cache at all would mean re-asking Deezer for
         # everything, which is how the quota got burned in the first place.
         with patch.object(cache_utils, 'caches', _BrokenSharedCache()):
@@ -331,7 +335,7 @@ class TransientRefusalTests(CatalogTestCase):
     empty for the whole day.
     """
 
-    def test_quota_errors_are_recognised_as_transient(self):
+    def test_quota_errors_are_recognised_as_transient(self) -> None:
         self.assertTrue(deezer_http._is_transient(
             {'type': 'Exception', 'message': 'Quota limit exceeded', 'code': 4}
         ))
@@ -339,14 +343,14 @@ class TransientRefusalTests(CatalogTestCase):
             {'message': 'Service temporarily unavailable'}
         ))
 
-    def test_permanent_errors_are_not_retried(self):
+    def test_permanent_errors_are_not_retried(self) -> None:
         # Retrying a missing resource just burns the time budget.
         self.assertFalse(deezer_http._is_transient(
             {'type': 'DataException', 'message': 'no data', 'code': 800000}
         ))
         self.assertFalse(deezer_http._is_transient(None))
 
-    def test_a_refusal_is_retried_and_then_succeeds(self):
+    def test_a_refusal_is_retried_and_then_succeeds(self) -> None:
         http = deezer_http.DeezerHttp(max_wait=10)
         responses = [
             _FakeResponse({'error': {'message': 'Quota limit exceeded', 'code': 4}}),
@@ -365,7 +369,7 @@ class TransientRefusalTests(CatalogTestCase):
         self.assertEqual(result, {'data': [{'id': 1}]})
         self.assertEqual(session.get.call_count, 2)
 
-    def test_it_gives_up_once_the_budget_is_spent(self):
+    def test_it_gives_up_once_the_budget_is_spent(self) -> None:
         # A web request cannot wait: it has a player on the other end and a
         # database to fall back on.
         http = deezer_http.DeezerHttp(max_wait=0)
@@ -380,23 +384,23 @@ class TransientRefusalTests(CatalogTestCase):
 
 
 class _FakeResponse:
-    def __init__(self, payload):
+    def __init__(self, payload: dict[str, Any]) -> None:
         self._payload = payload
 
-    def raise_for_status(self):
+    def raise_for_status(self) -> None:
         pass
 
-    def json(self):
+    def json(self) -> dict[str, Any]:
         return self._payload
 
 
 class _BrokenSharedCache:
     """Mapping where the shared alias raises and the local one works."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.shared_attempts = 0
 
-    def __getitem__(self, alias):
+    def __getitem__(self, alias: str) -> BaseCache:
         if alias == cache_utils.CACHE_ALIAS:
             self.shared_attempts += 1
             raise RuntimeError('redis down')
@@ -404,7 +408,7 @@ class _BrokenSharedCache:
 
 
 class SearchTracksDedupTests(CatalogTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
         for i, title in enumerate([
             'Blinding Lights',
@@ -415,7 +419,7 @@ class SearchTracksDedupTests(CatalogTestCase):
             make_track(title, 'The Weeknd', deezer_id=100 + i, rank=900_000 - i)
 
     @patch('game.services.catalog.DeezerService')
-    def test_distinct_full_titles_are_not_merged(self, mock_deezer):
+    def test_distinct_full_titles_are_not_merged(self, mock_deezer: MagicMock) -> None:
         mock_deezer.return_value.search_track.return_value = {'data': []}
         results = catalog.search_tracks('blinding')
         self.assertEqual(len(results), 4)
@@ -430,7 +434,7 @@ class SearchByArtistTests(CatalogTestCase):
     from what a player actually types, which is `rosalia`, without the accent.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
         Artist.objects.create(deezer_id=1614102, name='ROSALÍA', nb_fan=3_000_000)
         for i, title in enumerate(['DESPECHÁ', 'LA FAMA', 'BESO']):
@@ -441,13 +445,13 @@ class SearchByArtistTests(CatalogTestCase):
                    rank=984_833, artist_id=4050205)
 
     @patch('game.services.catalog.DeezerService')
-    def test_an_artist_name_finds_their_songs(self, mock_deezer):
+    def test_an_artist_name_finds_their_songs(self, mock_deezer: MagicMock) -> None:
         mock_deezer.return_value.search_track.return_value = {'data': []}
         results = catalog.search_tracks('rosalia')
         self.assertEqual({t.title for t in results}, {'DESPECHÁ', 'LA FAMA', 'BESO'})
 
     @patch('game.services.catalog.DeezerService')
-    def test_the_accented_spelling_finds_them_too(self, mock_deezer):
+    def test_the_accented_spelling_finds_them_too(self, mock_deezer: MagicMock) -> None:
         # SQLite's LIKE only case-folds ASCII, so `ROSALÍA` does not match
         # `Rosalía` on a raw column however the player spells it.
         mock_deezer.return_value.search_track.return_value = {'data': []}
@@ -455,26 +459,28 @@ class SearchByArtistTests(CatalogTestCase):
         self.assertEqual(len(results), 3)
 
     @patch('game.services.catalog.DeezerService')
-    def test_artist_and_title_together_in_either_order(self, mock_deezer):
+    def test_artist_and_title_together_in_either_order(self, mock_deezer: MagicMock) -> None:
         mock_deezer.return_value.search_track.return_value = {'data': []}
         for query in ('rosalia despecha', 'despecha rosalia'):
             results = catalog.search_tracks(query)
             self.assertEqual([t.title for t in results], ['DESPECHÁ'], query)
 
     @patch('game.services.catalog.DeezerService')
-    def test_a_leading_the_still_finds_the_act(self, mock_deezer):
+    def test_a_leading_the_still_finds_the_act(self, mock_deezer: MagicMock) -> None:
         # `normalize_artist` drops it, so `norm_artist` is plain `weeknd`.
         mock_deezer.return_value.search_track.return_value = {'data': []}
         results = catalog.search_tracks('the weeknd')
         self.assertEqual([t.title for t in results], ['Blinding Lights'])
 
     @patch('game.services.catalog.DeezerService')
-    def test_words_from_neither_field_match_nothing(self, mock_deezer):
+    def test_words_from_neither_field_match_nothing(self, mock_deezer: MagicMock) -> None:
         mock_deezer.return_value.search_track.return_value = {'data': []}
         self.assertEqual(catalog.search_tracks('rosalia starboy'), [])
 
 
-def deezer_track(deezer_id, title, artist, artist_id, rank=800_000):
+def deezer_track(
+    deezer_id: int, title: str, artist: str, artist_id: int, rank: int = 800_000,
+) -> dict[str, Any]:
     """A search payload as Deezer returns it."""
     return {
         'id': deezer_id,
@@ -501,30 +507,32 @@ class SearchTypoTests(CatalogTestCase):
         deezer_track(502, 'PERRO NEGRO', 'Bad Bunny', 589),
     ]
 
-    def _search(self, query, deezer_results):
+    def _search(
+        self, query: str, deezer_results: list[dict[str, Any]],
+    ) -> tuple[list[Track], MagicMock]:
         with patch.object(
             DeezerService, 'search_track', return_value={'data': deezer_results},
         ) as search:
             return catalog.search_tracks(query), search
 
-    def test_a_typo_shows_what_deezer_matched(self):
+    def test_a_typo_shows_what_deezer_matched(self) -> None:
         results, _ = self._search('bad buny', self.BAD_BUNNY)
         self.assertEqual({t.title for t in results}, {'MONACO', 'PERRO NEGRO'})
         self.assertFalse(SearchMiss.objects.exists())
 
-    def test_words_typed_without_spaces_are_matched(self):
+    def test_words_typed_without_spaces_are_matched(self) -> None:
         results, _ = self._search(
             'straykids', [deezer_track(601, 'This & That', 'Stray Kids', 700)],
         )
         self.assertEqual([t.title for t in results], ['This & That'])
 
-    def test_a_word_still_being_typed_counts(self):
+    def test_a_word_still_being_typed_counts(self) -> None:
         results, _ = self._search(
             'oliva rodr', [deezer_track(701, 'drivers license', 'Olivia Rodrigo', 800)],
         )
         self.assertEqual([t.title for t in results], ['drivers license'])
 
-    def test_unrelated_deezer_results_are_not_shown(self):
+    def test_unrelated_deezer_results_are_not_shown(self) -> None:
         results, _ = self._search(
             'gina and georgia',
             [deezer_track(801, "Gina And Elvira's Theme", 'Giorgio Moroder', 900)],
@@ -532,14 +540,14 @@ class SearchTypoTests(CatalogTestCase):
         self.assertEqual(results, [])
         self.assertTrue(SearchMiss.objects.filter(norm_query='gina and georgia').exists())
 
-    def test_the_next_player_sees_the_same_list(self):
+    def test_the_next_player_sees_the_same_list(self) -> None:
         first, _ = self._search('bad buny', self.BAD_BUNNY)
         # The query is claimed now, so Deezer is not asked again.
         second, search = self._search('bad buny', [])
         search.assert_not_called()
         self.assertEqual({t.title for t in second}, {t.title for t in first})
 
-    def test_local_results_are_never_replaced(self):
+    def test_local_results_are_never_replaced(self) -> None:
         make_track('Bad Bunny Intro', 'Local Act', deezer_id=901)
         results, _ = self._search('bad bunny', self.BAD_BUNNY)
         self.assertEqual([t.title for t in results], ['Bad Bunny Intro'])
@@ -555,7 +563,7 @@ class SearchRankingTests(CatalogTestCase):
     player a life for a song they identified correctly.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
         Artist.objects.create(deezer_id=4050205, name='The Weeknd', nb_fan=14_659_544)
         self.original = make_track(
@@ -575,20 +583,20 @@ class SearchRankingTests(CatalogTestCase):
         ]
 
     @patch('game.services.catalog.DeezerService')
-    def test_the_original_comes_first(self, mock_deezer):
+    def test_the_original_comes_first(self, mock_deezer: MagicMock) -> None:
         mock_deezer.return_value.search_track.return_value = {'data': []}
         results = catalog.search_tracks('blinding lights')
         self.assertEqual(results[0].artist, 'The Weeknd')
 
     @patch('game.services.catalog.DeezerService')
-    def test_shared_titles_remain_accessible(self, mock_deezer):
+    def test_shared_titles_remain_accessible(self, mock_deezer: MagicMock) -> None:
         mock_deezer.return_value.search_track.return_value = {'data': []}
         results = catalog.search_tracks('blinding lights')
         self.assertEqual(len(results), 5)
         self.assertEqual(results[0].artist, 'The Weeknd')
 
     @patch('game.services.catalog.DeezerService')
-    def test_distinct_songs_sharing_a_title_all_survive_the_cap(self, mock_deezer):
+    def test_distinct_songs_sharing_a_title_all_survive_the_cap(self, mock_deezer: MagicMock) -> None:
         # Three famous, genuinely different songs called "Hello". The cap must
         # not be so tight that it hides one of them.
         mock_deezer.return_value.search_track.return_value = {'data': []}
@@ -605,7 +613,7 @@ class SearchRankingTests(CatalogTestCase):
         )
 
     @patch('game.services.catalog.DeezerService')
-    def test_karaoke_acts_sort_last(self, mock_deezer):
+    def test_karaoke_acts_sort_last(self, mock_deezer: MagicMock) -> None:
         mock_deezer.return_value.search_track.return_value = {'data': []}
         Artist.objects.create(deezer_id=905, name='Karaoke Kings', nb_fan=9_000_000)
         make_track('Blinding Lights', 'Karaoke Kings',
@@ -623,7 +631,7 @@ class SearchRankingTests(CatalogTestCase):
     'DEFAULT_THROTTLE_RATES': {},
 })
 class NextSongAndGuessApiTests(CatalogTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
         CatalogSetting.objects.create(min_track_rank=1_000)
         self.answer = make_track('Blinding Lights', 'The Weeknd', deezer_id=908604612)
@@ -632,55 +640,55 @@ class NextSongAndGuessApiTests(CatalogTestCase):
             deezer_id=1078622722, rank=400_000,
         )
 
-    def test_v2_round_withholds_the_answer(self):
+    def test_v2_round_withholds_the_answer(self) -> None:
         response = self.client.get(reverse('game:next_song'), {'v': 2})
         self.assertEqual(response.status_code, 200)
-        self.assertIn('round_token', response.data)
-        self.assertIn('preview_url', response.data)
+        self.assertIn('round_token', response.data)  # type: ignore[attr-defined]  # DRF Response
+        self.assertIn('preview_url', response.data)  # type: ignore[attr-defined]  # DRF Response
         # The answer used to ride along with the audio.
-        self.assertNotIn('title', response.data)
-        self.assertNotIn('artist', response.data)
+        self.assertNotIn('title', response.data)  # type: ignore[attr-defined]  # DRF Response
+        self.assertNotIn('artist', response.data)  # type: ignore[attr-defined]  # DRF Response
 
-    def test_v1_round_still_carries_the_answer(self):
+    def test_v1_round_still_carries_the_answer(self) -> None:
         # Already-installed apps judge the guess themselves and break without it.
         response = self.client.get(reverse('game:next_song'))
         self.assertEqual(response.status_code, 200)
-        self.assertIn('title', response.data)
-        self.assertNotIn('round_token', response.data)
+        self.assertIn('title', response.data)  # type: ignore[attr-defined]  # DRF Response
+        self.assertNotIn('round_token', response.data)  # type: ignore[attr-defined]  # DRF Response
 
-    def test_next_song_serves_the_canonical_release(self):
+    def test_next_song_serves_the_canonical_release(self) -> None:
         # Both rows are the same song; the higher-ranked one is what the
         # autocomplete offers, so it is what the round must use.
         for _ in range(5):
             response = self.client.get(reverse('game:next_song'), {'v': 2})
-            self.assertEqual(response.data['id'], str(self.answer.id))
+            self.assertEqual(response.data['id'], str(self.answer.id))  # type: ignore[attr-defined]  # DRF Response
 
-    def test_guessing_another_release_is_correct(self):
+    def test_guessing_another_release_is_correct(self) -> None:
         token = rounds.issue(str(self.answer.id))
         response = self.client.post(reverse('game:guess'), {
             'round_token': token,
             'guess_track_id': str(self.remix.id),
         })
         self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.data['correct'])
-        self.assertEqual(response.data['answer']['title'], 'Blinding Lights')
+        self.assertTrue(response.data['correct'])  # type: ignore[attr-defined]  # DRF Response
+        self.assertEqual(response.data['answer']['title'], 'Blinding Lights')  # type: ignore[attr-defined]  # DRF Response
 
-    def test_giving_up_returns_the_answer_without_scoring_it(self):
+    def test_giving_up_returns_the_answer_without_scoring_it(self) -> None:
         token = rounds.issue(str(self.answer.id))
         response = self.client.post(reverse('game:guess'), {'round_token': token})
         self.assertEqual(response.status_code, 200)
-        self.assertFalse(response.data['correct'])
-        self.assertTrue(response.data['gave_up'])
-        self.assertEqual(response.data['answer']['title'], 'Blinding Lights')
+        self.assertFalse(response.data['correct'])  # type: ignore[attr-defined]  # DRF Response
+        self.assertTrue(response.data['gave_up'])  # type: ignore[attr-defined]  # DRF Response
+        self.assertEqual(response.data['answer']['title'], 'Blinding Lights')  # type: ignore[attr-defined]  # DRF Response
 
-    def test_a_forged_token_is_refused(self):
+    def test_a_forged_token_is_refused(self) -> None:
         response = self.client.post(reverse('game:guess'), {
             'round_token': 'not-a-real-token',
             'guess_track_id': str(self.remix.id),
         })
         self.assertEqual(response.status_code, 400)
 
-    def test_an_empty_pool_reports_404_rather_than_a_wrong_answer(self):
+    def test_an_empty_pool_reports_404_rather_than_a_wrong_answer(self) -> None:
         Track.objects.all().delete()
         response = self.client.get(reverse('game:next_song'), {'v': 2})
         self.assertEqual(response.status_code, 404)
@@ -694,7 +702,7 @@ class NextSongAndGuessApiTests(CatalogTestCase):
 class DirectedArtistPlayTests(CatalogTestCase):
     """A player who names an artist gets that artist, thresholds notwithstanding."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
         CatalogSetting.objects.create(min_track_rank=500_000, min_artist_fans=1_000_000)
         Artist.objects.create(deezer_id=777, name='Tiny Local Act', nb_fan=212)
@@ -703,26 +711,26 @@ class DirectedArtistPlayTests(CatalogTestCase):
         )
 
     @patch('game.services.catalog.ensure_artist_tracks')
-    def test_an_artist_far_below_the_floor_is_playable(self, mock_ensure):
+    def test_an_artist_far_below_the_floor_is_playable(self, mock_ensure: MagicMock) -> None:
         mock_ensure.return_value = [self.obscure]
         response = self.client.get(
             reverse('game:next_song'), {'v': 2, 'artist_id': 777},
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['id'], str(self.obscure.id))
+        self.assertEqual(response.data['id'], str(self.obscure.id))  # type: ignore[attr-defined]  # DRF Response
         # The app needs this to warn "only 1 track available" up front instead
         # of ending the session on a confusing "pool cleared".
-        self.assertEqual(response.data['pool_size'], 1)
+        self.assertEqual(response.data['pool_size'], 1)  # type: ignore[attr-defined]  # DRF Response
 
-    def test_a_non_numeric_artist_id_is_a_bad_request(self):
+    def test_a_non_numeric_artist_id_is_a_bad_request(self) -> None:
         response = self.client.get(
-            reverse('game:next_song'), {'v': 2, 'artist_id': 'the-weeknd'},
+            reverse('game:next_song'), {'v': '2', 'artist_id': 'the-weeknd'},
         )
         self.assertEqual(response.status_code, 400)
 
 
 class UpsertTrackTests(CatalogTestCase):
-    def test_reimporting_the_same_deezer_track_updates_rather_than_duplicates(self):
+    def test_reimporting_the_same_deezer_track_updates_rather_than_duplicates(self) -> None:
         info = {
             'title': 'Blinding Lights',
             'artist': 'The Weeknd',
@@ -733,18 +741,20 @@ class UpsertTrackTests(CatalogTestCase):
         }
         first = catalog.upsert_track(info)
         second = catalog.upsert_track({**info, 'cover_url': 'https://example.com/c.jpg'})
+        assert first is not None and second is not None
         self.assertEqual(first.id, second.id)
         self.assertEqual(Track.objects.count(), 1)
         self.assertEqual(second.cover_url, 'https://example.com/c.jpg')
 
-    def test_a_payload_without_audio_is_stored_as_an_answer(self):
+    def test_a_payload_without_audio_is_stored_as_an_answer(self) -> None:
         row = catalog.upsert_track({
             'title': 'Silent', 'artist': 'Nobody', 'preview_url': '',
         })
+        assert row is not None
         self.assertFalse(row.has_preview)
         self.assertEqual(Track.objects.count(), 1)
 
-    def test_distinct_releases_of_one_song_stay_distinct_rows(self):
+    def test_distinct_releases_of_one_song_stay_distinct_rows(self) -> None:
         # Regression: an earlier version matched on the normalised identity for
         # every import, so the live take was merged into the studio row — and
         # because a newer preview always wins, the row titled "Blinding Lights"
@@ -761,13 +771,14 @@ class UpsertTrackTests(CatalogTestCase):
             **base, 'title': 'Blinding Lights (Live)', 'deezer_id': 2166259437,
             'preview_url': 'https://example.com/live.mp3',
         })
+        assert studio is not None and live is not None
         self.assertNotEqual(studio.id, live.id)
         studio.refresh_from_db()
         self.assertTrue(studio.has_preview)
         # Separate rows, but still the same answer.
         self.assertTrue(catalog.check_guess(studio, guess_track_id=str(live.id)))
 
-    def test_a_legacy_row_without_a_deezer_id_is_adopted(self):
+    def test_a_legacy_row_without_a_deezer_id_is_adopted(self) -> None:
         # The seeded catalogue predates the ID column; re-importing one of
         # those songs should fill the row in, not duplicate it.
         legacy = Track.objects.create(
@@ -780,11 +791,12 @@ class UpsertTrackTests(CatalogTestCase):
             'deezer_id': 908604612, 'deezer_artist_id': 4050205,
             'preview_url': 'https://example.com/fresh.mp3',
         })
+        assert adopted is not None
         self.assertEqual(adopted.id, legacy.id)
         self.assertEqual(adopted.deezer_id, 908604612)
         self.assertEqual(Track.objects.count(), 1)
 
-    def test_audio_is_recorded_as_a_flag_not_a_url(self):
+    def test_audio_is_recorded_as_a_flag_not_a_url(self) -> None:
         """
         The URL is never stored; only the fact that Deezer had one.
 
@@ -797,10 +809,11 @@ class UpsertTrackTests(CatalogTestCase):
             'preview_url': 'https://example.com/old.mp3', 'deezer_id': 1,
         }
         track = catalog.upsert_track(info)
+        assert track is not None
         self.assertTrue(track.has_preview)
         self.assertFalse(hasattr(track, 'preview_url'))
 
-    def test_a_legacy_row_without_audio_gains_the_flag_on_re_import(self):
+    def test_a_legacy_row_without_audio_gains_the_flag_on_re_import(self) -> None:
         legacy = Track.objects.create(
             title='Silent Row', artist='Old Act', deezer_id=42, has_preview=False,
         )
@@ -814,7 +827,7 @@ class UpsertTrackTests(CatalogTestCase):
 
 class ArtistSearchRankingTests(CatalogTestCase):
     @patch('game.services.catalog.DeezerService')
-    def test_results_are_ranked_by_followers_not_by_deezer_order(self, mock_deezer):
+    def test_results_are_ranked_by_followers_not_by_deezer_order(self, mock_deezer: MagicMock) -> None:
         # Deezer's real ordering for `q=weeknd`: the 2k-fan namesake first.
         mock_deezer.return_value.search_artists.return_value = [
             {'id': 11005292, 'name': 'Weeknd', 'nb_fan': 2101},
@@ -825,7 +838,7 @@ class ArtistSearchRankingTests(CatalogTestCase):
         self.assertEqual(results[0].name, 'The Weeknd')
 
     @patch('game.services.catalog.DeezerService')
-    def test_cover_acts_rank_last_but_stay_findable(self, mock_deezer):
+    def test_cover_acts_rank_last_but_stay_findable(self, mock_deezer: MagicMock) -> None:
         mock_deezer.return_value.search_artists.return_value = [
             {'id': 1, 'name': 'Karaoke Kings', 'nb_fan': 9_000_000},
             {'id': 2, 'name': 'Real Band', 'nb_fan': 1_000},
@@ -849,7 +862,7 @@ class ArtistArtworkTests(CatalogTestCase):
     ANGELE = 'https://cdn-images.dzcdn.net/images/artist/0f9/1000x1000.jpg'
 
     @staticmethod
-    def _payload(deezer_id, title, artist):
+    def _payload(deezer_id: int, title: str, artist: dict[str, Any]) -> dict[str, Any]:
         """An album track payload: an artist object, with no picture in it."""
         return {
             'id': deezer_id,
@@ -860,14 +873,14 @@ class ArtistArtworkTests(CatalogTestCase):
             'album': {'title': 'Nonante-Cinq', 'cover_xl': 'https://x/c.jpg'},
         }
 
-    def _walk(self, payloads):
+    def _walk(self, payloads: list[dict[str, Any]]) -> None:
         deezer = DeezerService()
         with patch.object(
             DeezerService, 'get_artist_top_tracks', return_value=payloads,
         ):
             catalog._import_artist_top(deezer, 1042268, self.ANGELE)
 
-    def test_the_walked_artist_keeps_their_own_artwork(self):
+    def test_the_walked_artist_keeps_their_own_artwork(self) -> None:
         self._walk([self._payload(
             1, 'Bruxelles je t aime', {'id': 1042268, 'name': 'Angèle'},
         )])
@@ -876,7 +889,7 @@ class ArtistArtworkTests(CatalogTestCase):
             Artist.objects.get(deezer_id=1042268).picture_url, self.ANGELE,
         )
 
-    def test_a_feature_on_the_walk_is_not_given_that_artwork(self):
+    def test_a_feature_on_the_walk_is_not_given_that_artwork(self) -> None:
         self._walk([
             self._payload(1, 'Bruxelles je t aime', {'id': 1042268, 'name': 'Angèle'}),
             self._payload(2, 'Démons', {'id': 9197980, 'name': 'Damso'}),
@@ -888,7 +901,7 @@ class ArtistArtworkTests(CatalogTestCase):
         # this by ID later, which cannot pick the wrong artist.
         self.assertIsNone(damso.picture_url)
 
-    def test_a_payload_crediting_nobody_still_gets_the_artwork(self):
+    def test_a_payload_crediting_nobody_still_gets_the_artwork(self) -> None:
         # No id in the payload means the row is attributed to the artist being
         # walked, so the artwork is theirs to give.
         self._walk([self._payload(3, 'Balance ton quoi', {'name': 'Angèle'})])

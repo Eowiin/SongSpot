@@ -5,13 +5,18 @@ import json
 import logging
 import random
 import time
+import uuid
+from typing import TYPE_CHECKING, Any
 
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from django.db import transaction
 
-from .models import DuelMatch, DuelRound, MatchmakingQueue, Track, UserElo
+from .models import DuelMatch, DuelRound, MatchmakingQueue, Playlist, Track, UserElo
 from .services import catalog, pools, previews
+
+if TYPE_CHECKING:
+    from authentication.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -21,21 +26,21 @@ TOTAL_ROUNDS = 5
 SNIPPET_POINTS = {1: 100, 2: 80, 3: 60, 4: 40, 5: 20}
 
 # In-process state — works for single-worker ASGI (standard Daphne/Uvicorn setup)
-_connected: dict[str, set] = {}         # match_id → {player_num, ...}
-_round_timers: dict[str, asyncio.Task] = {}   # match_id → active timer Task
-_resolved_rounds: dict[str, set] = {}   # match_id → {round_numbers already resolved}
-_audio_ready: dict[str, set] = {}       # match_id → {player_nums who sent audio_ready}
-_ready_timeouts: dict[str, asyncio.Task] = {}  # match_id → pending round_begin timeout task
+_connected: dict[str, set[int]] = {}         # match_id → {player_num, ...}
+_round_timers: dict[str, asyncio.Task[None]] = {}   # match_id → active timer Task
+_resolved_rounds: dict[str, set[int]] = {}   # match_id → {round_numbers already resolved}
+_audio_ready: dict[str, set[int]] = {}       # match_id → {player_nums who sent audio_ready}
+_ready_timeouts: dict[str, asyncio.Task[None]] = {}  # match_id → pending round_begin timeout task
 _round_begun: dict[str, bool] = {}      # match_id → True once round_begin has been broadcast
 _match_locks: dict[str, asyncio.Lock] = {}  # match_id → lock for round-start / resolve coordination
 _round_started_at: dict[str, float] = {}    # match_id → unix time when current round timer started
-_forfeit_tasks: dict[str, asyncio.Task] = {}  # "{match_id}_{player_num}" → pending forfeit task
+_forfeit_tasks: dict[str, asyncio.Task[None]] = {}  # "{match_id}_{player_num}" → pending forfeit task
 
 
-def _parse_qs(scope) -> dict:
+def _parse_qs(scope: dict[str, Any]) -> dict[str, str]:
     """Parse query string from ASGI scope into a dict."""
     raw = scope.get('query_string', b'').decode()
-    result = {}
+    result: dict[str, str] = {}
     for part in raw.split('&'):
         if '=' in part:
             k, v = part.split('=', 1)
@@ -43,7 +48,7 @@ def _parse_qs(scope) -> dict:
     return result
 
 
-def _pick_tracks(playlist_id, count: int) -> list:
+def _pick_tracks(playlist_id: uuid.UUID | str | None, count: int) -> list[Track]:
     """
     Synchronous: pick `count` distinct random tracks for a match.
 
@@ -93,10 +98,12 @@ class MatchmakingConsumer(AsyncWebsocketConsumer):
       {type: "cancel"}
     """
 
-    matching_task = None
-    user = None
+    matching_task: asyncio.Task[None] | None = None
+    # None only until connect() authenticates; disconnect() checks for that, and
+    # nothing else runs before it is set.
+    user: 'User' = None  # type: ignore[assignment]
 
-    async def connect(self):
+    async def connect(self) -> None:
         user = self.scope['user']
         if not user.is_authenticated:
             await self.close(code=4001)
@@ -119,7 +126,7 @@ class MatchmakingConsumer(AsyncWebsocketConsumer):
 
         self.matching_task = asyncio.create_task(self._match_loop())
 
-    async def disconnect(self, code):
+    async def disconnect(self, code: int) -> None:
         if self.user is None:
             return
         if self.matching_task:
@@ -127,7 +134,7 @@ class MatchmakingConsumer(AsyncWebsocketConsumer):
         await self._leave_queue()
         await self.channel_layer.group_discard(self.personal_group, self.channel_name)
 
-    async def receive(self, text_data):
+    async def receive(self, text_data: str) -> None:
         try:
             data = json.loads(text_data)
         except json.JSONDecodeError:
@@ -135,7 +142,7 @@ class MatchmakingConsumer(AsyncWebsocketConsumer):
         if data.get('type') == 'cancel':
             await self.close()
 
-    async def match_found(self, event):
+    async def match_found(self, event: dict[str, Any]) -> None:
         """Dispatched by channel layer when a match is created."""
         await self.send(json.dumps({
             'type': 'match_found',
@@ -146,7 +153,7 @@ class MatchmakingConsumer(AsyncWebsocketConsumer):
 
     # ── Matching loop ─────────────────────────────────────────────────────────
 
-    async def _match_loop(self):
+    async def _match_loop(self) -> None:
         elo_range = 100
         iterations = 0
         try:
@@ -191,7 +198,9 @@ class MatchmakingConsumer(AsyncWebsocketConsumer):
     # WebSocket ones, started refusing to connect.
 
     @database_sync_to_async
-    def _try_create_match(self, elo_range):
+    def _try_create_match(
+        self, elo_range: int,
+    ) -> 'tuple[DuelMatch, User, Playlist | None] | None':
         try:
             with transaction.atomic():
                 my_entry = MatchmakingQueue.objects.select_for_update(nowait=True).get(user=self.user)
@@ -234,23 +243,23 @@ class MatchmakingConsumer(AsyncWebsocketConsumer):
             return None
 
     @database_sync_to_async
-    def _join_queue(self):
+    def _join_queue(self) -> None:
         MatchmakingQueue.objects.update_or_create(
             user=self.user,
             defaults={'elo_at_join': self.current_elo, 'playlist_id': self.playlist_id},
         )
 
     @database_sync_to_async
-    def _leave_queue(self):
+    def _leave_queue(self) -> None:
         MatchmakingQueue.objects.filter(user=self.user).delete()
 
     @database_sync_to_async
-    def _get_or_create_elo(self):
+    def _get_or_create_elo(self) -> UserElo:
         obj, _ = UserElo.objects.get_or_create(user=self.user, defaults={'elo': 1000})
         return obj
 
     @database_sync_to_async
-    def _get_elo(self, user):
+    def _get_elo(self, user: 'User') -> int:
         obj, _ = UserElo.objects.get_or_create(user=user, defaults={'elo': 1000})
         return obj.elo
 
@@ -269,10 +278,12 @@ class DuelConsumer(AsyncWebsocketConsumer):
     player disconnect — only when both players are gone is the match abandoned.
     """
 
-    match_id = None
-    player_num = None
+    # None only until connect() sets them; disconnect() checks for that, and no
+    # other handler can run before they are set.
+    match_id: str = None  # type: ignore[assignment]
+    player_num: int = None  # type: ignore[assignment]
 
-    async def connect(self):
+    async def connect(self) -> None:
         user = self.scope['user']
         if not user.is_authenticated:
             await self.close(code=4001)
@@ -287,7 +298,7 @@ class DuelConsumer(AsyncWebsocketConsumer):
             return
 
         self.user = user
-        self.match = match
+        self.match: DuelMatch = match
         self.player_num = 1 if match.player1_id == user.id else 2
 
         await self.accept()
@@ -319,7 +330,7 @@ class DuelConsumer(AsyncWebsocketConsumer):
                 'player_num': self.player_num,
             })
 
-    async def disconnect(self, code):
+    async def disconnect(self, code: int) -> None:
         if self.match_id is None:
             return
         _connected.get(self.match_id, set()).discard(self.player_num)
@@ -361,7 +372,7 @@ class DuelConsumer(AsyncWebsocketConsumer):
             _match_locks.pop(self.match_id, None)
             _round_started_at.pop(self.match_id, None)
 
-    async def receive(self, text_data):
+    async def receive(self, text_data: str) -> None:
         try:
             data = json.loads(text_data)
         except json.JSONDecodeError:
@@ -374,7 +385,7 @@ class DuelConsumer(AsyncWebsocketConsumer):
 
     # ── Channel-layer event handlers ──────────────────────────────────────────
 
-    async def player_ready(self, event):
+    async def player_ready(self, event: dict[str, Any]) -> None:
         """Both players connected → first consumer to acquire the lock fires round 1."""
         connected = _connected.get(self.match_id, set())
         if {1, 2}.issubset(connected):
@@ -387,7 +398,7 @@ class DuelConsumer(AsyncWebsocketConsumer):
                         and not _ready_timeouts.get(self.match_id)):
                     await self._start_round(1)
 
-    async def round_start_event(self, event):
+    async def round_start_event(self, event: dict[str, Any]) -> None:
         await self.send(json.dumps({
             'type': 'round_start',
             'round': event['round'],
@@ -395,20 +406,20 @@ class DuelConsumer(AsyncWebsocketConsumer):
             'time_limit': ROUND_TIME_LIMIT,
         }))
 
-    async def round_begin_event(self, event):
+    async def round_begin_event(self, event: dict[str, Any]) -> None:
         await self.send(json.dumps({
             'type': 'round_begin',
             'countdown': 3,
             'time_limit': event.get('time_limit', ROUND_TIME_LIMIT),
         }))
 
-    async def opponent_submitted_event(self, event):
+    async def opponent_submitted_event(self, event: dict[str, Any]) -> None:
         if event['player_num'] != self.player_num:
             await self.send(json.dumps({'type': 'opponent_submitted'}))
 
         await self._check_and_resolve()
 
-    async def round_result_event(self, event):
+    async def round_result_event(self, event: dict[str, Any]) -> None:
         is_p1 = self.player_num == 1
         await self.send(json.dumps({
             'type': 'round_result',
@@ -422,7 +433,7 @@ class DuelConsumer(AsyncWebsocketConsumer):
             },
         }))
 
-    async def match_end_event(self, event):
+    async def match_end_event(self, event: dict[str, Any]) -> None:
         is_p1 = self.player_num == 1
         winner_raw = event['winner']  # 'p1' | 'p2' | 'draw'
         if winner_raw == 'draw':
@@ -449,17 +460,17 @@ class DuelConsumer(AsyncWebsocketConsumer):
             },
         }))
 
-    async def peer_disconnected(self, event):
+    async def peer_disconnected(self, event: dict[str, Any]) -> None:
         if event['player_num'] != self.player_num:
             await self.send(json.dumps({'type': 'opponent_disconnected'}))
 
-    async def opponent_reconnected_event(self, event):
+    async def opponent_reconnected_event(self, event: dict[str, Any]) -> None:
         if event['player_num'] != self.player_num:
             await self.send(json.dumps({'type': 'opponent_reconnected'}))
 
     # ── Game logic (only player 1 coordinates) ────────────────────────────────
 
-    async def _start_round(self, round_number):
+    async def _start_round(self, round_number: int) -> None:
         round_obj = await self._get_round(round_number)
         if round_obj is None:
             return
@@ -494,7 +505,7 @@ class DuelConsumer(AsyncWebsocketConsumer):
         timeout = asyncio.create_task(self._audio_ready_timeout(round_number))
         _ready_timeouts[self.match_id] = timeout
 
-    async def _audio_ready_timeout(self, round_number):
+    async def _audio_ready_timeout(self, round_number: int) -> None:
         """Fires round_begin after 15s if both players haven't signalled audio_ready."""
         try:
             await asyncio.sleep(15)
@@ -502,7 +513,7 @@ class DuelConsumer(AsyncWebsocketConsumer):
         except asyncio.CancelledError:
             pass
 
-    async def _handle_audio_ready(self):
+    async def _handle_audio_ready(self) -> None:
         match = await self._load_match_fresh()
         if match is None or match.current_round == 0:
             return
@@ -515,7 +526,7 @@ class DuelConsumer(AsyncWebsocketConsumer):
                 timeout.cancel()
             await self._fire_round_begin(round_number)
 
-    async def _fire_round_begin(self, round_number):
+    async def _fire_round_begin(self, round_number: int) -> None:
         # Guard: check-and-set before any await so concurrent callers are safe
         if _round_begun.get(self.match_id):
             return
@@ -536,13 +547,13 @@ class DuelConsumer(AsyncWebsocketConsumer):
             if pnum not in connected:
                 self._schedule_forfeit(pnum, round_number)
 
-    def _begin_round_timer(self, round_number):
+    def _begin_round_timer(self, round_number: int) -> None:
         if self.match_id not in _round_timers:
             _round_started_at[self.match_id] = time.time()
             timer = asyncio.create_task(self._round_timer(round_number))
             _round_timers[self.match_id] = timer
 
-    def _schedule_forfeit(self, player_num: int, round_number: int):
+    def _schedule_forfeit(self, player_num: int, round_number: int) -> None:
         key = f'{self.match_id}_{player_num}'
         existing = _forfeit_tasks.pop(key, None)
         if existing:
@@ -563,7 +574,7 @@ class DuelConsumer(AsyncWebsocketConsumer):
         task = asyncio.create_task(self._forfeit_after(player_num, round_number, grace))
         _forfeit_tasks[key] = task
 
-    async def _forfeit_after(self, player_num: int, round_number: int, delay: float):
+    async def _forfeit_after(self, player_num: int, round_number: int, delay: float) -> None:
         try:
             logger.info('[forfeit] scheduled p%s match=%s in %.1fs', player_num, self.match_id, delay)
             await asyncio.sleep(delay)
@@ -574,7 +585,7 @@ class DuelConsumer(AsyncWebsocketConsumer):
         except Exception:
             logger.exception('[forfeit] ERROR p%s match=%s round=%s', player_num, self.match_id, round_number)
 
-    async def _forfeit_player(self, player_num: int, round_number: int):
+    async def _forfeit_player(self, player_num: int, round_number: int) -> None:
         """Auto-submit 0 pts for a disconnected player, then resolve the round.
         Resolves immediately regardless of whether the other player submitted —
         they get credit for whatever they guessed (0 if they didn't)."""
@@ -586,7 +597,7 @@ class DuelConsumer(AsyncWebsocketConsumer):
                 timer.cancel()
             await self._resolve_round(round_number)
 
-    async def _send_match_end_late(self, match):
+    async def _send_match_end_late(self, match: DuelMatch) -> None:
         """Send match_end to a player who reconnects after the match finished."""
         is_p1 = self.player_num == 1
         my_score = match.player1_score if is_p1 else match.player2_score
@@ -608,12 +619,12 @@ class DuelConsumer(AsyncWebsocketConsumer):
         }))
 
     @database_sync_to_async
-    def _get_player_elo(self):
+    def _get_player_elo(self) -> int:
         user_id = self.match.player1_id if self.player_num == 1 else self.match.player2_id
         obj, _ = UserElo.objects.get_or_create(user_id=user_id, defaults={'elo': 1000})
         return obj.elo
 
-    async def _send_reconnect_state(self, match):
+    async def _send_reconnect_state(self, match: DuelMatch) -> None:
         """Push current round state directly to a reconnecting player."""
         round_obj = await self._get_round(match.current_round)
         if round_obj is None:
@@ -646,7 +657,7 @@ class DuelConsumer(AsyncWebsocketConsumer):
             },
         }))
 
-    async def _round_timer(self, round_number):
+    async def _round_timer(self, round_number: int) -> None:
         try:
             await asyncio.sleep(ROUND_TIME_LIMIT)
             logger.info('[timer] expired round=%s match=%s', round_number, self.match_id)
@@ -659,7 +670,7 @@ class DuelConsumer(AsyncWebsocketConsumer):
         except Exception:
             logger.exception('[timer] ERROR round=%s match=%s', round_number, self.match_id)
 
-    async def _handle_submit_guess(self, data):
+    async def _handle_submit_guess(self, data: dict[str, Any]) -> None:
         match = await self._load_match_fresh()
         if match is None or match.status not in ('waiting', 'in_progress'):
             return
@@ -695,7 +706,7 @@ class DuelConsumer(AsyncWebsocketConsumer):
 
         await self._check_and_resolve()
 
-    async def _check_and_resolve(self):
+    async def _check_and_resolve(self) -> None:
         lock = _match_locks.setdefault(self.match_id, asyncio.Lock())
         async with lock:
             match = await self._load_match_fresh()
@@ -716,7 +727,7 @@ class DuelConsumer(AsyncWebsocketConsumer):
                     timer.cancel()
                 await self._resolve_round(match.current_round)
 
-    async def _resolve_round(self, round_number):
+    async def _resolve_round(self, round_number: int) -> None:
         """Called under _match_locks. Belt-and-suspenders guard against double-resolve."""
         resolved = _resolved_rounds.setdefault(self.match_id, set())
         if round_number in resolved:
@@ -781,7 +792,7 @@ class DuelConsumer(AsyncWebsocketConsumer):
         # to the group would pile up unprocessed behind the sleeping handler,
         # causing player 1 to receive round_result far too late (after round_start
         # for the next round has already arrived, cancelling the reveal overlay).
-        async def _transition():
+        async def _transition() -> None:
             try:
                 await asyncio.sleep(NEXT_ROUND_DELAY)
                 if round_number >= match.total_rounds:
@@ -793,7 +804,8 @@ class DuelConsumer(AsyncWebsocketConsumer):
 
         asyncio.create_task(_transition())
 
-    async def _end_match(self, p1_score, p2_score):
+    async def _end_match(self, p1_score: int, p2_score: int) -> None:
+        winner_id: uuid.UUID | None
         if p1_score > p2_score:
             p1_result, p2_result, winner_str, winner_id = 'win', 'loss', 'p1', self.match.player1_id
         elif p2_score > p1_score:
@@ -815,43 +827,46 @@ class DuelConsumer(AsyncWebsocketConsumer):
     # ── DB helpers ────────────────────────────────────────────────────────────
 
     @database_sync_to_async
-    def _load_match(self):
+    def _load_match(self) -> DuelMatch | None:
         try:
             return DuelMatch.objects.select_related('player1', 'player2').get(id=self.match_id)
         except DuelMatch.DoesNotExist:
             return None
 
     @database_sync_to_async
-    def _load_match_fresh(self):
+    def _load_match_fresh(self) -> DuelMatch | None:
         try:
             return DuelMatch.objects.get(id=self.match_id)
         except DuelMatch.DoesNotExist:
             return None
 
     @database_sync_to_async
-    def _get_round(self, round_number):
+    def _get_round(self, round_number: int) -> DuelRound | None:
         try:
-            return DuelRound.objects.select_related('track').get(
+            # django-stubs wants a UUID for `match_id`; Django coerces the str.
+            return DuelRound.objects.select_related('track').get(  # type: ignore[misc]
                 match_id=self.match_id, round_number=round_number,
             )
         except DuelRound.DoesNotExist:
             return None
 
     @database_sync_to_async
-    def _db_set_current_round(self, round_number):
+    def _db_set_current_round(self, round_number: int) -> None:
         DuelMatch.objects.filter(id=self.match_id).update(
             current_round=round_number, status='in_progress',
         )
 
     @database_sync_to_async
-    def _db_check_guess(self, answer_track_id, guess_track_id: str) -> bool:
+    def _db_check_guess(self, answer_track_id: uuid.UUID, guess_track_id: str) -> bool:
         answer = Track.objects.filter(id=answer_track_id).first()
         if answer is None or not guess_track_id:
             return False
         return catalog.check_guess(answer, guess_track_id=guess_track_id)
 
     @database_sync_to_async
-    def _db_save_guess(self, round_id, is_correct, points, snippets_used):
+    def _db_save_guess(
+        self, round_id: int, is_correct: bool, points: int, snippets_used: int,
+    ) -> None:
         from django.utils import timezone as tz
         now = tz.now()
         if self.player_num == 1:
@@ -870,13 +885,13 @@ class DuelConsumer(AsyncWebsocketConsumer):
             )
 
     @database_sync_to_async
-    def _db_update_scores(self, p1_score, p2_score):
+    def _db_update_scores(self, p1_score: int, p2_score: int) -> None:
         DuelMatch.objects.filter(id=self.match_id).update(
             player1_score=p1_score, player2_score=p2_score,
         )
 
     @database_sync_to_async
-    def _db_update_elos(self, p1_result, p2_result):
+    def _db_update_elos(self, p1_result: str, p2_result: str) -> tuple[int, int, int, int]:
         with transaction.atomic():
             p1_obj, _ = UserElo.objects.select_for_update().get_or_create(
                 user_id=self.match.player1_id, defaults={'elo': 1000},
@@ -890,23 +905,24 @@ class DuelConsumer(AsyncWebsocketConsumer):
             return p1_obj.elo, p2_obj.elo, p1_obj.elo - old_p1, p2_obj.elo - old_p2
 
     @database_sync_to_async
-    def _db_finalize(self, winner_id):
+    def _db_finalize(self, winner_id: uuid.UUID | None) -> None:
         DuelMatch.objects.filter(id=self.match_id).update(
             status='completed', winner_id=winner_id,
         )
 
     @database_sync_to_async
-    def _maybe_abandon(self):
+    def _maybe_abandon(self) -> None:
         DuelMatch.objects.filter(id=self.match_id, status='in_progress').update(
             status='abandoned',
         )
 
     @database_sync_to_async
-    def _db_forfeit_round(self, round_number: int, player_num: int):
+    def _db_forfeit_round(self, round_number: int, player_num: int) -> None:
         from django.utils import timezone as tz
         now = tz.now()
+        # django-stubs wants a UUID for `match_id`; Django coerces the str.
         if player_num == 1:
-            DuelRound.objects.filter(
+            DuelRound.objects.filter(  # type: ignore[misc]
                 match_id=self.match_id,
                 round_number=round_number,
                 player1_submitted_at__isnull=True,
@@ -917,7 +933,7 @@ class DuelConsumer(AsyncWebsocketConsumer):
                 player1_submitted_at=now,
             )
         else:
-            DuelRound.objects.filter(
+            DuelRound.objects.filter(  # type: ignore[misc]
                 match_id=self.match_id,
                 round_number=round_number,
                 player2_submitted_at__isnull=True,
