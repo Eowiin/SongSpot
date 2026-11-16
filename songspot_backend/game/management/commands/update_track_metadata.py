@@ -1,7 +1,8 @@
 import re
+from typing import Any
 
-from django.core.management.base import BaseCommand
-from django.db.models import Q
+from django.core.management.base import BaseCommand, CommandParser
+from django.db.models import Q, QuerySet
 
 from game.models import Track
 from game.services import DeezerService
@@ -10,7 +11,7 @@ from game.services import DeezerService
 class Command(BaseCommand):
     help = 'Backfill Deezer metadata for existing tracks (genre, release year, cover, and Deezer ID)'
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument(
             '--all',
             action='store_true',
@@ -32,7 +33,7 @@ class Command(BaseCommand):
             help='Try a conservative Deezer search when a track has no deezer_id',
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         refresh_all = options['all']
         dry_run = options['dry_run']
         search_missing = options['search_missing']
@@ -130,7 +131,7 @@ class Command(BaseCommand):
         self.stdout.write(f'  Failed:  {failed}')
 
     @staticmethod
-    def _get_queryset(refresh_all):
+    def _get_queryset(refresh_all: bool) -> QuerySet[Track]:
         queryset = Track.objects.order_by('created_at')
         if refresh_all:
             return queryset
@@ -144,7 +145,7 @@ class Command(BaseCommand):
             Q(genre='')
         )
 
-    def _find_search_match(self, deezer, track):
+    def _find_search_match(self, deezer: DeezerService, track: Track) -> dict[str, Any] | None:
         result = deezer.search_track(f'{track.title} {track.artist}', limit=10)
         candidates = result.get('data', []) if isinstance(result, dict) else []
         wanted_title = self._normalize(track.title)
@@ -159,5 +160,5 @@ class Command(BaseCommand):
         return None
 
     @staticmethod
-    def _normalize(value):
+    def _normalize(value: str) -> str:
         return re.sub(r'[^a-z0-9]+', '', value.lower())

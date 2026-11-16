@@ -9,7 +9,7 @@ from game.models import Track, SearchOutbox
 
 @override_settings(SEARCH_BACKEND='postgres', SEARCH_INDEX_ENABLED=False)
 class SearchDeploymentTests(TransactionTestCase):
-    def test_interrupted_index_build_is_repaired_and_local_outbox_does_not_block_readiness(self):
+    def test_interrupted_index_build_is_repaired_and_local_outbox_does_not_block_readiness(self) -> None:
         if connection.vendor != 'postgresql':
             self.skipTest('PostgreSQL concurrent indexes required')
         Track.objects.create(title='First', artist='Band', rank=1)

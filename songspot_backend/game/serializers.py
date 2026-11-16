@@ -5,7 +5,7 @@ from .models import Artist, Track, GameScore, UserBest, UserElo, DuelMatch, Duel
 User = get_user_model()
 
 
-def _resolved_preview(track):
+def _resolved_preview(track: Track) -> str | None:
     """
     The URL the view resolved for this round.
 
@@ -26,7 +26,7 @@ class TrackSerializer(serializers.ModelSerializer):
     """
     preview_url = serializers.SerializerMethodField()
 
-    def get_preview_url(self, track):
+    def get_preview_url(self, track: Track) -> str | None:
         return _resolved_preview(track)
 
     class Meta:
@@ -46,7 +46,7 @@ class TrackRoundSerializer(serializers.ModelSerializer):
     """
     preview_url = serializers.SerializerMethodField()
 
-    def get_preview_url(self, track):
+    def get_preview_url(self, track: Track) -> str | None:
         return _resolved_preview(track)
 
     class Meta:
@@ -174,7 +174,7 @@ class UserEloSerializer(serializers.ModelSerializer):
         fields = ('elo', 'wins', 'losses', 'draws', 'rank')
         read_only_fields = fields
 
-    def get_rank(self, obj):
+    def get_rank(self, obj: UserElo) -> int:
         return UserElo.objects.filter(elo__gt=obj.elo).count() + 1
 
 
@@ -223,5 +223,5 @@ class DuelLeaderboardEntrySerializer(serializers.ModelSerializer):
         fields = ('username', 'elo', 'wins', 'losses', 'draws', 'rank')
         read_only_fields = fields
 
-    def get_rank(self, obj):
+    def get_rank(self, obj: UserElo) -> int:
         return self.context.get('ranks', {}).get(obj.user_id, 0)

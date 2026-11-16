@@ -7,13 +7,15 @@ Only transport work lives here; enrichment jobs remain durable in PostgreSQL.
 import asyncio
 import os
 import threading
+from collections.abc import Coroutine
+from typing import Any
 
 _lock = threading.Lock()
-_loop = None
-_pid = None
+_loop: asyncio.AbstractEventLoop | None = None
+_pid: int | None = None
 
 
-def run_bounded(coroutine, timeout):
+def run_bounded[T](coroutine: Coroutine[Any, Any, T], timeout: float) -> T:
     global _loop, _pid
     with _lock:
         if _loop is None or _pid != os.getpid():

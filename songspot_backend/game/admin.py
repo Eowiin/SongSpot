@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.http import HttpRequest
 from .models import (
     Artist, CatalogSetting, Track, Playlist, PlaylistTrack,
     GameScore, UserBest, FavouriteArtist,
@@ -39,11 +40,11 @@ class CatalogSettingAdmin(admin.ModelAdmin):
     )
     readonly_fields = ('updated_at',)
 
-    def has_add_permission(self, request):
+    def has_add_permission(self, request: HttpRequest) -> bool:
         # Singleton: the row is created on first read by CatalogSetting.get_solo.
         return not CatalogSetting.objects.exists()
 
-    def has_delete_permission(self, request, obj=None):
+    def has_delete_permission(self, request: HttpRequest, obj: CatalogSetting | None = None) -> bool:
         return False
 
 

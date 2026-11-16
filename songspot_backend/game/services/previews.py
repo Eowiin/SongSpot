@@ -54,12 +54,15 @@ back to one would only replace an honest error with silent, broken audio.
 """
 
 import logging
-from typing import Iterable, Optional
+from typing import TYPE_CHECKING, Iterable, Optional
 
 from django.conf import settings
 
 from .cache_utils import cache_get, cache_set
 from .deezer_http import DeezerHttp, DeezerUnavailable
+
+if TYPE_CHECKING:
+    from ..models import Playlist, Track
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +163,7 @@ def single_preview(deezer_track_id: int) -> Optional[str]:
     return url or None
 
 
-def playlist_containers(playlist) -> list[tuple[str, int]]:
+def playlist_containers(playlist: 'Playlist') -> list[tuple[str, int]]:
     """
     The Deezer containers a category refills from, cheapest-sharing first.
 
@@ -176,7 +179,7 @@ def playlist_containers(playlist) -> list[tuple[str, int]]:
     return containers
 
 
-def resolve(track, containers: Iterable[tuple[str, int]] = ()) -> Optional[str]:
+def resolve(track: 'Track', containers: Iterable[tuple[str, int]] = ()) -> Optional[str]:
     """
     A playable URL for `track`, or None.
 

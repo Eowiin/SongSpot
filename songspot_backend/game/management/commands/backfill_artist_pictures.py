@@ -18,7 +18,9 @@ rows that predate both, or whose picture came back empty at the time.
     python manage.py backfill_artist_pictures --dry-run
 """
 
-from django.core.management.base import BaseCommand
+from typing import Any
+
+from django.core.management.base import BaseCommand, CommandParser
 from django.db.models import Q
 
 from game.models import Artist
@@ -29,7 +31,7 @@ from game.services.deezer_http import BULK_MAX_WAIT, DeezerHttp
 class Command(BaseCommand):
     help = 'Fetch missing picture_url for artists, by Deezer ID.'
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument(
             '--limit', type=int, default=1000,
             help='Artists to process in this run (default: 1000).',
@@ -39,7 +41,7 @@ class Command(BaseCommand):
             help='Report what is missing without calling Deezer or writing.',
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         missing = (
             Artist.objects
             .filter(Q(picture_url__isnull=True) | Q(picture_url=''), is_blocked=False)

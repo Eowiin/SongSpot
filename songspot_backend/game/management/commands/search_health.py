@@ -1,4 +1,5 @@
 import json
+from typing import Any
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Count
@@ -11,9 +12,9 @@ from game.services.search_index import Index
 class Command(BaseCommand):
     help = 'Read-only search completeness, backlog and provider state report (no Deezer calls).'
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         oldest = SearchOutbox.objects.order_by('created_at').first()
-        report = {
+        report: dict[str, Any] = {
             'backend': settings.SEARCH_BACKEND,
             'external_index_enabled': settings.SEARCH_INDEX_ENABLED,
             'outbox': SearchOutbox.objects.count(),

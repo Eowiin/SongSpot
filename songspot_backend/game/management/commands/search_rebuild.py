@@ -1,3 +1,5 @@
+from typing import Any
+
 from django.core.management.base import BaseCommand
 from game.services.search_index import rebuild
 
@@ -5,5 +7,5 @@ from game.services.search_index import rebuild
 class Command(BaseCommand):
     help = 'Build and atomically activate a new local search generation; keep the previous generation.'
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         self.stdout.write(str(rebuild()))

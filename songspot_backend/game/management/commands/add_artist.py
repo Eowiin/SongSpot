@@ -1,7 +1,8 @@
 import json
 from pathlib import Path
+from typing import Any
 
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import BaseCommand, CommandError, CommandParser
 
 from game.services import DeezerService
 from ._artist_utils import fetch_and_save_artist, resolve_artist_id
@@ -12,7 +13,7 @@ CURATED_FILE = Path(__file__).resolve().parent.parent / 'curated_artists.json'
 class Command(BaseCommand):
     help = 'Add a single artist by name: fetch their top tracks and optionally save to curated list'
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument(
             'name',
             type=str,
@@ -37,7 +38,7 @@ class Command(BaseCommand):
             help='Also append the artist to curated_artists.json',
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         name = options['name'].strip()
         tracks_per_artist = options['tracks']
         delay = options['delay']

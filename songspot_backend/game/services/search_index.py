@@ -2,7 +2,9 @@
 import hashlib
 import time
 import uuid
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
+from typing import Any
 
 import requests
 from django.conf import settings
@@ -18,12 +20,12 @@ class IndexUnavailable(Exception):
 
 
 class Index:
-    def __init__(self):
+    def __init__(self) -> None:
         self.url = settings.MEILI_URL.rstrip('/')
         self.session = requests.Session()
         self.session.headers['Authorization'] = 'Bearer '+settings.MEILI_KEY
 
-    def request(self, method, path, payload=None, wait=False):
+    def request(self, method: str, path: str, payload: Any = None, wait: bool = False) -> Any:
         try:
             response = self.session.request(method, self.url+path, json=payload, timeout=(.5, 2))
             response.raise_for_status()
@@ -42,7 +44,7 @@ class Index:
         except (requests.RequestException, ValueError, KeyError) as exc:
             raise IndexUnavailable('index unavailable') from exc
 
-    def configure(self, name):
+    def configure(self, name: str) -> None:
         self.request('POST', '/indexes', {'uid': name, 'primaryKey': 'id'}, wait=True)
         self.request('PATCH', f'/indexes/{name}/settings', {
             'searchableAttributes': ['title', 'artist', 'aliases'],
@@ -51,16 +53,21 @@ class Index:
             'pagination': {'maxTotalHits': 10000},
         }, wait=True)
 
-    def put(self, name, docs):
+    def put(self, name: str, docs: list[dict[str, Any]]) -> None:
         if docs:
             self.request('POST', f'/indexes/{name}/documents', docs, wait=True)
 
-    def delete(self, name, ids):
+    def delete(self, name: str, ids: list[str]) -> None:
         if ids:
             self.request('POST', f'/indexes/{name}/documents/delete-batch', ids, wait=True)
 
 
-def document(kind, row, blocked=None, artist_names=None):
+def document(
+    kind: str,
+    row: Any,
+    blocked: set[int] | None = None,
+    artist_names: dict[int, str] | None = None,
+) -> dict[str, Any] | None:
     if kind == 'artists':
         if row.is_blocked:
             return None
@@ -81,7 +88,7 @@ def document(kind, row, blocked=None, artist_names=None):
     return dict(id=str(row.pk), title=title, artist=artist, group=group, rank=rank, aliases=aliases)
 
 
-def documents(kind, rows):
+def documents(kind: str, rows: Iterable[Any]) -> list[dict[str, Any]]:
     rows = list(rows)
     if kind == 'tracks':
         artists = list(Artist.objects.filter(pk__in={r.deezer_artist_id for r in rows}).values('pk','name','is_blocked'))
@@ -93,7 +100,7 @@ def documents(kind, rows):
 
 
 @contextmanager
-def consumer_lock():
+def consumer_lock() -> Iterator[None]:
     if connection.vendor != 'postgresql':
         raise RuntimeError('Search indexing requires PostgreSQL')
     with connection.cursor() as cursor:
@@ -107,7 +114,7 @@ def consumer_lock():
             cursor.execute('SELECT pg_advisory_unlock(73920146)')
 
 
-def drain(index, names=None, batches=1):
+def drain(index: Index, names: dict[str, str] | None = None, batches: int = 1) -> int:
     names = names or {'tracks': 'songspot_tracks', 'artists': 'songspot_artists'}
     total = 0
     for _ in range(batches):
@@ -117,7 +124,9 @@ def drain(index, names=None, batches=1):
             events = list(SearchOutbox.objects.select_for_update().order_by('id')[:200])
             if not events:
                 break
-            changed = {'tracks': set(), 'artists': set()}
+            changed: dict[str, set[str]] = {'tracks': set(), 'artists': set()}
+            # Artist or Track: the list literal joins to type[Model], which has no `objects`.
+            model: Any
             for event in events:
                 changed[event.kind].add(event.entity_id)
             for kind, model in [('artists', Artist), ('tracks', Track)]:
@@ -126,9 +135,9 @@ def drain(index, names=None, batches=1):
                 if kind == 'tracks':
                     selected |= Q(deezer_artist_id__in=changed['artists'])
                 missing = set(explicit)
-                batch = []
+                batch: list[Artist | Track] = []
 
-                def flush(rows):
+                def flush(rows: list[Artist | Track]) -> None:
                     docs = documents(kind, rows)
                     index.put(names[kind], docs)
                     index.delete(names[kind], sorted({str(r.pk) for r in rows}-{d['id'] for d in docs}))
@@ -145,7 +154,7 @@ def drain(index, names=None, batches=1):
     return total
 
 
-def rebuild():
+def rebuild() -> dict[str, str]:
     index = Index()
     suffix = uuid.uuid4().hex[:12]
     names = {kind: 'songspot_'+kind+'_'+suffix for kind in ('tracks','artists')}
@@ -153,9 +162,11 @@ def rebuild():
         # Keep outbox until after swap: a failed build must not steal changes
         # from the still-active index. A DB rollback causes harmless replays.
         with transaction.atomic():
+            # Artist or Track: the list literal joins to type[Model], which has no `objects`.
+            model: Any
             for kind, model in [('artists', Artist), ('tracks', Track)]:
                 index.configure(names[kind])
-                batch = []
+                batch: list[Artist | Track] = []
                 for row in model.objects.order_by('pk').iterator(chunk_size=500):
                     batch.append(row)
                     if len(batch) == 500:

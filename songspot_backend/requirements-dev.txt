@@ -1,0 +1,6 @@
+# Development tooling on top of the runtime requirements.
+-r requirements.txt
+mypy==2.4.1
+django-stubs==6.1.2
+djangorestframework-stubs==3.18.2
+types-requests==2.33.0.20261030

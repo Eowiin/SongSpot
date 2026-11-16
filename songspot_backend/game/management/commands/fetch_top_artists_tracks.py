@@ -1,4 +1,6 @@
-from django.core.management.base import BaseCommand
+from typing import Any
+
+from django.core.management.base import BaseCommand, CommandParser
 from game.models import Track
 from game.services import DeezerService
 
@@ -6,7 +8,7 @@ from game.services import DeezerService
 class Command(BaseCommand):
     help = 'Fetch tracks from Deezer top artists and save to database'
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument(
             '--artists',
             type=int,
@@ -26,7 +28,7 @@ class Command(BaseCommand):
             help='Maximum total tracks to add (default: 400)',
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         artist_limit = options['artists']
         tracks_per_artist = max(5, options['tracks_per_artist'])
         max_tracks = options['max_tracks']

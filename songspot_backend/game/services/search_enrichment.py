@@ -2,6 +2,7 @@
 import logging
 import uuid
 from datetime import timedelta
+from typing import Any
 from django.db import transaction
 from django.db.models import Q, Case, When, Value, IntegerField
 from django.utils import timezone
@@ -17,7 +18,7 @@ LEASE = timedelta(seconds=60)
 MAX_ATTEMPTS = 8
 
 
-def schedule(kind, query):
+def schedule(kind: str, query: str) -> None:
     norm = normalize_query(query)[:255]
     if not norm:
         return
@@ -38,12 +39,12 @@ def schedule(kind, query):
         row.save(update_fields=['state','next_attempt_at','query','attempts'])
 
 
-def status(kind, query):
+def status(kind: str, query: str) -> str:
     row = SearchEnrichment.objects.filter(kind=kind, norm_query=normalize_query(query)[:255]).first()
     return row.state if row and row.state != 'legacy' else 'idle'
 
 
-def claim():
+def claim() -> SearchEnrichment | None:
     now = timezone.now()
     with transaction.atomic():
         row = SearchEnrichment.objects.select_for_update(skip_locked=True).filter(
@@ -61,11 +62,12 @@ def claim():
         return row
 
 
-def run_one():
+def run_one() -> bool:
     from . import catalog, typos
     row = claim()
     if not row:
         return False
+    ids: list[str]
     state, error, ids = 'failed', '', []
     try:
         # Direct transport preserves failures; legacy list wrappers do not.
@@ -74,7 +76,8 @@ def run_one():
         if not isinstance(payload, dict) or not isinstance(payload.get('data'), list):
             raise DeezerUnavailable('invalid payload')
         if row.kind == 'tracks':
-            rows = catalog.upsert_tracks(payload['data'])
+            # Tracks or Artists (possibly None) depending on `row.kind`.
+            rows: list[Any] = catalog.upsert_tracks(payload['data'])
             ids = [str(t.pk) for t in rows if typos.resembles(row.query or row.norm_query, t.title, t.artist)]
         else:
             rows = [catalog.upsert_artist(p) for p in payload['data']]

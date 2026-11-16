@@ -1,6 +1,8 @@
 from datetime import timedelta
-from unittest.mock import patch
+from typing import Any, cast
+from unittest.mock import MagicMock, patch
 
+from django.db.models import Q
 from django.utils import timezone
 
 from game.models import Artist, CatalogSetting, Track
@@ -9,7 +11,7 @@ from game.services.matching import normalize_artist, normalize_title
 from game.tests_open_catalog import CatalogTestCase, make_track
 
 
-def payload(ident, title='Track'):
+def payload(ident: int, title: str = 'Track') -> dict[str, Any]:
     return {
         'id': ident, 'title': title, 'preview': 'https://example.test/preview.mp3',
         'artist': {'id': 12, 'name': 'Small Artist'}, 'album': {}, 'rank': 100,
@@ -18,21 +20,21 @@ def payload(ident, title='Track'):
 
 class DirectedRefreshTests(CatalogTestCase):
     @patch('game.services.catalog.DeezerService')
-    def test_fresh_small_catalogue_does_not_reimport(self, service):
+    def test_fresh_small_catalogue_does_not_reimport(self, service: MagicMock) -> None:
         Artist.objects.create(deezer_id=12, name='Small Artist', directed_refreshed_at=timezone.now())
         track = make_track('Only Song', 'Small Artist', deezer_id=1, artist_id=12)
         self.assertEqual(catalog.ensure_artist_tracks(12), [track])
         self.assertFalse(service.return_value.get_artist_top_tracks.called)
         self.assertFalse(service.return_value.get_artist_albums.called)
 
-    def test_empty_catalogue_retries_after_a_provider_outage(self):
+    def test_empty_catalogue_retries_after_a_provider_outage(self) -> None:
         Artist.objects.create(deezer_id=12, name='Small Artist', directed_refreshed_at=timezone.now())
         with patch.object(catalog, '_import_artist_top', return_value=[]) as top, \
              patch.object(catalog, '_import_artist_albums', return_value=[]):
             catalog.ensure_artist_tracks(12)
         top.assert_called_once()
 
-    def test_expired_small_catalogue_refreshes_again(self):
+    def test_expired_small_catalogue_refreshes_again(self) -> None:
         days = CatalogSetting.get_solo().artist_top_ttl_days
         Artist.objects.create(deezer_id=12, name='Small Artist',
                               top_refreshed_at=timezone.now()-timedelta(days=days+1))
@@ -40,10 +42,11 @@ class DirectedRefreshTests(CatalogTestCase):
              patch.object(catalog, '_import_artist_albums', return_value=[]):
             catalog.ensure_artist_tracks(12)
         top.assert_called_once()
-        self.assertGreater(Artist.objects.get(pk=12).top_refreshed_at,
-                           timezone.now()-timedelta(minutes=1))
+        refreshed = Artist.objects.get(pk=12).top_refreshed_at
+        assert refreshed is not None
+        self.assertGreater(refreshed, timezone.now()-timedelta(minutes=1))
 
-    def test_background_top_refresh_does_not_skip_album_discovery(self):
+    def test_background_top_refresh_does_not_skip_album_discovery(self) -> None:
         Artist.objects.create(deezer_id=12, name='Small Artist', top_refreshed_at=timezone.now())
         make_track('Only Song', 'Small Artist', deezer_id=1, artist_id=12)
         with patch.object(catalog, '_import_artist_top', return_value=[]) as top, \
@@ -53,7 +56,7 @@ class DirectedRefreshTests(CatalogTestCase):
         albums.assert_called_once()
         self.assertIsNotNone(Artist.objects.get(pk=12).directed_refreshed_at)
 
-    def test_album_pages_are_persisted_in_one_batch(self):
+    def test_album_pages_are_persisted_in_one_batch(self) -> None:
         from game.services.deezer_service import DeezerService
         service = DeezerService()
         Artist.objects.create(deezer_id=12, name='Small Artist')
@@ -69,11 +72,12 @@ class DirectedRefreshTests(CatalogTestCase):
 
 
 class ExpandedCreditsTests(CatalogTestCase):
-    def test_valid_credit_can_expand_beyond_255_characters(self):
+    def test_valid_credit_can_expand_beyond_255_characters(self) -> None:
         name = ('A & B ' * 42).strip()
         self.assertLessEqual(len(name), 255)
         self.assertGreater(len(normalize_artist(name)), 255)
         artist = catalog.upsert_artist({'id': 12, 'name': name})
+        assert artist is not None
         artist.refresh_from_db()
         self.assertEqual(artist.norm_name, normalize_artist(name))
         tracks = catalog.upsert_tracks([{
@@ -85,8 +89,8 @@ class ExpandedCreditsTests(CatalogTestCase):
 
 
 class SearchCandidateTests(CatalogTestCase):
-    def test_normalized_search_keeps_accents_qualifiers_and_cross_field_matches(self):
+    def test_normalized_search_keeps_accents_qualifiers_and_cross_field_matches(self) -> None:
         track = make_track('Été (Live at Paris)', 'Simon & Garfunkel', deezer_id=1)
         for query in ['ete', 'live paris', 'simon and garfunkel', 'paris garfunkel']:
             with self.subTest(query=query):
-                self.assertIn(track, catalog._candidates(catalog._query_filter(query), query))
+                self.assertIn(track, catalog._candidates(cast(Q, catalog._query_filter(query)), query))

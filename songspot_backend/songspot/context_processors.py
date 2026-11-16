@@ -5,6 +5,9 @@ module — the password reset page in authentication/views.py, for instance —
 also get the header, footer and store links without repeating themselves.
 """
 import os
+from typing import Any
+
+from django.http import HttpRequest
 
 from game.models import CATEGORY_CHOICES
 
@@ -39,7 +42,7 @@ WAVEFORM = [
 ]
 
 
-def site(request):
+def site(request: HttpRequest) -> dict[str, Any]:
     return {
         'play_url': PLAY_URL,
         'support_email': SUPPORT_EMAIL,

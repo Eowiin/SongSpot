@@ -41,5 +41,5 @@ class BugReportAdmin(admin.ModelAdmin):
     readonly_fields = ('created_at',)
 
     @admin.display(description='Message')
-    def summary(self, report):
+    def summary(self, report: BugReport) -> str:
         return report.message[:80]

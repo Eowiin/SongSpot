@@ -30,7 +30,10 @@ since been retired — which is how nine Linkin Park tracks came to sit in Rap
 Français, and Collectif Métissé in Latin Pop.
 """
 
-from django.core.management.base import BaseCommand
+from datetime import timedelta
+from typing import Any
+
+from django.core.management.base import BaseCommand, CommandParser
 from django.db import transaction
 from django.utils import timezone
 
@@ -144,7 +147,7 @@ MAX_PAGES = 5
 class Command(BaseCommand):
     help = 'Refresh category pools from Deezer editorial playlists.'
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument(
             '--category',
             help='Only refresh this category key (e.g. pop, rap_fr).',
@@ -167,7 +170,7 @@ class Command(BaseCommand):
             help='Report what would be imported without writing.',
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         config = CatalogSetting.get_solo()
         only = options.get('category')
         dry_run = options['dry_run']
@@ -201,7 +204,7 @@ class Command(BaseCommand):
             if created:
                 self.stdout.write(f'Created the missing categories: {", ".join(created)}')
 
-        cutoff = timezone.now() - timezone.timedelta(hours=config.playlist_ttl_hours)
+        cutoff = timezone.now() - timedelta(hours=config.playlist_ttl_hours)
 
         totals = {'imported': 0, 'linked': 0, 'rejected': 0}
 
@@ -233,7 +236,7 @@ class Command(BaseCommand):
         ))
 
     @staticmethod
-    def _ensure_playlists(only=None) -> list[str]:
+    def _ensure_playlists(only: str | None = None) -> list[str]:
         """
         Create any category playlist the database does not have yet.
 
@@ -262,7 +265,7 @@ class Command(BaseCommand):
         return True
 
     @staticmethod
-    def _playlist_payloads(deezer, deezer_playlist_id) -> list:
+    def _playlist_payloads(deezer: DeezerService, deezer_playlist_id: int) -> list[dict[str, Any]]:
         """
         Every track of one editorial playlist, however many pages it runs to.
 
@@ -279,7 +282,10 @@ class Command(BaseCommand):
                 break
         return payloads
 
-    def _refresh_one(self, deezer, playlist, sources, dry_run, replace=False) -> dict:
+    def _refresh_one(
+        self, deezer: DeezerService, playlist: Playlist, sources: list[int], dry_run: bool,
+        replace: bool = False,
+    ) -> dict[str, int]:
         counts = {'imported': 0, 'linked': 0, 'rejected': 0}
         payloads = []
         for deezer_playlist_id in sources:
@@ -380,7 +386,7 @@ class Command(BaseCommand):
             link.song_rank = max(best.get(key, 0), link.track.rank or 0)
         PlaylistTrack.objects.bulk_update(links, ['song_rank'], batch_size=500)
 
-    def _enrich_artists(self, deezer, tracks: list) -> None:
+    def _enrich_artists(self, deezer: DeezerService, tracks: list[Track]) -> None:
         """
         Fill in follower counts for the artists we just imported.
 

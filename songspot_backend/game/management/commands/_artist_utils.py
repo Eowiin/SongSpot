@@ -4,6 +4,8 @@ Shared helpers for artist-seeding management commands.
 import time
 from typing import Optional
 
+from django.core.management.base import OutputWrapper
+
 from game.services import DeezerService
 from game.services.catalog import upsert_track
 from game.services.matching import is_variant_title  # re-exported for callers
@@ -41,7 +43,7 @@ def fetch_and_save_artist(
     artist_id: int,
     artist_name: str,
     tracks: int,
-    stdout,
+    stdout: OutputWrapper,
     delay: float = 0.1,
 ) -> dict:
     """

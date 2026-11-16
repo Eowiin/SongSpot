@@ -7,12 +7,12 @@ CAPACITY = {'preview': 40, 'search': 34, 'background': 24}
 WINDOW = 5.0
 
 
-def admit(calls, now, priority):
+def admit(calls: list[float], now: float, priority: str) -> list[float] | None:
     active = [t for t in calls if t > now-WINDOW]
     return active+[now] if len(active) < CAPACITY[priority] else None
 
 
-def reserve(priority='search'):
+def reserve(priority: str = 'search') -> bool:
     if connection.vendor != 'postgresql':
         return False
     try:

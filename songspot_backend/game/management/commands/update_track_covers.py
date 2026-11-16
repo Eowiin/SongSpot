@@ -1,4 +1,6 @@
-from django.core.management.base import BaseCommand
+from typing import Any, cast
+
+from django.core.management.base import BaseCommand, CommandParser
 from game.models import Track
 from game.services import DeezerService
 
@@ -6,14 +8,14 @@ from game.services import DeezerService
 class Command(BaseCommand):
     help = 'Update existing tracks with cover URLs from Deezer API'
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument(
             '--all',
             action='store_true',
             help='Update all tracks, not just those missing cover URLs',
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         update_all = options['all']
         deezer = DeezerService()
 
@@ -29,7 +31,7 @@ class Command(BaseCommand):
         failed = 0
 
         for track in tracks:
-            track_data = deezer.get_track(track.deezer_id)
+            track_data = deezer.get_track(cast(int, track.deezer_id))
 
             if track_data:
                 track_info = deezer.extract_track_info(track_data)

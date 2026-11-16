@@ -10,6 +10,8 @@ and *every* endpoint starts refusing to connect.
 """
 
 import inspect
+from collections.abc import Iterator
+from typing import Any
 
 from asgiref.sync import SyncToAsync
 from channels.db import DatabaseSyncToAsync
@@ -22,7 +24,7 @@ class ConsumerDatabaseWrapperTests(SimpleTestCase):
     CONSUMERS = (consumers.MatchmakingConsumer, consumers.DuelConsumer)
 
     @staticmethod
-    def _raw_members(klass):
+    def _raw_members(klass: type) -> Iterator[tuple[str, Any]]:
         """
         Every attribute of `klass`, inherited ones included, unwrapped.
 
@@ -42,7 +44,7 @@ class ConsumerDatabaseWrapperTests(SimpleTestCase):
             except AttributeError:
                 continue
 
-    def test_every_sync_helper_closes_its_connection(self):
+    def test_every_sync_helper_closes_its_connection(self) -> None:
         offenders = [
             f'{klass.__name__}.{name}'
             for klass in self.CONSUMERS
@@ -57,7 +59,7 @@ class ConsumerDatabaseWrapperTests(SimpleTestCase):
             'channels.db.database_sync_to_async, not asgiref sync_to_async',
         )
 
-    def test_the_guard_can_actually_see_the_helpers(self):
+    def test_the_guard_can_actually_see_the_helpers(self) -> None:
         # Without this, a refactor that renamed or removed every helper would
         # leave the test above passing over an empty set and guarding nothing.
         wrapped = {

@@ -1,5 +1,6 @@
 import hashlib
 import logging
+from typing import cast
 
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.forms import SetPasswordForm
@@ -8,8 +9,9 @@ from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.http import HttpResponse
+from django.http import HttpRequest, HttpResponse, QueryDict
 from rest_framework import status
+from rest_framework.request import Request
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -25,7 +27,7 @@ from django.views import View
 from django.core.mail import EmailMessage, send_mail
 import json
 from urllib.parse import urlencode
-from .models import BugReport, UserDevicePushToken
+from .models import BugReport, User as UserModel, UserDevicePushToken
 from .serializers import (
     BugReportSerializer,
     UserRegistrationSerializer,
@@ -47,7 +49,7 @@ User = get_user_model()
 logger = logging.getLogger(__name__)
 
 
-def _blacklist_outstanding_tokens(user):
+def _blacklist_outstanding_tokens(user: UserModel) -> None:
     outstanding = OutstandingToken.objects.filter(user=user)
     for token in outstanding:
         try:
@@ -57,7 +59,7 @@ def _blacklist_outstanding_tokens(user):
             BlacklistedToken.objects.get_or_create(token=token)
 
 
-def _password_reset_copy(lang):
+def _password_reset_copy(lang: str) -> dict[str, str]:
     if lang == 'fr':
         return {
             'email_subject': 'Reinitialisez votre mot de passe SongSpot',
@@ -110,7 +112,7 @@ def _password_reset_copy(lang):
     }
 
 
-def _build_password_reset_url(request, uidb64, token, lang):
+def _build_password_reset_url(request: Request, uidb64: str, token: str, lang: str) -> str:
     path = reverse(
         'password_reset_confirm',
         kwargs={'uidb64': uidb64, 'token': token},
@@ -126,12 +128,14 @@ def _build_password_reset_url(request, uidb64, token, lang):
     return f'{reset_url}{separator}{query}'
 
 
-def _password_reset_email_cooldown_key(email):
+def _password_reset_email_cooldown_key(email: str) -> str:
     digest = hashlib.sha256(email.encode('utf-8')).hexdigest()
     return f'password_reset_email:{digest}'
 
 
-def _set_password_form(user, data, copy):
+def _set_password_form(
+    user: UserModel, data: QueryDict | None, copy: dict[str, str],
+) -> SetPasswordForm:
     form = SetPasswordForm(user, data=data)
     form.fields['new_password1'].label = copy['new_password_label']
     form.fields['new_password2'].label = copy['confirm_password_label']
@@ -152,7 +156,7 @@ def _set_password_form(user, data, copy):
     return form
 
 
-def _get_user_from_uid(uidb64):
+def _get_user_from_uid(uidb64: str) -> UserModel | None:
     try:
         user_id = force_str(urlsafe_base64_decode(uidb64))
         return User.objects.get(pk=user_id)
@@ -180,7 +184,7 @@ class RegisterView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [AuthRateThrottle]
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
             try:
@@ -233,7 +237,7 @@ class LoginView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [AuthRateThrottle]
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         serializer = LoginSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -276,7 +280,7 @@ class PasswordResetRequestView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [PasswordResetRateThrottle]
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         serializer = PasswordResetRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -324,7 +328,7 @@ class PasswordResetRequestView(APIView):
         )
 
 
-def _email_bug_report(report, request):
+def _email_bug_report(report: BugReport, request: Request) -> None:
     """Send one bug report to BUG_REPORT_EMAIL, with what is needed to reproduce it."""
     user = report.user
     body = '\n'.join([
@@ -369,7 +373,7 @@ class BugReportView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [BugReportRateThrottle]
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         serializer = BugReportSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -410,8 +414,10 @@ class RefreshTokenView(APIView):
     """
     permission_classes = [AllowAny]
 
-    def post(self, request):
-        refresh_token = request.data.get('refresh')
+    def post(self, request: Request) -> Response:
+        # A JSON array body makes request.data a list, and .get() then raises
+        # AttributeError (a 500) instead of answering 400. Reported, not fixed.
+        refresh_token = request.data.get('refresh')  # type: ignore[union-attr]
 
         if not refresh_token:
             return error_response(
@@ -453,9 +459,10 @@ class LogoutView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         try:
-            refresh_token = request.data.get('refresh')
+            # Same list-body AttributeError as RefreshTokenView.post.
+            refresh_token = request.data.get('refresh')  # type: ignore[union-attr]
 
             if not refresh_token:
                 return error_response(
@@ -490,7 +497,7 @@ class UserProfileView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
+    def get(self, request: Request) -> Response:
         serializer = UserProfileSerializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -514,7 +521,7 @@ class PushDeviceRegisterView(APIView):
 
     permission_classes = [IsAuthenticated]
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         serializer = PushDeviceRegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -540,7 +547,8 @@ class PushDeviceRegisterView(APIView):
 
             if device.device_id:
                 UserDevicePushToken.objects.filter(
-                    user=request.user,
+                    # IsAuthenticated guarantees a real User here.
+                    user=cast(UserModel, request.user),
                     platform=device.platform,
                     device_id=device.device_id,
                     is_active=True,
@@ -566,13 +574,14 @@ class PushDeviceUnregisterView(APIView):
 
     permission_classes = [IsAuthenticated]
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         serializer = PushDeviceUnregisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         token = serializer.validated_data['token']
 
         updated = UserDevicePushToken.objects.filter(
-            user=request.user,
+            # IsAuthenticated guarantees a real User here.
+            user=cast(UserModel, request.user),
             token=token,
             is_active=True,
         ).update(is_active=False)
@@ -596,14 +605,15 @@ class ChangeEmailView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         serializer = ChangeEmailSerializer(
             data=request.data,
             context={'user': request.user},
         )
         serializer.is_valid(raise_exception=True)
 
-        user = request.user
+        # IsAuthenticated guarantees a real User here.
+        user = cast(UserModel, request.user)
         if not user.check_password(serializer.validated_data['current_password']):
             return error_response(
                 code=ErrorCode.INVALID_PASSWORD,
@@ -635,11 +645,12 @@ class ChangePasswordView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         serializer = ChangePasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        user = request.user
+        # IsAuthenticated guarantees a real User here.
+        user = cast(UserModel, request.user)
         if not user.check_password(serializer.validated_data['current_password']):
             return error_response(
                 code=ErrorCode.INVALID_CURRENT_PASSWORD,
@@ -669,11 +680,12 @@ class DataExportView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
+    def get(self, request: Request) -> HttpResponse:
         from django.db.models import Q
         from game.models import DuelMatch, FavouriteArtist, GameScore, UserBest, UserElo
 
-        user = request.user
+        # IsAuthenticated guarantees a real User here.
+        user = cast(UserModel, request.user)
 
         game_scores = list(
             GameScore.objects.filter(user=user).values(
@@ -766,7 +778,7 @@ class DeleteAccountView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
-    def delete(self, request):
+    def delete(self, request: Request) -> Response:
         serializer = DeleteAccountSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -785,7 +797,15 @@ class DeleteAccountView(APIView):
 
 
 class PasswordResetConfirmPageView(View):
-    def _render_page(self, request, *, uidb64, token, form=None, success=False):
+    def _render_page(
+        self,
+        request: HttpRequest,
+        *,
+        uidb64: str,
+        token: str,
+        form: SetPasswordForm | None = None,
+        success: bool = False,
+    ) -> HttpResponse:
         lang = _normalize_locale(
             request.POST.get('lang')
             or request.GET.get('lang')
@@ -797,7 +817,8 @@ class PasswordResetConfirmPageView(View):
 
         if validlink and form is None and not success:
             with translation.override(lang):
-                form = _set_password_form(user, None, copy)
+                # validlink is only True when user is not None.
+                form = _set_password_form(cast(UserModel, user), None, copy)
 
         return render(
             request,
@@ -812,10 +833,10 @@ class PasswordResetConfirmPageView(View):
             },
         )
 
-    def get(self, request, uidb64, token):
+    def get(self, request: HttpRequest, uidb64: str, token: str) -> HttpResponse:
         return self._render_page(request, uidb64=uidb64, token=token)
 
-    def post(self, request, uidb64, token):
+    def post(self, request: HttpRequest, uidb64: str, token: str) -> HttpResponse:
         lang = _normalize_locale(
             request.POST.get('lang')
             or request.GET.get('lang')
